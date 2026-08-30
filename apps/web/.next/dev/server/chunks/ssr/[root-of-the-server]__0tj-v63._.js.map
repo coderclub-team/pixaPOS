@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 10, "column": 0}, "map": {"version":3,"sources":["file:///Users/arul/Projects/pixaPOS/apps/web/app/page.tsx"],"sourcesContent":["export default function HomePage() {\n  return (\n    <main className=\"min-h-screen bg-white p-6\">\n      <h1 className=\"text-2xl font-semibold text-zinc-900\">pixaPOS Web</h1>\n      <p className=\"mt-2 text-zinc-600\">Main web app remains separate from the cloned template project.</p>\n    </main>\n  )\n}\n"],"names":["HomePage","className"],"mappings":";;;;;;AAAe,SAASA;IACtB,qBACE,odAAC;QAAKC,WAAU;;0BACd,odAAC;gBAAGA,WAAU;0BAAuC;;;;;;0BACrD,odAAC;gBAAEA,WAAU;0BAAqB;;;;;;;;;;;;AAGxC"}}]
+}
