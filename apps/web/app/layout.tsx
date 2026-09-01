@@ -1,16 +1,55 @@
-import type { Metadata } from 'next';
-import type { ReactNode } from 'react';
+import Providers from '@/components/layout/providers';
+import { fontVariables } from '@/components/themes/font.config';
+import { DEFAULT_THEME, THEMES } from '@/components/themes/theme.config';
+import ThemeProvider from '@/components/themes/theme-provider';
+import { cn } from '@/lib/utils';
+import type { Metadata, Viewport } from 'next';
+import { cookies } from 'next/headers';
 import '../styles/globals.css';
+
+const META_THEME_COLORS = {
+  light: '#ffffff',
+  dark: '#09090b'
+};
 
 export const metadata: Metadata = {
   title: 'pixaPOS',
-  description: 'pixaPOS web app',
+  description: 'pixaPOS web app'
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: META_THEME_COLORS.light },
+    { media: '(prefers-color-scheme: dark)', color: META_THEME_COLORS.dark }
+  ]
+};
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const cookieStore = await cookies();
+  const activeThemeValue = cookieStore.get('active_theme')?.value;
+  const isValidTheme = THEMES.some((t) => t.value === activeThemeValue);
+  const themeToApply = isValidTheme ? activeThemeValue! : DEFAULT_THEME;
+
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang='en' suppressHydrationWarning data-theme={themeToApply}>
+      <body
+        className={cn(
+          'bg-background overflow-x-hidden overscroll-none font-sans antialiased',
+          fontVariables
+        )}
+      >
+        <ThemeProvider
+          attribute='class'
+          defaultTheme='system'
+          enableSystem
+          disableTransitionOnChange
+          enableColorScheme
+        >
+          <Providers activeThemeValue={themeToApply}>
+            {children}
+          </Providers>
+        </ThemeProvider>
+      </body>
     </html>
   );
 }

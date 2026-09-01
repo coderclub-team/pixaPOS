@@ -19,6 +19,8 @@ export default function Providers({
         <ClerkProvider
           signInUrl={`${authBasePath}/sign-in`}
           signUpUrl={`${authBasePath}/sign-up`}
+          afterSignOutUrl={`${authBasePath}/sign-in`}
+          
           signInFallbackRedirectUrl='/template/dashboard/overview'
           signUpFallbackRedirectUrl='/template/dashboard/overview'
           appearance={{
