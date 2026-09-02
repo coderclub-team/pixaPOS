@@ -1,4 +1,8 @@
 import PageContainer from '@/components/layout/page-container';
+import { AreaGraph } from '@/features/overview/components/area-graph';
+import { BarGraph } from '@/features/overview/components/bar-graph';
+import { PieGraph } from '@/features/overview/components/pie-graph';
+import { RecentSales } from '@/features/overview/components/recent-sales';
 import { Badge } from '@pixa/ui/base-ui/badge';
 import {
   Card,
@@ -112,13 +116,13 @@ export default function OverViewLayout({
           </Card>
         </div>
         <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-7'>
-          <div className='col-span-4'> {area_stats}</div>
+          <div className='col-span-4'>{area_stats ?? <AreaGraph />}</div>
           <div className='col-span-4 md:col-span-3'>
-            {/* sales arallel routes */}
-            {sales}
+            {/* Sales parallel route with direct fallback for slot mismatch. */}
+            {sales ?? <RecentSales />}
           </div>
-          <div className='col-span-4'>{bar_stats}</div>
-          <div className='col-span-4 min-h-0 md:col-span-3'>{pie_stats}</div>
+          <div className='col-span-4'>{bar_stats ?? <BarGraph />}</div>
+          <div className='col-span-4 min-h-0 md:col-span-3'>{pie_stats ?? <PieGraph />}</div>
         </div>
       </div>
     </PageContainer>

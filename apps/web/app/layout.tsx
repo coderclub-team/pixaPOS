@@ -1,8 +1,8 @@
 import Providers from '@/components/layout/providers';
-import { fontVariables } from '@/components/themes/font.config';
-import { DEFAULT_THEME, THEMES } from '@/components/themes/theme.config';
-import ThemeProvider from '@/components/themes/theme-provider';
-import { cn } from '@/lib/utils';
+import { fontVariables } from '@/components/font.config';
+import { DEFAULT_THEME, THEMES } from '@pixa/ui/themes/theme.config';
+import ThemeProvider from '@pixa/ui/themes/theme-provider';
+import { cn } from '@pixa/ui/lib/utils';
 import type { Metadata, Viewport } from 'next';
 import { cookies } from 'next/headers';
 import '../styles/globals.css';

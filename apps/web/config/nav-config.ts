@@ -1,4 +1,4 @@
-import { NavGroup } from '@/types';
+import type { NavGroup } from '@pixa/ui/types';
 
 export const navGroups: NavGroup[] = [
   {

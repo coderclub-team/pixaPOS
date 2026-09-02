@@ -1,7 +1,6 @@
 packages:
   - 'apps/*'
   - 'packages/*'
-  - 'template'
 allowBuilds:
   '@sentry/cli': true
   sharp: true

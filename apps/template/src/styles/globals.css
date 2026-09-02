@@ -2,6 +2,9 @@
 
 @import 'tw-animate-css';
 
+/* Monorepo: include shared UI package sources so Tailwind generates classes used there (charts, primitives). */
+@source '../../../../packages/ui/**/*.{ts,tsx}';
+
 @custom-variant dark (&:is(.dark *));
 
 /* Base UI exposes orientation as data-orientation="…"; the base-nova

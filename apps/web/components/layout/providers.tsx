@@ -1,7 +1,7 @@
 'use client';
 import { ClerkProvider } from '@clerk/nextjs';
 import React from 'react';
-import { ActiveThemeProvider } from '../themes/active-theme';
+import { ActiveThemeProvider } from '@pixa/ui/themes/active-theme';
 
 export default function Providers({
   activeThemeValue,
@@ -18,6 +18,7 @@ export default function Providers({
         afterSignOutUrl='/auth/sign-in'
         signInFallbackRedirectUrl='/dashboard'
         signUpFallbackRedirectUrl='/dashboard'
+        
         appearance={{
           variables: {
             colorPrimary: 'var(--primary)',

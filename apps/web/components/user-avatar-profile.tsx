@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@pixa/ui/base-ui/avatar';
 
 interface UserAvatarProfileProps {
   className?: string;

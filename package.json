@@ -2,11 +2,6 @@
   "name": "pixaPOS",
   "private": true,
   "version": "0.1.0",
-  "workspaces": [
-    "apps/*",
-    "packages/*",
-    "template"
-  ],
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
@@ -15,7 +10,7 @@
     "dev:web": "pnpm --filter @pixa/web dev",
     "dev:admin": "pnpm --filter @pixa/admin dev",
     "dev:mobile": "pnpm --filter @pixa/mobile dev",
-    "dev:template": "pnpm --filter next-shadcn-dashboard-starter dev"
+    "dev:template": "pnpm --filter @pixa/template dev"
   },
   "devDependencies": {
     "turbo": "^2.10.12",

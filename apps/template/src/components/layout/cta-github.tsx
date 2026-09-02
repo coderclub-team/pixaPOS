@@ -1,25 +1,20 @@
-import { Button } from '@pixa/ui/base-ui/button';
+import { buttonVariants } from '@pixa/ui/base-ui/button';
 import { Icons } from '@pixa/ui/icons';
+import { cn } from '@pixa/ui/lib/utils';
 
 export default function CtaGithub() {
   return (
-    <Button
-      variant='ghost'
-      size='sm'
-      className='group hidden sm:flex'
-      nativeButton={false}
+    <a
       aria-label='View on GitHub'
-      render={
-        <a
-          aria-label='View on GitHub'
-          href='https://github.com/Kiranism/next-shadcn-dashboard-starter'
-          rel='noopener noreferrer'
-          target='_blank'
-          className='text-muted-foreground hover:text-foreground transition-colors duration-300'
-        />
-      }
+      href='https://github.com/Kiranism/next-shadcn-dashboard-starter'
+      rel='noopener noreferrer'
+      target='_blank'
+      className={cn(
+        buttonVariants({ variant: 'ghost', size: 'sm' }),
+        'group text-muted-foreground hover:text-foreground hidden transition-colors duration-300 sm:flex'
+      )}
     >
       <Icons.github className='transition-transform duration-300 group-hover:animate-bounce' />
-    </Button>
+    </a>
   );
 }

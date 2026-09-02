@@ -1,7 +1,7 @@
 import React from 'react';
-import { SidebarTrigger } from '../ui/sidebar';
-import { Separator } from '../ui/separator';
-import { ThemeModeToggle } from '../themes/theme-mode-toggle';
+import { SidebarTrigger } from '@pixa/ui/base-ui/sidebar';
+import { Separator } from '@pixa/ui/base-ui/separator';
+import { ThemeModeToggle } from '@pixa/ui/themes/theme-mode-toggle';
 
 export default function Header() {
   return (

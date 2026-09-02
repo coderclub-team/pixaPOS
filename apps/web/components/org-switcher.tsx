@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth, useOrganizationList } from '@clerk/nextjs';
-import { Icons } from '@/components/icons';
+import { Icons } from '@pixa/ui/icons';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 
@@ -14,13 +14,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
+} from '@pixa/ui/base-ui/dropdown-menu';
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar
-} from '@/components/ui/sidebar';
+} from '@pixa/ui/base-ui/sidebar';
 import { useEffect } from 'react';
 
 export function OrgSwitcher() {
