@@ -1,7 +1,13 @@
 packages:
   - 'apps/*'
   - 'packages/*'
-  - 'template'
+overrides:
+  next: 16.2.12
+  react: 19.2.4
+  react-dom: 19.2.4
+  '@types/react': 19.2.18
+  '@types/react-dom': 19.2.3
+  postcss: 8.5.25
 allowBuilds:
   '@sentry/cli': true
   sharp: true
