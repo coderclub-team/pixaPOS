@@ -13,48 +13,171 @@
     },
     "./globals.css": "./globals.css",
     "./lib/utils": "./lib/utils.ts",
-    "./lib/*": { "types": "./lib/*.ts", "default": "./lib/*.ts" },
-    "./base-ui/avatar": { "types": "./base-ui/avatar.tsx", "default": "./base-ui/avatar.tsx" },
-    "./base-ui/button": { "types": "./base-ui/button.tsx", "default": "./base-ui/button.tsx" },
-    "./base-ui/collapsible": { "types": "./base-ui/collapsible.tsx", "default": "./base-ui/collapsible.tsx" },
-    "./base-ui/dropdown-menu": { "types": "./base-ui/dropdown-menu.tsx", "default": "./base-ui/dropdown-menu.tsx" },
-    "./base-ui/input": { "types": "./base-ui/input.tsx", "default": "./base-ui/input.tsx" },
-    "./base-ui/separator": { "types": "./base-ui/separator.tsx", "default": "./base-ui/separator.tsx" },
-    "./base-ui/sheet": { "types": "./base-ui/sheet.tsx", "default": "./base-ui/sheet.tsx" },
-    "./base-ui/sidebar": { "types": "./base-ui/sidebar.tsx", "default": "./base-ui/sidebar.tsx" },
-    "./base-ui/skeleton": { "types": "./base-ui/skeleton.tsx", "default": "./base-ui/skeleton.tsx" },
-    "./base-ui/sonner": { "types": "./base-ui/sonner.tsx", "default": "./base-ui/sonner.tsx" },
-    "./base-ui/tooltip": { "types": "./base-ui/tooltip.tsx", "default": "./base-ui/tooltip.tsx" },
-    "./base-ui/*": { "types": "./base-ui/*.tsx", "default": "./base-ui/*.tsx" },
+    "./lib/*": {
+      "types": "./lib/*.ts",
+      "default": "./lib/*.ts"
+    },
+    "./base-ui/avatar": {
+      "types": "./base-ui/avatar.tsx",
+      "default": "./base-ui/avatar.tsx"
+    },
+    "./base-ui/button": {
+      "types": "./base-ui/button.tsx",
+      "default": "./base-ui/button.tsx"
+    },
+    "./base-ui/collapsible": {
+      "types": "./base-ui/collapsible.tsx",
+      "default": "./base-ui/collapsible.tsx"
+    },
+    "./base-ui/dropdown-menu": {
+      "types": "./base-ui/dropdown-menu.tsx",
+      "default": "./base-ui/dropdown-menu.tsx"
+    },
+    "./base-ui/input": {
+      "types": "./base-ui/input.tsx",
+      "default": "./base-ui/input.tsx"
+    },
+    "./base-ui/separator": {
+      "types": "./base-ui/separator.tsx",
+      "default": "./base-ui/separator.tsx"
+    },
+    "./base-ui/sheet": {
+      "types": "./base-ui/sheet.tsx",
+      "default": "./base-ui/sheet.tsx"
+    },
+    "./base-ui/sidebar": {
+      "types": "./base-ui/sidebar.tsx",
+      "default": "./base-ui/sidebar.tsx"
+    },
+    "./base-ui/skeleton": {
+      "types": "./base-ui/skeleton.tsx",
+      "default": "./base-ui/skeleton.tsx"
+    },
+    "./base-ui/sonner": {
+      "types": "./base-ui/sonner.tsx",
+      "default": "./base-ui/sonner.tsx"
+    },
+    "./base-ui/tooltip": {
+      "types": "./base-ui/tooltip.tsx",
+      "default": "./base-ui/tooltip.tsx"
+    },
+    "./base-ui/*": {
+      "types": "./base-ui/*.tsx",
+      "default": "./base-ui/*.tsx"
+    },
     "./themes": "./themes/globals.css",
-    "./themes/active-theme": { "types": "./themes/active-theme.tsx", "default": "./themes/active-theme.tsx" },
-    "./themes/theme.config": { "types": "./themes/theme.config.ts", "default": "./themes/theme.config.ts" },
-    "./themes/font.config": { "types": "./themes/font.config.ts", "default": "./themes/font.config.ts" },
-    "./themes/theme-provider": { "types": "./themes/theme-provider.tsx", "default": "./themes/theme-provider.tsx" },
-    "./themes/theme-mode-toggle": { "types": "./themes/theme-mode-toggle.tsx", "default": "./themes/theme-mode-toggle.tsx" },
-    "./themes/theme-selector": { "types": "./themes/theme-selector.tsx", "default": "./themes/theme-selector.tsx" },
-    "./themes/*": { "types": "./themes/*", "default": "./themes/*" },
-    "./themes/themes/*": { "types": "./themes/themes/*", "default": "./themes/themes/*" },
-    "./hooks/use-breadcrumbs": { "types": "./hooks/use-breadcrumbs.tsx", "default": "./hooks/use-breadcrumbs.tsx" },
-    "./hooks/use-callback-ref": { "types": "./hooks/use-callback-ref.tsx", "default": "./hooks/use-callback-ref.tsx" },
-    "./hooks/use-controllable-state": { "types": "./hooks/use-controllable-state.tsx", "default": "./hooks/use-controllable-state.tsx" },
-    "./hooks/use-data-table": { "types": "./hooks/use-data-table.ts", "default": "./hooks/use-data-table.ts" },
-    "./hooks/use-debounce": { "types": "./hooks/use-debounce.tsx", "default": "./hooks/use-debounce.tsx" },
-    "./hooks/use-debounced-callback": { "types": "./hooks/use-debounced-callback.ts", "default": "./hooks/use-debounced-callback.ts" },
-    "./hooks/use-media-query": { "types": "./hooks/use-media-query.ts", "default": "./hooks/use-media-query.ts" },
-    "./hooks/use-mobile": { "types": "./hooks/use-mobile.tsx", "default": "./hooks/use-mobile.tsx" },
-    "./hooks/use-nav": { "types": "./hooks/use-nav.ts", "default": "./hooks/use-nav.ts" },
-    "./hooks/use-stepper": { "types": "./hooks/use-stepper.tsx", "default": "./hooks/use-stepper.tsx" },
-    "./hooks/*": { "types": "./hooks/*.ts", "default": "./hooks/*.ts" },
-    "./config/*": { "types": "./config/*.ts", "default": "./config/*.ts" },
-    "./types": { "types": "./types/index.ts", "default": "./types/index.ts" },
-    "./types/*": { "types": "./types/*.ts", "default": "./types/*.ts" },
-    "./icons": { "types": "./icons.tsx", "default": "./icons.tsx" },
-    "./layout/*": { "types": "./layout/*.tsx", "default": "./layout/*.tsx" },
-    "./breadcrumbs": { "types": "./breadcrumbs.tsx", "default": "./breadcrumbs.tsx" },
-    "./search-input": { "types": "./search-input.tsx", "default": "./search-input.tsx" },
-    "./org-switcher": { "types": "./org-switcher.tsx", "default": "./org-switcher.tsx" },
-    "./user-avatar-profile": { "types": "./user-avatar-profile.tsx", "default": "./user-avatar-profile.tsx" }
+    "./themes/active-theme": {
+      "types": "./themes/active-theme.tsx",
+      "default": "./themes/active-theme.tsx"
+    },
+    "./themes/theme.config": {
+      "types": "./themes/theme.config.ts",
+      "default": "./themes/theme.config.ts"
+    },
+    "./themes/font.config": {
+      "types": "./themes/font.config.ts",
+      "default": "./themes/font.config.ts"
+    },
+    "./themes/theme-provider": {
+      "types": "./themes/theme-provider.tsx",
+      "default": "./themes/theme-provider.tsx"
+    },
+    "./themes/theme-mode-toggle": {
+      "types": "./themes/theme-mode-toggle.tsx",
+      "default": "./themes/theme-mode-toggle.tsx"
+    },
+    "./themes/theme-selector": {
+      "types": "./themes/theme-selector.tsx",
+      "default": "./themes/theme-selector.tsx"
+    },
+    "./themes/*": {
+      "types": "./themes/*",
+      "default": "./themes/*"
+    },
+    "./themes/themes/*": {
+      "types": "./themes/themes/*",
+      "default": "./themes/themes/*"
+    },
+    "./hooks/use-breadcrumbs": {
+      "types": "./hooks/use-breadcrumbs.tsx",
+      "default": "./hooks/use-breadcrumbs.tsx"
+    },
+    "./hooks/use-callback-ref": {
+      "types": "./hooks/use-callback-ref.tsx",
+      "default": "./hooks/use-callback-ref.tsx"
+    },
+    "./hooks/use-controllable-state": {
+      "types": "./hooks/use-controllable-state.tsx",
+      "default": "./hooks/use-controllable-state.tsx"
+    },
+    "./hooks/use-data-table": {
+      "types": "./hooks/use-data-table.ts",
+      "default": "./hooks/use-data-table.ts"
+    },
+    "./hooks/use-debounce": {
+      "types": "./hooks/use-debounce.tsx",
+      "default": "./hooks/use-debounce.tsx"
+    },
+    "./hooks/use-debounced-callback": {
+      "types": "./hooks/use-debounced-callback.ts",
+      "default": "./hooks/use-debounced-callback.ts"
+    },
+    "./hooks/use-media-query": {
+      "types": "./hooks/use-media-query.ts",
+      "default": "./hooks/use-media-query.ts"
+    },
+    "./hooks/use-mobile": {
+      "types": "./hooks/use-mobile.tsx",
+      "default": "./hooks/use-mobile.tsx"
+    },
+    "./hooks/use-nav": {
+      "types": "./hooks/use-nav.ts",
+      "default": "./hooks/use-nav.ts"
+    },
+    "./hooks/use-stepper": {
+      "types": "./hooks/use-stepper.tsx",
+      "default": "./hooks/use-stepper.tsx"
+    },
+    "./hooks/*": {
+      "types": "./hooks/*.ts",
+      "default": "./hooks/*.ts"
+    },
+    "./config/*": {
+      "types": "./config/*.ts",
+      "default": "./config/*.ts"
+    },
+    "./types": {
+      "types": "./types/index.ts",
+      "default": "./types/index.ts"
+    },
+    "./types/*": {
+      "types": "./types/*.ts",
+      "default": "./types/*.ts"
+    },
+    "./icons": {
+      "types": "./icons.tsx",
+      "default": "./icons.tsx"
+    },
+    "./layout/*": {
+      "types": "./layout/*.tsx",
+      "default": "./layout/*.tsx"
+    },
+    "./breadcrumbs": {
+      "types": "./breadcrumbs.tsx",
+      "default": "./breadcrumbs.tsx"
+    },
+    "./search-input": {
+      "types": "./search-input.tsx",
+      "default": "./search-input.tsx"
+    },
+    "./org-switcher": {
+      "types": "./org-switcher.tsx",
+      "default": "./org-switcher.tsx"
+    },
+    "./user-avatar-profile": {
+      "types": "./user-avatar-profile.tsx",
+      "default": "./user-avatar-profile.tsx"
+    }
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -62,7 +185,6 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@shadcn/react": "^0.2.1",
     "@radix-ui/react-avatar": "^1.2.6",
     "@radix-ui/react-collapsible": "^1.1.20",
     "@radix-ui/react-dialog": "^1.1.23",
@@ -70,6 +192,7 @@
     "@radix-ui/react-separator": "^1.1.15",
     "@radix-ui/react-slot": "^1.3.3",
     "@radix-ui/react-tooltip": "^1.2.16",
+    "@shadcn/react": "^0.2.1",
     "@tabler/icons-react": "^3.40.0",
     "@tanstack/react-form": "^1.28.5",
     "@tanstack/react-table": "^8.21.3",
@@ -86,7 +209,6 @@
     "react-day-picker": "^10.0.1",
     "react-dropzone": "^14.4.1",
     "react-resizable-panels": "^2.1.7",
-    "recharts": "3.8.0",
     "sonner": "^1.7.4",
     "tailwind-merge": "^3.5.0",
     "uuid": "^11.1.0",
