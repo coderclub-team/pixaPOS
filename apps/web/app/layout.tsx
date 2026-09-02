@@ -1,54 +1,90 @@
-import Providers from '@/components/layout/providers';
-import { fontVariables } from '@/components/font.config';
-import { DEFAULT_THEME, THEMES } from '@pixa/ui/themes/theme.config';
-import ThemeProvider from '@pixa/ui/themes/theme-provider';
-import { cn } from '@pixa/ui/lib/utils';
-import type { Metadata, Viewport } from 'next';
-import { cookies } from 'next/headers';
-import '../styles/globals.css';
+import Providers from "@/components/layout/providers";
+import { Toaster } from "@pixa/ui/base-ui/sonner";
+import { fontVariables } from "@pixa/ui/themes/font.config";
+import { DEFAULT_THEME, THEMES } from "@pixa/ui/themes/theme.config";
+import ThemeProvider from "@pixa/ui/themes/theme-provider";
+import { cn } from "@pixa/ui/lib/utils";
+import type { Metadata, Viewport } from "next";
+import { cookies } from "next/headers";
+import NextTopLoader from "nextjs-toploader";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
+import "../styles/globals.css";
 
 const META_THEME_COLORS = {
-  light: '#ffffff',
-  dark: '#09090b'
+  light: "#ffffff",
+  dark: "#09090b",
 };
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
 export const metadata: Metadata = {
-  title: 'pixaPOS',
-  description: 'pixaPOS web app'
+  metadataBase: new URL(APP_URL),
+  title: {
+    default: "Shadcn Dashboard - Next.js Admin Dashboard Template",
+    template: "%s | Shadcn Dashboard",
+  },
+  description:
+    "Free, open source admin dashboard starter built with Next.js 16, shadcn/ui, Tailwind CSS, and TypeScript.",
+  openGraph: {
+    title: "Shadcn Dashboard - Next.js Admin Dashboard Template",
+    description:
+      "Free, open source admin dashboard starter built with Next.js 16, shadcn/ui, Tailwind CSS, and TypeScript.",
+    siteName: "Shadcn Dashboard",
+    type: "website",
+    images: [
+      {
+        url: "/shadcn-dashboard.png",
+        width: 3200,
+        height: 1600,
+        alt: "Shadcn Dashboard overview page",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Shadcn Dashboard - Next.js Admin Dashboard Template",
+    description:
+      "Free, open source admin dashboard starter built with Next.js 16, shadcn/ui, Tailwind CSS, and TypeScript.",
+    images: ["/shadcn-dashboard.png"],
+  },
 };
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: META_THEME_COLORS.light },
-    { media: '(prefers-color-scheme: dark)', color: META_THEME_COLORS.dark }
-  ]
+    { media: "(prefers-color-scheme: light)", color: META_THEME_COLORS.light },
+    { media: "(prefers-color-scheme: dark)", color: META_THEME_COLORS.dark },
+  ],
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
-  const activeThemeValue = cookieStore.get('active_theme')?.value;
+  const activeThemeValue = cookieStore.get("active_theme")?.value;
   const isValidTheme = THEMES.some((t) => t.value === activeThemeValue);
   const themeToApply = isValidTheme ? activeThemeValue! : DEFAULT_THEME;
 
   return (
-    <html lang='en' suppressHydrationWarning data-theme={themeToApply}>
+    <html lang="en" suppressHydrationWarning data-theme={themeToApply}>
       <body
         className={cn(
-          'bg-background overflow-x-hidden overscroll-none font-sans antialiased',
-          fontVariables
+          "bg-background overflow-x-hidden overscroll-none font-sans antialiased",
+          fontVariables,
         )}
       >
-        <ThemeProvider
-          attribute='class'
-          defaultTheme='system'
-          enableSystem
-          disableTransitionOnChange
-          enableColorScheme
-        >
-          <Providers activeThemeValue={themeToApply}>
-            {children}
-          </Providers>
-        </ThemeProvider>
+        <NextTopLoader color="var(--primary)" showSpinner={false} />
+        <NuqsAdapter>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+            enableColorScheme
+          >
+            <Providers activeThemeValue={themeToApply}>
+              <Toaster />
+              {children}
+            </Providers>
+          </ThemeProvider>
+        </NuqsAdapter>
       </body>
     </html>
   );

@@ -1,5 +1,5 @@
-'use client';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@pixa/ui/base-ui/collapsible';
+"use client";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@pixa/ui/base-ui/collapsible";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,8 +7,8 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from '@pixa/ui/base-ui/dropdown-menu';
+  DropdownMenuTrigger,
+} from "@pixa/ui/base-ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -22,32 +22,40 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-  SidebarRail
-} from '@pixa/ui/base-ui/sidebar';
-import { UserAvatarProfile } from '@/components/user-avatar-profile';
-import { navGroups } from '@/config/nav-config';
-import { useClerk, useOrganization, useUser } from '@clerk/nextjs';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import * as React from 'react';
-import { Icons } from '@pixa/ui/icons';
-import { OrgSwitcher } from '../org-switcher';
+  SidebarRail,
+} from "@pixa/ui/base-ui/sidebar";
+import { UserAvatarProfile } from "@pixa/ui/user-avatar-profile";
+import { navGroups } from "@pixa/ui/config/nav-config";
+import { useMediaQuery } from "@pixa/ui/hooks/use-media-query";
+import { useClerk, useOrganization, useUser } from "@clerk/nextjs";
+import { useFilteredNavGroups } from "@/hooks/use-nav";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import * as React from "react";
+import { Icons } from "../icons";
+import { OrgSwitcher } from "../org-switcher";
 
 export default function AppSidebar() {
   const pathname = usePathname();
+  const { isOpen } = useMediaQuery();
   const { user } = useUser();
   const { organization } = useOrganization();
   const { signOut } = useClerk();
   const router = useRouter();
+  const filteredGroups = useFilteredNavGroups(navGroups);
+
+  React.useEffect(() => {
+    // Side effects based on sidebar state changes
+  }, [isOpen]);
 
   return (
-    <Sidebar collapsible='icon'>
-      <SidebarHeader className='group-data-[collapsible=icon]:pt-4'>
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="group-data-[collapsible=icon]:pt-4">
         <OrgSwitcher />
       </SidebarHeader>
-      <SidebarContent className='overflow-x-hidden'>
-        {navGroups.map((group) => (
-          <SidebarGroup key={group.label || 'ungrouped'} className='py-0'>
+      <SidebarContent className="overflow-x-hidden">
+        {filteredGroups.map((group) => (
+          <SidebarGroup key={group.label || "ungrouped"} className="py-0">
             {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
             <SidebarMenu>
               {group.items.map((item) => {
@@ -63,13 +71,13 @@ export default function AppSidebar() {
                         <SidebarMenuButton
                           tooltip={item.title}
                           isActive={pathname === item.url}
-                          className='group/collapsible'
+                          className="group/collapsible"
                         />
                       }
                     >
                       {item.icon && <Icon />}
                       <span>{item.title}</span>
-                      <Icons.chevronRight className='ml-auto transition-transform duration-200 group-data-panel-open/collapsible:rotate-90' />
+                      <Icons.chevronRight className="ml-auto transition-transform duration-200 group-data-panel-open/collapsible:rotate-90" />
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <SidebarMenuSub>
@@ -110,25 +118,25 @@ export default function AppSidebar() {
               <DropdownMenuTrigger
                 render={
                   <SidebarMenuButton
-                    size='lg'
-                    className='data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground'
+                    size="lg"
+                    className="data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground"
                   />
                 }
               >
-                {user && <UserAvatarProfile className='h-8 w-8 rounded-lg' showInfo user={user} />}
-                <Icons.chevronsDown className='ml-auto size-4' />
+                {user && <UserAvatarProfile className="h-8 w-8 rounded-lg" showInfo user={user} />}
+                <Icons.chevronsDown className="ml-auto size-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                className='w-(--anchor-width) min-w-56 rounded-lg'
-                side='bottom'
-                align='end'
+                className="w-(--anchor-width) min-w-56 rounded-lg"
+                side="bottom"
+                align="end"
                 sideOffset={4}
               >
                 <DropdownMenuGroup>
-                  <DropdownMenuLabel className='p-0 font-normal'>
-                    <div className='px-1 py-1.5'>
+                  <DropdownMenuLabel className="p-0 font-normal">
+                    <div className="px-1 py-1.5">
                       {user && (
-                        <UserAvatarProfile className='h-8 w-8 rounded-lg' showInfo user={user} />
+                        <UserAvatarProfile className="h-8 w-8 rounded-lg" showInfo user={user} />
                       )}
                     </div>
                   </DropdownMenuLabel>
@@ -136,25 +144,25 @@ export default function AppSidebar() {
                 <DropdownMenuSeparator />
 
                 <DropdownMenuGroup>
-                  <DropdownMenuItem onClick={() => router.push('/dashboard/profile')}>
-                    <Icons.account className='mr-2 h-4 w-4' />
+                  <DropdownMenuItem onClick={() => router.push("/dashboard/profile")}>
+                    <Icons.account className="mr-2 h-4 w-4" />
                     Profile
                   </DropdownMenuItem>
                   {organization && (
-                    <DropdownMenuItem onClick={() => router.push('/dashboard/billing')}>
-                      <Icons.creditCard className='mr-2 h-4 w-4' />
+                    <DropdownMenuItem onClick={() => router.push("/dashboard/billing")}>
+                      <Icons.creditCard className="mr-2 h-4 w-4" />
                       Billing
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem onClick={() => router.push('/dashboard/notifications')}>
-                    <Icons.notification className='mr-2 h-4 w-4' />
+                  <DropdownMenuItem onClick={() => router.push("/dashboard/notifications")}>
+                    <Icons.notification className="mr-2 h-4 w-4" />
                     Notifications
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
-                  <DropdownMenuItem onClick={() => signOut({ redirectUrl: '/auth/sign-in' })}>
-                    <Icons.logout aria-hidden className='mr-2 h-4 w-4' />
+                  <DropdownMenuItem onClick={() => signOut({ redirectUrl: "/auth/sign-in" })}>
+                    <Icons.logout aria-hidden className="mr-2 h-4 w-4" />
                     Sign out
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
