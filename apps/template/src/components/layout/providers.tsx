@@ -1,17 +1,17 @@
-'use client';
-import { ClerkProvider } from '@clerk/nextjs';
-import React from 'react';
-import { ActiveThemeProvider } from '../themes/active-theme';
-import QueryProvider from './query-provider';
+"use client";
+import { ClerkProvider } from "@clerk/nextjs";
+import React from "react";
+import { ActiveThemeProvider } from "@pixa/ui/themes/active-theme";
+import QueryProvider from "./query-provider";
 
 export default function Providers({
   activeThemeValue,
-  children
+  children,
 }: {
   activeThemeValue: string;
   children: React.ReactNode;
 }) {
-  const authBasePath = '/template/auth';
+  const authBasePath = "/template/auth";
 
   return (
     <>
@@ -20,24 +20,23 @@ export default function Providers({
           signInUrl={`${authBasePath}/sign-in`}
           signUpUrl={`${authBasePath}/sign-up`}
           afterSignOutUrl={`${authBasePath}/sign-in`}
-
-          signInFallbackRedirectUrl='/template/dashboard/overview'
-          signUpFallbackRedirectUrl='/template/dashboard/overview'
+          signInFallbackRedirectUrl="/template/dashboard/overview"
+          signUpFallbackRedirectUrl="/template/dashboard/overview"
           appearance={{
             variables: {
-              colorPrimary: 'var(--primary)',
-              colorPrimaryForeground: 'var(--primary-foreground)',
-              colorDanger: 'var(--destructive)',
-              colorBackground: 'var(--card)',
-              colorForeground: 'var(--foreground)',
-              colorMuted: 'var(--muted)',
-              colorMutedForeground: 'var(--muted-foreground)',
-              colorInput: 'var(--input)',
-              colorInputForeground: 'var(--foreground)',
-              colorBorder: 'var(--border)',
-              colorRing: 'var(--ring)',
-              fontFamily: 'var(--font-sans)'
-            }
+              colorPrimary: "var(--primary)",
+              colorPrimaryForeground: "var(--primary-foreground)",
+              colorDanger: "var(--destructive)",
+              colorBackground: "var(--card)",
+              colorForeground: "var(--foreground)",
+              colorMuted: "var(--muted)",
+              colorMutedForeground: "var(--muted-foreground)",
+              colorInput: "var(--input)",
+              colorInputForeground: "var(--foreground)",
+              colorBorder: "var(--border)",
+              colorRing: "var(--ring)",
+              fontFamily: "var(--font-sans)",
+            },
           }}
         >
           <QueryProvider>{children}</QueryProvider>
