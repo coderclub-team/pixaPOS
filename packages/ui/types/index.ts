@@ -1,4 +1,4 @@
-import { Icons } from '../icons';
+import { Icons } from "../icons";
 
 export interface PermissionCheck {
   permission?: string;
@@ -13,7 +13,7 @@ export interface NavItem {
   url: string;
   disabled?: boolean;
   external?: boolean;
-  shortcut?: [string, string];
+  shortcut?: [string, string] | [string, string, string];
   icon?: keyof typeof Icons;
   label?: string;
   description?: string;

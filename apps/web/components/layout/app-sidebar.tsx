@@ -25,7 +25,7 @@ import {
   SidebarRail,
 } from "@pixa/ui/base-ui/sidebar";
 import { UserAvatarProfile } from "@pixa/ui/user-avatar-profile";
-import { navGroups } from "@pixa/ui/config/nav-config";
+import { navGroups } from "@/config/nav-config";
 import { useMediaQuery } from "@pixa/ui/hooks/use-media-query";
 import { useClerk, useOrganization, useUser } from "@clerk/nextjs";
 import { useFilteredNavGroups } from "@/hooks/use-nav";

@@ -1,0 +1,37 @@
+export type Outlet = {
+  id: string;
+  organization_id: string;
+  name: string;
+  code: string;
+  alias?: string;
+  type: string;
+  logo_url?: string | File[];
+  phone: string;
+  alternate_phone?: string;
+  email: string;
+  website?: string;
+  whatsapp?: string;
+  address_line_1: string;
+  address_line_2?: string;
+  locality: string;
+  city: string;
+  district?: string;
+  state: string;
+  country: string;
+  postal_code: string;
+  latitude?: number;
+  longitude?: number;
+  gst_registered: boolean;
+  gstin?: string;
+  legal_name?: string;
+  pan?: string;
+  fssai_number?: string;
+  currency: string;
+  timezone: string;
+  locale: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OutletPayload = Partial<Outlet>;
