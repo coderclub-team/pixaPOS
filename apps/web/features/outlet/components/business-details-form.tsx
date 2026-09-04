@@ -60,12 +60,22 @@ export default function BusinessDetailsForm({
             />
             <form.AppField
               name="gstin"
-              children={(field) => <field.TextField label="GSTIN" placeholder="24ABCDE1234F1Z5" />}
+              children={(field) => (
+                <field.TextField
+                  label="GSTIN"
+                  placeholder="24ABCDE1234F1Z5"
+                  description="15 characters, e.g., 24ABCDE1234F1Z5. Leave blank if not applicable"
+                />
+              )}
             />
             <form.AppField
               name="fssai_number"
               children={(field) => (
-                <field.TextField label="FSSAI Number" placeholder="12345678901234" />
+                <field.TextField
+                  label="FSSAI Number"
+                  placeholder="12345678901234"
+                  description="14 digits. Leave blank if not applicable"
+                />
               )}
             />
           </FieldGroup>
