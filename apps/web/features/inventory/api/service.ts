@@ -753,6 +753,48 @@ export async function sendPurchaseOrderViaEmail(
   return { subject, html, po: { ...mockPurchaseOrders[idx] } };
 }
 
+export async function updatePurchaseOrder(
+  id: string,
+  payload: Partial<PurchaseOrderPayload & { expected_at?: string; notes?: string }>,
+): Promise<PurchaseOrder> {
+  await delay(600);
+  const idx = mockPurchaseOrders.findIndex((p) => p.id === id);
+  if (idx === -1) throw new Error("Purchase order not found");
+  const po = mockPurchaseOrders[idx];
+  if (po.status === "received") throw new Error("Cannot edit received PO (GRN done)");
+  if (po.status === "cancelled") throw new Error("Cannot edit cancelled PO");
+  const materials = materialMap();
+  let items = po.items;
+  if (payload.items) {
+    items = payload.items.map((it) => ({ ...it, material_name: materials[it.material_id]?.name }));
+  }
+  const total = items.reduce((sum, it) => sum + it.qty * it.unit_cost, 0);
+  const updated: PurchaseOrder = {
+    ...po,
+    supplier_id: payload.supplier_id ?? po.supplier_id,
+    supplier_name: payload.supplier_id
+      ? (supplierNameMap()[payload.supplier_id] ?? po.supplier_name)
+      : po.supplier_name,
+    items,
+    total_amount: total,
+    expected_at: payload.expected_at ?? po.expected_at,
+    notes: (payload as any).notes ?? po.notes,
+    updated_at: new Date().toISOString(),
+  };
+  mockPurchaseOrders[idx] = updated;
+  return { ...updated };
+}
+
+export async function deletePurchaseOrder(id: string): Promise<void> {
+  await delay(500);
+  const idx = mockPurchaseOrders.findIndex((p) => p.id === id);
+  if (idx === -1) throw new Error("Purchase order not found");
+  const po = mockPurchaseOrders[idx];
+  if (po.status === "received")
+    throw new Error("Cannot delete received PO (GRN done) — cancel instead");
+  mockPurchaseOrders.splice(idx, 1);
+}
+
 export async function updatePurchaseOrderStatus(
   id: string,
   status: PurchaseOrderStatus,
