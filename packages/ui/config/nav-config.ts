@@ -178,18 +178,6 @@ export const navGroups: NavGroup[] = [
             shortcut: ["o", "a"],
           },
           {
-            title: "GST",
-            url: "/dashboard/settings/outlet/legal/gst",
-            icon: "fileTypeDoc",
-            shortcut: ["o", "g"],
-          },
-          {
-            title: "FSSAI",
-            url: "/dashboard/settings/outlet/legal/fssai",
-            icon: "fileTypeDoc",
-            shortcut: ["o", "f"],
-          },
-          {
             title: "Business Details",
             url: "/dashboard/settings/outlet/legal/business-details",
             icon: "page",

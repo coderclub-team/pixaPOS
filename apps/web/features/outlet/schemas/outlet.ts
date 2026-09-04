@@ -82,12 +82,33 @@ export const fssaiSchema = z.object({
     .or(z.literal("")),
 });
 
-export const businessDetailsSchema = z.object({
-  legal_name: z.string().min(2, "Legal name required"),
-  pan: z.string().regex(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, "Valid PAN required (e.g., ABCDE1234F)"),
-  gstin: z.string().optional(),
-  fssai_number: z.string().optional(),
-});
+export const businessDetailsSchema = z
+  .object({
+    legal_name: z.string().min(2, "Legal name required"),
+    pan: z.string().regex(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, "Valid PAN required (e.g., ABCDE1234F)"),
+    gstin: z.string().optional().or(z.literal("")),
+    fssai_number: z.string().optional().or(z.literal("")),
+  })
+  .superRefine((data, ctx) => {
+    if (
+      data.gstin &&
+      data.gstin !== "" &&
+      !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(data.gstin)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Valid GSTIN required (15 chars, e.g., 24ABCDE1234F1Z5)",
+        path: ["gstin"],
+      });
+    }
+    if (data.fssai_number && data.fssai_number !== "" && !/^[0-9]{14}$/.test(data.fssai_number)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "FSSAI must be 14 digits",
+        path: ["fssai_number"],
+      });
+    }
+  });
 
 export const timezoneSchema = z.object({
   currency: z.string().min(3, "Currency required"),
