@@ -19,6 +19,7 @@ import { tableKeys } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import Link from "next/link";
+import { Protect } from "@clerk/nextjs";
 
 interface TableListProps {
   tables: RestaurantTable[];
@@ -109,26 +110,28 @@ export function TableList({ tables }: TableListProps) {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
-                    <Link
-                      href={`/dashboard/settings/outlet/tables/${table.id}`}
-                      aria-label={`Edit ${table.code}`}
-                    >
-                      <Button variant="ghost" size="icon-sm">
-                        <Icons.edit className="size-4" />
+                    <Protect permission="org:tables:manage" fallback={null}>
+                      <Link
+                        href={`/dashboard/settings/outlet/tables/${table.id}`}
+                        aria-label={`Edit ${table.code}`}
+                      >
+                        <Button variant="ghost" size="icon-sm">
+                          <Icons.edit className="size-4" />
+                        </Button>
+                      </Link>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => {
+                          if (confirm(`Delete table "${table.code}"?`))
+                            deleteMutation.mutate(table.id);
+                        }}
+                        disabled={deleteMutation.isPending}
+                        aria-label={`Delete ${table.code}`}
+                      >
+                        <Icons.trash className="size-4" />
                       </Button>
-                    </Link>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => {
-                        if (confirm(`Delete table "${table.code}"?`))
-                          deleteMutation.mutate(table.id);
-                      }}
-                      disabled={deleteMutation.isPending}
-                      aria-label={`Delete ${table.code}`}
-                    >
-                      <Icons.trash className="size-4" />
-                    </Button>
+                    </Protect>
                   </div>
                 </TableCell>
               </TableRow>
