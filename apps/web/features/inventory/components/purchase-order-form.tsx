@@ -6,9 +6,10 @@ import { useAppForm } from "@/lib/form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { createPurchaseOrder } from "../api/service";
+import { createPurchaseOrder, updatePurchaseOrder } from "../api/service";
 import { inventoryKeys, rawMaterialsQueryOptions, suppliersQueryOptions } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
+import type { PurchaseOrder } from "../api/types";
 import * as z from "zod";
 
 const poSchema = z.object({
@@ -16,10 +17,20 @@ const poSchema = z.object({
   material_id: z.string().min(1, "Material required"),
   qty: z.number().min(1),
   unit_cost: z.number().min(0),
+  expected_at: z.string().optional().or(z.literal("")),
+  notes: z.string().max(500).optional().or(z.literal("")),
 });
 
-export default function PurchaseOrderForm({ pageTitle }: { pageTitle: string }) {
+export default function PurchaseOrderForm({
+  pageTitle,
+  initialData,
+}: {
+  pageTitle: string;
+  initialData?: PurchaseOrder | null;
+}) {
   const router = useRouter();
+  const isEdit =
+    !!initialData && initialData.status !== "received" && initialData.status !== "cancelled";
   const { data: suppliers } = useQuery(suppliersQueryOptions());
   const { data: materials } = useQuery(rawMaterialsQueryOptions());
   const supplierOptions = (suppliers ?? []).map((s) => ({ label: s.name, value: s.id }));
@@ -27,30 +38,55 @@ export default function PurchaseOrderForm({ pageTitle }: { pageTitle: string }) 
     label: `${m.name} (${m.sku})`,
     value: m.id,
   }));
-  const mutation = useMutation({
+  const firstItem = initialData?.items[0];
+  const createMutation = useMutation({
     mutationFn: (v: any) =>
       createPurchaseOrder({
         supplier_id: v.supplier_id,
         items: [{ material_id: v.material_id, qty: v.qty, unit_cost: v.unit_cost }],
-      }),
+        expected_at: v.expected_at || undefined,
+        notes: v.notes,
+      } as any),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: inventoryKeys.all });
-      toast.success("Purchase order created");
+      toast.success("Purchase order created as draft — not yet added to inventory");
+      router.push("/dashboard/inventory/purchase-orders");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const updateMutation = useMutation({
+    mutationFn: (v: any) =>
+      updatePurchaseOrder(initialData!.id, {
+        supplier_id: v.supplier_id,
+        items: [{ material_id: v.material_id, qty: v.qty, unit_cost: v.unit_cost }],
+        expected_at: v.expected_at || undefined,
+        notes: v.notes,
+      } as any),
+    onSuccess: () => {
+      getQueryClient().invalidateQueries({ queryKey: inventoryKeys.all });
+      toast.success("Purchase order updated");
       router.push("/dashboard/inventory/purchase-orders");
     },
     onError: (e: Error) => toast.error(e.message),
   });
   const form = useAppForm({
     defaultValues: {
-      supplier_id: "",
-      material_id: "",
-      qty: 10,
-      unit_cost: 0,
-      expected_at: "",
+      supplier_id: initialData?.supplier_id ?? "",
+      material_id: firstItem?.material_id ?? "",
+      qty: firstItem?.qty ?? 10,
+      unit_cost: firstItem?.unit_cost ?? 0,
+      expected_at: initialData?.expected_at
+        ? new Date(initialData.expected_at).toISOString().slice(0, 10)
+        : "",
+      notes: (initialData as any)?.notes ?? "",
     } as any,
     validators: { onSubmit: poSchema },
-    onSubmit: async ({ value }) => mutation.mutateAsync(value),
+    onSubmit: async ({ value }) => {
+      if (isEdit) await updateMutation.mutateAsync(value);
+      else await createMutation.mutateAsync(value);
+    },
   });
+  const isPending = createMutation.isPending || updateMutation.isPending;
   return (
     <Card className="mx-auto w-full max-w-3xl">
       <CardHeader>
@@ -91,22 +127,52 @@ export default function PurchaseOrderForm({ pageTitle }: { pageTitle: string }) 
               <form.AppField
                 name="qty"
                 children={(field) => (
-                  <field.TextField label="Quantity" required type="number" placeholder="50" />
+                  <field.TextField
+                    label="Quantity"
+                    required
+                    type="number"
+                    placeholder="50"
+                    description="Not added to stock until Received (GRN)"
+                  />
                 )}
               />
               <form.AppField
                 name="unit_cost"
                 children={(field) => (
-                  <field.TextField label="Unit Cost" required type="number" placeholder="80" />
+                  <field.TextField
+                    label="Unit Cost"
+                    required
+                    type="number"
+                    placeholder="80"
+                    description="Last rate auto: check supplier history"
+                  />
                 )}
               />
+            </div>
+            <form.AppField
+              name="expected_at"
+              children={(field) => (
+                <field.TextField label="Expected Date" type="date" placeholder="" />
+              )}
+            />
+            <form.AppField
+              name="notes"
+              children={(field) => (
+                <field.TextareaField label="Notes" placeholder="Delivery instructions" rows={2} />
+              )}
+            />
+            <div className="rounded-lg border p-3 text-xs text-muted-foreground">
+              Inventory is <b>not</b> updated on creation (draft). Use{" "}
+              <b>Send via WhatsApp/Email</b> → <b>Receive (GRN)</b> to add to stock with WAC avg.
             </div>
           </FieldGroup>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => router.back()}>
               Cancel
             </Button>
-            <form.AppForm children={<form.SubmitButton>Create PO</form.SubmitButton>} />
+            <form.AppForm
+              children={<form.SubmitButton>{isEdit ? "Update PO" : "Create PO"}</form.SubmitButton>}
+            />
           </div>
         </form>
       </CardContent>

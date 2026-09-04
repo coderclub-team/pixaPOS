@@ -59,6 +59,12 @@ export const recipeQueryOptions = (id: string) =>
 export const purchaseOrdersQueryOptions = () =>
   queryOptions({ queryKey: inventoryKeys.purchaseOrders(), queryFn: () => getPurchaseOrders() });
 
+export const purchaseOrderQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: inventoryKeys.purchaseOrder(id),
+    queryFn: () => getPurchaseOrderById(id),
+  });
+
 export const wasteQueryOptions = (filters?: WasteFilters) =>
   queryOptions({ queryKey: inventoryKeys.waste(filters), queryFn: () => getWasteLogs(filters) });
 
