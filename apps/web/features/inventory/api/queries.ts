@@ -1,15 +1,16 @@
 import { queryOptions } from "@tanstack/react-query";
 import {
+  getPriceHistory,
   getRawMaterials,
   getRawMaterialById,
-  getSuppliers,
-  getSupplierById,
   getRecipes,
   getRecipeById,
   getPurchaseOrders,
   getPurchaseOrderById,
-  getWasteLogs,
   getStockLedger,
+  getSupplierById,
+  getSuppliers,
+  getWasteLogs,
 } from "./service";
 import type { RawMaterialFilters, SupplierFilters, WasteFilters } from "./types";
 
@@ -27,6 +28,8 @@ export const inventoryKeys = {
   purchaseOrder: (id: string) => [...inventoryKeys.all, "purchase-order", id] as const,
   waste: (filters?: WasteFilters) => [...inventoryKeys.all, "waste", filters ?? {}] as const,
   stock: () => [...inventoryKeys.all, "stock"] as const,
+  priceHistory: (materialId?: string) =>
+    [...inventoryKeys.all, "price-history", materialId ?? "all"] as const,
 };
 
 export const rawMaterialsQueryOptions = (filters?: RawMaterialFilters) =>
@@ -61,3 +64,9 @@ export const wasteQueryOptions = (filters?: WasteFilters) =>
 
 export const stockLedgerQueryOptions = () =>
   queryOptions({ queryKey: inventoryKeys.stock(), queryFn: () => getStockLedger() });
+
+export const priceHistoryQueryOptions = (materialId?: string) =>
+  queryOptions({
+    queryKey: inventoryKeys.priceHistory(materialId),
+    queryFn: () => getPriceHistory(materialId),
+  });

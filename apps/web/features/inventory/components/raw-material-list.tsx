@@ -84,7 +84,28 @@ export function RawMaterialList({ materials }: { materials: RawMaterial[] }) {
                       {m.stock_qty} {m.unit} {low ? "(Low)" : ""}
                     </Badge>
                   </TableCell>
-                  <TableCell>₹{m.avg_cost}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col text-xs">
+                      <span>Last ₹{m.cost_price}</span>
+                      <span className="font-medium">Avg ₹{m.avg_cost}</span>
+                      {(() => {
+                        const delta = m.avg_cost
+                          ? ((m.cost_price - m.avg_cost) / m.avg_cost) * 100
+                          : 0;
+                        const isUp = delta > 2;
+                        const isDown = delta < -2;
+                        if (!isUp && !isDown) return null;
+                        return (
+                          <Badge
+                            variant={isUp ? "destructive" : "secondary"}
+                            className="mt-1 w-fit text-[10px]"
+                          >
+                            {isUp ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}%
+                          </Badge>
+                        );
+                      })()}
+                    </div>
+                  </TableCell>
                   <TableCell>{m.supplier_name ?? "-"}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">

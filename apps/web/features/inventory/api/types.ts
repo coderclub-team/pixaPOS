@@ -105,6 +105,26 @@ export type StockLedgerEntry = {
   reference_id?: string;
   previous_qty: number;
   new_qty: number;
+  unit_cost?: number;
+  total_cost?: number;
+  avg_cost_before?: number;
+  avg_cost_after?: number;
+  created_at: string;
+  created_by?: string;
+};
+
+export type MaterialPriceHistory = {
+  id: string;
+  material_id: string;
+  material_name?: string;
+  old_avg: number;
+  new_avg: number;
+  unit_cost: number;
+  qty: number;
+  old_stock: number;
+  new_stock: number;
+  source: "po_receive" | "manual_edit";
+  reference_id?: string;
   created_at: string;
   created_by?: string;
 };

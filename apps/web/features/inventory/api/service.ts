@@ -15,6 +15,7 @@ import type {
   WastePayload,
   WasteFilters,
   StockLedgerEntry,
+  MaterialPriceHistory,
 } from "./types";
 
 // Raw Materials
@@ -237,6 +238,10 @@ let mockStockLedger: StockLedgerEntry[] = [
     reference_id: "po_001",
     previous_qty: 0,
     new_qty: 50,
+    unit_cost: 78,
+    total_cost: 3900,
+    avg_cost_before: 0,
+    avg_cost_after: 78,
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
   },
   {
@@ -249,13 +254,47 @@ let mockStockLedger: StockLedgerEntry[] = [
     reference_id: "wst_001",
     previous_qty: 17,
     new_qty: 15,
+    unit_cost: 28,
+    total_cost: 56,
+    avg_cost_before: 28,
+    avg_cost_after: 28,
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1).toISOString(),
+  },
+];
+
+let mockPriceHistory: MaterialPriceHistory[] = [
+  {
+    id: "ph_001",
+    material_id: "rm_001",
+    material_name: "Basmati Rice",
+    old_avg: 0,
+    new_avg: 78,
+    unit_cost: 78,
+    qty: 50,
+    old_stock: 0,
+    new_stock: 50,
+    source: "po_receive",
+    reference_id: "po_001",
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
   },
 ];
 
 // Helpers
 const supplierNameMap = () => Object.fromEntries(mockSuppliers.map((s) => [s.id, s.name]));
 const materialMap = () => Object.fromEntries(mockRawMaterials.map((m) => [m.id, m]));
+
+function recalculateRecipeCosts() {
+  const materials = materialMap();
+  mockRecipes.forEach((recipe) => {
+    let cost = 0;
+    recipe.ingredients.forEach((ing) => {
+      const mat = materials[ing.material_id];
+      cost += ing.qty * (mat?.avg_cost ?? 0) * (1 + (ing.wastage_percent ?? 0) / 100);
+    });
+    recipe.cost_per_serve = Math.round(cost * 100) / 100;
+    recipe.updated_at = new Date().toISOString();
+  });
+}
 
 // Raw Materials CRUD
 export async function getRawMaterials(filters?: RawMaterialFilters): Promise<RawMaterial[]> {
@@ -512,7 +551,7 @@ export async function updatePurchaseOrderStatus(
     updated_at: new Date().toISOString(),
     received_at: status === "received" ? new Date().toISOString() : po.received_at,
   };
-  // On receive, increment stock and ledger
+  // On receive, increment stock and ledger, sync last price, track history, recalc recipes
   if (status === "received" && po.status !== "received") {
     po.items.forEach((item) => {
       const matIdx = mockRawMaterials.findIndex((m) => m.id === item.material_id);
@@ -520,9 +559,11 @@ export async function updatePurchaseOrderStatus(
         const prev = mockRawMaterials[matIdx].stock_qty;
         const newQty = prev + item.qty;
         const oldAvg = mockRawMaterials[matIdx].avg_cost;
-        const newAvg = (oldAvg * prev + item.unit_cost * item.qty) / newQty;
+        const newAvg = newQty > 0 ? (oldAvg * prev + item.unit_cost * item.qty) / newQty : oldAvg;
+        const roundedAvg = Math.round(newAvg * 100) / 100;
         mockRawMaterials[matIdx].stock_qty = newQty;
-        mockRawMaterials[matIdx].avg_cost = Math.round(newAvg * 100) / 100;
+        mockRawMaterials[matIdx].avg_cost = roundedAvg;
+        mockRawMaterials[matIdx].cost_price = item.unit_cost; // last purchase price = cost_price for fluctuation visibility
         mockRawMaterials[matIdx].updated_at = new Date().toISOString();
         mockStockLedger.push({
           id: `stk_${Date.now().toString(36)}_${item.material_id}`,
@@ -534,10 +575,30 @@ export async function updatePurchaseOrderStatus(
           reference_id: po.id,
           previous_qty: prev,
           new_qty: newQty,
+          unit_cost: item.unit_cost,
+          total_cost: Math.round(item.unit_cost * item.qty * 100) / 100,
+          avg_cost_before: oldAvg,
+          avg_cost_after: roundedAvg,
+          created_at: new Date().toISOString(),
+        });
+        mockPriceHistory.push({
+          id: `ph_${Date.now().toString(36)}_${item.material_id}`,
+          material_id: item.material_id,
+          material_name: mockRawMaterials[matIdx].name,
+          old_avg: oldAvg,
+          new_avg: roundedAvg,
+          unit_cost: item.unit_cost,
+          qty: item.qty,
+          old_stock: prev,
+          new_stock: newQty,
+          source: "po_receive",
+          reference_id: po.id,
           created_at: new Date().toISOString(),
         });
       }
     });
+    // Recalculate recipe costs after avg change
+    recalculateRecipeCosts();
   }
   mockPurchaseOrders[idx] = updated;
   return { ...updated };
@@ -579,6 +640,10 @@ export async function createWasteLog(payload: WastePayload): Promise<WasteLog> {
         reference_id: "",
         previous_qty: prev,
         new_qty: newQty,
+        unit_cost: mat.avg_cost,
+        total_cost: Math.round(costLoss * 100) / 100,
+        avg_cost_before: mat.avg_cost,
+        avg_cost_after: mat.avg_cost,
         created_at: new Date().toISOString(),
       });
     }
@@ -603,4 +668,49 @@ export async function createWasteLog(payload: WastePayload): Promise<WasteLog> {
 export async function getStockLedger(): Promise<StockLedgerEntry[]> {
   await delay(400);
   return [...mockStockLedger].sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+export async function getPriceHistory(materialId?: string): Promise<MaterialPriceHistory[]> {
+  await delay(300);
+  let result = [...mockPriceHistory].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  if (materialId) result = result.filter((h) => h.material_id === materialId);
+  return result;
+}
+
+export async function getSupplierPriceComparison(materialId: string) {
+  await delay(300);
+  const history = mockPriceHistory.filter(
+    (h) => h.material_id === materialId && h.source === "po_receive",
+  );
+  const grouped: Record<
+    string,
+    { supplier_id: string; last_cost: number; last_date: string; avg_cost: number; count: number }
+  > = {};
+  // Derive supplier from PO reference if possible via stock ledger? Simplified: use last PO supplier
+  for (const h of history) {
+    const po = mockPurchaseOrders.find((p) => p.id === h.reference_id);
+    const supId = po?.supplier_id ?? "unknown";
+    if (!grouped[supId])
+      grouped[supId] = {
+        supplier_id: supId,
+        last_cost: h.unit_cost,
+        last_date: h.created_at,
+        avg_cost: h.unit_cost,
+        count: 1,
+      };
+    else {
+      grouped[supId].avg_cost =
+        (grouped[supId].avg_cost * grouped[supId].count + h.unit_cost) / (grouped[supId].count + 1);
+      grouped[supId].count += 1;
+      if (new Date(h.created_at) > new Date(grouped[supId].last_date)) {
+        grouped[supId].last_cost = h.unit_cost;
+        grouped[supId].last_date = h.created_at;
+      }
+    }
+  }
+  return Object.values(grouped).map((g) => ({
+    ...g,
+    supplier_name: mockSuppliers.find((s) => s.id === g.supplier_id)?.name ?? g.supplier_id,
+    avg_cost: Math.round(g.avg_cost * 100) / 100,
+  }));
 }

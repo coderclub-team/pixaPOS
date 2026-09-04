@@ -142,7 +142,12 @@ export default function RawMaterialForm({
               <form.AppField
                 name="stock_qty"
                 children={(field) => (
-                  <field.TextField label="Stock Qty" type="number" placeholder="0" />
+                  <field.TextField
+                    label="Stock Qty"
+                    type="number"
+                    placeholder="0"
+                    description="Use Purchase Order for stock in to track cost"
+                  />
                 )}
               />
               <form.AppField
@@ -154,10 +159,32 @@ export default function RawMaterialForm({
               <form.AppField
                 name="cost_price"
                 children={(field) => (
-                  <field.TextField label="Cost Price" type="number" placeholder="0" />
+                  <field.TextField
+                    label="Cost Price (Last)"
+                    type="number"
+                    placeholder="0"
+                    description={
+                      initialData
+                        ? `Avg: ₹${initialData.avg_cost} • Stock: ${initialData.stock_qty}${initialData.unit} • ${initialData.avg_cost ? `Δ ${(((initialData.cost_price - initialData.avg_cost) / initialData.avg_cost) * 100).toFixed(1)}%` : ""}`
+                        : "Set last purchase price; avg auto-updates on PO receive"
+                    }
+                  />
                 )}
               />
             </div>
+            {initialData && (
+              <div className="rounded-lg border p-3 text-xs text-muted-foreground">
+                <div>
+                  Valuation: ₹{(initialData.stock_qty * initialData.avg_cost).toFixed(2)} (stock{" "}
+                  {initialData.stock_qty}
+                  {initialData.unit} × avg ₹{initialData.avg_cost})
+                </div>
+                <div className="mt-1">
+                  When price fluctuates often, use Purchase Orders with varying unit_cost — avg
+                  auto-recalculates via WAC: (old_avg×old_qty + new_cost×qty)/total.
+                </div>
+              </div>
+            )}
             <form.AppField
               name="supplier_id"
               children={(field) => (

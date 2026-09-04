@@ -30,6 +30,8 @@ export function StockLedger({ entries }: { entries: StockLedgerEntry[] }) {
               <TableHead>Type</TableHead>
               <TableHead>Delta</TableHead>
               <TableHead>Qty</TableHead>
+              <TableHead>Cost</TableHead>
+              <TableHead>Avg</TableHead>
               <TableHead>Reference</TableHead>
               <TableHead>Date</TableHead>
             </TableRow>
@@ -57,6 +59,27 @@ export function StockLedger({ entries }: { entries: StockLedgerEntry[] }) {
                 </TableCell>
                 <TableCell>
                   {e.previous_qty} → {e.new_qty}
+                </TableCell>
+                <TableCell className="text-xs">
+                  {e.unit_cost !== undefined ? (
+                    <>
+                      <div>@₹{e.unit_cost}</div>
+                      <div className="text-muted-foreground">₹{e.total_cost}</div>
+                    </>
+                  ) : (
+                    "-"
+                  )}
+                </TableCell>
+                <TableCell className="text-xs">
+                  {e.avg_cost_before !== undefined ? (
+                    <>
+                      <div>
+                        ₹{e.avg_cost_before} → ₹{e.avg_cost_after}
+                      </div>
+                    </>
+                  ) : (
+                    "-"
+                  )}
                 </TableCell>
                 <TableCell className="text-xs">{e.reason ?? e.reference_id ?? "-"}</TableCell>
                 <TableCell className="text-xs">{new Date(e.created_at).toLocaleString()}</TableCell>
