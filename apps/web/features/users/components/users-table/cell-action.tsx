@@ -14,7 +14,7 @@ import { Icons } from "@pixa/ui/icons";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { UserFormSheet } from "../user-form-sheet";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -28,8 +28,8 @@ interface CellActionProps {
 }
 
 export function CellAction({ data }: CellActionProps) {
+  const router = useRouter();
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
 
   const deleteMutation = useMutation({
     ...deleteUserMutation,
@@ -65,7 +65,6 @@ export function CellAction({ data }: CellActionProps) {
           </div>
         </DialogContent>
       </Dialog>
-      <UserFormSheet user={data} open={editOpen} onOpenChange={setEditOpen} />
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger render={<Button variant="ghost" className="h-8 w-8 p-0" />}>
           <span className="sr-only">Open menu</span>
@@ -76,7 +75,7 @@ export function CellAction({ data }: CellActionProps) {
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
           </DropdownMenuGroup>
           <DropdownMenuGroup>
-            <DropdownMenuItem onClick={() => setEditOpen(true)}>
+            <DropdownMenuItem onClick={() => router.push(`/dashboard/users/${data.id}`)}>
               <Icons.edit className="mr-2 h-4 w-4" /> Update
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setDeleteOpen(true)}>

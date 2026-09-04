@@ -5,6 +5,11 @@ export async function getUsers(filters: UserFilters): Promise<UsersResponse> {
   return fakeUsers.getUsers(filters);
 }
 
+export async function getUser(id: number) {
+  const all = await fakeUsers.getAll({});
+  return all.find((u) => u.id === id) ?? null;
+}
+
 export async function createUser(data: UserMutationPayload) {
   return fakeUsers.createUser(data);
 }
