@@ -59,7 +59,7 @@ export type PurchaseOrderItem = {
 
 export type PurchaseOrder = {
   id: string;
-  po_number: string;
+  po_number: string; // e.g., PO-2025-001, international standard
   supplier_id: string;
   supplier_name?: string;
   items: PurchaseOrderItem[];
@@ -67,6 +67,10 @@ export type PurchaseOrder = {
   status: PurchaseOrderStatus;
   expected_at?: string;
   received_at?: string;
+  sent_at?: string;
+  sent_via?: "whatsapp" | "email" | "both";
+  sent_to?: string;
+  notes?: string;
   created_at: string;
   updated_at: string;
 };

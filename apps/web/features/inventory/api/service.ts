@@ -638,20 +638,119 @@ export async function createPurchaseOrder(payload: PurchaseOrderPayload): Promis
   }));
   const total = items.reduce((sum, it) => sum + it.qty * it.unit_cost, 0);
   const now = new Date().toISOString();
+  // International standard PO numbering: PO-YYYY-NNN, N = max for that year +1, not length+1
+  const year = new Date().getFullYear();
+  const existingForYear = mockPurchaseOrders
+    .filter((p) => p.po_number.startsWith(`PO-${year}-`))
+    .map((p) => parseInt(p.po_number.split("-")[2] ?? "0", 10))
+    .filter((n) => !Number.isNaN(n));
+  const nextNum = existingForYear.length > 0 ? Math.max(...existingForYear) + 1 : 1;
   const po: PurchaseOrder = {
     id: `po_${Date.now().toString(36)}`,
-    po_number: `PO-${new Date().getFullYear()}-${String(mockPurchaseOrders.length + 1).padStart(3, "0")}`,
+    po_number: `PO-${year}-${String(nextNum).padStart(3, "0")}`,
     supplier_id: payload.supplier_id,
     supplier_name: supName,
     items,
     total_amount: total,
     status: "draft",
     expected_at: payload.expected_at,
+    notes: (payload as any).notes,
     created_at: now,
     updated_at: now,
   };
   mockPurchaseOrders.push(po);
   return { ...po };
+}
+
+export function buildWhatsappUrl(supplier: Supplier, po: PurchaseOrder): string {
+  const phone = supplier.phone.replace(/\D/g, "");
+  const itemsText = po.items
+    .map((it) => `• ${it.material_name ?? it.material_id} x${it.qty} @₹${it.unit_cost}`)
+    .join("%0A");
+  const text = `Hello ${supplier.name},%0APurchase Order ${po.po_number} from PixaPOS%0A%0A${itemsText}%0ATotal: ₹${po.total_amount}%0AExpected: ${po.expected_at ? new Date(po.expected_at).toLocaleDateString() : "-"}%0APlease confirm.%0A%0APO ID: ${po.id}`;
+  // wa.me requires full number with country code, assume +91 if 10 digits
+  const waPhone = phone.length === 10 ? `91${phone}` : phone;
+  return `https://wa.me/${waPhone}?text=${text}`;
+}
+
+export function buildEmailHtml(
+  supplier: Supplier,
+  po: PurchaseOrder,
+): { subject: string; html: string } {
+  const subject = `Purchase Order ${po.po_number} — ${supplier.name}`;
+  const rows = po.items
+    .map(
+      (it) =>
+        `<tr><td style="padding:8px;border:1px solid #ddd">${it.material_name ?? it.material_id}</td><td style="padding:8px;border:1px solid #ddd;text-align:right">${it.qty}</td><td style="padding:8px;border:1px solid #ddd;text-align:right">₹${it.unit_cost}</td><td style="padding:8px;border:1px solid #ddd;text-align:right">₹${it.qty * it.unit_cost}</td></tr>`,
+    )
+    .join("");
+  const html = `<div style=\"font-family:sans-serif\"><h2>${subject}</h2><p>Dear ${supplier.name},</p><p>Please supply the following as per PO <b>${po.po_number}</b>:</p><table style=\"border-collapse:collapse;width:100%\"><thead><tr><th style=\"padding:8px;border:1px solid #ddd;text-align:left\">Material</th><th style=\"padding:8px;border:1px solid #ddd\">Qty</th><th style=\"padding:8px;border:1px solid #ddd\">Unit Cost</th><th style=\"padding:8px;border:1px solid #ddd\">Amount</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan=\"3\" style=\"padding:8px;border:1px solid #ddd;text-align:right\"><b>Total</b></td><td style=\"padding:8px;border:1px solid #ddd;text-align:right\"><b>₹${po.total_amount}</b></td></tr></tfoot></table><p>Expected: ${po.expected_at ? new Date(po.expected_at).toLocaleDateString() : "-"}<br/>Notes: ${po.notes ?? "-"}</p><p>PO ID: ${po.id}</p></div>`;
+  return { subject, html };
+}
+
+export async function sendPurchaseOrderViaWhatsapp(
+  id: string,
+): Promise<{ url: string; po: PurchaseOrder }> {
+  await delay(500);
+  const po = mockPurchaseOrders.find((p) => p.id === id);
+  if (!po) throw new Error("Purchase order not found");
+  const supplier = mockSuppliers.find((s) => s.id === po.supplier_id);
+  if (!supplier) throw new Error("Supplier not found");
+  const url = buildWhatsappUrl(supplier, po);
+  // Mark as sent if was draft, track sent_via
+  const idx = mockPurchaseOrders.findIndex((p) => p.id === id);
+  if (po.status === "draft") {
+    mockPurchaseOrders[idx] = {
+      ...po,
+      status: "sent",
+      sent_at: new Date().toISOString(),
+      sent_via: po.sent_via === "email" ? "both" : "whatsapp",
+      sent_to: supplier.phone,
+      updated_at: new Date().toISOString(),
+    };
+  } else if (po.status === "sent" && po.sent_via !== "whatsapp" && po.sent_via !== "both") {
+    mockPurchaseOrders[idx] = {
+      ...po,
+      sent_via: po.sent_via ? "both" : "whatsapp",
+      sent_to: supplier.phone,
+      sent_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+  }
+  return { url, po: { ...mockPurchaseOrders[idx] } };
+}
+
+export async function sendPurchaseOrderViaEmail(
+  id: string,
+): Promise<{ subject: string; html: string; po: PurchaseOrder }> {
+  await delay(800);
+  const po = mockPurchaseOrders.find((p) => p.id === id);
+  if (!po) throw new Error("Purchase order not found");
+  const supplier = mockSuppliers.find((s) => s.id === po.supplier_id);
+  if (!supplier) throw new Error("Supplier not found");
+  if (!supplier.email) throw new Error("Supplier email not found");
+  const { subject, html } = buildEmailHtml(supplier, po);
+  // In production, here would be: await resend.emails.send({ from, to: supplier.email, subject, html });
+  const idx = mockPurchaseOrders.findIndex((p) => p.id === id);
+  if (po.status === "draft") {
+    mockPurchaseOrders[idx] = {
+      ...po,
+      status: "sent",
+      sent_at: new Date().toISOString(),
+      sent_via: po.sent_via === "whatsapp" ? "both" : "email",
+      sent_to: supplier.email,
+      updated_at: new Date().toISOString(),
+    };
+  } else if (po.status === "sent" && po.sent_via !== "email" && po.sent_via !== "both") {
+    mockPurchaseOrders[idx] = {
+      ...po,
+      sent_via: po.sent_via ? "both" : "email",
+      sent_to: supplier.email,
+      sent_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+  }
+  return { subject, html, po: { ...mockPurchaseOrders[idx] } };
 }
 
 export async function updatePurchaseOrderStatus(

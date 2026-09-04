@@ -16,6 +16,8 @@ const poSchema = z.object({
   material_id: z.string().min(1, "Material required"),
   qty: z.number().min(1),
   unit_cost: z.number().min(0),
+  expected_at: z.string().optional().or(z.literal("")),
+  notes: z.string().max(500).optional().or(z.literal("")),
 });
 
 export default function PurchaseOrderForm({ pageTitle }: { pageTitle: string }) {
@@ -32,10 +34,12 @@ export default function PurchaseOrderForm({ pageTitle }: { pageTitle: string }) 
       createPurchaseOrder({
         supplier_id: v.supplier_id,
         items: [{ material_id: v.material_id, qty: v.qty, unit_cost: v.unit_cost }],
-      }),
+        expected_at: v.expected_at || undefined,
+        notes: v.notes,
+      } as any),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: inventoryKeys.all });
-      toast.success("Purchase order created");
+      toast.success("Purchase order created as draft — not yet added to inventory");
       router.push("/dashboard/inventory/purchase-orders");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -47,6 +51,7 @@ export default function PurchaseOrderForm({ pageTitle }: { pageTitle: string }) 
       qty: 10,
       unit_cost: 0,
       expected_at: "",
+      notes: "",
     } as any,
     validators: { onSubmit: poSchema },
     onSubmit: async ({ value }) => mutation.mutateAsync(value),
@@ -91,15 +96,43 @@ export default function PurchaseOrderForm({ pageTitle }: { pageTitle: string }) 
               <form.AppField
                 name="qty"
                 children={(field) => (
-                  <field.TextField label="Quantity" required type="number" placeholder="50" />
+                  <field.TextField
+                    label="Quantity"
+                    required
+                    type="number"
+                    placeholder="50"
+                    description="Not added to stock until Received (GRN)"
+                  />
                 )}
               />
               <form.AppField
                 name="unit_cost"
                 children={(field) => (
-                  <field.TextField label="Unit Cost" required type="number" placeholder="80" />
+                  <field.TextField
+                    label="Unit Cost"
+                    required
+                    type="number"
+                    placeholder="80"
+                    description="Last rate auto: check supplier history"
+                  />
                 )}
               />
+            </div>
+            <form.AppField
+              name="expected_at"
+              children={(field) => (
+                <field.TextField label="Expected Date" type="date" placeholder="" />
+              )}
+            />
+            <form.AppField
+              name="notes"
+              children={(field) => (
+                <field.TextareaField label="Notes" placeholder="Delivery instructions" rows={2} />
+              )}
+            />
+            <div className="rounded-lg border p-3 text-xs text-muted-foreground">
+              Inventory is <b>not</b> updated on creation (draft). Use{" "}
+              <b>Send via WhatsApp/Email</b> → <b>Receive (GRN)</b> to add to stock with WAC avg.
             </div>
           </FieldGroup>
           <div className="flex justify-end gap-2">
