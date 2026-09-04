@@ -19,16 +19,6 @@ const unitOptions = [
   { label: "Millilitre (ml)", value: "ml" },
   { label: "Pieces (pcs)", value: "pcs" },
   { label: "Box", value: "box" },
-  { label: "Tin", value: "tin" },
-  { label: "Sack", value: "sack" },
-];
-
-const baseUnitOptions = [
-  { label: "Kilogram (kg)", value: "kg" },
-  { label: "Gram (g)", value: "g" },
-  { label: "Litre (l)", value: "l" },
-  { label: "Millilitre (ml)", value: "ml" },
-  { label: "Pieces (pcs)", value: "pcs" },
 ];
 
 const categoryOptions = [
@@ -88,18 +78,10 @@ export default function RawMaterialForm({
       sku: initialData?.sku ?? "",
       category: initialData?.category ?? "General",
       unit: initialData?.unit ?? "kg",
-      base_unit: initialData?.base_unit ?? "kg",
-      purchase_unit: initialData?.purchase_unit ?? "kg",
-      conversion_factor: initialData?.conversion_factor ?? 1,
       stock_qty: initialData?.stock_qty ?? 0,
       low_stock_threshold: initialData?.low_stock_threshold ?? 5,
-      minimum_stock_level: initialData?.minimum_stock_level ?? 5,
-      at_par_stock_level: initialData?.at_par_stock_level ?? 10,
-      maximum_stock_level: initialData?.maximum_stock_level ?? 100,
       opening_stock: initialData?.opening_stock ?? 0,
       cost_price: initialData?.cost_price ?? 0,
-      reconciliation_price: initialData?.reconciliation_price ?? 0,
-      transfer_price: initialData?.transfer_price ?? 0,
       tax_type: initialData?.tax_type ?? "GST",
       tax_percent: initialData?.tax_percent ?? 5,
       hsn_code: initialData?.hsn_code ?? "",
@@ -125,8 +107,7 @@ export default function RawMaterialForm({
         <CardHeader>
           <CardTitle className="text-left text-2xl font-bold">{pageTitle}</CardTitle>
           <CardDescription>
-            Petpooja-style product master — ingredients with purchase, consumption and stock
-            linkage.
+            Ingredients with purchase, consumption and stock linkage. Use 0.05 kg for 50g.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -168,37 +149,14 @@ export default function RawMaterialForm({
                     )}
                   />
                   <form.AppField
-                    name="base_unit"
+                    name="unit"
                     children={(field) => (
                       <field.SelectField
-                        label="Consumption Unit *"
-                        required
-                        options={baseUnitOptions}
-                        placeholder="kg"
-                      />
-                    )}
-                  />
-                  <form.AppField
-                    name="purchase_unit"
-                    children={(field) => (
-                      <field.SelectField
-                        label="Purchase Unit *"
+                        label="Unit *"
                         required
                         options={unitOptions}
-                        placeholder="tin"
-                      />
-                    )}
-                  />
-                </div>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                  <form.AppField
-                    name="conversion_factor"
-                    children={(field) => (
-                      <field.TextField
-                        label="Conversion Factor"
-                        type="number"
-                        placeholder="25"
-                        description="1 purchase = 25 base (e.g., 1 tin = 25 kg)"
+                        placeholder="kg"
+                        description="Use 0.05 for 50g"
                       />
                     )}
                   />
@@ -206,48 +164,29 @@ export default function RawMaterialForm({
                     name="cost_price"
                     children={(field) => (
                       <field.TextField
-                        label="Purchase Price"
+                        label="Purchase Price *"
                         type="number"
                         placeholder="80"
                         description={
                           initialData
                             ? `Avg ₹${initialData.avg_cost} • Δ ${initialData.avg_cost ? (((initialData.cost_price - initialData.avg_cost) / initialData.avg_cost) * 100).toFixed(1) : 0}%`
-                            : "Last purchase price; avg auto-updates"
+                            : "Last purchase price; avg auto-updates on PO"
                         }
                       />
                     )}
                   />
-                  <form.AppField
-                    name="reconciliation_price"
-                    children={(field) => (
-                      <field.TextField label="Reconciliation Price" type="number" placeholder="0" />
-                    )}
-                  />
                 </div>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                  <form.AppField
-                    name="transfer_price"
-                    children={(field) => (
-                      <field.TextField
-                        label="Transfer Price"
-                        type="number"
-                        placeholder="0"
-                        description="Inter-outlet transfer"
-                      />
-                    )}
-                  />
-                  <form.AppField
-                    name="supplier_id"
-                    children={(field) => (
-                      <field.SelectField
-                        label="Preferred Supplier"
-                        options={supplierOptions}
-                        placeholder="Select supplier"
-                        description="Can be purchased from multiple vendors; last rates tracked per PO"
-                      />
-                    )}
-                  />
-                </div>
+                <form.AppField
+                  name="supplier_id"
+                  children={(field) => (
+                    <field.SelectField
+                      label="Preferred Supplier"
+                      options={supplierOptions}
+                      placeholder="Select supplier"
+                      description="Can be purchased from multiple vendors; last rates tracked per PO, transfer uses last price"
+                    />
+                  )}
+                />
               </FieldGroup>
             </div>
 
@@ -292,30 +231,6 @@ export default function RawMaterialForm({
               <FieldGroup>
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                   <form.AppField
-                    name="minimum_stock_level"
-                    children={(field) => (
-                      <field.TextField label="Minimum Stock Level" type="number" placeholder="20" />
-                    )}
-                  />
-                  <form.AppField
-                    name="at_par_stock_level"
-                    children={(field) => (
-                      <field.TextField label="At Par Stock Level" type="number" placeholder="35" />
-                    )}
-                  />
-                  <form.AppField
-                    name="maximum_stock_level"
-                    children={(field) => (
-                      <field.TextField
-                        label="Maximum Stock Level"
-                        type="number"
-                        placeholder="100"
-                      />
-                    )}
-                  />
-                </div>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                  <form.AppField
                     name="opening_stock"
                     children={(field) => (
                       <field.TextField label="Opening Stock" type="number" placeholder="0" />
@@ -335,7 +250,12 @@ export default function RawMaterialForm({
                   <form.AppField
                     name="low_stock_threshold"
                     children={(field) => (
-                      <field.TextField label="Low Stock Threshold" type="number" placeholder="5" />
+                      <field.TextField
+                        label="Low Stock Threshold *"
+                        type="number"
+                        placeholder="5"
+                        description="Alert when stock ≤ threshold"
+                      />
                     )}
                   />
                 </div>
@@ -346,8 +266,8 @@ export default function RawMaterialForm({
                       {(initialData.stock_qty * initialData.avg_cost).toFixed(2)}
                     </div>
                     <div className="mt-1">
-                      WAC: (old_avg×old_qty + new_cost×qty)/total. Fluctuating prices → create POs
-                      with varying unit_cost.
+                      WAC: (old_avg×old_qty + new_cost×qty)/total. Transfer uses last purchase
+                      price.
                     </div>
                   </div>
                 )}
@@ -358,24 +278,16 @@ export default function RawMaterialForm({
             <div>
               <h3 className="mb-3 text-sm font-semibold">Related Codes</h3>
               <FieldGroup>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                  <form.AppField
-                    name="barcode"
-                    children={(field) => (
-                      <field.TextField
-                        label="Barcode / Short Code"
-                        placeholder="8901234567890"
-                        description="8-14 digits, GS1"
-                      />
-                    )}
-                  />
-                  <form.AppField
-                    name="hsn_code"
-                    children={(field) => (
-                      <field.TextField label="HSN Code" placeholder="10063010" />
-                    )}
-                  />
-                </div>
+                <form.AppField
+                  name="barcode"
+                  children={(field) => (
+                    <field.TextField
+                      label="Barcode / Short Code"
+                      placeholder="8901234567890"
+                      description="8-14 digits, GS1"
+                    />
+                  )}
+                />
               </FieldGroup>
             </div>
 
@@ -397,7 +309,10 @@ export default function RawMaterialForm({
                   <form.AppField
                     name="allow_decimal"
                     children={(field) => (
-                      <field.SwitchField label="Allow Decimal Quantity" description="Yes / No" />
+                      <field.SwitchField
+                        label="Allow Decimal Quantity"
+                        description="Allows 0.05 kg for 50g"
+                      />
                     )}
                   />
                 </div>

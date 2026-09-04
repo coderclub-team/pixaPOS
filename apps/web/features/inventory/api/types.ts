@@ -13,30 +13,18 @@ export type RawMaterial = {
   sku: string;
   category: string;
   unit: "kg" | "g" | "l" | "ml" | "pcs" | "box";
-  // Petpooja-inspired units
-  base_unit?: "kg" | "g" | "l" | "ml" | "pcs";
-  purchase_unit?: "kg" | "g" | "l" | "ml" | "pcs" | "box" | "tin" | "sack";
-  conversion_factor?: number; // purchase_unit -> base_unit
   stock_qty: number;
-  low_stock_threshold: number; // legacy alias for minimum
-  minimum_stock_level?: number;
-  minimum_stock_unit?: string;
-  at_par_stock_level?: number;
-  at_par_stock_unit?: string;
-  maximum_stock_level?: number;
-  maximum_stock_unit?: string;
+  low_stock_threshold: number; // simple threshold for reorder alerts
   opening_stock?: number;
-  cost_price: number; // last purchase price
+  cost_price: number; // last purchase price — also used as transfer price
   avg_cost: number;
-  reconciliation_price?: number;
-  transfer_price?: number;
   tax_type?: "GST" | "VAT";
   tax_percent?: number;
   hsn_code?: string;
   barcode?: string;
   supplier_id?: string; // legacy single, use suppliers array for multi
   supplier_name?: string;
-  suppliers?: MaterialSupplierPrice[]; // multi-vendor pricing
+  suppliers?: MaterialSupplierPrice[]; // multi-vendor pricing (different vendors, different rates)
   is_active: boolean;
   is_expiry?: boolean;
   allow_decimal?: boolean;
