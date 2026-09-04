@@ -1,4 +1,4 @@
-import { NavGroup } from '../types';
+import { NavGroup } from "../types";
 
 /**
  * Navigation configuration with RBAC support
@@ -35,171 +35,280 @@ import { NavGroup } from '../types';
  */
 export const navGroups: NavGroup[] = [
   {
-    label: 'Overview',
+    label: "Overview",
     items: [
       {
-        title: 'Dashboard',
-        url: '/dashboard/overview',
-        icon: 'dashboard',
+        title: "Dashboard",
+        url: "/dashboard/overview",
+        icon: "dashboard",
         isActive: false,
-        shortcut: ['d', 'd'],
-        items: []
+        shortcut: ["d", "d"],
+        items: [],
       },
       {
-        title: 'Workspaces',
-        url: '/dashboard/workspaces',
-        icon: 'workspace',
-        isActive: false,
-        items: []
-      },
-      {
-        title: 'Teams',
-        url: '/dashboard/workspaces/team',
-        icon: 'teams',
+        title: "Workspaces",
+        url: "/dashboard/workspaces",
+        icon: "workspace",
         isActive: false,
         items: [],
-        access: { requireOrg: true }
       },
       {
-        title: 'Product',
-        url: '/dashboard/product',
-        icon: 'product',
-        shortcut: ['p', 'p'],
+        title: "Teams",
+        url: "/dashboard/workspaces/team",
+        icon: "teams",
         isActive: false,
-        items: []
+        items: [],
+        access: { requireOrg: true },
       },
       {
-        title: 'Users',
-        url: '/dashboard/users',
-        icon: 'teams',
-        shortcut: ['u', 'u'],
+        title: "Product",
+        url: "/dashboard/product",
+        icon: "product",
+        shortcut: ["p", "p"],
         isActive: false,
-        items: []
+        items: [],
       },
       {
-        title: 'Kanban',
-        url: '/dashboard/kanban',
-        icon: 'kanban',
-        shortcut: ['k', 'k'],
+        title: "Users",
+        url: "/dashboard/users",
+        icon: "teams",
+        shortcut: ["u", "u"],
         isActive: false,
-        items: []
+        items: [],
       },
       {
-        title: 'Chat',
-        url: '/dashboard/chat',
-        icon: 'chat',
-        shortcut: ['c', 'c'],
+        title: "Kanban",
+        url: "/dashboard/kanban",
+        icon: "kanban",
+        shortcut: ["k", "k"],
         isActive: false,
-        items: []
+        items: [],
       },
       {
-        title: 'AI Chat',
-        url: '/dashboard/ai-chat',
-        icon: 'sparkles',
-        shortcut: ['a', 'i'],
+        title: "Chat",
+        url: "/dashboard/chat",
+        icon: "chat",
+        shortcut: ["c", "c"],
         isActive: false,
-        items: []
-      }
-    ]
+        items: [],
+      },
+      {
+        title: "AI Chat",
+        url: "/dashboard/ai-chat",
+        icon: "sparkles",
+        shortcut: ["a", "i"],
+        isActive: false,
+        items: [],
+      },
+    ],
   },
   {
-    label: 'Elements',
+    label: "Elements",
     items: [
       {
-        title: 'Forms',
-        url: '#',
-        icon: 'forms',
+        title: "Forms",
+        url: "#",
+        icon: "forms",
         isActive: true,
         items: [
           {
-            title: 'Basic Form',
-            url: '/dashboard/forms/basic',
-            icon: 'forms',
-            shortcut: ['f', 'f']
+            title: "Basic Form",
+            url: "/dashboard/forms/basic",
+            icon: "forms",
+            shortcut: ["f", "f"],
           },
           {
-            title: 'Multi-Step Form',
-            url: '/dashboard/forms/multi-step',
-            icon: 'forms'
+            title: "Multi-Step Form",
+            url: "/dashboard/forms/multi-step",
+            icon: "forms",
           },
           {
-            title: 'Sheet & Dialog',
-            url: '/dashboard/forms/sheet-form',
-            icon: 'forms'
+            title: "Sheet & Dialog",
+            url: "/dashboard/forms/sheet-form",
+            icon: "forms",
           },
           {
-            title: 'Advanced Patterns',
-            url: '/dashboard/forms/advanced',
-            icon: 'forms'
-          }
-        ]
+            title: "Advanced Patterns",
+            url: "/dashboard/forms/advanced",
+            icon: "forms",
+          },
+        ],
       },
       {
-        title: 'React Query',
-        url: '/dashboard/react-query',
-        icon: 'code',
+        title: "React Query",
+        url: "/dashboard/react-query",
+        icon: "code",
         isActive: false,
-        items: []
+        items: [],
       },
       {
-        title: 'Icons',
-        url: '/dashboard/elements/icons',
-        icon: 'palette',
+        title: "Icons",
+        url: "/dashboard/elements/icons",
+        icon: "palette",
         isActive: false,
-        items: []
-      }
-    ]
+        items: [],
+      },
+    ],
   },
   {
-    label: '',
+    label: "Outlet",
     items: [
       {
-        title: 'Pro',
-        url: '#',
-        icon: 'pro',
-        isActive: false,
-        items: [
-          {
-            title: 'Exclusive',
-            url: '/dashboard/exclusive',
-            icon: 'exclusive',
-            shortcut: ['e', 'e']
-          }
-        ]
-      },
-      {
-        title: 'Account',
-        url: '#',
-        icon: 'account',
+        title: "Outlet",
+        url: "#",
+        icon: "settings",
         isActive: true,
         items: [
           {
-            title: 'Profile',
-            url: '/dashboard/profile',
-            icon: 'profile',
-            shortcut: ['m', 'm']
+            title: "Basic Information",
+            url: "/dashboard/settings/outlet/general/basic-information",
+            icon: "user",
+            shortcut: ["o", "b"],
           },
           {
-            title: 'Notifications',
-            url: '/dashboard/notifications',
-            icon: 'notification',
-            shortcut: ['n', 'n']
+            title: "Contact",
+            url: "/dashboard/settings/outlet/general/contact",
+            icon: "phone",
+            shortcut: ["o", "c"],
           },
           {
-            title: 'Billing',
-            url: '/dashboard/billing',
-            icon: 'billing',
-            shortcut: ['b', 'b'],
-            access: { requireOrg: true }
+            title: "Address",
+            url: "/dashboard/settings/outlet/general/address",
+            icon: "workspace",
+            shortcut: ["o", "a"],
           },
           {
-            title: 'Login',
-            shortcut: ['l', 'l'],
-            url: '/',
-            icon: 'login'
-          }
-        ]
-      }
-    ]
-  }
+            title: "GST",
+            url: "/dashboard/settings/outlet/legal/gst",
+            icon: "fileTypeDoc",
+            shortcut: ["o", "g"],
+          },
+          {
+            title: "FSSAI",
+            url: "/dashboard/settings/outlet/legal/fssai",
+            icon: "fileTypeDoc",
+            shortcut: ["o", "f"],
+          },
+          {
+            title: "Business Details",
+            url: "/dashboard/settings/outlet/legal/business-details",
+            icon: "page",
+            shortcut: ["o", "d"],
+          },
+          {
+            title: "Invoice",
+            url: "/dashboard/settings/outlet/billing/invoice",
+            icon: "billing",
+            shortcut: ["o", "i"],
+          },
+          {
+            title: "Receipt",
+            url: "/dashboard/settings/outlet/billing/receipt",
+            icon: "billing",
+            shortcut: ["o", "r"],
+          },
+          {
+            title: "Business Hours",
+            url: "/dashboard/settings/outlet/operations/business-hours",
+            icon: "clock",
+            shortcut: ["o", "h"],
+          },
+          {
+            title: "Timezone",
+            url: "/dashboard/settings/outlet/operations/timezone",
+            icon: "clock",
+            shortcut: ["o", "z"],
+          },
+          {
+            title: "Order Settings",
+            url: "/dashboard/settings/outlet/operations/order-settings",
+            icon: "adjustments",
+            shortcut: ["o", "o"],
+          },
+          {
+            title: "Online Ordering",
+            url: "/dashboard/settings/outlet/integrations/online-ordering",
+            icon: "share",
+            shortcut: ["o", "n"],
+          },
+          {
+            title: "Delivery",
+            url: "/dashboard/settings/outlet/integrations/delivery",
+            icon: "share",
+            shortcut: ["o", "l"],
+          },
+          {
+            title: "Aggregators",
+            url: "/dashboard/settings/outlet/integrations/aggregators",
+            icon: "code",
+            shortcut: ["o", "a", "g"],
+          },
+          {
+            title: "Floors",
+            url: "/dashboard/settings/outlet/floors",
+            icon: "layers",
+            shortcut: ["o", "f", "l"],
+          },
+          {
+            title: "Tables",
+            url: "/dashboard/settings/outlet/tables",
+            icon: "table",
+            shortcut: ["o", "t"],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    label: "",
+    items: [
+      {
+        title: "Pro",
+        url: "#",
+        icon: "pro",
+        isActive: false,
+        items: [
+          {
+            title: "Exclusive",
+            url: "/dashboard/exclusive",
+            icon: "exclusive",
+            shortcut: ["e", "e"],
+          },
+        ],
+      },
+      {
+        title: "Account",
+        url: "#",
+        icon: "account",
+        isActive: true,
+        items: [
+          {
+            title: "Profile",
+            url: "/dashboard/profile",
+            icon: "profile",
+            shortcut: ["m", "m"],
+          },
+          {
+            title: "Notifications",
+            url: "/dashboard/notifications",
+            icon: "notification",
+            shortcut: ["n", "n"],
+          },
+          {
+            title: "Billing",
+            url: "/dashboard/billing",
+            icon: "billing",
+            shortcut: ["b", "b"],
+            access: { requireOrg: true },
+          },
+          {
+            title: "Login",
+            shortcut: ["l", "l"],
+            url: "/",
+            icon: "login",
+          },
+        ],
+      },
+    ],
+  },
 ];

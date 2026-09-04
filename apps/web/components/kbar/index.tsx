@@ -1,5 +1,5 @@
 "use client";
-import { navGroups } from "@pixa/ui/config/nav-config";
+import { navGroups } from "@/config/nav-config";
 import { KBarAnimator, KBarPortal, KBarPositioner, KBarProvider, KBarSearch } from "kbar";
 import { Kbd } from "@pixa/ui/base-ui/kbd";
 import { useRouter } from "next/navigation";

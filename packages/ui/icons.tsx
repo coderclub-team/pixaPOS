@@ -72,8 +72,10 @@ import {
   IconSlash,
   IconSparkles,
   IconStack2,
+  IconStack3,
   IconStar,
   IconSun,
+  IconTable,
   IconTrash,
   IconTrendingDown,
   IconTrendingUp,
@@ -87,8 +89,8 @@ import {
   IconUsers,
   IconVideo,
   IconCrown,
-  IconX
-} from '@tabler/icons-react';
+  IconX,
+} from "@tabler/icons-react";
 
 export type Icon = React.ComponentType<IconProps>;
 
@@ -219,5 +221,7 @@ export const Icons = {
   slash: IconSlash,
   calendar: IconCalendar,
   galleryVerticalEnd: IconStack2,
-  moreHorizontal: IconDots
+  moreHorizontal: IconDots,
+  layers: IconStack3,
+  table: IconTable,
 };
