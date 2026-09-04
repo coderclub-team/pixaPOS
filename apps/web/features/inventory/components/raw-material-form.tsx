@@ -176,17 +176,20 @@ export default function RawMaterialForm({
                     )}
                   />
                 </div>
-                <form.AppField
-                  name="supplier_id"
-                  children={(field) => (
-                    <field.SelectField
-                      label="Preferred Supplier"
-                      options={supplierOptions}
-                      placeholder="Select supplier"
-                      description="Can be purchased from multiple vendors; last rates tracked per PO, transfer uses last price"
-                    />
-                  )}
-                />
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                  <form.AppField
+                    name="supplier_id"
+                    children={(field) => (
+                      <field.SelectField
+                        label="Preferred Supplier"
+                        options={supplierOptions}
+                        placeholder="Select supplier"
+                        description="Can be purchased from multiple vendors; last rates tracked per PO, transfer uses last price"
+                      />
+                    )}
+                  />
+                  <div className="hidden md:block" />
+                </div>
               </FieldGroup>
             </div>
 
@@ -278,16 +281,19 @@ export default function RawMaterialForm({
             <div>
               <h3 className="mb-3 text-sm font-semibold">Related Codes</h3>
               <FieldGroup>
-                <form.AppField
-                  name="barcode"
-                  children={(field) => (
-                    <field.TextField
-                      label="Barcode / Short Code"
-                      placeholder="8901234567890"
-                      description="8-14 digits, GS1"
-                    />
-                  )}
-                />
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                  <form.AppField
+                    name="barcode"
+                    children={(field) => (
+                      <field.TextField
+                        label="Barcode / Short Code"
+                        placeholder="8901234567890"
+                        description="8-14 digits, GS1"
+                      />
+                    )}
+                  />
+                  <div className="hidden md:block" />
+                </div>
               </FieldGroup>
             </div>
 
