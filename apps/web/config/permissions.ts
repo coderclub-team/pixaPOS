@@ -10,6 +10,12 @@ export const POS_PERMISSIONS = {
   reportsView: "org:reports:view",
   sysMembershipsManage: "org:sys_memberships:manage",
   sysProfileManage: "org:sys_profile:manage",
+  inventoryManage: "org:inventory:manage",
+  inventoryView: "org:inventory:view",
+  suppliersManage: "org:suppliers:manage",
+  purchasesManage: "org:purchases:manage",
+  recipesManage: "org:recipes:manage",
+  wasteManage: "org:waste:manage",
 } as const;
 
 // Role -> permissions mapping (for docs / future Clerk setup)
@@ -24,18 +30,33 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     POS_PERMISSIONS.ordersManage,
     POS_PERMISSIONS.menuManage,
     POS_PERMISSIONS.reportsView,
+    POS_PERMISSIONS.inventoryManage,
+    POS_PERMISSIONS.suppliersManage,
+    POS_PERMISSIONS.purchasesManage,
+    POS_PERMISSIONS.recipesManage,
+    POS_PERMISSIONS.wasteManage,
   ],
   "org:cashier": [
     POS_PERMISSIONS.tablesOperate,
     POS_PERMISSIONS.ordersManage,
     POS_PERMISSIONS.ordersView,
     POS_PERMISSIONS.reportsView,
+    POS_PERMISSIONS.inventoryView,
   ],
   "org:waiter": [
     POS_PERMISSIONS.tablesOperate,
     POS_PERMISSIONS.ordersManage,
     POS_PERMISSIONS.ordersView,
   ],
-  "org:kitchen": [POS_PERMISSIONS.ordersView],
-  "org:accountant": [POS_PERMISSIONS.reportsView, POS_PERMISSIONS.ordersView],
+  "org:kitchen": [
+    POS_PERMISSIONS.ordersView,
+    POS_PERMISSIONS.inventoryView,
+    POS_PERMISSIONS.wasteManage,
+  ],
+  "org:accountant": [
+    POS_PERMISSIONS.reportsView,
+    POS_PERMISSIONS.ordersView,
+    POS_PERMISSIONS.inventoryView,
+    POS_PERMISSIONS.purchasesManage,
+  ],
 };

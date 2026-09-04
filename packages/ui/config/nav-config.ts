@@ -255,6 +255,61 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
+    label: "Inventory",
+    items: [
+      {
+        title: "Inventory",
+        url: "#",
+        icon: "warehouse",
+        isActive: true,
+        items: [
+          {
+            title: "Raw Materials",
+            url: "/dashboard/inventory/raw-materials",
+            icon: "package",
+            shortcut: ["i", "r"],
+            access: { requireOrg: true, permission: "org:inventory:manage" },
+          },
+          {
+            title: "Suppliers",
+            url: "/dashboard/inventory/suppliers",
+            icon: "supplier",
+            shortcut: ["i", "s"],
+            access: { requireOrg: true, permission: "org:suppliers:manage" },
+          },
+          {
+            title: "Purchase Orders",
+            url: "/dashboard/inventory/purchase-orders",
+            icon: "cart",
+            shortcut: ["i", "p"],
+            access: { requireOrg: true, permission: "org:purchases:manage" },
+          },
+          {
+            title: "Recipes",
+            url: "/dashboard/inventory/recipes",
+            icon: "recipe",
+            shortcut: ["i", "c"],
+            access: { requireOrg: true, permission: "org:recipes:manage" },
+          },
+          {
+            title: "Stock Ledger",
+            url: "/dashboard/inventory/stock",
+            icon: "warehouse",
+            shortcut: ["i", "l"],
+            access: { requireOrg: true, permission: "org:inventory:manage" },
+          },
+          {
+            title: "Waste Log",
+            url: "/dashboard/inventory/waste",
+            icon: "trash",
+            shortcut: ["i", "w"],
+            access: { requireOrg: true, permission: "org:waste:manage" },
+          },
+        ],
+      },
+    ],
+  },
+  {
     label: "",
     items: [
       {
