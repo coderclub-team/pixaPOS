@@ -18,7 +18,6 @@ import { inventoryKeys } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Show } from "@clerk/nextjs";
 
 export function RawMaterialList({ materials }: { materials: RawMaterial[] }) {
   const deleteMutation = useMutation({
@@ -57,8 +56,7 @@ export function RawMaterialList({ materials }: { materials: RawMaterial[] }) {
               <TableHead>Material</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Stock</TableHead>
-              <TableHead>Cost</TableHead>
-              <TableHead>Supplier</TableHead>
+              <TableHead>Price</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -73,11 +71,11 @@ export function RawMaterialList({ materials }: { materials: RawMaterial[] }) {
                       <span className="font-mono text-xs text-muted-foreground">{m.sku}</span>
                     </div>
                     <span className="text-xs text-muted-foreground">
-                      {m.unit} • threshold {m.low_stock_threshold}
+                      {m.unit} • {m.category}
                     </span>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline">{m.category}</Badge>
+                    <span className="text-sm text-muted-foreground">{m.category}</span>
                   </TableCell>
                   <TableCell>
                     <Badge variant={low ? "destructive" : m.is_active ? "default" : "secondary"}>
@@ -86,8 +84,8 @@ export function RawMaterialList({ materials }: { materials: RawMaterial[] }) {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col text-xs">
-                      <span>Last ₹{m.cost_price}</span>
-                      <span className="font-medium">Avg ₹{m.avg_cost}</span>
+                      <span className="font-medium">₹{m.cost_price}</span>
+                      <span className="text-muted-foreground">Avg ₹{m.avg_cost}</span>
                       {(() => {
                         const delta = m.avg_cost
                           ? ((m.cost_price - m.avg_cost) / m.avg_cost) * 100
@@ -96,35 +94,27 @@ export function RawMaterialList({ materials }: { materials: RawMaterial[] }) {
                         const isDown = delta < -2;
                         if (!isUp && !isDown) return null;
                         return (
-                          <Badge
-                            variant={isUp ? "destructive" : "secondary"}
-                            className="mt-1 w-fit text-[10px]"
-                          >
+                          <span className={isUp ? "text-red-600" : "text-green-600"}>
                             {isUp ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}%
-                          </Badge>
+                          </span>
                         );
                       })()}
                     </div>
                   </TableCell>
-                  <TableCell>{m.supplier_name ?? "-"}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Show when={{ permission: "org:inventory:manage" }} fallback={null}>
-                        <Link href={`/dashboard/inventory/raw-materials/${m.id}`}>
-                          <Button variant="ghost" size="icon-sm">
-                            <Icons.edit className="size-4" />
-                          </Button>
-                        </Link>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() =>
-                            confirm(`Delete ${m.name}?`) && deleteMutation.mutate(m.id)
-                          }
-                        >
-                          <Icons.trash className="size-4" />
+                      <Link href={`/dashboard/inventory/raw-materials/${m.id}`}>
+                        <Button variant="ghost" size="icon-sm">
+                          <Icons.edit className="size-4" />
                         </Button>
-                      </Show>
+                      </Link>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => confirm(`Delete ${m.name}?`) && deleteMutation.mutate(m.id)}
+                      >
+                        <Icons.trash className="size-4" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>

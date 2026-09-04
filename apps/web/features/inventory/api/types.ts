@@ -1,3 +1,11 @@
+export type MaterialSupplierPrice = {
+  supplier_id: string;
+  supplier_name?: string;
+  last_rate: number;
+  is_preferred?: boolean;
+  last_purchase_at?: string;
+};
+
 export type RawMaterial = {
   id: string;
   outlet_id?: string;
@@ -6,12 +14,23 @@ export type RawMaterial = {
   category: string;
   unit: "kg" | "g" | "l" | "ml" | "pcs" | "box";
   stock_qty: number;
-  low_stock_threshold: number;
-  cost_price: number;
+  low_stock_threshold: number; // simple threshold for reorder alerts
+  opening_stock?: number;
+  cost_price: number; // last purchase price — also used as transfer price
   avg_cost: number;
-  supplier_id?: string;
+  tax_type?: "GST" | "VAT";
+  tax_percent?: number;
+  hsn_code?: string;
+  barcode?: string;
+  supplier_id?: string; // legacy single, use suppliers array for multi
   supplier_name?: string;
+  suppliers?: MaterialSupplierPrice[]; // multi-vendor pricing (different vendors, different rates)
   is_active: boolean;
+  is_expiry?: boolean;
+  allow_decimal?: boolean;
+  exclusive?: boolean;
+  normal_loss_percent?: number;
+  description?: string;
   created_at: string;
   updated_at: string;
 };
