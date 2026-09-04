@@ -1,3 +1,11 @@
+export type MaterialSupplierPrice = {
+  supplier_id: string;
+  supplier_name?: string;
+  last_rate: number;
+  is_preferred?: boolean;
+  last_purchase_at?: string;
+};
+
 export type RawMaterial = {
   id: string;
   outlet_id?: string;
@@ -5,13 +13,36 @@ export type RawMaterial = {
   sku: string;
   category: string;
   unit: "kg" | "g" | "l" | "ml" | "pcs" | "box";
+  // Petpooja-inspired units
+  base_unit?: "kg" | "g" | "l" | "ml" | "pcs";
+  purchase_unit?: "kg" | "g" | "l" | "ml" | "pcs" | "box" | "tin" | "sack";
+  conversion_factor?: number; // purchase_unit -> base_unit
   stock_qty: number;
-  low_stock_threshold: number;
-  cost_price: number;
+  low_stock_threshold: number; // legacy alias for minimum
+  minimum_stock_level?: number;
+  minimum_stock_unit?: string;
+  at_par_stock_level?: number;
+  at_par_stock_unit?: string;
+  maximum_stock_level?: number;
+  maximum_stock_unit?: string;
+  opening_stock?: number;
+  cost_price: number; // last purchase price
   avg_cost: number;
-  supplier_id?: string;
+  reconciliation_price?: number;
+  transfer_price?: number;
+  tax_type?: "GST" | "VAT";
+  tax_percent?: number;
+  hsn_code?: string;
+  barcode?: string;
+  supplier_id?: string; // legacy single, use suppliers array for multi
   supplier_name?: string;
+  suppliers?: MaterialSupplierPrice[]; // multi-vendor pricing
   is_active: boolean;
+  is_expiry?: boolean;
+  allow_decimal?: boolean;
+  exclusive?: boolean;
+  normal_loss_percent?: number;
+  description?: string;
   created_at: string;
   updated_at: string;
 };

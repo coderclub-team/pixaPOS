@@ -18,7 +18,7 @@ import type {
   MaterialPriceHistory,
 } from "./types";
 
-// Raw Materials
+// Raw Materials - Petpooja-aligned with multi-supplier
 let mockRawMaterials: RawMaterial[] = [
   {
     id: "rm_001",
@@ -27,13 +27,50 @@ let mockRawMaterials: RawMaterial[] = [
     sku: "RM-RICE-001",
     category: "Grains",
     unit: "kg",
+    base_unit: "kg",
+    purchase_unit: "tin",
+    conversion_factor: 25,
     stock_qty: 45,
     low_stock_threshold: 20,
+    minimum_stock_level: 20,
+    minimum_stock_unit: "kg",
+    at_par_stock_level: 35,
+    at_par_stock_unit: "kg",
+    maximum_stock_level: 100,
+    maximum_stock_unit: "kg",
+    opening_stock: 50,
     cost_price: 80,
     avg_cost: 78,
+    reconciliation_price: 78,
+    transfer_price: 85,
+    tax_type: "GST",
+    tax_percent: 5,
+    hsn_code: "10063010",
+    barcode: "8901234567890",
     supplier_id: "sup_001",
     supplier_name: "Shree Grains",
+    suppliers: [
+      {
+        supplier_id: "sup_001",
+        supplier_name: "Shree Grains",
+        last_rate: 78,
+        is_preferred: true,
+        last_purchase_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
+      },
+      {
+        supplier_id: "sup_003",
+        supplier_name: "Oil Traders",
+        last_rate: 82,
+        is_preferred: false,
+        last_purchase_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString(),
+      },
+    ],
     is_active: true,
+    is_expiry: false,
+    allow_decimal: true,
+    exclusive: false,
+    normal_loss_percent: 2,
+    description: "Premium basmati for biryani",
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -44,13 +81,41 @@ let mockRawMaterials: RawMaterial[] = [
     sku: "RM-CHKN-001",
     category: "Meat",
     unit: "kg",
+    base_unit: "kg",
+    purchase_unit: "kg",
+    conversion_factor: 1,
     stock_qty: 8,
     low_stock_threshold: 10,
+    minimum_stock_level: 10,
+    minimum_stock_unit: "kg",
+    at_par_stock_level: 20,
+    at_par_stock_unit: "kg",
+    maximum_stock_level: 50,
+    maximum_stock_unit: "kg",
+    opening_stock: 15,
     cost_price: 320,
     avg_cost: 310,
+    reconciliation_price: 310,
+    tax_type: "GST",
+    tax_percent: 5,
+    hsn_code: "02071100",
+    barcode: "8901234567891",
     supplier_id: "sup_002",
     supplier_name: "Fresh Meat Co",
+    suppliers: [
+      {
+        supplier_id: "sup_002",
+        supplier_name: "Fresh Meat Co",
+        last_rate: 310,
+        is_preferred: true,
+      },
+    ],
     is_active: true,
+    is_expiry: true,
+    allow_decimal: true,
+    exclusive: false,
+    normal_loss_percent: 5,
+    description: "Fresh boneless chicken",
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 20).toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -61,13 +126,29 @@ let mockRawMaterials: RawMaterial[] = [
     sku: "RM-VEG-001",
     category: "Vegetables",
     unit: "kg",
+    base_unit: "kg",
+    purchase_unit: "box",
+    conversion_factor: 5,
     stock_qty: 15,
     low_stock_threshold: 5,
+    minimum_stock_level: 5,
+    at_par_stock_level: 15,
+    maximum_stock_level: 40,
+    opening_stock: 20,
     cost_price: 30,
     avg_cost: 28,
+    tax_type: "GST",
+    tax_percent: 5,
+    hsn_code: "07020000",
     supplier_id: "sup_001",
     supplier_name: "Shree Grains",
+    suppliers: [
+      { supplier_id: "sup_001", supplier_name: "Shree Grains", last_rate: 28, is_preferred: true },
+    ],
     is_active: true,
+    is_expiry: true,
+    allow_decimal: true,
+    normal_loss_percent: 3,
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -78,13 +159,34 @@ let mockRawMaterials: RawMaterial[] = [
     sku: "RM-OIL-001",
     category: "Oil",
     unit: "l",
+    base_unit: "l",
+    purchase_unit: "tin",
+    conversion_factor: 15,
     stock_qty: 25,
     low_stock_threshold: 10,
+    minimum_stock_level: 10,
+    at_par_stock_level: 20,
+    maximum_stock_level: 60,
+    opening_stock: 30,
     cost_price: 140,
     avg_cost: 135,
+    reconciliation_price: 135,
+    transfer_price: 145,
+    tax_type: "GST",
+    tax_percent: 5,
+    hsn_code: "15121910",
+    barcode: "8901234567892",
     supplier_id: "sup_003",
     supplier_name: "Oil Traders",
+    suppliers: [
+      { supplier_id: "sup_003", supplier_name: "Oil Traders", last_rate: 135, is_preferred: true },
+    ],
     is_active: true,
+    is_expiry: false,
+    allow_decimal: true,
+    exclusive: false,
+    normal_loss_percent: 1,
+    description: "Refined sunflower oil 15L tin",
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -321,7 +423,18 @@ export async function createRawMaterial(payload: RawMaterialPayload): Promise<Ra
   await delay(600);
   if (mockRawMaterials.some((m) => m.sku.toLowerCase() === payload.sku.toLowerCase()))
     throw new Error(`SKU "${payload.sku}" already exists`);
+  if (payload.barcode && mockRawMaterials.some((m) => m.barcode && m.barcode === payload.barcode))
+    throw new Error(`Barcode "${payload.barcode}" already exists`);
+  if (payload.hsn_code && !/^[0-9]{4,8}$/.test(payload.hsn_code))
+    throw new Error("Invalid HSN 4-8 digits");
   const now = new Date().toISOString();
+  const supplierMap = supplierNameMap();
+  const suppliers = (payload as any).suppliers as RawMaterial["suppliers"] | undefined;
+  const enrichedSuppliers =
+    suppliers?.map((s) => ({
+      ...s,
+      supplier_name: supplierMap[s.supplier_id] ?? s.supplier_name,
+    })) ?? undefined;
   const mat: RawMaterial = {
     id: `rm_${Date.now().toString(36)}`,
     outlet_id: "out_001",
@@ -329,13 +442,35 @@ export async function createRawMaterial(payload: RawMaterialPayload): Promise<Ra
     sku: payload.sku.toUpperCase(),
     category: payload.category ?? "General",
     unit: payload.unit ?? "pcs",
+    base_unit: (payload as any).base_unit,
+    purchase_unit: (payload as any).purchase_unit,
+    conversion_factor: (payload as any).conversion_factor,
     stock_qty: payload.stock_qty ?? 0,
-    low_stock_threshold: payload.low_stock_threshold ?? 5,
+    low_stock_threshold: payload.low_stock_threshold ?? (payload as any).minimum_stock_level ?? 5,
+    minimum_stock_level: (payload as any).minimum_stock_level,
+    minimum_stock_unit: (payload as any).minimum_stock_unit,
+    at_par_stock_level: (payload as any).at_par_stock_level,
+    at_par_stock_unit: (payload as any).at_par_stock_unit,
+    maximum_stock_level: (payload as any).maximum_stock_level,
+    maximum_stock_unit: (payload as any).maximum_stock_unit,
+    opening_stock: (payload as any).opening_stock ?? payload.stock_qty ?? 0,
     cost_price: payload.cost_price ?? 0,
     avg_cost: payload.cost_price ?? 0,
+    reconciliation_price: (payload as any).reconciliation_price,
+    transfer_price: (payload as any).transfer_price,
+    tax_type: (payload as any).tax_type,
+    tax_percent: (payload as any).tax_percent,
+    hsn_code: (payload as any).hsn_code,
+    barcode: (payload as any).barcode,
     supplier_id: payload.supplier_id,
-    supplier_name: payload.supplier_id ? supplierNameMap()[payload.supplier_id] : undefined,
+    supplier_name: payload.supplier_id ? supplierMap[payload.supplier_id] : undefined,
+    suppliers: enrichedSuppliers,
     is_active: payload.is_active ?? true,
+    is_expiry: (payload as any).is_expiry,
+    allow_decimal: (payload as any).allow_decimal,
+    exclusive: (payload as any).exclusive,
+    normal_loss_percent: (payload as any).normal_loss_percent,
+    description: (payload as any).description,
     created_at: now,
     updated_at: now,
   };
@@ -355,16 +490,44 @@ export async function updateRawMaterial(
     mockRawMaterials.some((m) => m.id !== id && m.sku.toLowerCase() === payload.sku!.toLowerCase())
   )
     throw new Error(`SKU "${payload.sku}" already exists`);
+  if (
+    (payload as any).barcode &&
+    mockRawMaterials.some((m) => m.id !== id && m.barcode && m.barcode === (payload as any).barcode)
+  )
+    throw new Error(`Barcode "${(payload as any).barcode}" already exists`);
   const current = mockRawMaterials[idx];
+  const supplierMap = supplierNameMap();
+  const suppliers = (payload as any).suppliers as RawMaterial["suppliers"] | undefined;
+  const enrichedSuppliers = suppliers
+    ? suppliers.map((s) => ({ ...s, supplier_name: supplierMap[s.supplier_id] ?? s.supplier_name }))
+    : undefined;
   const updated: RawMaterial = {
     ...current,
     ...payload,
     sku: payload.sku ? payload.sku.toUpperCase() : current.sku,
-    supplier_name: payload.supplier_id
-      ? supplierNameMap()[payload.supplier_id]
-      : current.supplier_name,
+    supplier_name: payload.supplier_id ? supplierMap[payload.supplier_id] : current.supplier_name,
+    suppliers: enrichedSuppliers ?? current.suppliers,
     updated_at: new Date().toISOString(),
   };
+  // Track manual price edit history if cost_price changed without PO
+  if (payload.cost_price !== undefined && payload.cost_price !== current.cost_price) {
+    const oldAvg = current.avg_cost;
+    // For manual edit, we keep avg as is but log history for audit
+    mockPriceHistory.push({
+      id: `ph_${Date.now().toString(36)}_${id}`,
+      material_id: id,
+      material_name: current.name,
+      old_avg: oldAvg,
+      new_avg: oldAvg,
+      unit_cost: payload.cost_price,
+      qty: 0,
+      old_stock: current.stock_qty,
+      new_stock: current.stock_qty,
+      source: "manual_edit",
+      reference_id: id,
+      created_at: new Date().toISOString(),
+    });
+  }
   mockRawMaterials[idx] = updated;
   return { ...updated };
 }
