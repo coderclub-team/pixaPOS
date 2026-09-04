@@ -3,17 +3,16 @@
 import * as React from "react";
 import PageContainer from "@/components/layout/page-container";
 import { FloorList } from "@/features/floor/components/floor-list";
-import { FloorFormDialog } from "@/features/floor/components/floor-form-dialog";
 import { floorsQueryOptions } from "@/features/floor/api/queries";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@pixa/ui/base-ui/button";
+import { buttonVariants } from "@pixa/ui/base-ui/button";
 import { Input } from "@pixa/ui/base-ui/input";
-import type { Floor } from "@/features/floor/api/types";
+import { Icons } from "@pixa/ui/icons";
+import { cn } from "@pixa/ui/lib/utils";
+import Link from "next/link";
 
 export default function FloorsPage() {
   const [search, setSearch] = React.useState("");
-  const [dialogOpen, setDialogOpen] = React.useState(false);
-  const [editingFloor, setEditingFloor] = React.useState<Floor | null>(null);
 
   const { data: floors, isPending } = useQuery(floorsQueryOptions(search ? { search } : undefined));
 
@@ -23,16 +22,6 @@ export default function FloorsPage() {
     const id = setTimeout(() => setSearch(inputValue), 300);
     return () => clearTimeout(id);
   }, [inputValue]);
-
-  const handleCreate = () => {
-    setEditingFloor(null);
-    setDialogOpen(true);
-  };
-
-  const handleEdit = (floor: Floor) => {
-    setEditingFloor(floor);
-    setDialogOpen(true);
-  };
 
   if (isPending) {
     return (
@@ -46,7 +35,14 @@ export default function FloorsPage() {
     <PageContainer
       pageTitle="Floors"
       pageDescription="Outlet — Floors. Manage serving areas: Ground, First, Rooftop, Basement. Each floor groups tables and routes orders."
-      pageHeaderAction={<Button onClick={handleCreate}>Add Floor</Button>}
+      pageHeaderAction={
+        <Link
+          href="/dashboard/settings/outlet/floors/new"
+          className={cn(buttonVariants(), "text-xs md:text-sm")}
+        >
+          <Icons.add className="mr-2 h-4 w-4" /> Add New
+        </Link>
+      }
     >
       <div className="mb-4 flex items-center gap-2">
         <Input
@@ -57,14 +53,12 @@ export default function FloorsPage() {
         />
       </div>
 
-      <FloorList floors={floors ?? []} onEdit={handleEdit} />
+      <FloorList floors={floors ?? []} />
 
       <p className="mt-4 text-xs text-muted-foreground">
         Floors organize tables and KOT routing. Sort order controls display priority. Inactive
         floors are hidden from floor selection but retained for history.
       </p>
-
-      <FloorFormDialog open={dialogOpen} onOpenChange={setDialogOpen} floor={editingFloor} />
     </PageContainer>
   );
 }

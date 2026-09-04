@@ -17,10 +17,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { deleteFloor } from "../api/service";
 import { floorKeys } from "../api/queries";
 import { toast } from "sonner";
+import Link from "next/link";
 
 interface FloorListProps {
   floors: Floor[];
-  onEdit: (floor: Floor) => void;
+  onEdit?: (floor: Floor) => void;
 }
 
 export function FloorList({ floors, onEdit }: FloorListProps) {
@@ -105,14 +106,25 @@ export function FloorList({ floors, onEdit }: FloorListProps) {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => onEdit(floor)}
-                      aria-label={`Edit ${floor.name}`}
-                    >
-                      <Icons.edit className="size-4" />
-                    </Button>
+                    {onEdit ? (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => onEdit(floor)}
+                        aria-label={`Edit ${floor.name}`}
+                      >
+                        <Icons.edit className="size-4" />
+                      </Button>
+                    ) : (
+                      <Link
+                        href={`/dashboard/settings/outlet/floors/${floor.id}`}
+                        aria-label={`Edit ${floor.name}`}
+                      >
+                        <Button variant="ghost" size="icon-sm">
+                          <Icons.edit className="size-4" />
+                        </Button>
+                      </Link>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon-sm"
