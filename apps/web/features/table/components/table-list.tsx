@@ -19,7 +19,7 @@ import { tableKeys } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Protect } from "@clerk/nextjs";
+import { Show } from "@clerk/nextjs";
 
 interface TableListProps {
   tables: RestaurantTable[];
@@ -110,7 +110,7 @@ export function TableList({ tables }: TableListProps) {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
-                    <Protect permission="org:tables:manage" fallback={null}>
+                    <Show when={{ permission: "org:tables:manage" }} fallback={null}>
                       <Link
                         href={`/dashboard/settings/outlet/tables/${table.id}`}
                         aria-label={`Edit ${table.code}`}
@@ -131,7 +131,7 @@ export function TableList({ tables }: TableListProps) {
                       >
                         <Icons.trash className="size-4" />
                       </Button>
-                    </Protect>
+                    </Show>
                   </div>
                 </TableCell>
               </TableRow>

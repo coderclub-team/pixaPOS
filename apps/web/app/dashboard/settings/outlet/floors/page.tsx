@@ -10,7 +10,7 @@ import { Input } from "@pixa/ui/base-ui/input";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
-import { Protect } from "@clerk/nextjs";
+import { Show } from "@clerk/nextjs";
 
 export default function FloorsPage() {
   const [search, setSearch] = React.useState("");
@@ -37,14 +37,14 @@ export default function FloorsPage() {
       pageTitle="Floors"
       pageDescription="Outlet — Floors. Manage serving areas: Ground, First, Rooftop, Basement. Each floor groups tables and routes orders."
       pageHeaderAction={
-        <Protect permission="org:floors:manage" fallback={null}>
+        <Show when={{ permission: "org:floors:manage" }} fallback={null}>
           <Link
             href="/dashboard/settings/outlet/floors/new"
             className={cn(buttonVariants(), "text-xs md:text-sm")}
           >
             <Icons.add className="mr-2 h-4 w-4" /> Add New
           </Link>
-        </Protect>
+        </Show>
       }
     >
       <div className="mb-4 flex items-center gap-2">

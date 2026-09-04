@@ -16,7 +16,7 @@ import { useMutation } from "@tanstack/react-query";
 import { updatePurchaseOrderStatus } from "../api/service";
 import { inventoryKeys } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
-import { Protect } from "@clerk/nextjs";
+import { Show } from "@clerk/nextjs";
 
 function statusVariant(s: string) {
   if (s === "received") return "default" as const;
@@ -73,7 +73,7 @@ export function PurchaseOrderList({ orders }: { orders: PurchaseOrder[] }) {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
-                    <Protect permission="org:purchases:manage" fallback={null}>
+                    <Show when={{ permission: "org:purchases:manage" }} fallback={null}>
                       {po.status === "draft" && (
                         <Button
                           variant="ghost"
@@ -92,7 +92,7 @@ export function PurchaseOrderList({ orders }: { orders: PurchaseOrder[] }) {
                           Receive
                         </Button>
                       )}
-                    </Protect>
+                    </Show>
                   </div>
                 </TableCell>
               </TableRow>

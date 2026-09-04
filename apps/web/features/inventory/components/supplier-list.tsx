@@ -18,7 +18,7 @@ import { inventoryKeys } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Protect } from "@clerk/nextjs";
+import { Show } from "@clerk/nextjs";
 
 export function SupplierList({ suppliers }: { suppliers: Supplier[] }) {
   const del = useMutation({
@@ -68,7 +68,7 @@ export function SupplierList({ suppliers }: { suppliers: Supplier[] }) {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
-                    <Protect permission="org:suppliers:manage" fallback={null}>
+                    <Show when={{ permission: "org:suppliers:manage" }} fallback={null}>
                       <Link href={`/dashboard/inventory/suppliers/${s.id}`}>
                         <Button variant="ghost" size="icon-sm">
                           <Icons.edit className="size-4" />
@@ -81,7 +81,7 @@ export function SupplierList({ suppliers }: { suppliers: Supplier[] }) {
                       >
                         <Icons.trash className="size-4" />
                       </Button>
-                    </Protect>
+                    </Show>
                   </div>
                 </TableCell>
               </TableRow>

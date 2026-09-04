@@ -18,7 +18,7 @@ import { inventoryKeys } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Protect } from "@clerk/nextjs";
+import { Show } from "@clerk/nextjs";
 
 export function RecipeList({ recipes }: { recipes: Recipe[] }) {
   const del = useMutation({
@@ -76,7 +76,7 @@ export function RecipeList({ recipes }: { recipes: Recipe[] }) {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Protect permission="org:recipes:manage" fallback={null}>
+                      <Show when={{ permission: "org:recipes:manage" }} fallback={null}>
                         <Link href={`/dashboard/inventory/recipes/${r.id}`}>
                           <Button variant="ghost" size="icon-sm">
                             <Icons.edit className="size-4" />
@@ -89,7 +89,7 @@ export function RecipeList({ recipes }: { recipes: Recipe[] }) {
                         >
                           <Icons.trash className="size-4" />
                         </Button>
-                      </Protect>
+                      </Show>
                     </div>
                   </TableCell>
                 </TableRow>

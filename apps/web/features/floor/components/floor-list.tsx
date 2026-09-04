@@ -18,7 +18,7 @@ import { deleteFloor } from "../api/service";
 import { floorKeys } from "../api/queries";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Protect } from "@clerk/nextjs";
+import { Show } from "@clerk/nextjs";
 
 interface FloorListProps {
   floors: Floor[];
@@ -107,7 +107,7 @@ export function FloorList({ floors, onEdit }: FloorListProps) {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
-                    <Protect permission="org:floors:manage" fallback={null}>
+                    <Show when={{ permission: "org:floors:manage" }} fallback={null}>
                       {onEdit ? (
                         <Button
                           variant="ghost"
@@ -139,7 +139,7 @@ export function FloorList({ floors, onEdit }: FloorListProps) {
                       >
                         <Icons.trash className="size-4" />
                       </Button>
-                    </Protect>
+                    </Show>
                   </div>
                 </TableCell>
               </TableRow>

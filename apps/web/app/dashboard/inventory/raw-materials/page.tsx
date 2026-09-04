@@ -9,7 +9,7 @@ import { Input } from "@pixa/ui/base-ui/input";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
-import { Protect } from "@clerk/nextjs";
+import { Show } from "@clerk/nextjs";
 
 export default function RawMaterialsPage() {
   const [search, setSearch] = React.useState("");
@@ -36,14 +36,14 @@ export default function RawMaterialsPage() {
       pageTitle="Raw Materials"
       pageDescription="Inventory — Ingredients for recipes, stock tracking, low-stock alerts, supplier linkage."
       pageHeaderAction={
-        <Protect permission="org:inventory:manage" fallback={null}>
+        <Show when={{ permission: "org:inventory:manage" }} fallback={null}>
           <Link
             href="/dashboard/inventory/raw-materials/new"
             className={cn(buttonVariants(), "text-xs md:text-sm")}
           >
             <Icons.add className="mr-2 h-4 w-4" /> Add New
           </Link>
-        </Protect>
+        </Show>
       }
     >
       <div className="mb-4 flex items-center gap-2">

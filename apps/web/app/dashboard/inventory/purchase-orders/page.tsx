@@ -7,7 +7,7 @@ import { buttonVariants } from "@pixa/ui/base-ui/button";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
-import { Protect } from "@clerk/nextjs";
+import { Show } from "@clerk/nextjs";
 
 export default function PurchaseOrdersPage() {
   const { data: orders, isPending } = useQuery(purchaseOrdersQueryOptions());
@@ -26,14 +26,14 @@ export default function PurchaseOrdersPage() {
       pageTitle="Purchase Orders"
       pageDescription="Inventory — POs to replenish stock. Draft → Sent → Received (auto increments stock and updates avg cost)."
       pageHeaderAction={
-        <Protect permission="org:purchases:manage" fallback={null}>
+        <Show when={{ permission: "org:purchases:manage" }} fallback={null}>
           <Link
             href="/dashboard/inventory/purchase-orders/new"
             className={cn(buttonVariants(), "text-xs md:text-sm")}
           >
             <Icons.add className="mr-2 h-4 w-4" /> New PO
           </Link>
-        </Protect>
+        </Show>
       }
     >
       <PurchaseOrderList orders={orders ?? []} />

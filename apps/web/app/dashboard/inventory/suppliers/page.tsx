@@ -9,7 +9,7 @@ import { Input } from "@pixa/ui/base-ui/input";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
-import { Protect } from "@clerk/nextjs";
+import { Show } from "@clerk/nextjs";
 
 export default function SuppliersPage() {
   const [search, setSearch] = React.useState("");
@@ -32,14 +32,14 @@ export default function SuppliersPage() {
       pageTitle="Suppliers"
       pageDescription="Inventory — Vendors supplying raw materials. Manage contacts, GSTIN, purchase history."
       pageHeaderAction={
-        <Protect permission="org:suppliers:manage" fallback={null}>
+        <Show when={{ permission: "org:suppliers:manage" }} fallback={null}>
           <Link
             href="/dashboard/inventory/suppliers/new"
             className={cn(buttonVariants(), "text-xs md:text-sm")}
           >
             <Icons.add className="mr-2 h-4 w-4" /> Add New
           </Link>
-        </Protect>
+        </Show>
       }
     >
       <div className="mb-4 flex items-center gap-2">
