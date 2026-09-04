@@ -255,6 +255,61 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
+    label: "Inventory",
+    items: [
+      {
+        title: "Inventory",
+        url: "#",
+        icon: "warehouse",
+        isActive: true,
+        items: [
+          {
+            title: "Raw Materials",
+            url: "/dashboard/inventory/raw-materials",
+            icon: "package",
+            shortcut: ["i", "r"],
+            access: { requireOrg: true },
+          },
+          {
+            title: "Suppliers",
+            url: "/dashboard/inventory/suppliers",
+            icon: "supplier",
+            shortcut: ["i", "s"],
+            access: { requireOrg: true },
+          },
+          {
+            title: "Purchase Orders",
+            url: "/dashboard/inventory/purchase-orders",
+            icon: "cart",
+            shortcut: ["i", "p"],
+            access: { requireOrg: true },
+          },
+          {
+            title: "Recipes",
+            url: "/dashboard/inventory/recipes",
+            icon: "recipe",
+            shortcut: ["i", "c"],
+            access: { requireOrg: true },
+          },
+          {
+            title: "Stock Ledger",
+            url: "/dashboard/inventory/stock",
+            icon: "warehouse",
+            shortcut: ["i", "l"],
+            access: { requireOrg: true },
+          },
+          {
+            title: "Waste Log",
+            url: "/dashboard/inventory/waste",
+            icon: "trash",
+            shortcut: ["i", "w"],
+            access: { requireOrg: true },
+          },
+        ],
+      },
+    ],
+  },
+  {
     label: "",
     items: [
       {

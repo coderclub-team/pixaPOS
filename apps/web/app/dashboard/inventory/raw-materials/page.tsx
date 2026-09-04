@@ -1,9 +1,8 @@
 "use client";
-
 import * as React from "react";
 import PageContainer from "@/components/layout/page-container";
-import { FloorList } from "@/features/floor/components/floor-list";
-import { floorsQueryOptions } from "@/features/floor/api/queries";
+import { RawMaterialList } from "@/features/inventory/components/raw-material-list";
+import { rawMaterialsQueryOptions } from "@/features/inventory/api/queries";
 import { useQuery } from "@tanstack/react-query";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
 import { Input } from "@pixa/ui/base-ui/input";
@@ -12,34 +11,34 @@ import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
 import { Show } from "@clerk/nextjs";
 
-export default function FloorsPage() {
+export default function RawMaterialsPage() {
   const [search, setSearch] = React.useState("");
-
-  const { data: floors, isPending } = useQuery(floorsQueryOptions(search ? { search } : undefined));
-
-  // Debounce search input
   const [inputValue, setInputValue] = React.useState("");
   React.useEffect(() => {
     const id = setTimeout(() => setSearch(inputValue), 300);
     return () => clearTimeout(id);
   }, [inputValue]);
-
-  if (isPending) {
+  const { data: materials, isPending } = useQuery(
+    rawMaterialsQueryOptions(search ? { search } : undefined),
+  );
+  if (isPending)
     return (
-      <PageContainer pageTitle="Floors" pageDescription="Outlet — Floors" isLoading>
+      <PageContainer
+        pageTitle="Raw Materials"
+        pageDescription="Inventory — Raw Materials"
+        isLoading
+      >
         <div />
       </PageContainer>
     );
-  }
-
   return (
     <PageContainer
-      pageTitle="Floors"
-      pageDescription="Outlet — Floors. Manage serving areas: Ground, First, Rooftop, Basement. Each floor groups tables and routes orders."
+      pageTitle="Raw Materials"
+      pageDescription="Inventory — Ingredients for recipes, stock tracking, low-stock alerts, supplier linkage."
       pageHeaderAction={
-        <Show when={{ permission: "org:floors:manage" }} fallback={null}>
+        <Show when={{ permission: "org:inventory:manage" }} fallback={null}>
           <Link
-            href="/dashboard/settings/outlet/floors/new"
+            href="/dashboard/inventory/raw-materials/new"
             className={cn(buttonVariants(), "text-xs md:text-sm")}
           >
             <Icons.add className="mr-2 h-4 w-4" /> Add New
@@ -49,19 +48,13 @@ export default function FloorsPage() {
     >
       <div className="mb-4 flex items-center gap-2">
         <Input
-          placeholder="Search floors by name or code..."
+          placeholder="Search materials by name or SKU..."
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           className="max-w-sm"
         />
       </div>
-
-      <FloorList floors={floors ?? []} />
-
-      <p className="mt-4 text-xs text-muted-foreground">
-        Floors organize tables and KOT routing. Sort order controls display priority. Inactive
-        floors are hidden from floor selection but retained for history.
-      </p>
+      <RawMaterialList materials={materials ?? []} />
     </PageContainer>
   );
 }
