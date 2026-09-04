@@ -18,7 +18,6 @@ import { inventoryKeys } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Show } from "@clerk/nextjs";
 
 export function RawMaterialList({ materials }: { materials: RawMaterial[] }) {
   const deleteMutation = useMutation({
@@ -109,22 +108,18 @@ export function RawMaterialList({ materials }: { materials: RawMaterial[] }) {
                   <TableCell>{m.supplier_name ?? "-"}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Show when={{ permission: "org:inventory:manage" }} fallback={null}>
-                        <Link href={`/dashboard/inventory/raw-materials/${m.id}`}>
-                          <Button variant="ghost" size="icon-sm">
-                            <Icons.edit className="size-4" />
-                          </Button>
-                        </Link>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() =>
-                            confirm(`Delete ${m.name}?`) && deleteMutation.mutate(m.id)
-                          }
-                        >
-                          <Icons.trash className="size-4" />
+                      <Link href={`/dashboard/inventory/raw-materials/${m.id}`}>
+                        <Button variant="ghost" size="icon-sm">
+                          <Icons.edit className="size-4" />
                         </Button>
-                      </Show>
+                      </Link>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => confirm(`Delete ${m.name}?`) && deleteMutation.mutate(m.id)}
+                      >
+                        <Icons.trash className="size-4" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
