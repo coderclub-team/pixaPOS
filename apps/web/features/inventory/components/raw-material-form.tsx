@@ -136,7 +136,7 @@ export default function RawMaterialForm({
                     )}
                   />
                 </div>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                   <form.AppField
                     name="category"
                     children={(field) => (
@@ -156,10 +156,12 @@ export default function RawMaterialForm({
                         required
                         options={unitOptions}
                         placeholder="kg"
-                        description="Use 0.05 for 50g"
+                        description="0.05 = 50g"
                       />
                     )}
                   />
+                </div>
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                   <form.AppField
                     name="cost_price"
                     children={(field) => (
@@ -167,28 +169,21 @@ export default function RawMaterialForm({
                         label="Purchase Price *"
                         type="number"
                         placeholder="80"
-                        description={
-                          initialData
-                            ? `Avg ₹${initialData.avg_cost} • Δ ${initialData.avg_cost ? (((initialData.cost_price - initialData.avg_cost) / initialData.avg_cost) * 100).toFixed(1) : 0}%`
-                            : "Last purchase price; avg auto-updates on PO"
-                        }
+                        description={initialData ? `Avg ₹${initialData.avg_cost}` : "Last price"}
                       />
                     )}
                   />
-                </div>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                   <form.AppField
                     name="supplier_id"
                     children={(field) => (
                       <field.SelectField
-                        label="Preferred Supplier"
+                        label="Supplier"
                         options={supplierOptions}
-                        placeholder="Select supplier"
-                        description="Can be purchased from multiple vendors; last rates tracked per PO, transfer uses last price"
+                        placeholder="Select"
+                        description="Last rates tracked"
                       />
                     )}
                   />
-                  <div className="hidden md:block" />
                 </div>
               </FieldGroup>
             </div>
@@ -301,10 +296,12 @@ export default function RawMaterialForm({
             <div>
               <h3 className="mb-3 text-sm font-semibold">Other Details</h3>
               <FieldGroup>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                   <form.AppField
                     name="exclusive"
-                    children={(field) => <field.SwitchField label="Exclusive to This Restaurant" />}
+                    children={(field) => (
+                      <field.SwitchField label="Exclusive" description="Only this outlet" />
+                    )}
                   />
                   <form.AppField
                     name="is_expiry"
@@ -312,29 +309,29 @@ export default function RawMaterialForm({
                       <field.SwitchField label="Is Expiry" description="Perishable" />
                     )}
                   />
+                </div>
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                   <form.AppField
                     name="allow_decimal"
                     children={(field) => (
-                      <field.SwitchField
-                        label="Allow Decimal Quantity"
-                        description="Allows 0.05 kg for 50g"
-                      />
+                      <field.SwitchField label="Allow Decimal" description="0.05 = 50g" />
                     )}
                   />
-                </div>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                   <form.AppField
                     name="normal_loss_percent"
                     children={(field) => (
                       <field.TextField label="Normal Loss (%)" type="number" placeholder="2" />
                     )}
                   />
+                </div>
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                   <form.AppField
                     name="is_active"
                     children={(field) => (
-                      <field.SwitchField label="Active" description="Available for recipes" />
+                      <field.SwitchField label="Active" description="For recipes" />
                     )}
                   />
+                  <div className="hidden md:block" />
                 </div>
                 <form.AppField
                   name="description"
