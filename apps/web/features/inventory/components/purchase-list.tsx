@@ -337,6 +337,13 @@ function PurchaseRow({ pur }: { pur: Purchase }) {
                     <Icons.trash className="mr-2 h-4 w-4" /> Delete
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem
+                  onClick={() =>
+                    router.push(`/dashboard/inventory/purchases/${pur.id}/returns/new`)
+                  }
+                >
+                  <Icons.clipboardList className="mr-2 h-4 w-4" /> Return / Credit Note
+                </DropdownMenuItem>
                 {isPaid && (
                   <DropdownMenuItem
                     onClick={() => cloneMut.mutate(pur.id)}

@@ -20,6 +20,9 @@ import type {
   PurchasePayload,
   PurchaseFilters,
   PurchasePaymentStatus,
+  PurchaseReturn,
+  PurchaseReturnPayload,
+  PurchaseReturnFilters,
 } from "./types";
 
 // Raw Materials - Petpooja-aligned with multi-supplier
@@ -1274,6 +1277,217 @@ export async function recordPurchasePayment(
   };
   mockPurchases[idx] = updated;
   return { ...updated };
+}
+
+// Purchase Returns — Credit Note / Vendor Credit (Odoo Reverse + Zoho Vendor Credit merged)
+let mockPurchaseReturns: PurchaseReturn[] = [];
+
+function computeReturnTotals(items: PurchaseReturn["items"]): {
+  subtotal_refund: number;
+  tax_refund: number;
+  total_refund: number;
+} {
+  const subtotal = items.reduce((s, it) => s + it.qty_returned * it.unit_cost, 0);
+  const tax =
+    Math.round(
+      items.reduce(
+        (s, it) => s + it.qty_returned * it.unit_cost * ((it.tax_percent ?? 0) / 100),
+        0,
+      ) * 100,
+    ) / 100;
+  return {
+    subtotal_refund: Math.round(subtotal * 100) / 100,
+    tax_refund: tax,
+    total_refund: Math.round((subtotal + tax) * 100) / 100,
+  };
+}
+
+export function getReturnableQty(purchaseId: string, materialId: string): number {
+  const pur = mockPurchases.find((p) => p.id === purchaseId);
+  if (!pur) return 0;
+  const orig = pur.items.find((it) => it.material_id === materialId)?.qty ?? 0;
+  const already = mockPurchaseReturns
+    .filter((r) => r.purchase_id === purchaseId && r.status === "approved")
+    .flatMap((r) => r.items)
+    .filter((it) => it.material_id === materialId)
+    .reduce((s, it) => s + it.qty_returned, 0);
+  return Math.max(0, orig - already);
+}
+
+function applyStockForReturn(ret: PurchaseReturn) {
+  ret.items.forEach((item) => {
+    if (!ret.restock) return;
+    const matIdx = mockRawMaterials.findIndex((m) => m.id === item.material_id);
+    if (matIdx === -1) return;
+    const prev = mockRawMaterials[matIdx].stock_qty;
+    if (prev < item.qty_returned)
+      throw new Error(
+        `Insufficient stock for ${mockRawMaterials[matIdx].name}: have ${prev}, need ${item.qty_returned} — already consumed`,
+      );
+    const oldAvg = mockRawMaterials[matIdx].avg_cost;
+    const newQty = prev - item.qty_returned;
+    // Inverse WAC: remove qty at original cost; if newQty 0 keep oldAvg
+    const newAvg =
+      newQty > 0 ? (oldAvg * prev - item.unit_cost * item.qty_returned) / newQty : oldAvg;
+    const roundedAvg = Math.round(Math.max(0, newAvg) * 100) / 100;
+    mockRawMaterials[matIdx].stock_qty = newQty;
+    mockRawMaterials[matIdx].avg_cost = roundedAvg;
+    mockRawMaterials[matIdx].updated_at = new Date().toISOString();
+    mockStockLedger.push({
+      id: `stk_${Date.now().toString(36)}_${item.material_id}_ret`,
+      material_id: item.material_id,
+      material_name: mockRawMaterials[matIdx].name,
+      type: "purchase_return",
+      qty_delta: -item.qty_returned,
+      reason: ret.return_number,
+      reference_id: ret.id,
+      previous_qty: prev,
+      new_qty: newQty,
+      unit_cost: item.unit_cost,
+      total_cost: Math.round(item.unit_cost * item.qty_returned * 100) / 100,
+      avg_cost_before: oldAvg,
+      avg_cost_after: roundedAvg,
+      created_at: new Date().toISOString(),
+    });
+    mockPriceHistory.push({
+      id: `ph_${Date.now().toString(36)}_${item.material_id}_ret`,
+      material_id: item.material_id,
+      material_name: mockRawMaterials[matIdx].name,
+      old_avg: oldAvg,
+      new_avg: roundedAvg,
+      unit_cost: item.unit_cost,
+      qty: item.qty_returned,
+      old_stock: prev,
+      new_stock: newQty,
+      source: "purchase_return",
+      reference_id: ret.id,
+      created_at: new Date().toISOString(),
+    });
+  });
+  recalculateRecipeCosts();
+}
+
+export async function getPurchaseReturns(
+  filters?: PurchaseReturnFilters,
+): Promise<PurchaseReturn[]> {
+  await delay(400);
+  let result = [...mockPurchaseReturns].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  if (filters?.search) {
+    const q = filters.search.toLowerCase();
+    result = result.filter(
+      (r) =>
+        r.return_number.toLowerCase().includes(q) ||
+        (r.purchase_number ?? "").toLowerCase().includes(q) ||
+        (r.supplier_name ?? "").toLowerCase().includes(q),
+    );
+  }
+  if (filters?.supplier_id) result = result.filter((r) => r.supplier_id === filters.supplier_id);
+  if (filters?.status) result = result.filter((r) => r.status === filters.status);
+  if (filters?.purchase_id) result = result.filter((r) => r.purchase_id === filters.purchase_id);
+  return result;
+}
+export async function getPurchaseReturnById(id: string): Promise<PurchaseReturn | null> {
+  await delay(300);
+  return mockPurchaseReturns.find((r) => r.id === id) ?? null;
+}
+export async function createPurchaseReturn(
+  payload: PurchaseReturnPayload,
+): Promise<PurchaseReturn> {
+  await delay(700);
+  const pur = mockPurchases.find((p) => p.id === payload.purchase_id);
+  if (!pur) throw new Error("Original purchase not found");
+  if (!payload.reason) throw new Error("Reason required");
+  if (!payload.items || payload.items.length === 0)
+    throw new Error("Add at least one item to return");
+  const supName = supplierNameMap()[pur.supplier_id] ?? pur.supplier_name;
+  const enriched: PurchaseReturn["items"] = payload.items.map((it) => {
+    const orig = pur.items.find((o) => o.material_id === it.material_id);
+    if (!orig) throw new Error(`Item ${it.material_id} not in original purchase`);
+    const qtyRet = Number((it as any).qty_returned ?? 0);
+    if (!Number.isFinite(qtyRet) || qtyRet < 1)
+      throw new Error(`Return qty must be >=1 for ${orig.material_name}`);
+    const returnable = getReturnableQty(pur.id, it.material_id);
+    if (qtyRet > returnable)
+      throw new Error(
+        `${orig.material_name}: returnable ${returnable}, tried ${qtyRet} — already returned`,
+      );
+    const unitCost = orig.unit_cost;
+    const tax = orig.tax_percent;
+    return {
+      material_id: it.material_id,
+      material_name: orig.material_name ?? it.material_id,
+      qty_original: orig.qty,
+      qty_returned: qtyRet,
+      unit_cost: unitCost,
+      tax_percent: tax,
+      line_refund: Math.round(qtyRet * unitCost * (1 + (tax ?? 0) / 100) * 100) / 100,
+    };
+  });
+  const { subtotal_refund, tax_refund, total_refund } = computeReturnTotals(enriched as any);
+  const year = new Date().getFullYear();
+  const existing = mockPurchaseReturns
+    .filter((r) => r.return_number.startsWith(`RET-${year}-`))
+    .map((r) => parseInt(r.return_number.split("-")[2] ?? "0", 10))
+    .filter((n) => !Number.isNaN(n));
+  const nextNum = existing.length > 0 ? Math.max(...existing) + 1 : 1;
+  const now = new Date().toISOString();
+  const ret: PurchaseReturn = {
+    id: `ret_${Date.now().toString(36)}`,
+    return_number: `RET-${year}-${String(nextNum).padStart(3, "0")}`,
+    purchase_id: pur.id,
+    purchase_number: pur.purchase_number,
+    po_id: pur.po_id ?? null,
+    supplier_id: pur.supplier_id,
+    supplier_name: supName,
+    items: enriched as any,
+    subtotal_refund,
+    tax_refund,
+    total_refund,
+    reason: payload.reason as any,
+    notes: (payload as any).notes,
+    restock: (payload as any).restock ?? true,
+    status: "draft",
+    bill_date: (payload as any).bill_date ?? now.slice(0, 10),
+    created_at: now,
+    updated_at: now,
+  };
+  mockPurchaseReturns.push(ret);
+  return { ...ret };
+}
+export async function approvePurchaseReturn(id: string): Promise<PurchaseReturn> {
+  await delay(600);
+  const idx = mockPurchaseReturns.findIndex((r) => r.id === id);
+  if (idx === -1) throw new Error("Return not found");
+  const ret = mockPurchaseReturns[idx];
+  if (ret.status !== "draft") throw new Error("Only draft returns can be approved");
+  // validate still returnable (race)
+  for (const it of ret.items) {
+    const returnable = getReturnableQty(ret.purchase_id, it.material_id) + it.qty_returned; // include self not yet counted? self is draft so not counted, so just check
+    // getReturnableQty counts only approved, so draft not counted; need check qty <= returnable
+    if (it.qty_returned > returnable)
+      throw new Error(`${it.material_name}: exceeds returnable ${returnable}`);
+  }
+  applyStockForReturn(ret);
+  const updated: PurchaseReturn = {
+    ...ret,
+    status: "approved",
+    approved_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  mockPurchaseReturns[idx] = updated;
+  return { ...updated };
+}
+export async function cancelPurchaseReturn(id: string): Promise<void> {
+  await delay(400);
+  const idx = mockPurchaseReturns.findIndex((r) => r.id === id);
+  if (idx === -1) throw new Error("Return not found");
+  if (mockPurchaseReturns[idx].status !== "draft")
+    throw new Error("Only draft returns can be cancelled — approved is posted");
+  mockPurchaseReturns[idx] = {
+    ...mockPurchaseReturns[idx],
+    status: "cancelled",
+    updated_at: new Date().toISOString(),
+  };
 }
 
 // Waste

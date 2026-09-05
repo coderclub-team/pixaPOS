@@ -57,7 +57,7 @@ export default function PurchaseForm({
     label: `${m.name} (${m.sku}) — ₹${m.cost_price}/${m.unit}${m.tax_percent != null ? ` GST ${m.tax_percent}%` : ""}`,
     value: m.id,
   }));
-  const prefillPoId = !initialData ? (searchParams.get("poId") ?? "") : "";
+  const prefillPoId = !initialData ? (searchParams?.get("poId") ?? "") : "";
   // Odoo/Zoho standard: only sent POs that are not already billed are selectable (draft/received/cancelled hidden, invoiced hidden)
   const { data: allPurchases } = useQuery(purchasesQueryOptions());
   const billedPoIds = new Set(
