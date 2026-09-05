@@ -55,6 +55,9 @@ export type PurchaseOrderItem = {
   material_name?: string;
   qty: number;
   unit_cost: number;
+  tax_percent?: number;
+  unit?: string;
+  line_total?: number;
 };
 
 export type PurchaseOrder = {
@@ -63,9 +66,14 @@ export type PurchaseOrder = {
   supplier_id: string;
   supplier_name?: string;
   items: PurchaseOrderItem[];
+  subtotal: number;
+  tax_amount: number;
   total_amount: number;
   status: PurchaseOrderStatus;
+  po_date: string; // order date ISO YYYY-MM-DD
   expected_at?: string;
+  reference?: string;
+  payment_date?: string; // ISO YYYY-MM-DD, default today
   received_at?: string;
   sent_at?: string;
   sent_via?: "whatsapp" | "email" | "both";
@@ -146,10 +154,41 @@ export type MaterialPriceHistory = {
   qty: number;
   old_stock: number;
   new_stock: number;
-  source: "po_receive" | "manual_edit";
+  source: "po_receive" | "purchase" | "manual_edit";
   reference_id?: string;
   created_at: string;
   created_by?: string;
+};
+
+export type PurchaseItem = {
+  material_id: string;
+  material_name?: string;
+  qty: number;
+  unit_cost: number;
+  tax_percent?: number;
+  line_total?: number;
+};
+
+export type PurchasePaymentStatus = "unpaid" | "partial" | "paid";
+export type Purchase = {
+  id: string;
+  purchase_number: string; // PUR-YYYY-NNN
+  po_id?: string | null;
+  po_number?: string;
+  supplier_id: string;
+  supplier_name?: string;
+  items: PurchaseItem[];
+  subtotal: number;
+  tax_amount: number;
+  total_amount: number;
+  paid_amount: number;
+  payment_status: PurchasePaymentStatus;
+  payment_mode?: "cash" | "upi" | "bank" | "credit";
+  bill_date: string;
+  due_date?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
 };
 
 // Payloads
@@ -162,7 +201,14 @@ export type SupplierPayload = Partial<Omit<Supplier, "id" | "created_at" | "upda
 export type PurchaseOrderPayload = Partial<
   Omit<
     PurchaseOrder,
-    "id" | "created_at" | "updated_at" | "po_number" | "total_amount" | "supplier_name"
+    | "id"
+    | "created_at"
+    | "updated_at"
+    | "po_number"
+    | "subtotal"
+    | "tax_amount"
+    | "total_amount"
+    | "supplier_name"
   >
 > &
   Pick<PurchaseOrder, "supplier_id" | "items">;
@@ -174,6 +220,21 @@ export type WastePayload = Partial<
   Omit<WasteLog, "id" | "created_at" | "cost_loss" | "material_name">
 > &
   Pick<WasteLog, "qty" | "reason">;
+export type PurchasePayload = Partial<
+  Omit<
+    Purchase,
+    | "id"
+    | "created_at"
+    | "updated_at"
+    | "purchase_number"
+    | "supplier_name"
+    | "subtotal"
+    | "tax_amount"
+    | "total_amount"
+    | "payment_status"
+  >
+> &
+  Pick<Purchase, "supplier_id" | "items" | "bill_date">;
 
 // Filters
 export type RawMaterialFilters = {
@@ -183,4 +244,10 @@ export type RawMaterialFilters = {
   low_stock?: boolean;
 };
 export type SupplierFilters = { search?: string; is_active?: boolean };
+export type PurchaseOrderFilters = { search?: string; status?: PurchaseOrderStatus };
+export type PurchaseFilters = {
+  search?: string;
+  supplier_id?: string;
+  payment_status?: PurchasePaymentStatus;
+};
 export type WasteFilters = { search?: string; reason?: WasteReason };

@@ -1,6 +1,8 @@
 import { queryOptions } from "@tanstack/react-query";
 import {
   getPriceHistory,
+  getPurchaseById,
+  getPurchases,
   getRawMaterials,
   getRawMaterialById,
   getRecipes,
@@ -12,7 +14,13 @@ import {
   getSuppliers,
   getWasteLogs,
 } from "./service";
-import type { RawMaterialFilters, SupplierFilters, WasteFilters } from "./types";
+import type {
+  PurchaseFilters,
+  PurchaseOrderFilters,
+  RawMaterialFilters,
+  SupplierFilters,
+  WasteFilters,
+} from "./types";
 
 export const inventoryKeys = {
   all: ["inventory"] as const,
@@ -24,8 +32,12 @@ export const inventoryKeys = {
   supplier: (id: string) => [...inventoryKeys.all, "supplier", id] as const,
   recipes: () => [...inventoryKeys.all, "recipes"] as const,
   recipe: (id: string) => [...inventoryKeys.all, "recipe", id] as const,
-  purchaseOrders: () => [...inventoryKeys.all, "purchase-orders"] as const,
+  purchaseOrders: (filters?: PurchaseOrderFilters) =>
+    [...inventoryKeys.all, "purchase-orders", filters ?? {}] as const,
   purchaseOrder: (id: string) => [...inventoryKeys.all, "purchase-order", id] as const,
+  purchases: (filters?: PurchaseFilters) =>
+    [...inventoryKeys.all, "purchases", filters ?? {}] as const,
+  purchase: (id: string) => [...inventoryKeys.all, "purchase", id] as const,
   waste: (filters?: WasteFilters) => [...inventoryKeys.all, "waste", filters ?? {}] as const,
   stock: () => [...inventoryKeys.all, "stock"] as const,
   priceHistory: (materialId?: string) =>
@@ -56,13 +68,28 @@ export const recipesQueryOptions = () =>
 export const recipeQueryOptions = (id: string) =>
   queryOptions({ queryKey: inventoryKeys.recipe(id), queryFn: () => getRecipeById(id) });
 
-export const purchaseOrdersQueryOptions = () =>
-  queryOptions({ queryKey: inventoryKeys.purchaseOrders(), queryFn: () => getPurchaseOrders() });
+export const purchaseOrdersQueryOptions = (filters?: PurchaseOrderFilters) =>
+  queryOptions({
+    queryKey: inventoryKeys.purchaseOrders(filters),
+    queryFn: () => getPurchaseOrders(filters),
+  });
 
 export const purchaseOrderQueryOptions = (id: string) =>
   queryOptions({
     queryKey: inventoryKeys.purchaseOrder(id),
     queryFn: () => getPurchaseOrderById(id),
+  });
+
+export const purchasesQueryOptions = (filters?: PurchaseFilters) =>
+  queryOptions({
+    queryKey: inventoryKeys.purchases(filters),
+    queryFn: () => getPurchases(filters),
+  });
+
+export const purchaseQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: inventoryKeys.purchase(id),
+    queryFn: () => getPurchaseById(id),
   });
 
 export const wasteQueryOptions = (filters?: WasteFilters) =>

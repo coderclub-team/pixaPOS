@@ -1,8 +1,8 @@
 "use client";
 import * as React from "react";
 import PageContainer from "@/components/layout/page-container";
-import { PurchaseOrderList } from "@/features/inventory/components/purchase-order-list";
-import { purchaseOrdersQueryOptions } from "@/features/inventory/api/queries";
+import { PurchaseList } from "@/features/inventory/components/purchase-list";
+import { purchasesQueryOptions } from "@/features/inventory/api/queries";
 import { useQuery } from "@tanstack/react-query";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
 import { Input } from "@pixa/ui/base-ui/input";
@@ -17,7 +17,7 @@ import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
 
-export default function PurchaseOrdersPage() {
+export default function PurchasesPage() {
   const [search, setSearch] = React.useState("");
   const [status, setStatus] = React.useState<string | undefined>(undefined);
   const [inputValue, setInputValue] = React.useState("");
@@ -25,17 +25,17 @@ export default function PurchaseOrdersPage() {
     const id = setTimeout(() => setSearch(inputValue), 300);
     return () => clearTimeout(id);
   }, [inputValue]);
-  const { data: orders, isPending } = useQuery(
-    purchaseOrdersQueryOptions({
+  const { data: purchases, isPending } = useQuery(
+    purchasesQueryOptions({
       search: search || undefined,
-      status: (status as any) || undefined,
+      payment_status: (status as any) || undefined,
     }),
   );
   if (isPending)
     return (
       <PageContainer
-        pageTitle="Purchase Orders"
-        pageDescription="Inventory — Purchase Orders"
+        pageTitle="Purchases"
+        pageDescription="Inventory — Purchases (Bills)"
         isLoading
       >
         <div />
@@ -43,20 +43,20 @@ export default function PurchaseOrdersPage() {
     );
   return (
     <PageContainer
-      pageTitle="Purchase Orders"
-      pageDescription="Inventory — POs to replenish stock. Draft → Sent → GRN (Received marker). Stock adds on Purchase bill, not on PO."
+      pageTitle="Purchases"
+      pageDescription="Inventory — Bills when goods received. PO → GRN → Purchase Bill. Stock adds on purchase, not on PO. Supports direct purchase (no PO) and PO-linked."
       pageHeaderAction={
         <Link
-          href="/dashboard/inventory/purchase-orders/new"
+          href="/dashboard/inventory/purchases/new"
           className={cn(buttonVariants(), "text-xs md:text-sm")}
         >
-          <Icons.add className="mr-2 h-4 w-4" /> New PO
+          <Icons.add className="mr-2 h-4 w-4" /> New Purchase
         </Link>
       }
     >
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Input
-          placeholder="Search PO number, supplier or material..."
+          placeholder="Search purchase #, supplier or PO..."
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           className="max-w-sm"
@@ -70,14 +70,13 @@ export default function PurchaseOrdersPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All status</SelectItem>
-            <SelectItem value="draft">Draft</SelectItem>
-            <SelectItem value="sent">Sent</SelectItem>
-            <SelectItem value="received">Received</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
+            <SelectItem value="unpaid">Unpaid</SelectItem>
+            <SelectItem value="partial">Partial</SelectItem>
+            <SelectItem value="paid">Paid</SelectItem>
           </SelectContent>
         </Select>
       </div>
-      <PurchaseOrderList orders={orders ?? []} />
+      <PurchaseList purchases={purchases ?? []} />
     </PageContainer>
   );
 }

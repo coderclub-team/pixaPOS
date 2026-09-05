@@ -74,9 +74,12 @@ export default function PurchaseOrderViewPage({ poId }: { poId: string }) {
             </Badge>
           </CardTitle>
           <CardDescription>
-            Supplier: {po.supplier_name} ({po.supplier_id}) • Created{" "}
-            {new Date(po.created_at).toLocaleDateString()}
+            Supplier: {po.supplier_name} ({po.supplier_id}) • PO Date{" "}
+            {new Date(po.po_date).toLocaleDateString()}
+            {po.reference && ` • Ref ${po.reference}`}
             {po.expected_at && ` • Expected ${new Date(po.expected_at).toLocaleDateString()}`}
+            {(po as any).payment_date &&
+              ` • Payment ${new Date((po as any).payment_date).toLocaleDateString()}`}
             {po.received_at && ` • GRN ${new Date(po.received_at).toLocaleDateString()}`}
           </CardDescription>
         </CardHeader>
@@ -85,9 +88,11 @@ export default function PurchaseOrderViewPage({ poId }: { poId: string }) {
             <div>
               <b>Status:</b> {po.status}{" "}
               {po.status !== "received" ? (
-                <span className="text-muted-foreground">— Not added to inventory yet</span>
+                <span className="text-muted-foreground">
+                  — Stock adds only on Purchase Bill (GRN), not on PO
+                </span>
               ) : (
-                <span className="text-green-600">— Added to inventory (GRN)</span>
+                <span className="text-green-600">— GRN marker (stock via Purchase)</span>
               )}
             </div>
             {po.sent_at && (
@@ -95,10 +100,10 @@ export default function PurchaseOrderViewPage({ poId }: { poId: string }) {
                 Sent via {po.sent_via} to {po.sent_to} on {new Date(po.sent_at).toLocaleString()}
               </div>
             )}
-            {po.notes && <div>Notes: {po.notes}</div>}
+            {po.notes && <div>Supplier Note: {po.notes}</div>}
             <div className="mt-1 text-muted-foreground">
-              International standard: PO = Purchase Order (PO-YYYY-NNN), GRN = Goods Receipt on
-              Received. Stock only increments on Received.
+              Standard: PO = Request (PO-YYYY-NNN), Purchase Bill = GRN + stock + GST. Expected &
+              Payment default today.
             </div>
           </div>
 
@@ -107,22 +112,33 @@ export default function PurchaseOrderViewPage({ poId }: { poId: string }) {
               <TableRow>
                 <TableHead>Material</TableHead>
                 <TableHead>Qty</TableHead>
-                <TableHead>Unit Cost</TableHead>
+                <TableHead>Unit</TableHead>
+                <TableHead>Rate</TableHead>
+                <TableHead>GST%</TableHead>
                 <TableHead>Amount</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {po.items.map((it, idx) => (
                 <TableRow key={idx}>
-                  <TableCell>{it.material_name ?? it.material_id}</TableCell>
+                  <TableCell>
+                    {it.material_name ?? it.material_id}
+                    <div className="text-[11px] text-muted-foreground">{it.unit ?? "-"}</div>
+                  </TableCell>
                   <TableCell>{it.qty}</TableCell>
+                  <TableCell>{it.unit ?? "-"}</TableCell>
                   <TableCell>₹{it.unit_cost}</TableCell>
-                  <TableCell>₹{it.qty * it.unit_cost}</TableCell>
+                  <TableCell>{it.tax_percent ?? 5}%</TableCell>
+                  <TableCell>₹{(it.qty * it.unit_cost).toFixed(2)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-          <div className="text-right font-bold">Total: ₹{po.total_amount}</div>
+          <div className="space-y-1 text-right text-sm">
+            <div>Subtotal: ₹{(po as any).subtotal ?? po.total_amount}</div>
+            <div>GST: ₹{(po as any).tax_amount ?? 0}</div>
+            <div className="font-bold">Total: ₹{po.total_amount}</div>
+          </div>
 
           <div className="flex flex-wrap justify-end gap-2">
             <Link href="/dashboard/inventory/purchase-orders">
