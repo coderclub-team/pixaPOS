@@ -71,9 +71,9 @@ export type PurchaseOrder = {
   total_amount: number;
   status: PurchaseOrderStatus;
   po_date: string; // order date ISO YYYY-MM-DD
-  expected_at?: string;
+  expected_at?: string; // Delivery date
   reference?: string;
-  payment_date?: string; // ISO YYYY-MM-DD, default today
+  payment_date?: string; // ISO YYYY-MM-DD, default today — informational only, NOT authoritative; source of truth is Purchase.payment_status + Payments (Purchase Bill)
   received_at?: string;
   sent_at?: string;
   sent_via?: "whatsapp" | "email" | "both";

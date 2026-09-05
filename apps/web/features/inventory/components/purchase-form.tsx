@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@pixa/ui/base-ui/card";
 import { FieldGroup } from "@pixa/ui/base-ui/field";
@@ -15,7 +15,7 @@ import {
 import { Textarea } from "@pixa/ui/base-ui/textarea";
 import { useAppForm } from "@/lib/form";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { createPurchase, updatePurchase } from "../api/service";
 import {
@@ -49,6 +49,7 @@ export default function PurchaseForm({
   initialData?: Purchase | null;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const isEdit = !!initialData && initialData.payment_status !== "paid";
   const { data: suppliers } = useQuery(suppliersQueryOptions());
   const { data: materials } = useQuery(rawMaterialsQueryOptions());
@@ -107,10 +108,11 @@ export default function PurchaseForm({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const prefillPoId = !initialData ? (searchParams.get("poId") ?? "") : "";
   const form = useAppForm({
     defaultValues: {
       supplier_id: initialData?.supplier_id ?? "",
-      po_id: initialData?.po_id ?? "",
+      po_id: initialData?.po_id ?? prefillPoId,
       bill_date: initialData?.bill_date ?? new Date().toISOString().slice(0, 10),
       due_date:
         initialData?.due_date ??
@@ -167,6 +169,33 @@ export default function PurchaseForm({
     if (items.length === 1) return toast.error("At least one item required");
     setItems((prev) => prev.filter((_, i) => i !== idx));
   };
+
+  useEffect(() => {
+    if (
+      prefillPoId &&
+      pos &&
+      pos.length > 0 &&
+      !initialData &&
+      items.length === 1 &&
+      items[0].material_id === ""
+    ) {
+      const po = pos.find((p) => p.id === prefillPoId);
+      if (po) {
+        form.setFieldValue("supplier_id" as any, po.supplier_id);
+        setItems(
+          po.items.map((it) => ({
+            material_id: it.material_id,
+            qty: it.qty,
+            unit_cost: it.unit_cost,
+            tax_percent:
+              (it as any).tax_percent ??
+              materials?.find((m) => m.id === it.material_id)?.tax_percent ??
+              5,
+          })),
+        );
+      }
+    }
+  }, [prefillPoId, pos, materials]);
 
   return (
     <Card className="mx-auto w-full max-w-4xl">

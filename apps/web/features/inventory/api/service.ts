@@ -332,6 +332,29 @@ let mockPurchaseOrders: PurchaseOrder[] = [
     updated_at: new Date().toISOString(),
   },
 ];
+const PO_STORAGE_KEY = "pixaPOs";
+function savePOs() {
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(PO_STORAGE_KEY, JSON.stringify(mockPurchaseOrders));
+    } catch {}
+  }
+}
+function loadPOs(): void {
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(PO_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          mockPurchaseOrders = parsed;
+        }
+      }
+    } catch {}
+  }
+}
+// hydrate from storage on browser init
+loadPOs();
 
 let mockStockLedger: StockLedgerEntry[] = [
   {
@@ -677,7 +700,21 @@ export async function getPurchaseOrders(
 
 export async function getPurchaseOrderById(id: string): Promise<PurchaseOrder | null> {
   await delay(300);
-  return mockPurchaseOrders.find((p) => p.id === id) ?? null;
+  let found = mockPurchaseOrders.find((p) => p.id === id) ?? null;
+  if (!found && typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(PO_STORAGE_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw) as PurchaseOrder[];
+        found = arr.find((p) => p.id === id) ?? null;
+        if (found) {
+          // hydrate in-memory for next calls
+          if (!mockPurchaseOrders.some((p) => p.id === id)) mockPurchaseOrders.push(found);
+        }
+      }
+    } catch {}
+  }
+  return found;
 }
 
 function computePOTotals(items: PurchaseOrder["items"]): {
@@ -740,6 +777,7 @@ export async function createPurchaseOrder(payload: PurchaseOrderPayload): Promis
     updated_at: now,
   };
   mockPurchaseOrders.push(po);
+  savePOs();
   return { ...po };
 }
 
@@ -882,6 +920,7 @@ export async function updatePurchaseOrder(
     updated_at: new Date().toISOString(),
   };
   mockPurchaseOrders[idx] = updated;
+  savePOs();
   return { ...updated };
 }
 
@@ -893,6 +932,41 @@ export async function deletePurchaseOrder(id: string): Promise<void> {
   if (po.status === "received")
     throw new Error("Cannot delete received PO (GRN done) — cancel instead");
   mockPurchaseOrders.splice(idx, 1);
+  savePOs();
+}
+
+export async function clonePurchaseOrder(id: string): Promise<PurchaseOrder> {
+  await delay(600);
+  const src = mockPurchaseOrders.find((p) => p.id === id);
+  if (!src) throw new Error("Purchase order not found");
+  const supName = supplierNameMap()[src.supplier_id] ?? src.supplier_name;
+  const year = new Date().getFullYear();
+  const existingForYear = mockPurchaseOrders
+    .filter((p) => p.po_number.startsWith(`PO-${year}-`))
+    .map((p) => parseInt(p.po_number.split("-")[2] ?? "0", 10))
+    .filter((n) => !Number.isNaN(n));
+  const nextNum = existingForYear.length > 0 ? Math.max(...existingForYear) + 1 : 1;
+  const now = new Date().toISOString();
+  const today = now.slice(0, 10);
+  const cloned: PurchaseOrder = {
+    ...src,
+    id: `po_${Date.now().toString(36)}`,
+    po_number: `PO-${year}-${String(nextNum).padStart(3, "0")}`,
+    status: "draft",
+    po_date: today,
+    expected_at: today,
+    payment_date: today,
+    reference: undefined,
+    received_at: undefined,
+    sent_at: undefined,
+    sent_via: undefined,
+    sent_to: undefined,
+    created_at: now,
+    updated_at: now,
+  };
+  mockPurchaseOrders.push(cloned);
+  savePOs();
+  return { ...cloned };
 }
 
 export async function updatePurchaseOrderStatus(
@@ -911,6 +985,7 @@ export async function updatePurchaseOrderStatus(
   };
   // GRN only — stock/WAC now handled by Purchases (Purchase Bill). Keeping PO received as marker only.
   mockPurchaseOrders[idx] = updated;
+  savePOs();
   return { ...updated };
 }
 
