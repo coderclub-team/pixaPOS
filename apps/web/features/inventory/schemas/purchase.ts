@@ -13,6 +13,7 @@ export const purchaseSchema = z.object({
   items: z.array(purchaseItemSchema).min(1, "Add at least one material"),
   bill_date: z.string().min(1, "Bill date required"),
   due_date: z.string().optional().or(z.literal("")),
+  reference: z.string().max(30).optional().or(z.literal("")),
   paid_amount: z.number().min(0).optional(),
   payment_mode: z.enum(["cash", "upi", "bank", "credit"]).optional().or(z.literal("")),
   notes: z.string().max(500).optional().or(z.literal("")),

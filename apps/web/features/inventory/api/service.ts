@@ -1121,6 +1121,15 @@ export async function createPurchase(payload: PurchasePayload): Promise<Purchase
   const materials = materialMap();
   const po = payload.po_id ? mockPurchaseOrders.find((p) => p.id === payload.po_id) : null;
   if (payload.po_id && !po) throw new Error("Linked PO not found");
+  // Odoo/Zoho: only sent POs can be billed, and only once (invoiced hidden)
+  if (po) {
+    if (po.status !== "sent")
+      throw new Error("Only sent POs can be billed (Odoo: draft/received/cancelled not billable)");
+    if (mockPurchases.some((p) => p.po_id === po.id))
+      throw new Error(
+        "PO already billed — duplicate purchase not allowed (Odoo: already invoiced)",
+      );
+  }
   const enriched = payload.items.map((it) => ({
     material_id: it.material_id,
     material_name: materials[it.material_id]?.name ?? it.material_id,
@@ -1159,6 +1168,7 @@ export async function createPurchase(payload: PurchasePayload): Promise<Purchase
     payment_mode: (payload as any).payment_mode,
     bill_date: billDate,
     due_date: dueDate,
+    reference: (payload as any).reference,
     notes: (payload as any).notes,
     created_at: now,
     updated_at: now,
@@ -1180,6 +1190,7 @@ export async function updatePurchase(
     paid_amount?: number;
     payment_mode?: string;
     due_date?: string;
+    reference?: string;
     notes?: string;
   },
 ): Promise<Purchase> {
@@ -1225,6 +1236,7 @@ export async function updatePurchase(
     payment_mode: (payload as any).payment_mode ?? current.payment_mode,
     bill_date: payload.bill_date ?? current.bill_date,
     due_date: (payload as any).due_date ?? current.due_date,
+    reference: (payload as any).reference ?? (current as any).reference,
     notes: (payload as any).notes ?? current.notes,
     updated_at: new Date().toISOString(),
   };
@@ -1236,7 +1248,10 @@ export async function deletePurchase(id: string): Promise<void> {
   await delay(500);
   const idx = mockPurchases.findIndex((p) => p.id === id);
   if (idx === -1) throw new Error("Purchase not found");
-  if (mockPurchases[idx].payment_status === "paid") throw new Error("Cannot delete paid purchase");
+  if (mockPurchases[idx].payment_status !== "unpaid")
+    throw new Error(
+      "Only unpaid purchases can be deleted — void partial/paid via credit (Odoo: Cancel/Credit, Zoho: Void)",
+    );
   mockPurchases.splice(idx, 1);
 }
 export async function recordPurchasePayment(
