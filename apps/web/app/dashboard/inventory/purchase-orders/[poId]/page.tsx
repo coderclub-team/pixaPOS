@@ -3,16 +3,11 @@ import { getQueryClient } from "@/lib/query-client";
 import { purchaseOrderQueryOptions } from "@/features/inventory/api/queries";
 import PageContainer from "@/components/layout/page-container";
 import PurchaseOrderViewPage from "@/features/inventory/components/purchase-order-view-page";
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
 
 export const metadata = { title: "Dashboard : Purchase Order" };
 type PageProps = { params: Promise<{ poId: string }> };
 export default async function Page(props: PageProps) {
   const params = await props.params;
-  const { has } = await auth();
-  if (!has({ permission: "org:purchases:manage" }))
-    redirect("/dashboard/inventory/purchase-orders");
   const queryClient = getQueryClient();
   void queryClient.prefetchQuery(purchaseOrderQueryOptions(params.poId));
   return (

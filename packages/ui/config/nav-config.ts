@@ -285,6 +285,13 @@ export const navGroups: NavGroup[] = [
             access: { requireOrg: true },
           },
           {
+            title: "Purchases",
+            url: "/dashboard/inventory/purchases",
+            icon: "fileTypePdf",
+            shortcut: ["i", "u"],
+            access: { requireOrg: true },
+          },
+          {
             title: "Recipes",
             url: "/dashboard/inventory/recipes",
             icon: "recipe",

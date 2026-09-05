@@ -1,5 +1,5 @@
 "use client";
-import type { PurchaseOrder } from "../api/types";
+import type { Purchase } from "../api/types";
 import { Badge } from "@pixa/ui/base-ui/badge";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
@@ -14,7 +14,7 @@ import {
 import { Icons } from "@pixa/ui/icons";
 import { toast } from "sonner";
 import { useMutation } from "@tanstack/react-query";
-import { deletePurchaseOrder } from "../api/service";
+import { deletePurchase } from "../api/service";
 import { inventoryKeys } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import Link from "next/link";
@@ -36,26 +36,24 @@ import {
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-function statusVariant(s: string) {
-  if (s === "received") return "default" as const;
-  if (s === "sent") return "secondary" as const;
-  if (s === "draft") return "outline" as const;
+function paymentVariant(s: string) {
+  if (s === "paid") return "default" as const;
+  if (s === "partial") return "secondary" as const;
   return "destructive" as const;
 }
 
-export function PurchaseOrderList({ orders }: { orders: PurchaseOrder[] }) {
-  if (orders.length === 0)
+export function PurchaseList({ purchases }: { purchases: Purchase[] }) {
+  if (purchases.length === 0)
     return (
       <Card>
         <CardContent className="py-12 text-center">
           <div className="mx-auto flex max-w-md flex-col items-center gap-3">
             <div className="rounded-full border border-dashed p-3">
-              <Icons.cart className="size-6 text-muted-foreground" />
+              <Icons.fileTypePdf className="size-6 text-muted-foreground" />
             </div>
-            <p className="font-medium">No purchase orders</p>
+            <p className="font-medium">No purchases</p>
             <p className="text-sm text-muted-foreground">
-              Create PO to replenish raw materials — draft/sent stays out of stock until Purchase
-              bill (GRN).
+              Record bill when goods received — linked to PO or direct. Stock adds on purchase.
             </p>
           </div>
         </CardContent>
@@ -67,77 +65,71 @@ export function PurchaseOrderList({ orders }: { orders: PurchaseOrder[] }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>PO Number</TableHead>
+              <TableHead>Purchase #</TableHead>
               <TableHead>Supplier</TableHead>
               <TableHead>Items</TableHead>
               <TableHead>Total</TableHead>
+              <TableHead>Paid</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Bill Date</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {orders.map((po) => (
-              <TableRow key={po.id}>
+            {purchases.map((p) => (
+              <TableRow key={p.id}>
                 <TableCell className="font-mono text-xs">
-                  <Link
-                    href={`/dashboard/inventory/purchase-orders/${po.id}`}
-                    className="underline"
-                  >
-                    {po.po_number}
+                  <Link href={`/dashboard/inventory/purchases/${p.id}`} className="underline">
+                    {p.purchase_number}
                   </Link>
-                  <div className="text-[10px] text-muted-foreground">
-                    {new Date(po.po_date).toLocaleDateString()}
-                  </div>
-                  {po.status === "received" && po.received_at && (
-                    <div className="text-[10px] text-muted-foreground">
-                      GRN {new Date(po.received_at).toLocaleDateString()}
-                    </div>
+                  {p.po_number && (
+                    <div className="text-[10px] text-muted-foreground">PO {p.po_number}</div>
                   )}
                 </TableCell>
                 <TableCell>
-                  <div>{po.supplier_name}</div>
-                  <div className="text-[10px] text-muted-foreground">
-                    Exp {po.expected_at ? new Date(po.expected_at).toLocaleDateString() : "-"}
-                  </div>
-                  {po.reference && (
-                    <div className="text-[10px] text-muted-foreground">Ref {po.reference}</div>
-                  )}
-                  {(po as any).payment_date && (
+                  <div className="text-sm">{p.supplier_name}</div>
+                  {p.due_date && (
                     <div className="text-[10px] text-muted-foreground">
-                      Pay {new Date((po as any).payment_date).toLocaleDateString()}
+                      Due {new Date(p.due_date).toLocaleDateString()}
                     </div>
                   )}
                 </TableCell>
                 <TableCell className="text-xs">
-                  {po.items
-                    .map((it) => `${it.material_name} x${it.qty} ${it.unit ?? ""}`)
-                    .join(", ")}
+                  {p.items.map((it) => `${it.material_name} x${it.qty}`).join(", ")}
                 </TableCell>
                 <TableCell>
-                  <div>₹{po.total_amount}</div>
+                  <div className="text-sm font-medium">₹{p.total_amount}</div>
                   <div className="text-[10px] text-muted-foreground">
-                    Sub ₹{(po as any).subtotal} + GST
+                    Sub ₹{p.subtotal} + Tax ₹{p.tax_amount}
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={statusVariant(po.status)} className="capitalize">
-                    {po.status}
+                  <div className="text-sm">₹{p.paid_amount}</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    Bal ₹{(p.total_amount - p.paid_amount).toFixed(2)}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={paymentVariant(p.payment_status)} className="capitalize">
+                    {p.payment_status}
                   </Badge>
-                  {po.status !== "received" && (
-                    <div className="text-[10px] text-muted-foreground">Not in stock</div>
+                  {p.payment_mode && (
+                    <div className="text-[10px] text-muted-foreground capitalize">
+                      {p.payment_mode}
+                    </div>
                   )}
-                  {po.status === "received" && (
-                    <div className="text-[10px] text-green-600">In stock (GRN)</div>
-                  )}
+                </TableCell>
+                <TableCell className="text-xs">
+                  {new Date(p.bill_date).toLocaleDateString()}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
-                    <Link href={`/dashboard/inventory/purchase-orders/${po.id}`}>
+                    <Link href={`/dashboard/inventory/purchases/${p.id}`}>
                       <Button variant="ghost" size="icon-sm" aria-label="View">
                         <Icons.externalLink className="size-4" />
                       </Button>
                     </Link>
-                    <PurchaseOrderRowActions po={po} />
+                    <PurchaseRowActions pur={p} />
                   </div>
                 </TableCell>
               </TableRow>
@@ -149,28 +141,28 @@ export function PurchaseOrderList({ orders }: { orders: PurchaseOrder[] }) {
   );
 }
 
-function PurchaseOrderRowActions({ po }: { po: PurchaseOrder }) {
+function PurchaseRowActions({ pur }: { pur: Purchase }) {
   const router = useRouter();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const delMut = useMutation({
-    mutationFn: (id: string) => deletePurchaseOrder(id),
+    mutationFn: (id: string) => deletePurchase(id),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: inventoryKeys.all });
-      toast.success("Purchase order deleted");
+      toast.success("Purchase deleted");
       setDeleteOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
   });
-  const isEditable = po.status === "draft" || po.status === "sent";
-  const isDeletable = po.status === "draft" || po.status === "sent";
+  const isEditable = pur.payment_status !== "paid";
+  const isDeletable = pur.payment_status !== "paid";
   return (
     <>
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete purchase order?</DialogTitle>
+            <DialogTitle>Delete purchase?</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete {po.po_number}? This cannot be undone.
+              Are you sure you want to delete {pur.purchase_number}? This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2">
@@ -179,7 +171,7 @@ function PurchaseOrderRowActions({ po }: { po: PurchaseOrder }) {
             </Button>
             <Button
               variant="destructive"
-              onClick={() => delMut.mutate(po.id)}
+              onClick={() => delMut.mutate(pur.id)}
               disabled={delMut.isPending}
             >
               Delete
@@ -199,7 +191,7 @@ function PurchaseOrderRowActions({ po }: { po: PurchaseOrder }) {
           <DropdownMenuGroup>
             {isEditable && (
               <DropdownMenuItem
-                onClick={() => router.push(`/dashboard/inventory/purchase-orders/${po.id}/edit`)}
+                onClick={() => router.push(`/dashboard/inventory/purchases/${pur.id}/edit`)}
               >
                 <Icons.edit className="mr-2 h-4 w-4" /> Update
               </DropdownMenuItem>

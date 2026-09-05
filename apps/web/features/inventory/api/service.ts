@@ -16,6 +16,10 @@ import type {
   WasteFilters,
   StockLedgerEntry,
   MaterialPriceHistory,
+  Purchase,
+  PurchasePayload,
+  PurchaseFilters,
+  PurchasePaymentStatus,
 } from "./types";
 
 // Raw Materials - Petpooja-aligned with multi-supplier
@@ -270,12 +274,33 @@ let mockPurchaseOrders: PurchaseOrder[] = [
     supplier_id: "sup_001",
     supplier_name: "Shree Grains",
     items: [
-      { material_id: "rm_001", material_name: "Basmati Rice", qty: 50, unit_cost: 78 },
-      { material_id: "rm_003", material_name: "Tomato", qty: 20, unit_cost: 28 },
+      {
+        material_id: "rm_001",
+        material_name: "Basmati Rice",
+        qty: 50,
+        unit_cost: 78,
+        tax_percent: 5,
+        unit: "kg",
+        line_total: 3900,
+      },
+      {
+        material_id: "rm_003",
+        material_name: "Tomato",
+        qty: 20,
+        unit_cost: 28,
+        tax_percent: 5,
+        unit: "kg",
+        line_total: 560,
+      },
     ],
-    total_amount: 4460,
+    subtotal: 4460,
+    tax_amount: 223,
+    total_amount: 4683,
     status: "received",
-    expected_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
+    po_date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString().slice(0, 10),
+    expected_at: new Date().toISOString().slice(0, 10),
+    reference: "IND-001",
+    payment_date: new Date().toISOString().slice(0, 10),
     received_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
     updated_at: new Date().toISOString(),
@@ -285,10 +310,24 @@ let mockPurchaseOrders: PurchaseOrder[] = [
     po_number: "PO-2024-002",
     supplier_id: "sup_002",
     supplier_name: "Fresh Meat Co",
-    items: [{ material_id: "rm_002", material_name: "Chicken Breast", qty: 20, unit_cost: 310 }],
-    total_amount: 6200,
+    items: [
+      {
+        material_id: "rm_002",
+        material_name: "Chicken Breast",
+        qty: 20,
+        unit_cost: 310,
+        tax_percent: 5,
+        unit: "kg",
+        line_total: 6200,
+      },
+    ],
+    subtotal: 6200,
+    tax_amount: 310,
+    total_amount: 6510,
     status: "sent",
-    expected_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 3).toISOString(),
+    po_date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1).toISOString().slice(0, 10),
+    expected_at: new Date().toISOString().slice(0, 10),
+    payment_date: new Date().toISOString().slice(0, 10),
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1).toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -618,9 +657,22 @@ export async function deleteRecipe(id: string): Promise<void> {
 }
 
 // Purchase Orders
-export async function getPurchaseOrders(): Promise<PurchaseOrder[]> {
+export async function getPurchaseOrders(
+  filters?: import("./types").PurchaseOrderFilters,
+): Promise<PurchaseOrder[]> {
   await delay(400);
-  return [...mockPurchaseOrders].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  let result = [...mockPurchaseOrders].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  if (filters?.search) {
+    const q = filters.search.toLowerCase();
+    result = result.filter(
+      (p) =>
+        p.po_number.toLowerCase().includes(q) ||
+        (p.supplier_name ?? "").toLowerCase().includes(q) ||
+        p.items.some((it) => (it.material_name ?? "").toLowerCase().includes(q)),
+    );
+  }
+  if (filters?.status) result = result.filter((p) => p.status === filters.status);
+  return result;
 }
 
 export async function getPurchaseOrderById(id: string): Promise<PurchaseOrder | null> {
@@ -628,32 +680,61 @@ export async function getPurchaseOrderById(id: string): Promise<PurchaseOrder | 
   return mockPurchaseOrders.find((p) => p.id === id) ?? null;
 }
 
+function computePOTotals(items: PurchaseOrder["items"]): {
+  subtotal: number;
+  tax_amount: number;
+  total_amount: number;
+} {
+  const subtotal = items.reduce((s, it) => s + it.qty * it.unit_cost, 0);
+  const tax_amount =
+    Math.round(
+      items.reduce((s, it) => s + it.qty * it.unit_cost * ((it.tax_percent ?? 0) / 100), 0) * 100,
+    ) / 100;
+  return {
+    subtotal: Math.round(subtotal * 100) / 100,
+    tax_amount,
+    total_amount: Math.round((subtotal + tax_amount) * 100) / 100,
+  };
+}
+
 export async function createPurchaseOrder(payload: PurchaseOrderPayload): Promise<PurchaseOrder> {
   await delay(700);
   const supName = supplierNameMap()[payload.supplier_id] ?? payload.supplier_id;
   const materials = materialMap();
   const items = payload.items.map((it) => ({
-    ...it,
+    material_id: it.material_id,
     material_name: materials[it.material_id]?.name,
+    qty: it.qty,
+    unit_cost: it.unit_cost,
+    tax_percent: (it as any).tax_percent ?? materials[it.material_id]?.tax_percent ?? 5,
+    unit: materials[it.material_id]?.unit,
+    line_total: Math.round(it.qty * it.unit_cost * 100) / 100,
   }));
-  const total = items.reduce((sum, it) => sum + it.qty * it.unit_cost, 0);
+  const { subtotal, tax_amount, total_amount } = computePOTotals(items as any);
   const now = new Date().toISOString();
-  // International standard PO numbering: PO-YYYY-NNN, N = max for that year +1, not length+1
   const year = new Date().getFullYear();
   const existingForYear = mockPurchaseOrders
     .filter((p) => p.po_number.startsWith(`PO-${year}-`))
     .map((p) => parseInt(p.po_number.split("-")[2] ?? "0", 10))
     .filter((n) => !Number.isNaN(n));
   const nextNum = existingForYear.length > 0 ? Math.max(...existingForYear) + 1 : 1;
+  const poDate = (payload as any).po_date ?? now.slice(0, 10);
+  const expectedAt = payload.expected_at ?? poDate;
+  const paymentDate = (payload as any).payment_date ?? now.slice(0, 10);
   const po: PurchaseOrder = {
     id: `po_${Date.now().toString(36)}`,
     po_number: `PO-${year}-${String(nextNum).padStart(3, "0")}`,
     supplier_id: payload.supplier_id,
     supplier_name: supName,
-    items,
-    total_amount: total,
+    items: items as any,
+    subtotal,
+    tax_amount,
+    total_amount,
     status: "draft",
-    expected_at: payload.expected_at,
+    po_date: poDate,
+    expected_at: expectedAt,
+    reference: (payload as any).reference,
+    payment_date: paymentDate,
     notes: (payload as any).notes,
     created_at: now,
     updated_at: now,
@@ -755,7 +836,15 @@ export async function sendPurchaseOrderViaEmail(
 
 export async function updatePurchaseOrder(
   id: string,
-  payload: Partial<PurchaseOrderPayload & { expected_at?: string; notes?: string }>,
+  payload: Partial<
+    PurchaseOrderPayload & {
+      expected_at?: string;
+      notes?: string;
+      po_date?: string;
+      reference?: string;
+      payment_date?: string;
+    }
+  >,
 ): Promise<PurchaseOrder> {
   await delay(600);
   const idx = mockPurchaseOrders.findIndex((p) => p.id === id);
@@ -766,18 +855,29 @@ export async function updatePurchaseOrder(
   const materials = materialMap();
   let items = po.items;
   if (payload.items) {
-    items = payload.items.map((it) => ({ ...it, material_name: materials[it.material_id]?.name }));
+    items = payload.items.map((it) => ({
+      ...it,
+      material_name: materials[it.material_id]?.name,
+      tax_percent: (it as any).tax_percent ?? materials[it.material_id]?.tax_percent ?? 5,
+      unit: materials[it.material_id]?.unit,
+      line_total: Math.round(it.qty * it.unit_cost * 100) / 100,
+    })) as any;
   }
-  const total = items.reduce((sum, it) => sum + it.qty * it.unit_cost, 0);
+  const { subtotal, tax_amount, total_amount } = computePOTotals(items as any);
   const updated: PurchaseOrder = {
     ...po,
     supplier_id: payload.supplier_id ?? po.supplier_id,
     supplier_name: payload.supplier_id
       ? (supplierNameMap()[payload.supplier_id] ?? po.supplier_name)
       : po.supplier_name,
-    items,
-    total_amount: total,
+    items: items as any,
+    subtotal,
+    tax_amount,
+    total_amount,
+    po_date: (payload as any).po_date ?? po.po_date,
     expected_at: payload.expected_at ?? po.expected_at,
+    reference: (payload as any).reference ?? po.reference,
+    payment_date: (payload as any).payment_date ?? (po as any).payment_date,
     notes: (payload as any).notes ?? po.notes,
     updated_at: new Date().toISOString(),
   };
@@ -809,56 +909,280 @@ export async function updatePurchaseOrderStatus(
     updated_at: new Date().toISOString(),
     received_at: status === "received" ? new Date().toISOString() : po.received_at,
   };
-  // On receive, increment stock and ledger, sync last price, track history, recalc recipes
-  if (status === "received" && po.status !== "received") {
-    po.items.forEach((item) => {
-      const matIdx = mockRawMaterials.findIndex((m) => m.id === item.material_id);
-      if (matIdx !== -1) {
-        const prev = mockRawMaterials[matIdx].stock_qty;
-        const newQty = prev + item.qty;
-        const oldAvg = mockRawMaterials[matIdx].avg_cost;
-        const newAvg = newQty > 0 ? (oldAvg * prev + item.unit_cost * item.qty) / newQty : oldAvg;
-        const roundedAvg = Math.round(newAvg * 100) / 100;
-        mockRawMaterials[matIdx].stock_qty = newQty;
-        mockRawMaterials[matIdx].avg_cost = roundedAvg;
-        mockRawMaterials[matIdx].cost_price = item.unit_cost; // last purchase price = cost_price for fluctuation visibility
-        mockRawMaterials[matIdx].updated_at = new Date().toISOString();
-        mockStockLedger.push({
-          id: `stk_${Date.now().toString(36)}_${item.material_id}`,
-          material_id: item.material_id,
-          material_name: mockRawMaterials[matIdx].name,
-          type: "purchase",
-          qty_delta: item.qty,
-          reason: po.po_number,
-          reference_id: po.id,
-          previous_qty: prev,
-          new_qty: newQty,
-          unit_cost: item.unit_cost,
-          total_cost: Math.round(item.unit_cost * item.qty * 100) / 100,
-          avg_cost_before: oldAvg,
-          avg_cost_after: roundedAvg,
-          created_at: new Date().toISOString(),
-        });
-        mockPriceHistory.push({
-          id: `ph_${Date.now().toString(36)}_${item.material_id}`,
-          material_id: item.material_id,
-          material_name: mockRawMaterials[matIdx].name,
-          old_avg: oldAvg,
-          new_avg: roundedAvg,
-          unit_cost: item.unit_cost,
-          qty: item.qty,
-          old_stock: prev,
-          new_stock: newQty,
-          source: "po_receive",
-          reference_id: po.id,
-          created_at: new Date().toISOString(),
-        });
-      }
-    });
-    // Recalculate recipe costs after avg change
-    recalculateRecipeCosts();
-  }
+  // GRN only — stock/WAC now handled by Purchases (Purchase Bill). Keeping PO received as marker only.
   mockPurchaseOrders[idx] = updated;
+  return { ...updated };
+}
+
+// Purchases — Bill/Payable (GRN stock is via purchase, not PO)
+let mockPurchases: Purchase[] = [
+  {
+    id: "pur_001",
+    purchase_number: "PUR-2024-001",
+    po_id: "po_001",
+    po_number: "PO-2024-001",
+    supplier_id: "sup_001",
+    supplier_name: "Shree Grains",
+    items: [
+      {
+        material_id: "rm_001",
+        material_name: "Basmati Rice",
+        qty: 50,
+        unit_cost: 78,
+        tax_percent: 5,
+        line_total: 3900,
+      },
+      {
+        material_id: "rm_003",
+        material_name: "Tomato",
+        qty: 20,
+        unit_cost: 28,
+        tax_percent: 5,
+        line_total: 560,
+      },
+    ],
+    subtotal: 4460,
+    tax_amount: 223,
+    total_amount: 4683,
+    paid_amount: 4683,
+    payment_status: "paid",
+    payment_mode: "bank",
+    bill_date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString().slice(0, 10),
+    due_date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString().slice(0, 10),
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
+
+function computePurchaseTotals(items: Purchase["items"]): {
+  subtotal: number;
+  tax_amount: number;
+  total_amount: number;
+} {
+  const subtotal = items.reduce((s, it) => s + it.qty * it.unit_cost, 0);
+  const tax_amount =
+    Math.round(
+      items.reduce((s, it) => s + it.qty * it.unit_cost * ((it.tax_percent ?? 0) / 100), 0) * 100,
+    ) / 100;
+  const total_amount = Math.round((subtotal + tax_amount) * 100) / 100;
+  return { subtotal: Math.round(subtotal * 100) / 100, tax_amount, total_amount };
+}
+function derivePaymentStatus(total: number, paid: number): PurchasePaymentStatus {
+  if (paid <= 0) return "unpaid";
+  if (paid >= total) return "paid";
+  return "partial";
+}
+function applyStockForPurchase(pur: Purchase) {
+  pur.items.forEach((item) => {
+    const matIdx = mockRawMaterials.findIndex((m) => m.id === item.material_id);
+    if (matIdx === -1) return;
+    const prev = mockRawMaterials[matIdx].stock_qty;
+    const newQty = prev + item.qty;
+    const oldAvg = mockRawMaterials[matIdx].avg_cost;
+    const newAvg = newQty > 0 ? (oldAvg * prev + item.unit_cost * item.qty) / newQty : oldAvg;
+    const roundedAvg = Math.round(newAvg * 100) / 100;
+    mockRawMaterials[matIdx].stock_qty = newQty;
+    mockRawMaterials[matIdx].avg_cost = roundedAvg;
+    mockRawMaterials[matIdx].cost_price = item.unit_cost;
+    mockRawMaterials[matIdx].updated_at = new Date().toISOString();
+    mockStockLedger.push({
+      id: `stk_${Date.now().toString(36)}_${item.material_id}`,
+      material_id: item.material_id,
+      material_name: mockRawMaterials[matIdx].name,
+      type: "purchase",
+      qty_delta: item.qty,
+      reason: pur.purchase_number,
+      reference_id: pur.id,
+      previous_qty: prev,
+      new_qty: newQty,
+      unit_cost: item.unit_cost,
+      total_cost: Math.round(item.unit_cost * item.qty * 100) / 100,
+      avg_cost_before: oldAvg,
+      avg_cost_after: roundedAvg,
+      created_at: new Date().toISOString(),
+    });
+    mockPriceHistory.push({
+      id: `ph_${Date.now().toString(36)}_${item.material_id}`,
+      material_id: item.material_id,
+      material_name: mockRawMaterials[matIdx].name,
+      old_avg: oldAvg,
+      new_avg: roundedAvg,
+      unit_cost: item.unit_cost,
+      qty: item.qty,
+      old_stock: prev,
+      new_stock: newQty,
+      source: "purchase",
+      reference_id: pur.id,
+      created_at: new Date().toISOString(),
+    });
+  });
+  recalculateRecipeCosts();
+}
+
+export async function getPurchases(filters?: PurchaseFilters): Promise<Purchase[]> {
+  await delay(400);
+  let result = [...mockPurchases].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  if (filters?.search) {
+    const q = filters.search.toLowerCase();
+    result = result.filter(
+      (p) =>
+        p.purchase_number.toLowerCase().includes(q) ||
+        (p.supplier_name ?? "").toLowerCase().includes(q) ||
+        (p.po_number ?? "").toLowerCase().includes(q),
+    );
+  }
+  if (filters?.supplier_id) result = result.filter((p) => p.supplier_id === filters.supplier_id);
+  if (filters?.payment_status)
+    result = result.filter((p) => p.payment_status === filters.payment_status);
+  return result;
+}
+export async function getPurchaseById(id: string): Promise<Purchase | null> {
+  await delay(300);
+  return mockPurchases.find((p) => p.id === id) ?? null;
+}
+export async function createPurchase(payload: PurchasePayload): Promise<Purchase> {
+  await delay(700);
+  const supName = supplierNameMap()[payload.supplier_id] ?? payload.supplier_id;
+  const materials = materialMap();
+  const po = payload.po_id ? mockPurchaseOrders.find((p) => p.id === payload.po_id) : null;
+  if (payload.po_id && !po) throw new Error("Linked PO not found");
+  const enriched = payload.items.map((it) => ({
+    material_id: it.material_id,
+    material_name: materials[it.material_id]?.name ?? it.material_id,
+    qty: it.qty,
+    unit_cost: it.unit_cost,
+    tax_percent: (it as any).tax_percent ?? materials[it.material_id]?.tax_percent ?? 5,
+    line_total: Math.round(it.qty * it.unit_cost * 100) / 100,
+  }));
+  const { subtotal, tax_amount, total_amount } = computePurchaseTotals(enriched as any);
+  const paid = (payload as any).paid_amount ?? 0;
+  if (paid < 0 || paid > total_amount) throw new Error("Paid amount must be 0..total");
+  const year = new Date().getFullYear();
+  const existingForYear = mockPurchases
+    .filter((p) => p.purchase_number.startsWith(`PUR-${year}-`))
+    .map((p) => parseInt(p.purchase_number.split("-")[2] ?? "0", 10))
+    .filter((n) => !Number.isNaN(n));
+  const nextNum = existingForYear.length > 0 ? Math.max(...existingForYear) + 1 : 1;
+  const billDate = payload.bill_date ?? new Date().toISOString().slice(0, 10);
+  const dueDate =
+    (payload as any).due_date ??
+    new Date(new Date(billDate).getTime() + 15 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const now = new Date().toISOString();
+  const pur: Purchase = {
+    id: `pur_${Date.now().toString(36)}`,
+    purchase_number: `PUR-${year}-${String(nextNum).padStart(3, "0")}`,
+    po_id: payload.po_id ?? null,
+    po_number: po?.po_number,
+    supplier_id: payload.supplier_id,
+    supplier_name: supName,
+    items: enriched as any,
+    subtotal,
+    tax_amount,
+    total_amount,
+    paid_amount: Math.round(paid * 100) / 100,
+    payment_status: derivePaymentStatus(total_amount, paid),
+    payment_mode: (payload as any).payment_mode,
+    bill_date: billDate,
+    due_date: dueDate,
+    notes: (payload as any).notes,
+    created_at: now,
+    updated_at: now,
+  };
+  mockPurchases.push(pur);
+  applyStockForPurchase(pur);
+  // If linked PO is sent, mark it received (GRN) — stock now via purchase
+  if (po && po.status !== "received") {
+    const idx = mockPurchaseOrders.findIndex((p) => p.id === po.id);
+    if (idx !== -1) {
+      mockPurchaseOrders[idx] = { ...po, status: "received", received_at: now, updated_at: now };
+    }
+  }
+  return { ...pur };
+}
+export async function updatePurchase(
+  id: string,
+  payload: Partial<PurchasePayload> & {
+    paid_amount?: number;
+    payment_mode?: string;
+    due_date?: string;
+    notes?: string;
+  },
+): Promise<Purchase> {
+  await delay(600);
+  const idx = mockPurchases.findIndex((p) => p.id === id);
+  if (idx === -1) throw new Error("Purchase not found");
+  const current = mockPurchases[idx];
+  if (current.payment_status === "paid")
+    throw new Error("Cannot edit paid purchase — create credit note");
+  const materials = materialMap();
+  let items = current.items;
+  if (payload.items) {
+    items = payload.items.map((it) => ({
+      material_id: it.material_id,
+      material_name: materials[it.material_id]?.name ?? it.material_id,
+      qty: it.qty,
+      unit_cost: it.unit_cost,
+      tax_percent: (it as any).tax_percent ?? materials[it.material_id]?.tax_percent ?? 5,
+      line_total: Math.round(it.qty * it.unit_cost * 100) / 100,
+    })) as any;
+  }
+  const { subtotal, tax_amount, total_amount } = payload.items
+    ? computePurchaseTotals(items as any)
+    : {
+        subtotal: current.subtotal,
+        tax_amount: current.tax_amount,
+        total_amount: current.total_amount,
+      };
+  const paid = payload.paid_amount ?? current.paid_amount;
+  if (paid < 0 || paid > total_amount) throw new Error("Paid amount must be 0..total");
+  const updated: Purchase = {
+    ...current,
+    supplier_id: payload.supplier_id ?? current.supplier_id,
+    supplier_name: payload.supplier_id
+      ? (supplierNameMap()[payload.supplier_id] ?? current.supplier_name)
+      : current.supplier_name,
+    items: items as any,
+    subtotal,
+    tax_amount,
+    total_amount,
+    paid_amount: Math.round(paid * 100) / 100,
+    payment_status: derivePaymentStatus(total_amount, paid),
+    payment_mode: (payload as any).payment_mode ?? current.payment_mode,
+    bill_date: payload.bill_date ?? current.bill_date,
+    due_date: (payload as any).due_date ?? current.due_date,
+    notes: (payload as any).notes ?? current.notes,
+    updated_at: new Date().toISOString(),
+  };
+  // Stock delta: for MVP, do not reverse old stock on update (audit requires credit note). Keep simple.
+  mockPurchases[idx] = updated;
+  return { ...updated };
+}
+export async function deletePurchase(id: string): Promise<void> {
+  await delay(500);
+  const idx = mockPurchases.findIndex((p) => p.id === id);
+  if (idx === -1) throw new Error("Purchase not found");
+  if (mockPurchases[idx].payment_status === "paid") throw new Error("Cannot delete paid purchase");
+  mockPurchases.splice(idx, 1);
+}
+export async function recordPurchasePayment(
+  id: string,
+  amount: number,
+  mode?: string,
+): Promise<Purchase> {
+  await delay(400);
+  const idx = mockPurchases.findIndex((p) => p.id === id);
+  if (idx === -1) throw new Error("Purchase not found");
+  const pur = mockPurchases[idx];
+  const newPaid = Math.round((pur.paid_amount + amount) * 100) / 100;
+  if (newPaid > pur.total_amount) throw new Error("Paid exceeds total");
+  const updated = {
+    ...pur,
+    paid_amount: newPaid,
+    payment_status: derivePaymentStatus(pur.total_amount, newPaid),
+    payment_mode: (mode as any) ?? pur.payment_mode,
+    updated_at: new Date().toISOString(),
+  };
+  mockPurchases[idx] = updated;
   return { ...updated };
 }
 
@@ -938,7 +1262,7 @@ export async function getPriceHistory(materialId?: string): Promise<MaterialPric
 export async function getSupplierPriceComparison(materialId: string) {
   await delay(300);
   const history = mockPriceHistory.filter(
-    (h) => h.material_id === materialId && h.source === "po_receive",
+    (h) => h.material_id === materialId && (h.source === "po_receive" || h.source === "purchase"),
   );
   const grouped: Record<
     string,
