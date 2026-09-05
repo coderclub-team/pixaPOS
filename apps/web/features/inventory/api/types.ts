@@ -186,6 +186,7 @@ export type Purchase = {
   payment_mode?: "cash" | "upi" | "bank" | "credit";
   bill_date: string;
   due_date?: string;
+  reference?: string; // vendor invoice number
   notes?: string;
   created_at: string;
   updated_at: string;
