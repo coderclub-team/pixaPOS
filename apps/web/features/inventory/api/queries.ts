@@ -15,6 +15,8 @@ import {
   getSupplierAdjustmentById,
   getSupplierAdjustments,
   getSupplierById,
+  getSupplierLedger,
+  getSupplierOutstanding,
   getSuppliers,
   getWasteLogs,
 } from "./service";
@@ -25,6 +27,7 @@ import type {
   RawMaterialFilters,
   SupplierAdjustmentFilters,
   SupplierFilters,
+  SupplierLedgerFilters,
   WasteFilters,
 } from "./types";
 
@@ -50,6 +53,9 @@ export const inventoryKeys = {
   supplierAdjustments: (filters?: SupplierAdjustmentFilters) =>
     [...inventoryKeys.all, "supplier-adjustments", filters ?? {}] as const,
   supplierAdjustment: (id: string) => [...inventoryKeys.all, "supplier-adjustment", id] as const,
+  supplierLedger: (filters?: SupplierLedgerFilters) =>
+    [...inventoryKeys.all, "supplier-ledger", filters ?? {}] as const,
+  supplierOutstanding: () => [...inventoryKeys.all, "supplier-outstanding"] as const,
   waste: (filters?: WasteFilters) => [...inventoryKeys.all, "waste", filters ?? {}] as const,
   stock: () => [...inventoryKeys.all, "stock"] as const,
   priceHistory: (materialId?: string) =>
@@ -138,4 +144,16 @@ export const supplierAdjustmentQueryOptions = (id: string) =>
   queryOptions({
     queryKey: inventoryKeys.supplierAdjustment(id),
     queryFn: () => getSupplierAdjustmentById(id),
+  });
+
+export const supplierLedgerQueryOptions = (filters?: SupplierLedgerFilters) =>
+  queryOptions({
+    queryKey: inventoryKeys.supplierLedger(filters),
+    queryFn: () => getSupplierLedger(filters),
+  });
+
+export const supplierOutstandingQueryOptions = () =>
+  queryOptions({
+    queryKey: inventoryKeys.supplierOutstanding(),
+    queryFn: () => getSupplierOutstanding(),
   });

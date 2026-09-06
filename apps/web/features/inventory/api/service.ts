@@ -26,6 +26,8 @@ import type {
   SupplierAdjustment,
   SupplierAdjustmentPayload,
   SupplierAdjustmentFilters,
+  SupplierLedgerEntry,
+  SupplierLedgerFilters,
 } from "./types";
 
 // Raw Materials - Petpooja-aligned with multi-supplier
@@ -1733,6 +1735,149 @@ export async function createWasteLog(payload: WastePayload): Promise<WasteLog> {
   };
   mockWaste.push(log);
   return { ...log };
+}
+
+// Supplier Ledger — global payables (derived, no extra storage)
+export async function getSupplierLedger(
+  filters?: SupplierLedgerFilters,
+): Promise<SupplierLedgerEntry[]> {
+  await delay(400);
+  const entries: SupplierLedgerEntry[] = [];
+  for (const p of mockPurchases) {
+    entries.push({
+      id: `sl_pur_${p.id}`,
+      supplier_id: p.supplier_id,
+      supplier_name: p.supplier_name,
+      type: "purchase",
+      amount: Math.round(p.total_amount * 100) / 100,
+      balance_after: 0,
+      reference_id: p.id,
+      reference_number: p.purchase_number,
+      reason: `Bill ${p.purchase_number}`,
+      bill_date: p.bill_date,
+      created_at: p.created_at,
+    });
+    if (p.paid_amount > 0) {
+      entries.push({
+        id: `sl_pay_${p.id}`,
+        supplier_id: p.supplier_id,
+        supplier_name: p.supplier_name,
+        type: "payment",
+        amount: -Math.round(p.paid_amount * 100) / 100,
+        balance_after: 0,
+        reference_id: p.id,
+        reference_number: p.purchase_number,
+        reason: `Payment ${p.payment_mode ?? ""}`.trim(),
+        bill_date: p.bill_date,
+        created_at: p.updated_at,
+      });
+    }
+  }
+  for (const r of mockPurchaseReturns.filter((x) => x.status === "approved")) {
+    entries.push({
+      id: `sl_ret_${r.id}`,
+      supplier_id: r.supplier_id,
+      supplier_name: r.supplier_name,
+      type: "return",
+      amount: -Math.round(r.total_refund * 100) / 100,
+      balance_after: 0,
+      reference_id: r.id,
+      reference_number: r.return_number,
+      reason: `Return ${r.reason}`,
+      bill_date: r.bill_date,
+      created_at: r.approved_at ?? r.updated_at,
+    });
+  }
+  for (const a of mockSupplierAdjustments.filter(
+    (x) => x.status === "posted" || x.status === "applied",
+  )) {
+    const isCredit = a.type === "credit";
+    entries.push({
+      id: `sl_adj_${a.id}`,
+      supplier_id: a.supplier_id,
+      supplier_name: a.supplier_name,
+      type: isCredit ? "credit" : "debit",
+      amount: isCredit ? -Math.round(a.amount * 100) / 100 : Math.round(a.amount * 100) / 100,
+      balance_after: 0,
+      reference_id: a.id,
+      reference_number: a.adjustment_number,
+      reason: `${a.type} ${a.category}`,
+      bill_date: a.bill_date,
+      created_at: a.posted_at ?? a.created_at,
+    });
+  }
+  let filtered = entries;
+  if (filters?.supplier_id)
+    filtered = filtered.filter((e) => e.supplier_id === filters.supplier_id);
+  if (filters?.type) filtered = filtered.filter((e) => e.type === filters.type);
+  if (filters?.search) {
+    const q = filters.search.toLowerCase();
+    filtered = filtered.filter(
+      (e) =>
+        (e.supplier_name ?? "").toLowerCase().includes(q) ||
+        (e.reference_number ?? "").toLowerCase().includes(q),
+    );
+  }
+  filtered.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const bySupplier = new Map<string, number>();
+  for (const e of filtered) {
+    const prev = bySupplier.get(e.supplier_id) ?? 0;
+    const next = Math.round((prev + e.amount) * 100) / 100;
+    e.balance_after = next;
+    bySupplier.set(e.supplier_id, next);
+  }
+  // most recent first for table
+  filtered.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return filtered as SupplierLedgerEntry[];
+}
+
+export async function getSupplierOutstanding(): Promise<
+  {
+    supplier_id: string;
+    supplier_name: string;
+    payable: number;
+    overdue: number;
+    credit_available: number;
+  }[]
+> {
+  const ledger = await getSupplierLedger();
+  const byId = new Map<string, { supplier_name: string; payable: number }>();
+  for (const e of ledger) {
+    const cur = byId.get(e.supplier_id) ?? {
+      supplier_name: e.supplier_name ?? e.supplier_id,
+      payable: 0,
+    };
+    cur.payable = Math.round((cur.payable + e.amount) * 100) / 100;
+    byId.set(e.supplier_id, cur);
+  }
+  const overdueBySupplier = new Map<string, number>();
+  for (const p of mockPurchases) {
+    const due = p.total_amount - p.paid_amount;
+    if (due > 0 && p.due_date && new Date(p.due_date) < new Date(new Date().toDateString())) {
+      overdueBySupplier.set(
+        p.supplier_id,
+        Math.round(((overdueBySupplier.get(p.supplier_id) ?? 0) + due) * 100) / 100,
+      );
+    }
+  }
+  const creditAvailable = new Map<string, number>();
+  for (const a of mockSupplierAdjustments.filter(
+    (x) => x.type === "credit" && (x.status === "posted" || x.status === "applied"),
+  )) {
+    const avail = a.amount - (a.applied_amount ?? 0);
+    if (avail > 0)
+      creditAvailable.set(
+        a.supplier_id,
+        Math.round(((creditAvailable.get(a.supplier_id) ?? 0) + avail) * 100) / 100,
+      );
+  }
+  return Array.from(byId.entries()).map(([id, v]) => ({
+    supplier_id: id,
+    supplier_name: v.supplier_name,
+    payable: v.payable,
+    overdue: overdueBySupplier.get(id) ?? 0,
+    credit_available: creditAvailable.get(id) ?? 0,
+  }));
 }
 
 // Stock Ledger

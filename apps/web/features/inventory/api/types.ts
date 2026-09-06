@@ -375,3 +375,23 @@ export type SupplierAdjustmentFilters = {
   status?: AdjustmentStatus;
   category?: AdjustmentCategory;
 };
+
+export type SupplierLedgerType = "purchase" | "payment" | "credit" | "debit" | "return";
+export type SupplierLedgerEntry = {
+  id: string;
+  supplier_id: string;
+  supplier_name?: string;
+  type: SupplierLedgerType;
+  amount: number; // +payable for purchase/debit, -payable for payment/credit/return
+  balance_after: number;
+  reference_id?: string;
+  reference_number?: string;
+  reason?: string;
+  bill_date: string;
+  created_at: string;
+};
+export type SupplierLedgerFilters = {
+  supplier_id?: string;
+  type?: SupplierLedgerType;
+  search?: string;
+};
