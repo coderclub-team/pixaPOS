@@ -359,7 +359,7 @@ export default function PurchaseReturnForm({ purchaseId }: { purchaseId?: string
                   <span>₹{totals.total.toFixed(2)}</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Zoho: shown as Vendor Credit; Odoo: reverse journal on approve.
+                  Shown as Vendor Credit; reverse journal on approve.
                 </p>
               </div>
             </CardContent>

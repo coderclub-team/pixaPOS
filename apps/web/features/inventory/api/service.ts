@@ -1029,6 +1029,7 @@ let mockPurchases: Purchase[] = [
     ],
     subtotal: 4460,
     tax_amount: 223,
+    landed_cost: 0,
     total_amount: 4683,
     paid_amount: 4683,
     payment_status: "paid",
@@ -1040,9 +1041,13 @@ let mockPurchases: Purchase[] = [
   },
 ];
 
-function computePurchaseTotals(items: Purchase["items"]): {
+function computePurchaseTotals(
+  items: Purchase["items"],
+  landed_cost: number = 0,
+): {
   subtotal: number;
   tax_amount: number;
+  landed_cost: number;
   total_amount: number;
 } {
   const subtotal = items.reduce((s, it) => s + it.qty * it.unit_cost, 0);
@@ -1050,8 +1055,14 @@ function computePurchaseTotals(items: Purchase["items"]): {
     Math.round(
       items.reduce((s, it) => s + it.qty * it.unit_cost * ((it.tax_percent ?? 0) / 100), 0) * 100,
     ) / 100;
-  const total_amount = Math.round((subtotal + tax_amount) * 100) / 100;
-  return { subtotal: Math.round(subtotal * 100) / 100, tax_amount, total_amount };
+  const landed = Math.round(landed_cost * 100) / 100;
+  const total_amount = Math.round((subtotal + tax_amount + landed) * 100) / 100;
+  return {
+    subtotal: Math.round(subtotal * 100) / 100,
+    tax_amount,
+    landed_cost: landed,
+    total_amount,
+  };
 }
 function derivePaymentStatus(total: number, paid: number): PurchasePaymentStatus {
   if (paid <= 0) return "unpaid";
@@ -1059,13 +1070,22 @@ function derivePaymentStatus(total: number, paid: number): PurchasePaymentStatus
   return "partial";
 }
 function applyStockForPurchase(pur: Purchase) {
+  const landed = (pur as any).landed_cost ?? 0;
+  const subtotalForDist =
+    pur.subtotal > 0
+      ? pur.subtotal
+      : pur.items.reduce((s, it) => s + it.qty * it.unit_cost, 0) || 1;
   pur.items.forEach((item) => {
     const matIdx = mockRawMaterials.findIndex((m) => m.id === item.material_id);
     if (matIdx === -1) return;
+    const lineSubtotal = item.qty * item.unit_cost;
+    const landedShare = landed > 0 ? (lineSubtotal / subtotalForDist) * landed : 0;
+    const landedPerUnit = item.qty > 0 ? landedShare / item.qty : 0;
+    const effectiveUnitCost = item.unit_cost + landedPerUnit;
     const prev = mockRawMaterials[matIdx].stock_qty;
     const newQty = prev + item.qty;
     const oldAvg = mockRawMaterials[matIdx].avg_cost;
-    const newAvg = newQty > 0 ? (oldAvg * prev + item.unit_cost * item.qty) / newQty : oldAvg;
+    const newAvg = newQty > 0 ? (oldAvg * prev + effectiveUnitCost * item.qty) / newQty : oldAvg;
     const roundedAvg = Math.round(newAvg * 100) / 100;
     mockRawMaterials[matIdx].stock_qty = newQty;
     mockRawMaterials[matIdx].avg_cost = roundedAvg;
@@ -1077,12 +1097,12 @@ function applyStockForPurchase(pur: Purchase) {
       material_name: mockRawMaterials[matIdx].name,
       type: "purchase",
       qty_delta: item.qty,
-      reason: pur.purchase_number,
+      reason: pur.purchase_number + (landed > 0 ? ` + landed ₹${landedShare.toFixed(2)}` : ""),
       reference_id: pur.id,
       previous_qty: prev,
       new_qty: newQty,
-      unit_cost: item.unit_cost,
-      total_cost: Math.round(item.unit_cost * item.qty * 100) / 100,
+      unit_cost: Math.round(effectiveUnitCost * 100) / 100,
+      total_cost: Math.round((item.unit_cost * item.qty + landedShare) * 100) / 100,
       avg_cost_before: oldAvg,
       avg_cost_after: roundedAvg,
       created_at: new Date().toISOString(),
@@ -1093,7 +1113,7 @@ function applyStockForPurchase(pur: Purchase) {
       material_name: mockRawMaterials[matIdx].name,
       old_avg: oldAvg,
       new_avg: roundedAvg,
-      unit_cost: item.unit_cost,
+      unit_cost: Math.round(effectiveUnitCost * 100) / 100,
       qty: item.qty,
       old_stock: prev,
       new_stock: newQty,
@@ -1132,7 +1152,7 @@ export async function createPurchase(payload: PurchasePayload): Promise<Purchase
   const materials = materialMap();
   const po = payload.po_id ? mockPurchaseOrders.find((p) => p.id === payload.po_id) : null;
   if (payload.po_id && !po) throw new Error("Linked PO not found");
-  // Odoo/Zoho: only sent POs can be billed, and only once (invoiced hidden)
+  // Standard: only sent POs can be billed, and only once (invoiced hidden)
   if (po) {
     if (po.status !== "sent")
       throw new Error("Only sent POs can be billed (Odoo: draft/received/cancelled not billable)");
@@ -1149,7 +1169,28 @@ export async function createPurchase(payload: PurchasePayload): Promise<Purchase
     tax_percent: (it as any).tax_percent ?? materials[it.material_id]?.tax_percent ?? 5,
     line_total: Math.round(it.qty * it.unit_cost * 100) / 100,
   }));
-  const { subtotal, tax_amount, total_amount } = computePurchaseTotals(enriched as any);
+  const landedCostsRaw = (payload as any).landed_costs as
+    | import("./types").LandedCostLine[]
+    | undefined;
+  const landedCostFromArray = landedCostsRaw
+    ? landedCostsRaw.reduce((s, l) => s + Number((l as any).amount ?? 0), 0)
+    : undefined;
+  const landedCostRaw =
+    landedCostFromArray !== undefined
+      ? landedCostFromArray
+      : Number((payload as any).landed_cost ?? 0);
+  const landedCost = Math.round(landedCostRaw * 100) / 100;
+  const normalizedLandedCosts =
+    landedCostsRaw && landedCostsRaw.length > 0
+      ? landedCostsRaw.map((l) => ({
+          label: (l as any).label,
+          amount: Math.round(Number((l as any).amount) * 100) / 100,
+          custom_label: (l as any).custom_label,
+        }))
+      : landedCost > 0
+        ? [{ label: "Other" as any, amount: landedCost }]
+        : [];
+  const { subtotal, tax_amount, total_amount } = computePurchaseTotals(enriched as any, landedCost);
   const paid = (payload as any).paid_amount ?? 0;
   if (paid < 0 || paid > total_amount) throw new Error("Paid amount must be 0..total");
   const year = new Date().getFullYear();
@@ -1173,6 +1214,8 @@ export async function createPurchase(payload: PurchasePayload): Promise<Purchase
     items: enriched as any,
     subtotal,
     tax_amount,
+    landed_cost: landedCost,
+    landed_costs: normalizedLandedCosts as any,
     total_amount,
     paid_amount: Math.round(paid * 100) / 100,
     payment_status: derivePaymentStatus(total_amount, paid),
@@ -1223,12 +1266,33 @@ export async function updatePurchase(
       line_total: Math.round(it.qty * it.unit_cost * 100) / 100,
     })) as any;
   }
+  const landedCostsFromPayload = (payload as any).landed_costs as
+    | import("./types").LandedCostLine[]
+    | undefined;
+  const landedCostFromArray =
+    landedCostsFromPayload !== undefined
+      ? landedCostsFromPayload.reduce((s, l) => s + Number((l as any).amount ?? 0), 0)
+      : undefined;
+  const landedCost =
+    landedCostFromArray !== undefined
+      ? Math.round(landedCostFromArray * 100) / 100
+      : payload.landed_cost !== undefined
+        ? Math.round(Number(payload.landed_cost) * 100) / 100
+        : ((current as any).landed_cost ?? 0);
+  const normalizedLandedCosts =
+    landedCostsFromPayload !== undefined
+      ? landedCostsFromPayload.map((l) => ({
+          label: (l as any).label,
+          amount: Math.round(Number((l as any).amount) * 100) / 100,
+          custom_label: (l as any).custom_label,
+        }))
+      : (current as any).landed_costs;
   const { subtotal, tax_amount, total_amount } = payload.items
-    ? computePurchaseTotals(items as any)
+    ? computePurchaseTotals(items as any, landedCost)
     : {
         subtotal: current.subtotal,
         tax_amount: current.tax_amount,
-        total_amount: current.total_amount,
+        total_amount: Math.round((current.subtotal + current.tax_amount + landedCost) * 100) / 100,
       };
   const paid = payload.paid_amount ?? current.paid_amount;
   if (paid < 0 || paid > total_amount) throw new Error("Paid amount must be 0..total");
@@ -1241,6 +1305,8 @@ export async function updatePurchase(
     items: items as any,
     subtotal,
     tax_amount,
+    landed_cost: landedCost,
+    landed_costs: (normalizedLandedCosts as any) ?? (current as any).landed_costs,
     total_amount,
     paid_amount: Math.round(paid * 100) / 100,
     payment_status: derivePaymentStatus(total_amount, paid),
@@ -1260,9 +1326,7 @@ export async function deletePurchase(id: string): Promise<void> {
   const idx = mockPurchases.findIndex((p) => p.id === id);
   if (idx === -1) throw new Error("Purchase not found");
   if (mockPurchases[idx].payment_status !== "unpaid")
-    throw new Error(
-      "Only unpaid purchases can be deleted — void partial/paid via credit (Odoo: Cancel/Credit, Zoho: Void)",
-    );
+    throw new Error("Only unpaid purchases can be deleted — void partial/paid via credit");
   mockPurchases.splice(idx, 1);
 }
 export async function recordPurchasePayment(
@@ -1287,7 +1351,7 @@ export async function recordPurchasePayment(
   return { ...updated };
 }
 
-// Purchase Returns — Credit Note / Vendor Credit (Odoo Reverse + Zoho Vendor Credit merged)
+// Purchase Returns — Credit Note / Vendor Credit (Reverse + Vendor Credit merged)
 let mockPurchaseReturns: PurchaseReturn[] = [];
 
 function computeReturnTotals(items: PurchaseReturn["items"]): {
@@ -1883,7 +1947,7 @@ export async function getSupplierOutstanding(): Promise<
   }));
 }
 
-// Payments CRUD — Supplier Payments (single-step posted, purchase optional = advance, Odoo Register Payment / Zoho Payments Made)
+// Payments CRUD — Supplier Payments (single-step posted, purchase optional = advance)
 let mockPayments: SupplierPayment[] = [];
 
 export async function getPayments(filters?: PaymentFilters): Promise<SupplierPayment[]> {

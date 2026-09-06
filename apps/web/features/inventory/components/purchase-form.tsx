@@ -58,7 +58,7 @@ export default function PurchaseForm({
     value: m.id,
   }));
   const prefillPoId = !initialData ? (searchParams?.get("poId") ?? "") : "";
-  // Odoo/Zoho standard: only sent POs that are not already billed are selectable (draft/received/cancelled hidden, invoiced hidden)
+  // Standard: only sent POs that are not already billed are selectable (draft/received/cancelled hidden, invoiced hidden)
   const { data: allPurchases } = useQuery(purchasesQueryOptions());
   const billedPoIds = new Set(
     (allPurchases ?? []).map((pp: any) => pp.po_id).filter(Boolean) as string[],
@@ -82,6 +82,14 @@ export default function PurchaseForm({
     })) ?? [{ material_id: "", qty: 1, unit_cost: 0, tax_percent: undefined }],
   );
   const [itemsError, setItemsError] = useState<string | null>(null);
+  const [landedCosts, setLandedCosts] = useState<
+    { label: string; amount: number | string; custom_label?: string }[]
+  >(
+    ((initialData as any)?.landed_costs as any) ??
+      ((initialData as any)?.landed_cost
+        ? [{ label: "Other", amount: (initialData as any).landed_cost }]
+        : []),
+  );
 
   const totals = useMemo(() => {
     const subtotal = items.reduce(
@@ -107,7 +115,19 @@ export default function PurchaseForm({
         qty: Number(it.qty),
         unit_cost: Number(it.unit_cost),
       }));
-      return createPurchase({ ...v, items: cleanItems });
+      const normalizedLandedCosts = landedCosts
+        .filter((l) => Number((l as any).amount) > 0)
+        .map((l) => ({
+          label: (l as any).label,
+          amount: Number((l as any).amount),
+          custom_label: (l as any).custom_label,
+        }));
+      return createPurchase({
+        ...v,
+        items: cleanItems,
+        landed_costs: normalizedLandedCosts,
+        landed_cost: landedCostVal,
+      });
     },
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: inventoryKeys.all });
@@ -123,7 +143,19 @@ export default function PurchaseForm({
         qty: Number(it.qty),
         unit_cost: Number(it.unit_cost),
       }));
-      return updatePurchase(initialData!.id, { ...v, items: cleanItems });
+      const normalizedLandedCosts = landedCosts
+        .filter((l) => Number((l as any).amount) > 0)
+        .map((l) => ({
+          label: (l as any).label,
+          amount: Number((l as any).amount),
+          custom_label: (l as any).custom_label,
+        }));
+      return updatePurchase(initialData!.id, {
+        ...v,
+        items: cleanItems,
+        landed_costs: normalizedLandedCosts,
+        landed_cost: landedCostVal,
+      });
     },
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: inventoryKeys.all });
@@ -164,12 +196,15 @@ export default function PurchaseForm({
         if (it.unit_cost === "" || Number.isNaN(c) || c < 0)
           return setItemsError(`Row ${i + 1}: unit cost invalid`);
       }
-      if ((value.paid_amount ?? 0) > totals.total) return toast.error("Paid exceeds total");
+      if ((value.paid_amount ?? 0) > totalWithLanded) return toast.error("Paid exceeds total");
       setItemsError(null);
       if (isEdit) await updateMutation.mutateAsync(value);
       else await createMutation.mutateAsync(value);
     },
   });
+
+  const landedCostVal = landedCosts.reduce((s, l) => s + Number((l as any).amount || 0), 0);
+  const totalWithLanded = Math.round((totals.subtotal + totals.tax + landedCostVal) * 100) / 100;
 
   const handlePoChange = (poId: string) => {
     form.setFieldValue("po_id" as any, poId);
@@ -211,6 +246,13 @@ export default function PurchaseForm({
     if (items.length === 1) return toast.error("At least one item required");
     setItems((prev) => prev.filter((_, i) => i !== idx));
   };
+  const addLandedCost = () => setLandedCosts((prev) => [...prev, { label: "Freight", amount: 0 }]);
+  const updateLandedCost = (
+    idx: number,
+    patch: Partial<{ label: string; amount: number | string; custom_label?: string }>,
+  ) => setLandedCosts((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
+  const removeLandedCost = (idx: number) =>
+    setLandedCosts((prev) => prev.filter((_, i) => i !== idx));
 
   useEffect(() => {
     if (
@@ -486,10 +528,21 @@ export default function PurchaseForm({
                 <span>GST</span>
                 <span>₹{totals.tax.toFixed(2)}</span>
               </div>
+              {landedCostVal > 0 && (
+                <div className="flex justify-between">
+                  <span>Landed Cost</span>
+                  <span>₹{landedCostVal.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between font-bold">
                 <span>Total</span>
-                <span>₹{totals.total.toFixed(2)}</span>
+                <span>₹{totalWithLanded.toFixed(2)}</span>
               </div>
+              {landedCostVal > 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  Additional charges distributed to stock average
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -500,6 +553,86 @@ export default function PurchaseForm({
             <CardTitle className="text-base">Payment & Notes</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Additional Costs</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addLandedCost}>
+                  <Icons.add className="mr-1 h-4 w-4" /> Add Charge
+                </Button>
+              </div>
+              {landedCosts.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No additional charges — add Freight, Handling, Tip etc. Distributed to stock
+                  average.
+                </p>
+              )}
+              {landedCosts.map((lc, idx) => (
+                <div
+                  key={idx}
+                  className="grid grid-cols-1 gap-3 rounded-lg border p-3 md:grid-cols-[160px_110px_1fr_40px]"
+                >
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Label</Label>
+                    <Select
+                      value={lc.label}
+                      onValueChange={(v) => updateLandedCost(idx, { label: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Freight">Freight</SelectItem>
+                        <SelectItem value="Handling Charge">Handling Charge</SelectItem>
+                        <SelectItem value="Tip">Tip</SelectItem>
+                        <SelectItem value="Packing">Packing</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {lc.label === "Other" && (
+                      <Input
+                        placeholder="Custom label"
+                        value={(lc as any).custom_label ?? ""}
+                        onChange={(e) => updateLandedCost(idx, { custom_label: e.target.value })}
+                      />
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Amount</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={lc.amount as any}
+                      onChange={(e) =>
+                        updateLandedCost(idx, {
+                          amount: e.target.value === "" ? ("" as any) : Number(e.target.value),
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="flex items-end text-xs text-muted-foreground">
+                    {lc.label === "Other" && (lc as any).custom_label
+                      ? (lc as any).custom_label
+                      : lc.label}{" "}
+                    {Number(lc.amount) > 0 ? `₹${Number(lc.amount).toFixed(2)}` : ""}
+                  </div>
+                  <div className="flex items-end pb-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => removeLandedCost(idx)}
+                    >
+                      <Icons.trash className="size-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {landedCostVal > 0 && (
+                <div className="text-xs text-muted-foreground">
+                  Total additional ₹{landedCostVal.toFixed(2)} distributed to avg
+                </div>
+              )}
+            </div>
             <FieldGroup>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <form.AppField
@@ -509,7 +642,7 @@ export default function PurchaseForm({
                       label="Paid Amount"
                       type="number"
                       placeholder="0"
-                      description={`Balance ₹${(totals.total - Number(form.getFieldValue("paid_amount" as any) ?? 0)).toFixed(2)}`}
+                      description={`Balance ₹${(totalWithLanded - Number(form.getFieldValue("paid_amount" as any) ?? 0)).toFixed(2)}`}
                     />
                   )}
                 />

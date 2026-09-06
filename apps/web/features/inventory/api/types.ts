@@ -175,6 +175,12 @@ export type PurchaseItem = {
 };
 
 export type PurchasePaymentStatus = "unpaid" | "partial" | "paid";
+export type LandedCostLabel = "Freight" | "Handling Charge" | "Tip" | "Packing" | "Other";
+export type LandedCostLine = {
+  label: LandedCostLabel;
+  amount: number;
+  custom_label?: string; // when label === Other
+};
 export type Purchase = {
   id: string;
   purchase_number: string; // PUR-YYYY-NNN
@@ -185,7 +191,9 @@ export type Purchase = {
   items: PurchaseItem[];
   subtotal: number;
   tax_amount: number;
-  total_amount: number;
+  landed_cost: number; // sum of landed_costs — additional cost (freight/handling/tip etc)
+  landed_costs?: LandedCostLine[]; // breakdown, extendable — multiple lines, other charges
+  total_amount: number; // subtotal + tax + landed
   paid_amount: number;
   payment_status: PurchasePaymentStatus;
   payment_mode?: "cash" | "upi" | "bank" | "credit";
@@ -236,11 +244,16 @@ export type PurchasePayload = Partial<
     | "supplier_name"
     | "subtotal"
     | "tax_amount"
+    | "landed_cost"
+    | "landed_costs"
     | "total_amount"
     | "payment_status"
   >
 > &
-  Pick<Purchase, "supplier_id" | "items" | "bill_date">;
+  Pick<Purchase, "supplier_id" | "items" | "bill_date"> & {
+    landed_cost?: number;
+    landed_costs?: LandedCostLine[];
+  };
 
 export type ReturnReason =
   | "damaged"

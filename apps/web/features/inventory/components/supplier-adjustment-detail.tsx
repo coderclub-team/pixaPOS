@@ -171,7 +171,7 @@ export default function SupplierAdjustmentDetail({ adjustmentId }: { adjustmentI
           {isCredit && canApply && avail > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Apply to Purchase (Zoho Apply Credits)</CardTitle>
+                <CardTitle className="text-base">Apply to Purchase</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
