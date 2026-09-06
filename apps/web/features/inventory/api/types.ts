@@ -185,7 +185,8 @@ export type Purchase = {
   items: PurchaseItem[];
   subtotal: number;
   tax_amount: number;
-  total_amount: number;
+  landed_cost: number; // freight + other charges — Zoho landed cost
+  total_amount: number; // subtotal + tax + landed
   paid_amount: number;
   payment_status: PurchasePaymentStatus;
   payment_mode?: "cash" | "upi" | "bank" | "credit";
@@ -236,11 +237,14 @@ export type PurchasePayload = Partial<
     | "supplier_name"
     | "subtotal"
     | "tax_amount"
+    | "landed_cost"
     | "total_amount"
     | "payment_status"
   >
 > &
-  Pick<Purchase, "supplier_id" | "items" | "bill_date">;
+  Pick<Purchase, "supplier_id" | "items" | "bill_date"> & {
+    landed_cost?: number;
+  };
 
 export type ReturnReason =
   | "damaged"

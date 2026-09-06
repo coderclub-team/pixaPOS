@@ -275,6 +275,7 @@ function PurchaseRow({ pur }: { pur: Purchase }) {
           <div>₹{pur.total_amount}</div>
           <div className="text-[10px] text-muted-foreground">
             Sub ₹{pur.subtotal} + GST ₹{pur.tax_amount}
+            {(pur as any).landed_cost > 0 ? ` + Landed ₹${(pur as any).landed_cost}` : ""}
           </div>
         </TableCell>
         <TableCell>
