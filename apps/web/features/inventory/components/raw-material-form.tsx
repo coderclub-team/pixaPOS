@@ -103,249 +103,243 @@ export default function RawMaterialForm({
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-left text-2xl font-bold">{pageTitle}</CardTitle>
-          <CardDescription>
-            Ingredients with purchase, consumption and stock linkage. Use 0.05 kg for 50g.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form
-            className="space-y-8"
-            onSubmit={(e) => {
-              e.preventDefault();
-              form.handleSubmit();
-            }}
-          >
-            {/* Basic Details */}
-            <div>
-              <h3 className="mb-3 text-sm font-semibold">Basic Details</h3>
-              <FieldGroup>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                  <form.AppField
-                    name="name"
-                    children={(field) => (
-                      <field.TextField label="Name *" required placeholder="Basmati Rice" />
-                    )}
-                  />
-                  <form.AppField
-                    name="sku"
-                    children={(field) => (
-                      <field.TextField label="Code / SKU *" required placeholder="RM-RICE-001" />
-                    )}
-                  />
-                </div>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                  <form.AppField
-                    name="category"
-                    children={(field) => (
-                      <field.SelectField
-                        label="Category"
-                        required
-                        options={categoryOptions}
-                        placeholder="Select category"
-                      />
-                    )}
-                  />
-                  <form.AppField
-                    name="unit"
-                    children={(field) => (
-                      <field.SelectField
-                        label="Unit *"
-                        required
-                        options={unitOptions}
-                        placeholder="kg"
-                        description="0.05 = 50g"
-                      />
-                    )}
-                  />
-                </div>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                  <form.AppField
-                    name="cost_price"
-                    children={(field) => (
-                      <field.TextField
-                        label="Purchase Price *"
-                        type="number"
-                        placeholder="80"
-                        description={initialData ? `Avg ₹${initialData.avg_cost}` : "Last price"}
-                      />
-                    )}
-                  />
-                  <form.AppField
-                    name="supplier_id"
-                    children={(field) => (
-                      <field.SelectField
-                        label="Supplier"
-                        options={supplierOptions}
-                        placeholder="Select"
-                        description="Last rates tracked"
-                      />
-                    )}
-                  />
-                </div>
-              </FieldGroup>
-            </div>
-
-            {/* Tax */}
-            <div>
-              <h3 className="mb-3 text-sm font-semibold">Tax</h3>
-              <FieldGroup>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                  <form.AppField
-                    name="tax_type"
-                    children={(field) => (
-                      <field.SelectField
-                        label="Tax Type"
-                        options={taxTypeOptions}
-                        placeholder="GST"
-                      />
-                    )}
-                  />
-                  <form.AppField
-                    name="tax_percent"
-                    children={(field) => (
-                      <field.TextField label="Tax (%)" type="number" placeholder="5" />
-                    )}
-                  />
-                  <form.AppField
-                    name="hsn_code"
-                    children={(field) => (
-                      <field.TextField
-                        label="HSN Code"
-                        placeholder="10063010"
-                        description="4-8 digits"
-                      />
-                    )}
-                  />
-                </div>
-              </FieldGroup>
-            </div>
-
-            {/* Stock / Inventory */}
-            <div>
-              <h3 className="mb-3 text-sm font-semibold">Stock / Inventory</h3>
-              <FieldGroup>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                  <form.AppField
-                    name="opening_stock"
-                    children={(field) => (
-                      <field.TextField label="Opening Stock" type="number" placeholder="0" />
-                    )}
-                  />
-                  <form.AppField
-                    name="stock_qty"
-                    children={(field) => (
-                      <field.TextField
-                        label="Current Stock"
-                        type="number"
-                        placeholder="0"
-                        description="Use PO for stock in"
-                      />
-                    )}
-                  />
-                  <form.AppField
-                    name="low_stock_threshold"
-                    children={(field) => (
-                      <field.TextField
-                        label="Low Stock Threshold *"
-                        type="number"
-                        placeholder="5"
-                        description="Alert when stock ≤ threshold"
-                      />
-                    )}
-                  />
-                </div>
-                {initialData && (
-                  <div className="rounded-lg border p-3 text-xs text-muted-foreground">
-                    <div>
-                      Average Purchase Price: ₹{initialData.avg_cost} • Valuation: ₹
-                      {(initialData.stock_qty * initialData.avg_cost).toFixed(2)}
-                    </div>
-                    <div className="mt-1">
-                      WAC: (old_avg×old_qty + new_cost×qty)/total. Transfer uses last purchase
-                      price.
-                    </div>
-                  </div>
-                )}
-              </FieldGroup>
-            </div>
-
-            {/* Related Codes */}
-            <div>
-              <h3 className="mb-3 text-sm font-semibold">Related Codes</h3>
-              <FieldGroup>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                  <form.AppField
-                    name="barcode"
-                    children={(field) => (
-                      <field.TextField
-                        label="Barcode / Short Code"
-                        placeholder="8901234567890"
-                        description="8-14 digits, GS1"
-                      />
-                    )}
-                  />
-                  <div className="hidden md:block" />
-                </div>
-              </FieldGroup>
-            </div>
-
-            {/* Other Details */}
-            <div>
-              <h3 className="mb-3 text-sm font-semibold">Other Details</h3>
-              <FieldGroup>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                  <form.AppField
-                    name="exclusive"
-                    children={(field) => (
-                      <field.SwitchField label="Exclusive" description="Only this outlet" />
-                    )}
-                  />
-                  <form.AppField
-                    name="is_expiry"
-                    children={(field) => (
-                      <field.SwitchField label="Is Expiry" description="Perishable" />
-                    )}
-                  />
-                </div>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                  <form.AppField
-                    name="allow_decimal"
-                    children={(field) => (
-                      <field.SwitchField label="Allow Decimal" description="0.05 = 50g" />
-                    )}
-                  />
-                  <form.AppField
-                    name="normal_loss_percent"
-                    children={(field) => (
-                      <field.TextField label="Normal Loss (%)" type="number" placeholder="2" />
-                    )}
-                  />
-                </div>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                  <form.AppField
-                    name="is_active"
-                    children={(field) => (
-                      <field.SwitchField label="Active" description="For recipes" />
-                    )}
-                  />
-                  <div className="hidden md:block" />
-                </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          form.handleSubmit();
+        }}
+        className="space-y-6"
+      >
+        {/* Card 1 - Basic Details */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-left text-2xl font-bold">{pageTitle}</CardTitle>
+            <CardDescription>
+              Basic details — name, SKU, category, unit and last purchase price. Auto number SKU per
+              category.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FieldGroup>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <form.AppField
-                  name="description"
+                  name="name"
                   children={(field) => (
-                    <field.TextareaField
-                      label="Description"
-                      placeholder="Premium basmati for biryani"
-                      rows={2}
+                    <field.TextField label="Name *" required placeholder="Basmati Rice" />
+                  )}
+                />
+                <form.AppField
+                  name="sku"
+                  children={(field) => (
+                    <field.TextField label="Code / SKU *" required placeholder="RM-RICE-001" />
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <form.AppField
+                  name="category"
+                  children={(field) => (
+                    <field.SelectField
+                      label="Category"
+                      required
+                      options={categoryOptions}
+                      placeholder="Select category"
                     />
                   )}
                 />
-              </FieldGroup>
-            </div>
+                <form.AppField
+                  name="unit"
+                  children={(field) => (
+                    <field.SelectField
+                      label="Unit *"
+                      required
+                      options={unitOptions}
+                      placeholder="kg"
+                      description="0.05 = 50g"
+                    />
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <form.AppField
+                  name="cost_price"
+                  children={(field) => (
+                    <field.TextField
+                      label="Purchase Price *"
+                      type="number"
+                      placeholder="80"
+                      description={initialData ? `Avg ₹${initialData.avg_cost}` : "Last price"}
+                    />
+                  )}
+                />
+                <form.AppField
+                  name="supplier_id"
+                  children={(field) => (
+                    <field.SelectField
+                      label="Supplier"
+                      options={supplierOptions}
+                      placeholder="Select"
+                      description="Last rates tracked"
+                    />
+                  )}
+                />
+              </div>
+            </FieldGroup>
+          </CardContent>
+        </Card>
 
+        {/* Card 2 - Tax & Stock */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Tax & Inventory</CardTitle>
+            <CardDescription>GST/HSN and stock on hand — WAC valuation.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <FieldGroup>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                <form.AppField
+                  name="tax_type"
+                  children={(field) => (
+                    <field.SelectField
+                      label="Tax Type"
+                      options={taxTypeOptions}
+                      placeholder="GST"
+                    />
+                  )}
+                />
+                <form.AppField
+                  name="tax_percent"
+                  children={(field) => (
+                    <field.TextField label="Tax (%)" type="number" placeholder="5" />
+                  )}
+                />
+                <form.AppField
+                  name="hsn_code"
+                  children={(field) => (
+                    <field.TextField
+                      label="HSN Code"
+                      placeholder="10063010"
+                      description="4-8 digits"
+                    />
+                  )}
+                />
+              </div>
+            </FieldGroup>
+            <FieldGroup>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                <form.AppField
+                  name="opening_stock"
+                  children={(field) => (
+                    <field.TextField label="Opening Stock" type="number" placeholder="0" />
+                  )}
+                />
+                <form.AppField
+                  name="stock_qty"
+                  children={(field) => (
+                    <field.TextField
+                      label="Current Stock"
+                      type="number"
+                      placeholder="0"
+                      description="Use Purchase for stock in"
+                    />
+                  )}
+                />
+                <form.AppField
+                  name="low_stock_threshold"
+                  children={(field) => (
+                    <field.TextField
+                      label="Low Stock Threshold *"
+                      type="number"
+                      placeholder="5"
+                      description="Alert when stock ≤ threshold"
+                    />
+                  )}
+                />
+              </div>
+              {initialData && (
+                <div className="rounded-lg border p-3 text-xs text-muted-foreground">
+                  <div>
+                    Average Purchase Price: ₹{initialData.avg_cost} • Valuation: ₹
+                    {(initialData.stock_qty * initialData.avg_cost).toFixed(2)}
+                  </div>
+                  <div className="mt-1">
+                    WAC: (old_avg×old_qty + new_cost×qty)/total. Transfer uses last purchase price.
+                  </div>
+                </div>
+              )}
+            </FieldGroup>
+          </CardContent>
+        </Card>
+
+        {/* Card 3 - Codes & Other */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Codes & Options</CardTitle>
+            <CardDescription>Barcode, expiry, active flags and notes.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <FieldGroup>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <form.AppField
+                  name="barcode"
+                  children={(field) => (
+                    <field.TextField
+                      label="Barcode / Short Code"
+                      placeholder="8901234567890"
+                      description="8-14 digits, GS1"
+                    />
+                  )}
+                />
+                <div className="hidden md:block" />
+              </div>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <form.AppField
+                  name="exclusive"
+                  children={(field) => (
+                    <field.SwitchField label="Exclusive" description="Only this outlet" />
+                  )}
+                />
+                <form.AppField
+                  name="is_expiry"
+                  children={(field) => (
+                    <field.SwitchField label="Is Expiry" description="Perishable" />
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <form.AppField
+                  name="allow_decimal"
+                  children={(field) => (
+                    <field.SwitchField label="Allow Decimal" description="0.05 = 50g" />
+                  )}
+                />
+                <form.AppField
+                  name="normal_loss_percent"
+                  children={(field) => (
+                    <field.TextField label="Normal Loss (%)" type="number" placeholder="2" />
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <form.AppField
+                  name="is_active"
+                  children={(field) => (
+                    <field.SwitchField label="Active" description="For recipes" />
+                  )}
+                />
+                <div className="hidden md:block" />
+              </div>
+              <form.AppField
+                name="description"
+                children={(field) => (
+                  <field.TextareaField
+                    label="Description"
+                    placeholder="Premium basmati for biryani"
+                    rows={2}
+                  />
+                )}
+              />
+            </FieldGroup>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => router.back()}>
                 Cancel
@@ -354,17 +348,16 @@ export default function RawMaterialForm({
                 children={<form.SubmitButton>{isEdit ? "Update" : "Create"}</form.SubmitButton>}
               />
             </div>
-          </form>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </form>
 
       {initialData?.suppliers && initialData.suppliers.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Supplier Pricing (Multi-vendor)</CardTitle>
             <CardDescription>
-              Last rates per supplier — updated on PO receive. Purchase from different vendors
-              tracked.
+              Last rates per supplier — updated on purchase. Different vendors tracked.
             </CardDescription>
           </CardHeader>
           <CardContent>

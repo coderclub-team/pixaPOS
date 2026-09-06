@@ -2,6 +2,8 @@ import { queryOptions } from "@tanstack/react-query";
 import {
   getPriceHistory,
   getPurchaseById,
+  getPurchaseReturnById,
+  getPurchaseReturns,
   getPurchases,
   getRawMaterials,
   getRawMaterialById,
@@ -17,6 +19,7 @@ import {
 import type {
   PurchaseFilters,
   PurchaseOrderFilters,
+  PurchaseReturnFilters,
   RawMaterialFilters,
   SupplierFilters,
   WasteFilters,
@@ -38,6 +41,9 @@ export const inventoryKeys = {
   purchases: (filters?: PurchaseFilters) =>
     [...inventoryKeys.all, "purchases", filters ?? {}] as const,
   purchase: (id: string) => [...inventoryKeys.all, "purchase", id] as const,
+  purchaseReturns: (filters?: PurchaseReturnFilters) =>
+    [...inventoryKeys.all, "purchase-returns", filters ?? {}] as const,
+  purchaseReturn: (id: string) => [...inventoryKeys.all, "purchase-return", id] as const,
   waste: (filters?: WasteFilters) => [...inventoryKeys.all, "waste", filters ?? {}] as const,
   stock: () => [...inventoryKeys.all, "stock"] as const,
   priceHistory: (materialId?: string) =>
@@ -102,4 +108,16 @@ export const priceHistoryQueryOptions = (materialId?: string) =>
   queryOptions({
     queryKey: inventoryKeys.priceHistory(materialId),
     queryFn: () => getPriceHistory(materialId),
+  });
+
+export const purchaseReturnsQueryOptions = (filters?: PurchaseReturnFilters) =>
+  queryOptions({
+    queryKey: inventoryKeys.purchaseReturns(filters),
+    queryFn: () => getPurchaseReturns(filters),
+  });
+
+export const purchaseReturnQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: inventoryKeys.purchaseReturn(id),
+    queryFn: () => getPurchaseReturnById(id),
   });

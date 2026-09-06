@@ -292,6 +292,13 @@ export const navGroups: NavGroup[] = [
             access: { requireOrg: true },
           },
           {
+            title: "Purchase Returns",
+            url: "/dashboard/inventory/returns",
+            icon: "clipboardList",
+            shortcut: ["i", "e"],
+            access: { requireOrg: true },
+          },
+          {
             title: "Recipes",
             url: "/dashboard/inventory/recipes",
             icon: "recipe",

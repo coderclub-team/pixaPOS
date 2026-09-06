@@ -1,8 +1,8 @@
 "use client";
 import * as React from "react";
 import PageContainer from "@/components/layout/page-container";
-import { RawMaterialList } from "@/features/inventory/components/raw-material-list";
-import { rawMaterialsQueryOptions } from "@/features/inventory/api/queries";
+import { PurchaseReturnList } from "@/features/inventory/components/purchase-return-list";
+import { purchaseReturnsQueryOptions } from "@/features/inventory/api/queries";
 import { useQuery } from "@tanstack/react-query";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
 import { Input } from "@pixa/ui/base-ui/input";
@@ -17,36 +17,25 @@ import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
 
-const CATEGORIES = [
-  "Vegetables",
-  "Grains",
-  "Meat",
-  "Dairy",
-  "Oil",
-  "Spices",
-  "Beverages",
-  "General",
-] as const;
-
-export default function RawMaterialsPage() {
+export default function ReturnsPage() {
   const [search, setSearch] = React.useState("");
-  const [category, setCategory] = React.useState<string | undefined>(undefined);
+  const [status, setStatus] = React.useState<string | undefined>(undefined);
   const [inputValue, setInputValue] = React.useState("");
   React.useEffect(() => {
     const id = setTimeout(() => setSearch(inputValue), 300);
     return () => clearTimeout(id);
   }, [inputValue]);
-  const { data: materials, isPending } = useQuery(
-    rawMaterialsQueryOptions({
+  const { data: returns, isPending } = useQuery(
+    purchaseReturnsQueryOptions({
       search: search || undefined,
-      category: category || undefined,
+      status: (status as any) || undefined,
     }),
   );
   if (isPending)
     return (
       <PageContainer
-        pageTitle="Raw Materials"
-        pageDescription="Inventory — Raw Materials"
+        pageTitle="Purchase Returns"
+        pageDescription="Returns / Credit Notes — vendor credits (Odoo reverse, Zoho vendor credit)"
         isLoading
       >
         <div />
@@ -54,42 +43,40 @@ export default function RawMaterialsPage() {
     );
   return (
     <PageContainer
-      pageTitle="Raw Materials"
-      pageDescription="Inventory — Ingredients for recipes, stock tracking, low-stock alerts, supplier linkage."
+      pageTitle="Purchase Returns"
+      pageDescription="Returns when goods damaged/expired/short. Draft → Approve deducts stock (if Restock) and creates credit of total refund."
       pageHeaderAction={
         <Link
-          href="/dashboard/inventory/raw-materials/new"
+          href="/dashboard/inventory/returns/new"
           className={cn(buttonVariants(), "text-xs md:text-sm")}
         >
-          <Icons.add className="mr-2 h-4 w-4" /> Add New
+          <Icons.add className="mr-2 h-4 w-4" /> New Return
         </Link>
       }
     >
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Input
-          placeholder="Search materials by name or SKU..."
+          placeholder="Search return #, purchase #, supplier..."
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           className="max-w-sm"
         />
         <Select
-          value={category ?? "all"}
-          onValueChange={(v) => setCategory(v === "all" ? undefined : v)}
+          value={status ?? "all"}
+          onValueChange={(v) => setStatus(v === "all" ? undefined : v)}
         >
           <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="All categories" />
+            <SelectValue placeholder="All status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All categories</SelectItem>
-            {CATEGORIES.map((c) => (
-              <SelectItem key={c} value={c}>
-                {c}
-              </SelectItem>
-            ))}
+            <SelectItem value="all">All status</SelectItem>
+            <SelectItem value="draft">Draft</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>
         </Select>
       </div>
-      <RawMaterialList materials={materials ?? []} />
+      <PurchaseReturnList returns={returns ?? []} />
     </PageContainer>
   );
 }

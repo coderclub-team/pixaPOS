@@ -124,7 +124,12 @@ export type WasteLog = {
   created_at: string;
 };
 
-export type StockTransactionType = "purchase" | "waste" | "adjustment" | "recipe_consumption";
+export type StockTransactionType =
+  | "purchase"
+  | "purchase_return"
+  | "waste"
+  | "adjustment"
+  | "recipe_consumption";
 
 export type StockLedgerEntry = {
   id: string;
@@ -154,7 +159,7 @@ export type MaterialPriceHistory = {
   qty: number;
   old_stock: number;
   new_stock: number;
-  source: "po_receive" | "purchase" | "manual_edit";
+  source: "po_receive" | "purchase" | "purchase_return" | "manual_edit";
   reference_id?: string;
   created_at: string;
   created_by?: string;
@@ -237,6 +242,69 @@ export type PurchasePayload = Partial<
 > &
   Pick<Purchase, "supplier_id" | "items" | "bill_date">;
 
+export type ReturnReason =
+  | "damaged"
+  | "expired"
+  | "short_supply"
+  | "wrong_item"
+  | "quality"
+  | "other";
+export type ReturnStatus = "draft" | "approved" | "cancelled";
+export type PurchaseReturnItem = {
+  material_id: string;
+  material_name?: string;
+  qty_returned: number;
+  qty_original: number;
+  unit_cost: number;
+  tax_percent?: number;
+  line_refund?: number;
+};
+export type PurchaseReturn = {
+  id: string;
+  return_number: string; // RET-YYYY-NNN printed as Credit Note
+  purchase_id: string;
+  purchase_number?: string;
+  po_id?: string | null;
+  supplier_id: string;
+  supplier_name?: string;
+  items: PurchaseReturnItem[];
+  subtotal_refund: number;
+  tax_refund: number;
+  total_refund: number;
+  reason: ReturnReason;
+  notes?: string;
+  restock: boolean;
+  status: ReturnStatus;
+  bill_date: string;
+  created_at: string;
+  updated_at: string;
+  approved_at?: string;
+  approved_by?: string;
+};
+export type PurchaseReturnPayload = Partial<
+  Omit<
+    PurchaseReturn,
+    | "id"
+    | "created_at"
+    | "updated_at"
+    | "return_number"
+    | "supplier_name"
+    | "purchase_number"
+    | "subtotal_refund"
+    | "tax_refund"
+    | "total_refund"
+    | "status"
+    | "approved_at"
+  >
+> &
+  Pick<PurchaseReturn, "purchase_id" | "items" | "reason">;
+export type PurchaseReturnFilters = {
+  search?: string;
+  supplier_id?: string;
+  status?: ReturnStatus;
+  purchase_id?: string;
+};
+
 // Filters
 export type RawMaterialFilters = {
   search?: string;
@@ -252,3 +320,4 @@ export type PurchaseFilters = {
   payment_status?: PurchasePaymentStatus;
 };
 export type WasteFilters = { search?: string; reason?: WasteReason };
+export type PurchaseReturnFiltersLegacy = PurchaseReturnFilters;

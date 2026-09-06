@@ -1,6 +1,5 @@
 "use client";
 import type { WasteLog } from "../api/types";
-import { Badge } from "@pixa/ui/base-ui/badge";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
 import {
   Table,
@@ -41,9 +40,7 @@ export function WasteList({ logs }: { logs: WasteLog[] }) {
                   {w.qty} {w.unit}
                 </TableCell>
                 <TableCell>
-                  <Badge variant="outline" className="capitalize">
-                    {w.reason}
-                  </Badge>
+                  <span className="text-xs capitalize text-muted-foreground">{w.reason}</span>
                 </TableCell>
                 <TableCell>₹{w.cost_loss}</TableCell>
                 <TableCell className="text-xs">
