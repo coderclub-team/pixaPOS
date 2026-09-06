@@ -207,6 +207,15 @@ function Row({ adj }: { adj: SupplierAdjustment }) {
                   <Icons.edit className="mr-2 h-4 w-4" /> View
                 </DropdownMenuItem>
                 {isDraft && (
+                  <DropdownMenuItem
+                    onClick={() =>
+                      router.push(`/dashboard/inventory/supplier-credits/${adj.id}/edit`)
+                    }
+                  >
+                    <Icons.edit className="mr-2 h-4 w-4" /> Update
+                  </DropdownMenuItem>
+                )}
+                {isDraft && (
                   <DropdownMenuItem onClick={() => setPostOpen(true)}>
                     <Icons.check className="mr-2 h-4 w-4" /> Post
                   </DropdownMenuItem>

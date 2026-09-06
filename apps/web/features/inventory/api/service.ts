@@ -1592,6 +1592,51 @@ export async function cancelSupplierAdjustment(id: string): Promise<void> {
     updated_at: new Date().toISOString(),
   };
 }
+export async function updateSupplierAdjustment(
+  id: string,
+  payload: Partial<SupplierAdjustmentPayload>,
+): Promise<SupplierAdjustment> {
+  await delay(600);
+  const idx = mockSupplierAdjustments.findIndex((a) => a.id === id);
+  if (idx === -1) throw new Error("Adjustment not found");
+  const current = mockSupplierAdjustments[idx];
+  if (current.status !== "draft")
+    throw new Error("Only draft adjustments can be edited — posted is locked, create new one");
+  if (payload.supplier_id) {
+    const supExists = mockSuppliers.some((s) => s.id === payload.supplier_id);
+    if (!supExists) throw new Error("Supplier not found");
+  }
+  if (payload.purchase_id) {
+    const pur = mockPurchases.find((p) => p.id === payload.purchase_id);
+    if (!pur) throw new Error("Linked purchase not found");
+  }
+  const amt = payload.amount !== undefined ? Number(payload.amount) : current.amount;
+  if (payload.amount !== undefined && (!Number.isFinite(amt) || amt <= 0))
+    throw new Error("Amount must be > 0");
+  const updated: SupplierAdjustment = {
+    ...current,
+    supplier_id: payload.supplier_id ?? current.supplier_id,
+    supplier_name: payload.supplier_id
+      ? (supplierNameMap()[payload.supplier_id] ?? current.supplier_name)
+      : current.supplier_name,
+    type: (payload.type as any) ?? current.type,
+    category: (payload.category as any) ?? current.category,
+    purchase_id:
+      payload.purchase_id !== undefined ? (payload.purchase_id as any) : current.purchase_id,
+    purchase_number: payload.purchase_id
+      ? mockPurchases.find((p) => p.id === payload.purchase_id)?.purchase_number
+      : payload.purchase_id === "" || payload.purchase_id === null
+        ? undefined
+        : current.purchase_number,
+    amount: payload.amount !== undefined ? Math.round(amt * 100) / 100 : current.amount,
+    bill_date: (payload as any).bill_date ?? current.bill_date,
+    reference: (payload as any).reference ?? current.reference,
+    notes: (payload as any).notes ?? current.notes,
+    updated_at: new Date().toISOString(),
+  };
+  mockSupplierAdjustments[idx] = updated;
+  return { ...updated };
+}
 export async function applySupplierCredit(
   creditId: string,
   purchaseId: string,

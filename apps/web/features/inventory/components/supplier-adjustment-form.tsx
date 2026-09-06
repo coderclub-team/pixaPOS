@@ -6,9 +6,10 @@ import { useAppForm } from "@/lib/form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { createSupplierAdjustment } from "../api/service";
+import { createSupplierAdjustment, updateSupplierAdjustment } from "../api/service";
 import { inventoryKeys, suppliersQueryOptions, purchasesQueryOptions } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
+import type { SupplierAdjustment } from "../api/types";
 
 const typeOptions = [
   { label: "Credit — vendor owes you", value: "credit" },
@@ -24,11 +25,18 @@ const categoryOptions = [
   { label: "Other", value: "other" },
 ] as const;
 
-export default function SupplierAdjustmentForm() {
+export default function SupplierAdjustmentForm({
+  initialData,
+  pageTitle,
+}: {
+  initialData?: SupplierAdjustment | null;
+  pageTitle?: string;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const preSupplierId = searchParams.get("supplierId") ?? "";
-  const prePurchaseId = searchParams.get("purchaseId") ?? "";
+  const preSupplierId = initialData?.supplier_id ?? searchParams.get("supplierId") ?? "";
+  const prePurchaseId = initialData?.purchase_id ?? searchParams.get("purchaseId") ?? "";
+  const isEdit = !!initialData;
   const { data: suppliers } = useQuery(suppliersQueryOptions());
   const { data: purchases } = useQuery(purchasesQueryOptions());
   const supplierOptions = (suppliers ?? []).map((s) => ({
@@ -49,17 +57,26 @@ export default function SupplierAdjustmentForm() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  const updateMut = useMutation({
+    mutationFn: (v: any) => updateSupplierAdjustment(initialData!.id, v),
+    onSuccess: () => {
+      getQueryClient().invalidateQueries({ queryKey: inventoryKeys.all });
+      toast.success("Adjustment updated");
+      router.push("/dashboard/inventory/supplier-credits");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const form = useAppForm({
     defaultValues: {
-      supplier_id: preSupplierId,
-      type: "credit" as any,
-      category: "" as any,
-      purchase_id: prePurchaseId,
-      amount: 0 as any,
-      bill_date: new Date().toISOString().slice(0, 10),
-      reference: "",
-      notes: "",
+      supplier_id: initialData?.supplier_id ?? preSupplierId,
+      type: (initialData?.type as any) ?? ("credit" as any),
+      category: (initialData?.category as any) ?? ("" as any),
+      purchase_id: (initialData?.purchase_id as any) ?? prePurchaseId,
+      amount: (initialData?.amount as any) ?? (0 as any),
+      bill_date: initialData?.bill_date ?? new Date().toISOString().slice(0, 10),
+      reference: initialData?.reference ?? "",
+      notes: initialData?.notes ?? "",
     } as any,
     validators: {
       onSubmit: ({ value }: any) => {
@@ -77,7 +94,8 @@ export default function SupplierAdjustmentForm() {
         amount: Number(value.amount),
         purchase_id: value.purchase_id || null,
       };
-      await createMut.mutateAsync(payload);
+      if (isEdit) await updateMut.mutateAsync(payload);
+      else await createMut.mutateAsync(payload);
     },
   });
 
@@ -92,7 +110,9 @@ export default function SupplierAdjustmentForm() {
       >
         <Card>
           <CardHeader>
-            <CardTitle className="text-left text-2xl font-bold">New Supplier Adjustment</CardTitle>
+            <CardTitle className="text-left text-2xl font-bold">
+              {pageTitle ?? (isEdit ? "Update Adjustment" : "New Supplier Adjustment")}
+            </CardTitle>
             <CardDescription>
               Credit (vendor owes you) / Debit (you owe extra) — financial only, no stock. Purchase
               optional. Odoo: Vendor Credit/Debit Note, Zoho: Vendor Credit.
@@ -194,7 +214,11 @@ export default function SupplierAdjustmentForm() {
           <Button type="button" variant="outline" onClick={() => router.back()}>
             Cancel
           </Button>
-          <form.AppForm children={<form.SubmitButton>Create Draft</form.SubmitButton>} />
+          <form.AppForm
+            children={
+              <form.SubmitButton>{isEdit ? "Update Draft" : "Create Draft"}</form.SubmitButton>
+            }
+          />
         </div>
       </form>
     </div>

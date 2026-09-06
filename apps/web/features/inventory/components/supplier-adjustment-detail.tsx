@@ -133,6 +133,14 @@ export default function SupplierAdjustmentDetail({ adjustmentId }: { adjustmentI
               <Icons.share className="mr-1 h-4 w-4" /> Share
             </Button>
             {isDraft && (
+              <Button
+                variant="outline"
+                onClick={() => router.push(`/dashboard/inventory/supplier-credits/${adj.id}/edit`)}
+              >
+                <Icons.edit className="mr-1 h-4 w-4" /> Update
+              </Button>
+            )}
+            {isDraft && (
               <Button onClick={() => postMut.mutate()} disabled={postMut.isPending}>
                 <Icons.check className="mr-1 h-4 w-4" /> Post
               </Button>
