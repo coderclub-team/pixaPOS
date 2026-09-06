@@ -299,6 +299,20 @@ export const navGroups: NavGroup[] = [
             access: { requireOrg: true },
           },
           {
+            title: "Supplier Credits",
+            url: "/dashboard/inventory/supplier-credits",
+            icon: "billing",
+            shortcut: ["i", "d"],
+            access: { requireOrg: true },
+          },
+          {
+            title: "Supplier Ledger",
+            url: "/dashboard/inventory/supplier-ledger",
+            icon: "billing",
+            shortcut: ["i", "g"],
+            access: { requireOrg: true },
+          },
+          {
             title: "Recipes",
             url: "/dashboard/inventory/recipes",
             icon: "recipe",
