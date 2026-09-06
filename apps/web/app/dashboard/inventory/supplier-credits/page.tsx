@@ -46,7 +46,7 @@ export default function SupplierCreditsPage() {
   return (
     <PageContainer
       pageTitle="Supplier Credits / Debits"
-      pageDescription="Credits = vendor owes you (rate diff, shortage, discount, advance); Debits = you owe extra (freight, correction). Draft → Post → Apply to bills."
+      pageDescription="Credits = vendor owes you (rate diff, shortage, discount, advance); Debits = you owe extra (freight, correction). Posted → Apply to bills."
       pageHeaderAction={
         <Link
           href="/dashboard/inventory/supplier-credits/new"
@@ -82,7 +82,6 @@ export default function SupplierCreditsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All status</SelectItem>
-            <SelectItem value="draft">Draft</SelectItem>
             <SelectItem value="posted">Posted</SelectItem>
             <SelectItem value="applied">Applied</SelectItem>
             <SelectItem value="cancelled">Cancelled</SelectItem>

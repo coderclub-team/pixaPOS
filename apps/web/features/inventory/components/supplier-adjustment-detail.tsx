@@ -7,11 +7,7 @@ import {
   purchasesQueryOptions,
 } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
-import {
-  postSupplierAdjustment,
-  cancelSupplierAdjustment,
-  applySupplierCredit,
-} from "../api/service";
+import { cancelSupplierAdjustment, applySupplierCredit } from "../api/service";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { Input } from "@pixa/ui/base-ui/input";
@@ -35,14 +31,6 @@ export default function SupplierAdjustmentDetail({ adjustmentId }: { adjustmentI
   const [applyPurchaseId, setApplyPurchaseId] = useState("");
   const [applyAmount, setApplyAmount] = useState<number>(0);
 
-  const postMut = useMutation({
-    mutationFn: () => postSupplierAdjustment(adjustmentId),
-    onSuccess: () => {
-      getQueryClient().invalidateQueries({ queryKey: inventoryKeys.all });
-      toast.success("Posted");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
   const cancelMut = useMutation({
     mutationFn: () => cancelSupplierAdjustment(adjustmentId),
     onSuccess: () => {
@@ -72,9 +60,10 @@ export default function SupplierAdjustmentDetail({ adjustmentId }: { adjustmentI
         </Link>
       </div>
     );
-  const isDraft = adj.status === "draft";
+  const isEditable =
+    adj.status !== "cancelled" && adj.status !== "applied" && (adj.applied_amount ?? 0) === 0;
   const isCredit = adj.type === "credit";
-  const isPosted = adj.status === "posted";
+  const canApply = (adj.status === "posted" || adj.status === "applied") && isCredit;
   const avail = adj.amount - (adj.applied_amount ?? 0);
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
@@ -132,7 +121,7 @@ export default function SupplierAdjustmentDetail({ adjustmentId }: { adjustmentI
             >
               <Icons.share className="mr-1 h-4 w-4" /> Share
             </Button>
-            {isDraft && (
+            {isEditable && (
               <Button
                 variant="outline"
                 onClick={() => router.push(`/dashboard/inventory/supplier-credits/${adj.id}/edit`)}
@@ -140,12 +129,7 @@ export default function SupplierAdjustmentDetail({ adjustmentId }: { adjustmentI
                 <Icons.edit className="mr-1 h-4 w-4" /> Update
               </Button>
             )}
-            {isDraft && (
-              <Button onClick={() => postMut.mutate()} disabled={postMut.isPending}>
-                <Icons.check className="mr-1 h-4 w-4" /> Post
-              </Button>
-            )}
-            {isDraft && (
+            {isEditable && (
               <Button
                 variant="destructive"
                 onClick={() => cancelMut.mutate()}
@@ -162,7 +146,7 @@ export default function SupplierAdjustmentDetail({ adjustmentId }: { adjustmentI
             </Button>
           </div>
 
-          {isCredit && isPosted && avail > 0 && (
+          {isCredit && canApply && avail > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Apply to Purchase (Zoho Apply Credits)</CardTitle>

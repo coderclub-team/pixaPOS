@@ -52,7 +52,7 @@ export default function SupplierAdjustmentForm({
     mutationFn: (v: any) => createSupplierAdjustment(v),
     onSuccess: (adj) => {
       getQueryClient().invalidateQueries({ queryKey: inventoryKeys.all });
-      toast.success(`${adj.adjustment_number} created as draft — post to make available`);
+      toast.success(`${adj.adjustment_number} created and posted`);
       router.push("/dashboard/inventory/supplier-credits");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -215,9 +215,7 @@ export default function SupplierAdjustmentForm({
             Cancel
           </Button>
           <form.AppForm
-            children={
-              <form.SubmitButton>{isEdit ? "Update Draft" : "Create Draft"}</form.SubmitButton>
-            }
+            children={<form.SubmitButton>{isEdit ? "Update" : "Create"}</form.SubmitButton>}
           />
         </div>
       </form>

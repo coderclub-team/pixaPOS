@@ -13,7 +13,7 @@ import {
 import { Icons } from "@pixa/ui/icons";
 import { toast } from "sonner";
 import { useMutation } from "@tanstack/react-query";
-import { cancelSupplierAdjustment, postSupplierAdjustment } from "../api/service";
+import { cancelSupplierAdjustment } from "../api/service";
 import { inventoryKeys } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import Link from "next/link";
@@ -37,7 +37,6 @@ import { useRouter } from "next/navigation";
 
 function statusClass(s: string) {
   if (s === "posted" || s === "applied") return "text-green-600";
-  if (s === "draft") return "text-amber-600";
   return "text-destructive";
 }
 
@@ -88,17 +87,7 @@ export function SupplierAdjustmentList({ adjustments }: { adjustments: SupplierA
 
 function Row({ adj }: { adj: SupplierAdjustment }) {
   const router = useRouter();
-  const [postOpen, setPostOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
-  const postMut = useMutation({
-    mutationFn: () => postSupplierAdjustment(adj.id),
-    onSuccess: () => {
-      getQueryClient().invalidateQueries({ queryKey: inventoryKeys.all });
-      toast.success(`${adj.adjustment_number} posted`);
-      setPostOpen(false);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
   const cancelMut = useMutation({
     mutationFn: () => cancelSupplierAdjustment(adj.id),
     onSuccess: () => {
@@ -108,33 +97,18 @@ function Row({ adj }: { adj: SupplierAdjustment }) {
     },
     onError: (e: Error) => toast.error(e.message),
   });
-  const isDraft = adj.status === "draft";
+  const isEditable =
+    adj.status !== "cancelled" && adj.status !== "applied" && (adj.applied_amount ?? 0) === 0;
   const avail = adj.amount - (adj.applied_amount ?? 0);
   return (
     <>
-      <Dialog open={postOpen} onOpenChange={setPostOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Post {adj.adjustment_number}?</DialogTitle>
-            <DialogDescription>
-              Posting makes it available to apply to bills (Zoho) / reverse journal (Odoo).
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setPostOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => postMut.mutate()} disabled={postMut.isPending}>
-              Post
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
       <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Cancel {adj.adjustment_number}?</DialogTitle>
-            <DialogDescription>Only draft can be cancelled.</DialogDescription>
+            <DialogDescription>
+              Cancel removes this credit/debit. Only unused can be cancelled.
+            </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setCancelOpen(false)}>
@@ -206,7 +180,7 @@ function Row({ adj }: { adj: SupplierAdjustment }) {
                 >
                   <Icons.edit className="mr-2 h-4 w-4" /> View
                 </DropdownMenuItem>
-                {isDraft && (
+                {isEditable && (
                   <DropdownMenuItem
                     onClick={() =>
                       router.push(`/dashboard/inventory/supplier-credits/${adj.id}/edit`)
@@ -215,12 +189,7 @@ function Row({ adj }: { adj: SupplierAdjustment }) {
                     <Icons.edit className="mr-2 h-4 w-4" /> Update
                   </DropdownMenuItem>
                 )}
-                {isDraft && (
-                  <DropdownMenuItem onClick={() => setPostOpen(true)}>
-                    <Icons.check className="mr-2 h-4 w-4" /> Post
-                  </DropdownMenuItem>
-                )}
-                {isDraft && (
+                {isEditable && (
                   <DropdownMenuItem onClick={() => setCancelOpen(true)}>
                     <Icons.trash className="mr-2 h-4 w-4" /> Cancel
                   </DropdownMenuItem>

@@ -1559,9 +1559,10 @@ export async function createSupplierAdjustment(
     tax_amount: (payload as any).tax_amount,
     subtotal: (payload as any).subtotal,
     bill_date: (payload as any).bill_date ?? now.slice(0, 10),
-    status: "draft",
+    status: "posted",
     created_at: now,
     updated_at: now,
+    posted_at: now,
   };
   mockSupplierAdjustments.push(adj);
   return { ...adj };
@@ -1570,7 +1571,12 @@ export async function postSupplierAdjustment(id: string): Promise<SupplierAdjust
   await delay(500);
   const idx = mockSupplierAdjustments.findIndex((a) => a.id === id);
   if (idx === -1) throw new Error("Adjustment not found");
-  if (mockSupplierAdjustments[idx].status !== "draft") throw new Error("Only draft can be posted");
+  // no-op now — all created as posted; keep for backward compat
+  if (
+    mockSupplierAdjustments[idx].status === "posted" ||
+    mockSupplierAdjustments[idx].status === "applied"
+  )
+    return { ...mockSupplierAdjustments[idx] };
   const updated = {
     ...mockSupplierAdjustments[idx],
     status: "posted" as const,
@@ -1584,10 +1590,13 @@ export async function cancelSupplierAdjustment(id: string): Promise<void> {
   await delay(400);
   const idx = mockSupplierAdjustments.findIndex((a) => a.id === id);
   if (idx === -1) throw new Error("Adjustment not found");
-  if (mockSupplierAdjustments[idx].status !== "draft")
-    throw new Error("Only draft can be cancelled");
+  const adj = mockSupplierAdjustments[idx];
+  if (adj.status === "cancelled") throw new Error("Already cancelled");
+  if (adj.status === "applied")
+    throw new Error("Applied credit cannot be cancelled — create opposite adjustment");
+  if ((adj.applied_amount ?? 0) > 0) throw new Error("Partially applied cannot be cancelled");
   mockSupplierAdjustments[idx] = {
-    ...mockSupplierAdjustments[idx],
+    ...adj,
     status: "cancelled",
     updated_at: new Date().toISOString(),
   };
@@ -1600,8 +1609,10 @@ export async function updateSupplierAdjustment(
   const idx = mockSupplierAdjustments.findIndex((a) => a.id === id);
   if (idx === -1) throw new Error("Adjustment not found");
   const current = mockSupplierAdjustments[idx];
-  if (current.status !== "draft")
-    throw new Error("Only draft adjustments can be edited — posted is locked, create new one");
+  if (current.status === "cancelled") throw new Error("Cancelled cannot be edited");
+  if (current.status === "applied")
+    throw new Error("Applied credit cannot be edited — create opposite adjustment");
+  if ((current.applied_amount ?? 0) > 0) throw new Error("Partially applied cannot be edited");
   if (payload.supplier_id) {
     const supExists = mockSuppliers.some((s) => s.id === payload.supplier_id);
     if (!supExists) throw new Error("Supplier not found");
@@ -1647,7 +1658,8 @@ export async function applySupplierCredit(
   if (cIdx === -1) throw new Error("Credit not found");
   const credit = mockSupplierAdjustments[cIdx];
   if (credit.type !== "credit") throw new Error("Only credit can be applied");
-  if (credit.status !== "posted") throw new Error("Only posted credit can be applied");
+  if (credit.status !== "posted" && credit.status !== "applied")
+    throw new Error("Only posted credit can be applied");
   const pIdx = mockPurchases.findIndex((p) => p.id === purchaseId);
   if (pIdx === -1) throw new Error("Purchase not found");
   if (credit.supplier_id !== mockPurchases[pIdx].supplier_id) throw new Error("Supplier mismatch");
