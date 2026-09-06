@@ -149,6 +149,14 @@ export type StockLedgerEntry = {
   created_by?: string;
 };
 
+export type StockLedgerFilters = {
+  search?: string;
+  material_id?: string;
+  type?: StockTransactionType;
+  date_from?: string;
+  date_to?: string;
+};
+
 export type MaterialPriceHistory = {
   id: string;
   material_id: string;

@@ -28,6 +28,7 @@ import type {
   PurchaseOrderFilters,
   PurchaseReturnFilters,
   RawMaterialFilters,
+  StockLedgerFilters,
   SupplierAdjustmentFilters,
   SupplierFilters,
   SupplierLedgerFilters,
@@ -63,7 +64,7 @@ export const inventoryKeys = {
     [...inventoryKeys.all, "payments", filters ?? {}] as const,
   payment: (id: string) => [...inventoryKeys.all, "payment", id] as const,
   waste: (filters?: WasteFilters) => [...inventoryKeys.all, "waste", filters ?? {}] as const,
-  stock: () => [...inventoryKeys.all, "stock"] as const,
+  stock: (filters?: StockLedgerFilters) => [...inventoryKeys.all, "stock", filters ?? {}] as const,
   priceHistory: (materialId?: string) =>
     [...inventoryKeys.all, "price-history", materialId ?? "all"] as const,
 };
@@ -119,8 +120,8 @@ export const purchaseQueryOptions = (id: string) =>
 export const wasteQueryOptions = (filters?: WasteFilters) =>
   queryOptions({ queryKey: inventoryKeys.waste(filters), queryFn: () => getWasteLogs(filters) });
 
-export const stockLedgerQueryOptions = () =>
-  queryOptions({ queryKey: inventoryKeys.stock(), queryFn: () => getStockLedger() });
+export const stockLedgerQueryOptions = (filters?: StockLedgerFilters) =>
+  queryOptions({ queryKey: inventoryKeys.stock(filters), queryFn: () => getStockLedger(filters) });
 
 export const priceHistoryQueryOptions = (materialId?: string) =>
   queryOptions({
