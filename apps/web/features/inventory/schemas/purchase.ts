@@ -7,6 +7,11 @@ export const purchaseItemSchema = z.object({
   tax_percent: z.number().min(0).max(28).optional(),
 });
 
+export const landedCostLineSchema = z.object({
+  label: z.enum(["Freight", "Handling Charge", "Tip", "Packing", "Other"]),
+  amount: z.number().min(0),
+  custom_label: z.string().optional(),
+});
 export const purchaseSchema = z.object({
   supplier_id: z.string().min(1, "Supplier required"),
   po_id: z.string().optional().or(z.literal("")),
@@ -17,6 +22,7 @@ export const purchaseSchema = z.object({
   paid_amount: z.number().min(0).optional(),
   payment_mode: z.enum(["cash", "upi", "bank", "credit"]).optional().or(z.literal("")),
   landed_cost: z.number().min(0).optional(),
+  landed_costs: z.array(landedCostLineSchema).optional(),
   notes: z.string().max(500).optional().or(z.literal("")),
 });
 

@@ -84,7 +84,7 @@ export default function PurchaseEditPage({ purchaseId }: { purchaseId: string })
           Cannot edit paid purchase {p.purchase_number} — create credit note.
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Zoho/Odoo lock paid bills — clone for correction.
+          Locked paid bills — clone for correction.
         </p>
         <div className="mt-4 flex justify-center gap-2">
           <Button variant="outline" onClick={handleShare}>

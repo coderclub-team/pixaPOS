@@ -118,7 +118,7 @@ function Row({ adj }: { adj: SupplierAdjustment }) {
           <DialogHeader>
             <DialogTitle>Post {adj.adjustment_number}?</DialogTitle>
             <DialogDescription>
-              Posting makes it available to apply to bills (Zoho) / reverse journal (Odoo).
+              Posting makes it available to apply to bills / reverse journal.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2">

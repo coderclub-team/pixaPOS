@@ -1152,7 +1152,7 @@ export async function createPurchase(payload: PurchasePayload): Promise<Purchase
   const materials = materialMap();
   const po = payload.po_id ? mockPurchaseOrders.find((p) => p.id === payload.po_id) : null;
   if (payload.po_id && !po) throw new Error("Linked PO not found");
-  // Odoo/Zoho: only sent POs can be billed, and only once (invoiced hidden)
+  // Standard: only sent POs can be billed, and only once (invoiced hidden)
   if (po) {
     if (po.status !== "sent")
       throw new Error("Only sent POs can be billed (Odoo: draft/received/cancelled not billable)");
@@ -1169,7 +1169,27 @@ export async function createPurchase(payload: PurchasePayload): Promise<Purchase
     tax_percent: (it as any).tax_percent ?? materials[it.material_id]?.tax_percent ?? 5,
     line_total: Math.round(it.qty * it.unit_cost * 100) / 100,
   }));
-  const landedCost = Math.round(Number((payload as any).landed_cost ?? 0) * 100) / 100;
+  const landedCostsRaw = (payload as any).landed_costs as
+    | import("./types").LandedCostLine[]
+    | undefined;
+  const landedCostFromArray = landedCostsRaw
+    ? landedCostsRaw.reduce((s, l) => s + Number((l as any).amount ?? 0), 0)
+    : undefined;
+  const landedCostRaw =
+    landedCostFromArray !== undefined
+      ? landedCostFromArray
+      : Number((payload as any).landed_cost ?? 0);
+  const landedCost = Math.round(landedCostRaw * 100) / 100;
+  const normalizedLandedCosts =
+    landedCostsRaw && landedCostsRaw.length > 0
+      ? landedCostsRaw.map((l) => ({
+          label: (l as any).label,
+          amount: Math.round(Number((l as any).amount) * 100) / 100,
+          custom_label: (l as any).custom_label,
+        }))
+      : landedCost > 0
+        ? [{ label: "Other" as any, amount: landedCost }]
+        : [];
   const { subtotal, tax_amount, total_amount } = computePurchaseTotals(enriched as any, landedCost);
   const paid = (payload as any).paid_amount ?? 0;
   if (paid < 0 || paid > total_amount) throw new Error("Paid amount must be 0..total");
@@ -1195,6 +1215,7 @@ export async function createPurchase(payload: PurchasePayload): Promise<Purchase
     subtotal,
     tax_amount,
     landed_cost: landedCost,
+    landed_costs: normalizedLandedCosts as any,
     total_amount,
     paid_amount: Math.round(paid * 100) / 100,
     payment_status: derivePaymentStatus(total_amount, paid),
@@ -1245,10 +1266,27 @@ export async function updatePurchase(
       line_total: Math.round(it.qty * it.unit_cost * 100) / 100,
     })) as any;
   }
+  const landedCostsFromPayload = (payload as any).landed_costs as
+    | import("./types").LandedCostLine[]
+    | undefined;
+  const landedCostFromArray =
+    landedCostsFromPayload !== undefined
+      ? landedCostsFromPayload.reduce((s, l) => s + Number((l as any).amount ?? 0), 0)
+      : undefined;
   const landedCost =
-    payload.landed_cost !== undefined
-      ? Math.round(Number(payload.landed_cost) * 100) / 100
-      : ((current as any).landed_cost ?? 0);
+    landedCostFromArray !== undefined
+      ? Math.round(landedCostFromArray * 100) / 100
+      : payload.landed_cost !== undefined
+        ? Math.round(Number(payload.landed_cost) * 100) / 100
+        : ((current as any).landed_cost ?? 0);
+  const normalizedLandedCosts =
+    landedCostsFromPayload !== undefined
+      ? landedCostsFromPayload.map((l) => ({
+          label: (l as any).label,
+          amount: Math.round(Number((l as any).amount) * 100) / 100,
+          custom_label: (l as any).custom_label,
+        }))
+      : (current as any).landed_costs;
   const { subtotal, tax_amount, total_amount } = payload.items
     ? computePurchaseTotals(items as any, landedCost)
     : {
@@ -1268,6 +1306,7 @@ export async function updatePurchase(
     subtotal,
     tax_amount,
     landed_cost: landedCost,
+    landed_costs: (normalizedLandedCosts as any) ?? (current as any).landed_costs,
     total_amount,
     paid_amount: Math.round(paid * 100) / 100,
     payment_status: derivePaymentStatus(total_amount, paid),
@@ -1287,9 +1326,7 @@ export async function deletePurchase(id: string): Promise<void> {
   const idx = mockPurchases.findIndex((p) => p.id === id);
   if (idx === -1) throw new Error("Purchase not found");
   if (mockPurchases[idx].payment_status !== "unpaid")
-    throw new Error(
-      "Only unpaid purchases can be deleted — void partial/paid via credit (Odoo: Cancel/Credit, Zoho: Void)",
-    );
+    throw new Error("Only unpaid purchases can be deleted — void partial/paid via credit");
   mockPurchases.splice(idx, 1);
 }
 export async function recordPurchasePayment(
@@ -1314,7 +1351,7 @@ export async function recordPurchasePayment(
   return { ...updated };
 }
 
-// Purchase Returns — Credit Note / Vendor Credit (Odoo Reverse + Zoho Vendor Credit merged)
+// Purchase Returns — Credit Note / Vendor Credit (Reverse + Vendor Credit merged)
 let mockPurchaseReturns: PurchaseReturn[] = [];
 
 function computeReturnTotals(items: PurchaseReturn["items"]): {
@@ -1910,7 +1947,7 @@ export async function getSupplierOutstanding(): Promise<
   }));
 }
 
-// Payments CRUD — Supplier Payments (single-step posted, purchase optional = advance, Odoo Register Payment / Zoho Payments Made)
+// Payments CRUD — Supplier Payments (single-step posted, purchase optional = advance)
 let mockPayments: SupplierPayment[] = [];
 
 export async function getPayments(filters?: PaymentFilters): Promise<SupplierPayment[]> {

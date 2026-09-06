@@ -76,7 +76,7 @@ export default function PurchaseOrderEditPage({ poId }: { poId: string }) {
           Cannot edit received PO (GRN done). PO {po.po_number} is already in inventory.
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Zoho/Odoo lock received bills — create a new PO via Clone.
+          Locked received bills — create a new PO via Clone.
         </p>
         <div className="mt-4 flex justify-center gap-2">
           <Button variant="outline" onClick={handleShare}>

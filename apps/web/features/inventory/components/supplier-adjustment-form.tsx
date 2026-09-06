@@ -124,7 +124,7 @@ export default function SupplierAdjustmentForm({
             </CardTitle>
             <CardDescription>
               Credit (vendor owes you) / Debit (you owe extra) — financial only, no stock. Purchase
-              optional. Odoo: Vendor Credit/Debit Note, Zoho: Vendor Credit.
+              optional.
             </CardDescription>
           </CardHeader>
           <CardContent>
