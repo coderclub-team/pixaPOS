@@ -142,6 +142,7 @@ export default function PurchaseForm({
         initialData?.due_date ??
         new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
       reference: (initialData as any)?.reference ?? "",
+      landed_cost: (initialData as any)?.landed_cost ?? 0,
       paid_amount: initialData?.paid_amount ?? 0,
       payment_mode: (initialData as any)?.payment_mode ?? "",
       notes: (initialData as any)?.notes ?? "",
@@ -164,12 +165,15 @@ export default function PurchaseForm({
         if (it.unit_cost === "" || Number.isNaN(c) || c < 0)
           return setItemsError(`Row ${i + 1}: unit cost invalid`);
       }
-      if ((value.paid_amount ?? 0) > totals.total) return toast.error("Paid exceeds total");
+      if ((value.paid_amount ?? 0) > totalWithLanded) return toast.error("Paid exceeds total");
       setItemsError(null);
       if (isEdit) await updateMutation.mutateAsync(value);
       else await createMutation.mutateAsync(value);
     },
   });
+
+  const landedCostVal = Number((form as any).getFieldValue?.("landed_cost") ?? 0) || 0;
+  const totalWithLanded = Math.round((totals.subtotal + totals.tax + landedCostVal) * 100) / 100;
 
   const handlePoChange = (poId: string) => {
     form.setFieldValue("po_id" as any, poId);
@@ -486,10 +490,21 @@ export default function PurchaseForm({
                 <span>GST</span>
                 <span>₹{totals.tax.toFixed(2)}</span>
               </div>
+              {landedCostVal > 0 && (
+                <div className="flex justify-between">
+                  <span>Landed Cost</span>
+                  <span>₹{landedCostVal.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between font-bold">
                 <span>Total</span>
-                <span>₹{totals.total.toFixed(2)}</span>
+                <span>₹{totalWithLanded.toFixed(2)}</span>
               </div>
+              {landedCostVal > 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  Landed distributed to avg cost (Zoho)
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -501,6 +516,17 @@ export default function PurchaseForm({
           </CardHeader>
           <CardContent className="space-y-6">
             <FieldGroup>
+              <form.AppField
+                name="landed_cost"
+                children={(field) => (
+                  <field.TextField
+                    label="Landed Cost (Freight/Other)"
+                    type="number"
+                    placeholder="0"
+                    description="Zoho landed cost — distributed to avg, added to total payables"
+                  />
+                )}
+              />
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <form.AppField
                   name="paid_amount"
@@ -509,7 +535,7 @@ export default function PurchaseForm({
                       label="Paid Amount"
                       type="number"
                       placeholder="0"
-                      description={`Balance ₹${(totals.total - Number(form.getFieldValue("paid_amount" as any) ?? 0)).toFixed(2)}`}
+                      description={`Balance ₹${(totalWithLanded - Number(form.getFieldValue("paid_amount" as any) ?? 0)).toFixed(2)}`}
                     />
                   )}
                 />

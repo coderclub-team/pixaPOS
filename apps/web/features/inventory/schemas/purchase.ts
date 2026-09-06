@@ -16,6 +16,7 @@ export const purchaseSchema = z.object({
   reference: z.string().max(30).optional().or(z.literal("")),
   paid_amount: z.number().min(0).optional(),
   payment_mode: z.enum(["cash", "upi", "bank", "credit"]).optional().or(z.literal("")),
+  landed_cost: z.number().min(0).optional(),
   notes: z.string().max(500).optional().or(z.literal("")),
 });
 
