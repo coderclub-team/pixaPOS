@@ -28,6 +28,9 @@ import type {
   SupplierAdjustmentFilters,
   SupplierLedgerEntry,
   SupplierLedgerFilters,
+  SupplierPayment,
+  SupplierPaymentPayload,
+  PaymentFilters,
 } from "./types";
 
 // Raw Materials - Petpooja-aligned with multi-supplier
@@ -1757,21 +1760,21 @@ export async function getSupplierLedger(
       bill_date: p.bill_date,
       created_at: p.created_at,
     });
-    if (p.paid_amount > 0) {
-      entries.push({
-        id: `sl_pay_${p.id}`,
-        supplier_id: p.supplier_id,
-        supplier_name: p.supplier_name,
-        type: "payment",
-        amount: -Math.round(p.paid_amount * 100) / 100,
-        balance_after: 0,
-        reference_id: p.id,
-        reference_number: p.purchase_number,
-        reason: `Payment ${p.payment_mode ?? ""}`.trim(),
-        bill_date: p.bill_date,
-        created_at: p.updated_at,
-      });
-    }
+  }
+  for (const pay of mockPayments.filter((x) => x.status === "posted")) {
+    entries.push({
+      id: `sl_pay_${pay.id}`,
+      supplier_id: pay.supplier_id,
+      supplier_name: pay.supplier_name,
+      type: "payment",
+      amount: -Math.round(pay.amount * 100) / 100,
+      balance_after: 0,
+      reference_id: pay.id,
+      reference_number: pay.payment_number,
+      reason: `Payment ${pay.payment_mode} ${pay.purchase_number ?? "advance"}`.trim(),
+      bill_date: pay.bill_date,
+      created_at: pay.created_at,
+    });
   }
   for (const r of mockPurchaseReturns.filter((x) => x.status === "approved")) {
     entries.push({
@@ -1878,6 +1881,105 @@ export async function getSupplierOutstanding(): Promise<
     overdue: overdueBySupplier.get(id) ?? 0,
     credit_available: creditAvailable.get(id) ?? 0,
   }));
+}
+
+// Payments CRUD — Supplier Payments (single-step posted, purchase optional = advance, Odoo Register Payment / Zoho Payments Made)
+let mockPayments: SupplierPayment[] = [];
+
+export async function getPayments(filters?: PaymentFilters): Promise<SupplierPayment[]> {
+  await delay(400);
+  let result = [...mockPayments].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  if (filters?.search) {
+    const q = filters.search.toLowerCase();
+    result = result.filter(
+      (p) =>
+        p.payment_number.toLowerCase().includes(q) ||
+        (p.supplier_name ?? "").toLowerCase().includes(q) ||
+        (p.reference ?? "").toLowerCase().includes(q) ||
+        (p.purchase_number ?? "").toLowerCase().includes(q),
+    );
+  }
+  if (filters?.supplier_id) result = result.filter((p) => p.supplier_id === filters.supplier_id);
+  if (filters?.purchase_id) result = result.filter((p) => p.purchase_id === filters.purchase_id);
+  if (filters?.status) result = result.filter((p) => p.status === filters.status);
+  if (filters?.payment_mode) result = result.filter((p) => p.payment_mode === filters.payment_mode);
+  return result;
+}
+export async function getPaymentById(id: string): Promise<SupplierPayment | null> {
+  await delay(300);
+  return mockPayments.find((p) => p.id === id) ?? null;
+}
+export async function createPayment(payload: SupplierPaymentPayload): Promise<SupplierPayment> {
+  await delay(600);
+  if (!payload.supplier_id) throw new Error("Supplier required");
+  const amt = Number((payload as any).amount);
+  if (!Number.isFinite(amt) || amt <= 0) throw new Error("Amount must be > 0");
+  const supName = supplierNameMap()[payload.supplier_id] ?? payload.supplier_id;
+  const pur = payload.purchase_id ? mockPurchases.find((p) => p.id === payload.purchase_id) : null;
+  if (payload.purchase_id && !pur) throw new Error("Linked purchase not found");
+  if (pur) {
+    if (pur.supplier_id !== payload.supplier_id) throw new Error("Supplier mismatch with purchase");
+    const due = pur.total_amount - pur.paid_amount;
+    if (amt > due) throw new Error(`Exceeds purchase due ₹${due.toFixed(2)} — partial ok`);
+  }
+  const year = new Date().getFullYear();
+  const existing = mockPayments
+    .filter((p) => p.payment_number.startsWith(`PAY-${year}-`))
+    .map((p) => parseInt(p.payment_number.split("-")[2] ?? "0", 10))
+    .filter((n) => !Number.isNaN(n));
+  const nextNum = existing.length > 0 ? Math.max(...existing) + 1 : 1;
+  const now = new Date().toISOString();
+  const pay: SupplierPayment = {
+    id: `pay_${Date.now().toString(36)}`,
+    payment_number: `PAY-${year}-${String(nextNum).padStart(3, "0")}`,
+    supplier_id: payload.supplier_id,
+    supplier_name: supName,
+    purchase_id: payload.purchase_id ?? null,
+    purchase_number: pur?.purchase_number,
+    amount: Math.round(amt * 100) / 100,
+    payment_mode: (payload as any).payment_mode ?? "bank",
+    bill_date: (payload as any).bill_date ?? now.slice(0, 10),
+    reference: (payload as any).reference,
+    notes: (payload as any).notes,
+    status: "posted",
+    created_at: now,
+    updated_at: now,
+  };
+  mockPayments.push(pay);
+  if (pur) {
+    const idx = mockPurchases.findIndex((p) => p.id === pur.id);
+    const newPaid = Math.round((pur.paid_amount + amt) * 100) / 100;
+    mockPurchases[idx] = {
+      ...pur,
+      paid_amount: newPaid,
+      payment_status: derivePaymentStatus(pur.total_amount, newPaid),
+      payment_mode: (payload as any).payment_mode ?? pur.payment_mode,
+      updated_at: now,
+    };
+  }
+  return { ...pay };
+}
+export async function cancelPayment(id: string): Promise<void> {
+  await delay(400);
+  const idx = mockPayments.findIndex((p) => p.id === id);
+  if (idx === -1) throw new Error("Payment not found");
+  const pay = mockPayments[idx];
+  if (pay.status === "cancelled") throw new Error("Already cancelled");
+  // reversal: subtract from purchase if linked
+  if (pay.purchase_id) {
+    const pIdx = mockPurchases.findIndex((p) => p.id === pay.purchase_id);
+    if (pIdx !== -1) {
+      const pur = mockPurchases[pIdx];
+      const newPaid = Math.max(0, Math.round((pur.paid_amount - pay.amount) * 100) / 100);
+      mockPurchases[pIdx] = {
+        ...pur,
+        paid_amount: newPaid,
+        payment_status: derivePaymentStatus(pur.total_amount, newPaid),
+        updated_at: new Date().toISOString(),
+      };
+    }
+  }
+  mockPayments[idx] = { ...pay, status: "cancelled", updated_at: new Date().toISOString() };
 }
 
 // Stock Ledger
