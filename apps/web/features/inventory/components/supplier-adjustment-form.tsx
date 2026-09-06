@@ -187,7 +187,19 @@ export default function SupplierAdjustmentForm({
                                       key={opt.value}
                                       value={opt.value}
                                       keywords={[opt.label]}
-                                      onSelect={(v) => field.handleChange(v)}
+                                      onSelect={(v) => {
+                                        field.handleChange(v);
+                                        const curPur = form.getFieldValue(
+                                          "purchase_id" as any,
+                                        ) as string;
+                                        if (curPur) {
+                                          const pur = (purchases ?? []).find(
+                                            (p) => p.id === curPur,
+                                          );
+                                          if (pur && pur.supplier_id !== v)
+                                            form.setFieldValue("purchase_id" as any, "");
+                                        }
+                                      }}
                                     >
                                       <Icons.check
                                         className={cn(
@@ -247,14 +259,88 @@ export default function SupplierAdjustmentForm({
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <form.AppField
                   name="purchase_id"
-                  children={(field) => (
-                    <field.SelectField
-                      label="Link Purchase (optional)"
-                      options={purchaseOptions}
-                      placeholder="Standalone or select PUR-..."
-                      description="Leave empty for opening balance / advance"
-                    />
-                  )}
+                  children={(field) => {
+                    const value = field.state.value as string;
+                    const selectedSupplierId =
+                      (form.getFieldValue("supplier_id" as any) as string) ?? "";
+                    const selected = purchaseOptions.find((o) => o.value === value);
+                    const filtered = purchaseOptions.filter((opt) => {
+                      const pur = (purchases ?? []).find((p) => p.id === opt.value);
+                      if (!pur) return false;
+                      if (selectedSupplierId && pur.supplier_id !== selectedSupplierId)
+                        return false;
+                      return true;
+                    });
+                    return (
+                      <Field>
+                        <FieldLabel htmlFor={field.name}>Link Purchase (optional)</FieldLabel>
+                        <Popover>
+                          <PopoverTrigger
+                            render={
+                              <Button
+                                id={field.name}
+                                variant="outline"
+                                role="combobox"
+                                className={cn(
+                                  "w-full justify-between font-normal",
+                                  !value && "text-muted-foreground",
+                                )}
+                              />
+                            }
+                          >
+                            <span className="truncate text-left">
+                              {selected?.label ??
+                                (selectedSupplierId
+                                  ? "Search purchase (PUR-... Due)…"
+                                  : "Select supplier first or search all…")}
+                            </span>
+                            <Icons.chevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[--anchor-width] p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Search PUR-#, bill date, supplier..." />
+                              <CommandList>
+                                <CommandEmpty>No open bills • Try different supplier</CommandEmpty>
+                                <CommandGroup>
+                                  {filtered.slice(0, 50).map((opt) => (
+                                    <CommandItem
+                                      key={opt.value}
+                                      value={opt.value}
+                                      keywords={[opt.label]}
+                                      onSelect={(v) => {
+                                        field.handleChange(v);
+                                        if (v) {
+                                          const pur = (purchases ?? []).find((p) => p.id === v);
+                                          if (pur && !selectedSupplierId) {
+                                            form.setFieldValue(
+                                              "supplier_id" as any,
+                                              pur.supplier_id,
+                                            );
+                                          }
+                                        }
+                                      }}
+                                    >
+                                      <Icons.check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          value === opt.value ? "opacity-100" : "opacity-0",
+                                        )}
+                                      />
+                                      <span className="truncate">{opt.label}</span>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        <FieldDescription>
+                          Leave empty for opening balance / advance{" "}
+                          {selectedSupplierId ? "• Filtered to supplier" : ""}
+                        </FieldDescription>
+                      </Field>
+                    );
+                  }}
                 />
                 <form.AppField
                   name="bill_date"
