@@ -2,7 +2,13 @@
 import { useState, useMemo } from "react";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@pixa/ui/base-ui/card";
-import { FieldGroup } from "@pixa/ui/base-ui/field";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@pixa/ui/base-ui/field";
 import { Input } from "@pixa/ui/base-ui/input";
 import { Label } from "@pixa/ui/base-ui/label";
 import {
@@ -237,15 +243,70 @@ export default function PurchaseOrderForm({
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <form.AppField
                   name="supplier_id"
-                  children={(field) => (
-                    <field.SelectField
-                      label="Supplier *"
-                      required
-                      options={supplierOptions}
-                      placeholder="Select supplier"
-                      description={supplierPreview ?? "GSTIN & contact shown after selection"}
-                    />
-                  )}
+                  children={(field) => {
+                    const value = field.state.value as string;
+                    const selected = supplierOptions.find((o) => o.value === value);
+                    const isInvalid = field.state.meta.errors.length > 0;
+                    return (
+                      <Field data-invalid={isInvalid}>
+                        <FieldLabel htmlFor={field.name}>Supplier *</FieldLabel>
+                        <Popover>
+                          <PopoverTrigger
+                            render={
+                              <Button
+                                id={field.name}
+                                variant="outline"
+                                role="combobox"
+                                aria-invalid={isInvalid}
+                                className={cn(
+                                  "w-full justify-between font-normal",
+                                  !value && "text-muted-foreground",
+                                )}
+                              />
+                            }
+                          >
+                            <span className="truncate text-left">
+                              {selected?.label ?? "Search supplier (GSTIN/phone)…"}
+                            </span>
+                            <Icons.chevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[--anchor-width] p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Search name, GSTIN, phone..." />
+                              <CommandList>
+                                <CommandEmpty>No results • + New supplier</CommandEmpty>
+                                <CommandGroup>
+                                  {supplierOptions.slice(0, 50).map((opt) => (
+                                    <CommandItem
+                                      key={opt.value}
+                                      value={opt.value}
+                                      keywords={[opt.label]}
+                                      onSelect={(v) => {
+                                        field.handleChange(v);
+                                        form.setFieldValue("supplier_id" as any, v);
+                                      }}
+                                    >
+                                      <Icons.check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          value === opt.value ? "opacity-100" : "opacity-0",
+                                        )}
+                                      />
+                                      <span className="truncate">{opt.label}</span>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        <FieldDescription>
+                          {supplierPreview ?? "GSTIN & contact shown after selection"}
+                        </FieldDescription>
+                        <FieldError errors={field.state.meta.errors} />
+                      </Field>
+                    );
+                  }}
                 />
                 <form.AppField
                   name="po_date"
