@@ -1,5 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import {
+  getPaymentById,
+  getPayments,
   getPriceHistory,
   getPurchaseById,
   getPurchaseReturnById,
@@ -21,6 +23,7 @@ import {
   getWasteLogs,
 } from "./service";
 import type {
+  PaymentFilters,
   PurchaseFilters,
   PurchaseOrderFilters,
   PurchaseReturnFilters,
@@ -56,6 +59,9 @@ export const inventoryKeys = {
   supplierLedger: (filters?: SupplierLedgerFilters) =>
     [...inventoryKeys.all, "supplier-ledger", filters ?? {}] as const,
   supplierOutstanding: () => [...inventoryKeys.all, "supplier-outstanding"] as const,
+  payments: (filters?: PaymentFilters) =>
+    [...inventoryKeys.all, "payments", filters ?? {}] as const,
+  payment: (id: string) => [...inventoryKeys.all, "payment", id] as const,
   waste: (filters?: WasteFilters) => [...inventoryKeys.all, "waste", filters ?? {}] as const,
   stock: () => [...inventoryKeys.all, "stock"] as const,
   priceHistory: (materialId?: string) =>
@@ -156,4 +162,16 @@ export const supplierOutstandingQueryOptions = () =>
   queryOptions({
     queryKey: inventoryKeys.supplierOutstanding(),
     queryFn: () => getSupplierOutstanding(),
+  });
+
+export const paymentsQueryOptions = (filters?: PaymentFilters) =>
+  queryOptions({
+    queryKey: inventoryKeys.payments(filters),
+    queryFn: () => getPayments(filters),
+  });
+
+export const paymentQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: inventoryKeys.payment(id),
+    queryFn: () => getPaymentById(id),
   });

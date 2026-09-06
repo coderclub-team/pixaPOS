@@ -395,3 +395,42 @@ export type SupplierLedgerFilters = {
   type?: SupplierLedgerType;
   search?: string;
 };
+
+export type PaymentMode = "cash" | "upi" | "bank" | "credit";
+export type PaymentStatus = "posted" | "cancelled";
+export type SupplierPayment = {
+  id: string;
+  payment_number: string; // PAY-YYYY-NNN
+  supplier_id: string;
+  supplier_name?: string;
+  purchase_id?: string | null;
+  purchase_number?: string;
+  amount: number;
+  payment_mode: PaymentMode;
+  bill_date: string;
+  reference?: string;
+  notes?: string;
+  status: PaymentStatus;
+  created_at: string;
+  updated_at: string;
+};
+export type SupplierPaymentPayload = Partial<
+  Omit<
+    SupplierPayment,
+    | "id"
+    | "created_at"
+    | "updated_at"
+    | "payment_number"
+    | "supplier_name"
+    | "purchase_number"
+    | "status"
+  >
+> &
+  Pick<SupplierPayment, "supplier_id" | "amount" | "bill_date">;
+export type PaymentFilters = {
+  search?: string;
+  supplier_id?: string;
+  purchase_id?: string;
+  status?: PaymentStatus;
+  payment_mode?: PaymentMode;
+};
