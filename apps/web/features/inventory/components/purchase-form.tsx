@@ -12,6 +12,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@pixa/ui/base-ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@pixa/ui/base-ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@pixa/ui/base-ui/command";
+import { cn } from "@pixa/ui/lib/utils";
+
 import { useAppForm } from "@/lib/form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -432,27 +443,93 @@ export default function PurchaseForm({
                   >
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Material {idx + 1}</Label>
-                      <Select
-                        value={it.material_id}
-                        onValueChange={(v) =>
-                          updateItem(idx, {
-                            material_id: v,
-                            tax_percent: materials?.find((m) => m.id === v)?.tax_percent,
-                            unit_cost: materials?.find((m) => m.id === v)?.cost_price ?? 0,
-                          } as any)
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {materialOptions.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Popover>
+                        <PopoverTrigger
+                          render={
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className={cn(
+                                "w-full justify-between font-normal",
+                                !it.material_id && "text-muted-foreground",
+                              )}
+                            />
+                          }
+                        >
+                          <span className="truncate text-left">
+                            {it.material_id
+                              ? (materialOptions.find((o) => o.value === it.material_id)?.label ??
+                                "Select")
+                              : "Search SKU or name…"}
+                          </span>
+                          <Icons.chevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--anchor-width] p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search SKU or name..." />
+                            <CommandList>
+                              <CommandEmpty>
+                                <div className="flex flex-col items-center gap-1 py-2">
+                                  <span>No results</span>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      window.open(
+                                        "/dashboard/inventory/raw-materials/new",
+                                        "_blank",
+                                      );
+                                    }}
+                                  >
+                                    <Icons.add className="mr-1 h-3 w-3" /> New material
+                                  </Button>
+                                </div>
+                              </CommandEmpty>
+                              <CommandGroup>
+                                {materialOptions
+                                  .filter((opt) => {
+                                    const sid =
+                                      (form.getFieldValue("supplier_id" as any) as string) ?? "";
+                                    if (!sid) return true;
+                                    const mat = materials?.find((m) => m.id === opt.value);
+                                    return (
+                                      mat?.supplier_id === sid ||
+                                      mat?.suppliers?.some((s) => s.supplier_id === sid)
+                                    );
+                                  })
+                                  .slice(0, 50)
+                                  .map((opt) => (
+                                    <CommandItem
+                                      key={opt.value}
+                                      value={opt.value}
+                                      keywords={[opt.label]}
+                                      onSelect={(v) =>
+                                        updateItem(idx, {
+                                          material_id: v,
+                                          tax_percent: materials?.find((m) => m.id === v)
+                                            ?.tax_percent,
+                                          unit_cost:
+                                            materials?.find((m) => m.id === v)?.cost_price ?? 0,
+                                        } as any)
+                                      }
+                                    >
+                                      <Icons.check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          it.material_id === opt.value
+                                            ? "opacity-100"
+                                            : "opacity-0",
+                                        )}
+                                      />
+                                      <span className="truncate">{opt.label}</span>
+                                    </CommandItem>
+                                  ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                       {mat && (
                         <div className="text-[11px] text-muted-foreground">
                           {mat.unit} • Stock {mat.stock_qty} • Avg ₹{mat.avg_cost}
