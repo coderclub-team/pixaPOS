@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@pixa/ui/base-ui/card";
 import { FieldGroup } from "@pixa/ui/base-ui/field";
@@ -23,8 +23,20 @@ import {
   purchasesQueryOptions,
   purchaseQueryOptions,
   purchaseReturnsQueryOptions,
+  suppliersQueryOptions,
 } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
+import { Popover, PopoverContent, PopoverTrigger } from "@pixa/ui/base-ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@pixa/ui/base-ui/command";
+import { Icons } from "@pixa/ui/icons";
+import { cn } from "@pixa/ui/lib/utils";
 
 const REASONS = [
   { label: "Damaged", value: "damaged" },
@@ -48,7 +60,9 @@ type ReturnLine = {
 export default function PurchaseReturnForm({ purchaseId }: { purchaseId?: string }) {
   const router = useRouter();
   const { data: purchases } = useQuery(purchasesQueryOptions());
+  const { data: suppliers } = useQuery(suppliersQueryOptions());
   const { data: allReturns } = useQuery(purchaseReturnsQueryOptions());
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
   const [selectedPurchaseId, setSelectedPurchaseId] = useState<string>(purchaseId ?? "");
   const { data: purchase } = useQuery({
     ...purchaseQueryOptions(selectedPurchaseId),
@@ -118,10 +132,33 @@ export default function PurchaseReturnForm({ purchaseId }: { purchaseId?: string
     return { sub, tax, total: Math.round((sub + tax) * 100) / 100 };
   }, [lines]);
 
-  const purchaseOptions = (purchases ?? []).map((p) => ({
-    label: `${p.purchase_number} — ${p.supplier_name} (${p.payment_status})`,
-    value: p.id,
+  const supplierOptions = (suppliers ?? []).map((s) => ({
+    label: `${s.name} — ${s.gstin ?? s.phone}`,
+    value: s.id,
   }));
+  const purchaseOptions = (purchases ?? [])
+    .filter((p) => {
+      if (selectedSupplierId) return p.supplier_id === selectedSupplierId;
+      return true;
+    })
+    .filter((p) => {
+      // only returnable bills like Odoo -- at least one item with returnable >0
+      // if not loaded allReturns yet, show all
+      if (!allReturns) return true;
+      return p.items.some((it) => {
+        const orig = it.qty;
+        const already = (allReturns ?? [])
+          .filter((r) => r.purchase_id === p.id && r.status === "approved")
+          .flatMap((r) => r.items)
+          .filter((x) => x.material_id === it.material_id)
+          .reduce((s, x) => s + x.qty_returned, 0);
+        return orig - already > 0;
+      });
+    })
+    .map((p) => ({
+      label: `${p.purchase_number} — ${p.supplier_name} (${p.payment_status}) • ₹${p.total_amount} • ${new Date(p.bill_date).toLocaleDateString()}`,
+      value: p.id,
+    }));
 
   const createMut = useMutation({
     mutationFn: (vals: any) =>
@@ -179,9 +216,20 @@ export default function PurchaseReturnForm({ purchaseId }: { purchaseId?: string
 
   const handlePurchaseChange = (pid: string) => {
     setSelectedPurchaseId(pid);
+    const pur = (purchases ?? []).find((p) => p.id === pid);
+    if (pur) setSelectedSupplierId(pur.supplier_id);
     setLines([]);
     setError(null);
   };
+  const handleSupplierChange = (sid: string) => {
+    setSelectedSupplierId(sid);
+    setSelectedPurchaseId("");
+    setLines([]);
+    setError(null);
+  };
+  useEffect(() => {
+    if (purchase && !selectedSupplierId) setSelectedSupplierId(purchase.supplier_id);
+  }, [purchase, selectedSupplierId]);
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
@@ -202,27 +250,138 @@ export default function PurchaseReturnForm({ purchaseId }: { purchaseId?: string
           </CardHeader>
           <CardContent>
             <FieldGroup>
-              <div className="space-y-1">
-                <Label className="text-sm font-medium">Original Purchase *</Label>
-                <Select value={selectedPurchaseId} onValueChange={handlePurchaseChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select purchase bill" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {purchaseOptions.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {purchase && (
-                  <p className="text-xs text-muted-foreground">
-                    {purchase.purchase_number} • {purchase.supplier_name} • Bill{" "}
-                    {new Date(purchase.bill_date).toLocaleDateString()} • Total ₹
-                    {purchase.total_amount}
-                  </p>
-                )}
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">Supplier *</Label>
+                  <Popover>
+                    <PopoverTrigger
+                      render={
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className={cn(
+                            "w-full justify-between font-normal",
+                            !selectedSupplierId && "text-muted-foreground",
+                          )}
+                        />
+                      }
+                    >
+                      <span className="truncate text-left">
+                        {selectedSupplierId
+                          ? (supplierOptions.find((o) => o.value === selectedSupplierId)?.label ??
+                            "Select")
+                          : "Search supplier (GSTIN/phone)…"}
+                      </span>
+                      <Icons.chevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--anchor-width] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Search supplier..." />
+                        <CommandList>
+                          <CommandEmpty>No results</CommandEmpty>
+                          <CommandGroup>
+                            {supplierOptions.map((opt) => (
+                              <CommandItem
+                                key={opt.value}
+                                value={opt.value}
+                                keywords={[opt.label]}
+                                onSelect={(v) => handleSupplierChange(v)}
+                              >
+                                <Icons.check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    selectedSupplierId === opt.value ? "opacity-100" : "opacity-0",
+                                  )}
+                                />
+                                <span className="truncate">{opt.label}</span>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  {selectedSupplierId ? (
+                    <p className="text-xs text-muted-foreground">
+                      Filtered •{" "}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-1"
+                        onClick={() => handleSupplierChange("")}
+                      >
+                        Clear supplier filter
+                      </Button>
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Pick supplier first — purchase list narrows like Odoo/Zoho (1k → 80).
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">Original Purchase *</Label>
+                  <Popover>
+                    <PopoverTrigger
+                      render={
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className={cn(
+                            "w-full justify-between font-normal",
+                            !selectedPurchaseId && "text-muted-foreground",
+                          )}
+                          disabled={!selectedSupplierId && (purchases ?? []).length > 100}
+                        />
+                      }
+                    >
+                      <span className="truncate text-left">
+                        {selectedPurchaseId
+                          ? (purchaseOptions.find((o) => o.value === selectedPurchaseId)?.label ??
+                            purchase?.purchase_number ??
+                            "Select")
+                          : selectedSupplierId
+                            ? "Search purchase (PUR-... bill date)…"
+                            : "Select supplier first or search all…"}
+                      </span>
+                      <Icons.chevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--anchor-width] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Search PUR-#, bill date, supplier..." />
+                        <CommandList>
+                          <CommandEmpty>No returnable bills • Try different supplier</CommandEmpty>
+                          <CommandGroup>
+                            {purchaseOptions.slice(0, 50).map((opt) => (
+                              <CommandItem
+                                key={opt.value}
+                                value={opt.value}
+                                keywords={[opt.label]}
+                                onSelect={(v) => handlePurchaseChange(v)}
+                              >
+                                <Icons.check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    selectedPurchaseId === opt.value ? "opacity-100" : "opacity-0",
+                                  )}
+                                />
+                                <span className="truncate">{opt.label}</span>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  {purchase && (
+                    <p className="text-xs text-muted-foreground">
+                      {purchase.purchase_number} • {purchase.supplier_name} • Bill{" "}
+                      {new Date(purchase.bill_date).toLocaleDateString()} • Total ₹
+                      {purchase.total_amount} {selectedSupplierId ? `• Filtered to supplier` : ""}
+                    </p>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <form.AppField
