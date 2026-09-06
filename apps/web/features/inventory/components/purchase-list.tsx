@@ -332,6 +332,17 @@ function PurchaseRow({ pur }: { pur: Purchase }) {
                     <Icons.billing className="mr-2 h-4 w-4" /> Record Payment
                   </DropdownMenuItem>
                 )}
+                {!isPaid && (
+                  <DropdownMenuItem
+                    onClick={() =>
+                      router.push(
+                        `/dashboard/inventory/payments/new?purchaseId=${pur.id}&supplierId=${pur.supplier_id}`,
+                      )
+                    }
+                  >
+                    <Icons.billing className="mr-2 h-4 w-4" /> New Payment (CRUD)
+                  </DropdownMenuItem>
+                )}
                 {isDeletable && (
                   <DropdownMenuItem onClick={() => setDeleteOpen(true)}>
                     <Icons.trash className="mr-2 h-4 w-4" /> Delete

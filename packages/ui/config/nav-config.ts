@@ -313,6 +313,13 @@ export const navGroups: NavGroup[] = [
             access: { requireOrg: true },
           },
           {
+            title: "Payments",
+            url: "/dashboard/inventory/payments",
+            icon: "billing",
+            shortcut: ["i", "y"],
+            access: { requireOrg: true },
+          },
+          {
             title: "Recipes",
             url: "/dashboard/inventory/recipes",
             icon: "recipe",
