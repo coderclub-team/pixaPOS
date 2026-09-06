@@ -7,7 +7,11 @@ import {
   purchasesQueryOptions,
 } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
-import { cancelSupplierAdjustment, applySupplierCredit } from "../api/service";
+import {
+  postSupplierAdjustment,
+  cancelSupplierAdjustment,
+  applySupplierCredit,
+} from "../api/service";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { Input } from "@pixa/ui/base-ui/input";
@@ -31,6 +35,14 @@ export default function SupplierAdjustmentDetail({ adjustmentId }: { adjustmentI
   const [applyPurchaseId, setApplyPurchaseId] = useState("");
   const [applyAmount, setApplyAmount] = useState<number>(0);
 
+  const postMut = useMutation({
+    mutationFn: () => postSupplierAdjustment(adjustmentId),
+    onSuccess: () => {
+      getQueryClient().invalidateQueries({ queryKey: inventoryKeys.all });
+      toast.success("Posted");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const cancelMut = useMutation({
     mutationFn: () => cancelSupplierAdjustment(adjustmentId),
     onSuccess: () => {
@@ -60,8 +72,8 @@ export default function SupplierAdjustmentDetail({ adjustmentId }: { adjustmentI
         </Link>
       </div>
     );
-  const isEditable =
-    adj.status !== "cancelled" && adj.status !== "applied" && (adj.applied_amount ?? 0) === 0;
+  const isDraft = adj.status === "draft";
+  const isEditable = isDraft;
   const isCredit = adj.type === "credit";
   const canApply = (adj.status === "posted" || adj.status === "applied") && isCredit;
   const avail = adj.amount - (adj.applied_amount ?? 0);
@@ -121,7 +133,7 @@ export default function SupplierAdjustmentDetail({ adjustmentId }: { adjustmentI
             >
               <Icons.share className="mr-1 h-4 w-4" /> Share
             </Button>
-            {isEditable && (
+            {isDraft && (
               <Button
                 variant="outline"
                 onClick={() => router.push(`/dashboard/inventory/supplier-credits/${adj.id}/edit`)}
@@ -129,7 +141,12 @@ export default function SupplierAdjustmentDetail({ adjustmentId }: { adjustmentI
                 <Icons.edit className="mr-1 h-4 w-4" /> Update
               </Button>
             )}
-            {isEditable && (
+            {isDraft && (
+              <Button onClick={() => postMut.mutate()} disabled={postMut.isPending}>
+                <Icons.check className="mr-1 h-4 w-4" /> Post
+              </Button>
+            )}
+            {isDraft && (
               <Button
                 variant="destructive"
                 onClick={() => cancelMut.mutate()}
@@ -137,6 +154,11 @@ export default function SupplierAdjustmentDetail({ adjustmentId }: { adjustmentI
               >
                 <Icons.trash className="mr-1 h-4 w-4" /> Cancel
               </Button>
+            )}
+            {!isDraft && adj.status !== "cancelled" && (
+              <span className="text-xs text-muted-foreground">
+                Posted — create new adjustment for corrections
+              </span>
             )}
             <Button
               variant="ghost"

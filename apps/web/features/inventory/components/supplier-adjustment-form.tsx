@@ -10,6 +10,7 @@ import { createSupplierAdjustment, updateSupplierAdjustment } from "../api/servi
 import { inventoryKeys, suppliersQueryOptions, purchasesQueryOptions } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import type { SupplierAdjustment } from "../api/types";
+import { useState } from "react";
 
 const typeOptions = [
   { label: "Credit — vendor owes you", value: "credit" },
@@ -48,11 +49,17 @@ export default function SupplierAdjustmentForm({
     value: p.id,
   }));
 
+  const [saveMode, setSaveMode] = useState<"draft" | "posted">("draft");
   const createMut = useMutation({
     mutationFn: (v: any) => createSupplierAdjustment(v),
     onSuccess: (adj) => {
       getQueryClient().invalidateQueries({ queryKey: inventoryKeys.all });
-      toast.success(`${adj.adjustment_number} created and posted`);
+      const isPosted = adj.status === "posted";
+      toast.success(
+        isPosted
+          ? `${adj.adjustment_number} posted and ready to apply`
+          : `${adj.adjustment_number} saved as draft`,
+      );
       router.push("/dashboard/inventory/supplier-credits");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -93,7 +100,9 @@ export default function SupplierAdjustmentForm({
         ...value,
         amount: Number(value.amount),
         purchase_id: value.purchase_id || null,
-      };
+        saveMode,
+        status: saveMode,
+      } as any;
       if (isEdit) await updateMut.mutateAsync(payload);
       else await createMut.mutateAsync(payload);
     },
@@ -214,9 +223,27 @@ export default function SupplierAdjustmentForm({
           <Button type="button" variant="outline" onClick={() => router.back()}>
             Cancel
           </Button>
-          <form.AppForm
-            children={<form.SubmitButton>{isEdit ? "Update" : "Create"}</form.SubmitButton>}
-          />
+          {isEdit ? (
+            <form.AppForm children={<form.SubmitButton>Update</form.SubmitButton>} />
+          ) : (
+            <>
+              <Button
+                type="submit"
+                variant="outline"
+                disabled={createMut.isPending}
+                onClick={() => setSaveMode("draft")}
+              >
+                Save as Draft
+              </Button>
+              <Button
+                type="submit"
+                disabled={createMut.isPending}
+                onClick={() => setSaveMode("posted")}
+              >
+                Save & Post
+              </Button>
+            </>
+          )}
         </div>
       </form>
     </div>
