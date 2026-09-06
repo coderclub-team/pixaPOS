@@ -1,6 +1,5 @@
 "use client";
 import type { StockLedgerEntry } from "../api/types";
-import { Badge } from "@pixa/ui/base-ui/badge";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
 import {
   Table,
@@ -41,18 +40,11 @@ export function StockLedger({ entries }: { entries: StockLedgerEntry[] }) {
               <TableRow key={e.id}>
                 <TableCell>{e.material_name ?? e.material_id}</TableCell>
                 <TableCell>
-                  <Badge
-                    variant={
-                      e.type === "purchase"
-                        ? "default"
-                        : e.type === "waste"
-                          ? "destructive"
-                          : "secondary"
-                    }
-                    className="capitalize"
+                  <span
+                    className={`text-xs font-medium capitalize ${e.type === "purchase" ? "text-green-600" : e.type === "waste" ? "text-destructive" : e.type === "purchase_return" ? "text-amber-600" : "text-muted-foreground"}`}
                   >
-                    {e.type}
-                  </Badge>
+                    {e.type.replaceAll("_", " ")}
+                  </span>
                 </TableCell>
                 <TableCell className={e.qty_delta > 0 ? "text-green-600" : "text-red-600"}>
                   {e.qty_delta > 0 ? `+${e.qty_delta}` : e.qty_delta}

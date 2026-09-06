@@ -1,6 +1,5 @@
 "use client";
 import type { Recipe } from "../api/types";
-import { Badge } from "@pixa/ui/base-ui/badge";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
 import {
@@ -72,7 +71,11 @@ export function RecipeList({ recipes }: { recipes: Recipe[] }) {
                   <TableCell>₹{r.cost_per_serve}</TableCell>
                   <TableCell>{r.selling_price ? `₹${r.selling_price}` : "-"}</TableCell>
                   <TableCell>
-                    <Badge variant={margin > 40 ? "default" : "secondary"}>{margin}%</Badge>
+                    <span
+                      className={`text-xs font-medium ${margin > 40 ? "text-green-600" : "text-muted-foreground"}`}
+                    >
+                      {margin}%
+                    </span>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">

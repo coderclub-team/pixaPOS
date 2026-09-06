@@ -1,6 +1,5 @@
 "use client";
 import type { Supplier } from "../api/types";
-import { Badge } from "@pixa/ui/base-ui/badge";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
 import {
@@ -116,9 +115,14 @@ function SupplierRow({ supplier: s }: { supplier: Supplier }) {
         <TableCell>{s.phone}</TableCell>
         <TableCell className="font-mono text-xs">{s.gstin ?? "-"}</TableCell>
         <TableCell>
-          <Badge variant={s.is_active ? "default" : "secondary"}>
+          <span
+            className={`text-xs font-medium ${s.is_active ? "text-green-600" : "text-muted-foreground"}`}
+          >
+            <span
+              className={`mr-1 inline-block size-1.5 rounded-full ${s.is_active ? "bg-green-600" : "bg-muted-foreground"}`}
+            />{" "}
             {s.is_active ? "Active" : "Inactive"}
-          </Badge>
+          </span>
         </TableCell>
         <TableCell className="text-right">
           <DropdownMenu modal={false}>
