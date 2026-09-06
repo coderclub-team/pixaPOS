@@ -12,6 +12,8 @@ import {
   getPurchaseOrders,
   getPurchaseOrderById,
   getStockLedger,
+  getSupplierAdjustmentById,
+  getSupplierAdjustments,
   getSupplierById,
   getSuppliers,
   getWasteLogs,
@@ -21,6 +23,7 @@ import type {
   PurchaseOrderFilters,
   PurchaseReturnFilters,
   RawMaterialFilters,
+  SupplierAdjustmentFilters,
   SupplierFilters,
   WasteFilters,
 } from "./types";
@@ -44,6 +47,9 @@ export const inventoryKeys = {
   purchaseReturns: (filters?: PurchaseReturnFilters) =>
     [...inventoryKeys.all, "purchase-returns", filters ?? {}] as const,
   purchaseReturn: (id: string) => [...inventoryKeys.all, "purchase-return", id] as const,
+  supplierAdjustments: (filters?: SupplierAdjustmentFilters) =>
+    [...inventoryKeys.all, "supplier-adjustments", filters ?? {}] as const,
+  supplierAdjustment: (id: string) => [...inventoryKeys.all, "supplier-adjustment", id] as const,
   waste: (filters?: WasteFilters) => [...inventoryKeys.all, "waste", filters ?? {}] as const,
   stock: () => [...inventoryKeys.all, "stock"] as const,
   priceHistory: (materialId?: string) =>
@@ -120,4 +126,16 @@ export const purchaseReturnQueryOptions = (id: string) =>
   queryOptions({
     queryKey: inventoryKeys.purchaseReturn(id),
     queryFn: () => getPurchaseReturnById(id),
+  });
+
+export const supplierAdjustmentsQueryOptions = (filters?: SupplierAdjustmentFilters) =>
+  queryOptions({
+    queryKey: inventoryKeys.supplierAdjustments(filters),
+    queryFn: () => getSupplierAdjustments(filters),
+  });
+
+export const supplierAdjustmentQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: inventoryKeys.supplierAdjustment(id),
+    queryFn: () => getSupplierAdjustmentById(id),
   });

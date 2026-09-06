@@ -23,6 +23,9 @@ import type {
   PurchaseReturn,
   PurchaseReturnPayload,
   PurchaseReturnFilters,
+  SupplierAdjustment,
+  SupplierAdjustmentPayload,
+  SupplierAdjustmentFilters,
 } from "./types";
 
 // Raw Materials - Petpooja-aligned with multi-supplier
@@ -1488,6 +1491,141 @@ export async function cancelPurchaseReturn(id: string): Promise<void> {
     status: "cancelled",
     updated_at: new Date().toISOString(),
   };
+}
+
+// Supplier Credits / Debits (standalone, purchase-optional, financial-only)
+let mockSupplierAdjustments: SupplierAdjustment[] = [];
+
+export async function getSupplierAdjustments(
+  filters?: SupplierAdjustmentFilters,
+): Promise<SupplierAdjustment[]> {
+  await delay(400);
+  let result = [...mockSupplierAdjustments].sort((a, b) =>
+    b.created_at.localeCompare(a.created_at),
+  );
+  if (filters?.search) {
+    const q = filters.search.toLowerCase();
+    result = result.filter(
+      (a) =>
+        a.adjustment_number.toLowerCase().includes(q) ||
+        (a.supplier_name ?? "").toLowerCase().includes(q) ||
+        (a.reference ?? "").toLowerCase().includes(q) ||
+        (a.purchase_number ?? "").toLowerCase().includes(q),
+    );
+  }
+  if (filters?.supplier_id) result = result.filter((a) => a.supplier_id === filters.supplier_id);
+  if (filters?.type) result = result.filter((a) => a.type === filters.type);
+  if (filters?.status) result = result.filter((a) => a.status === filters.status);
+  if (filters?.category) result = result.filter((a) => a.category === filters.category);
+  return result;
+}
+export async function getSupplierAdjustmentById(id: string): Promise<SupplierAdjustment | null> {
+  await delay(300);
+  return mockSupplierAdjustments.find((a) => a.id === id) ?? null;
+}
+export async function createSupplierAdjustment(
+  payload: SupplierAdjustmentPayload,
+): Promise<SupplierAdjustment> {
+  await delay(700);
+  if (!payload.supplier_id) throw new Error("Supplier required");
+  if (!payload.type || !["credit", "debit"].includes(payload.type))
+    throw new Error("Type credit/debit required");
+  if (!payload.category) throw new Error("Category required");
+  const amt = Number((payload as any).amount);
+  if (!Number.isFinite(amt) || amt <= 0) throw new Error("Amount must be > 0");
+  const supName = supplierNameMap()[payload.supplier_id] ?? payload.supplier_id;
+  const pur = payload.purchase_id ? mockPurchases.find((p) => p.id === payload.purchase_id) : null;
+  if (payload.purchase_id && !pur) throw new Error("Linked purchase not found");
+  const prefix = payload.type === "credit" ? "CN-SUP" : "DN-SUP";
+  const year = new Date().getFullYear();
+  const existing = mockSupplierAdjustments
+    .filter((a) => a.adjustment_number.startsWith(`${prefix}-${year}-`))
+    .map((a) => parseInt(a.adjustment_number.split("-")[3] ?? "0", 10))
+    .filter((n) => !Number.isNaN(n));
+  const nextNum = existing.length > 0 ? Math.max(...existing) + 1 : 1;
+  const now = new Date().toISOString();
+  const adj: SupplierAdjustment = {
+    id: `adj_${Date.now().toString(36)}`,
+    adjustment_number: `${prefix}-${year}-${String(nextNum).padStart(3, "0")}`,
+    type: payload.type as any,
+    supplier_id: payload.supplier_id,
+    supplier_name: supName,
+    purchase_id: payload.purchase_id ?? null,
+    purchase_number: pur?.purchase_number,
+    category: payload.category as any,
+    reference: (payload as any).reference,
+    notes: (payload as any).notes,
+    amount: Math.round(amt * 100) / 100,
+    tax_amount: (payload as any).tax_amount,
+    subtotal: (payload as any).subtotal,
+    bill_date: (payload as any).bill_date ?? now.slice(0, 10),
+    status: "draft",
+    created_at: now,
+    updated_at: now,
+  };
+  mockSupplierAdjustments.push(adj);
+  return { ...adj };
+}
+export async function postSupplierAdjustment(id: string): Promise<SupplierAdjustment> {
+  await delay(500);
+  const idx = mockSupplierAdjustments.findIndex((a) => a.id === id);
+  if (idx === -1) throw new Error("Adjustment not found");
+  if (mockSupplierAdjustments[idx].status !== "draft") throw new Error("Only draft can be posted");
+  const updated = {
+    ...mockSupplierAdjustments[idx],
+    status: "posted" as const,
+    posted_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  mockSupplierAdjustments[idx] = updated;
+  return { ...updated };
+}
+export async function cancelSupplierAdjustment(id: string): Promise<void> {
+  await delay(400);
+  const idx = mockSupplierAdjustments.findIndex((a) => a.id === id);
+  if (idx === -1) throw new Error("Adjustment not found");
+  if (mockSupplierAdjustments[idx].status !== "draft")
+    throw new Error("Only draft can be cancelled");
+  mockSupplierAdjustments[idx] = {
+    ...mockSupplierAdjustments[idx],
+    status: "cancelled",
+    updated_at: new Date().toISOString(),
+  };
+}
+export async function applySupplierCredit(
+  creditId: string,
+  purchaseId: string,
+  amount: number,
+): Promise<{ credit: SupplierAdjustment; purchase: Purchase }> {
+  await delay(500);
+  const cIdx = mockSupplierAdjustments.findIndex((a) => a.id === creditId);
+  if (cIdx === -1) throw new Error("Credit not found");
+  const credit = mockSupplierAdjustments[cIdx];
+  if (credit.type !== "credit") throw new Error("Only credit can be applied");
+  if (credit.status !== "posted") throw new Error("Only posted credit can be applied");
+  const pIdx = mockPurchases.findIndex((p) => p.id === purchaseId);
+  if (pIdx === -1) throw new Error("Purchase not found");
+  if (credit.supplier_id !== mockPurchases[pIdx].supplier_id) throw new Error("Supplier mismatch");
+  const avail = credit.amount - (credit.applied_amount ?? 0);
+  if (amount > avail) throw new Error(`Exceeds available credit ₹${avail}`);
+  const pur = mockPurchases[pIdx];
+  const due = pur.total_amount - pur.paid_amount;
+  if (amount > due) throw new Error(`Exceeds purchase due ₹${due}`);
+  mockPurchases[pIdx] = {
+    ...pur,
+    paid_amount: Math.round((pur.paid_amount + amount) * 100) / 100,
+    payment_status: derivePaymentStatus(pur.total_amount, pur.paid_amount + amount),
+    updated_at: new Date().toISOString(),
+  };
+  const newApplied = Math.round(((credit.applied_amount ?? 0) + amount) * 100) / 100;
+  const newStatus = newApplied >= credit.amount ? "applied" : credit.status;
+  mockSupplierAdjustments[cIdx] = {
+    ...credit,
+    applied_amount: newApplied,
+    status: newStatus as any,
+    updated_at: new Date().toISOString(),
+  };
+  return { credit: { ...mockSupplierAdjustments[cIdx] }, purchase: { ...mockPurchases[pIdx] } };
 }
 
 // Waste

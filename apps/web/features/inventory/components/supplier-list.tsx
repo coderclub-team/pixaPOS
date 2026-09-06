@@ -140,6 +140,13 @@ function SupplierRow({ supplier: s }: { supplier: Supplier }) {
                 >
                   <Icons.edit className="mr-2 h-4 w-4" /> Update
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    router.push(`/dashboard/inventory/supplier-credits/new?supplierId=${s.id}`)
+                  }
+                >
+                  <Icons.billing className="mr-2 h-4 w-4" /> New Credit/Debit
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setDeleteOpen(true)}>
                   <Icons.trash className="mr-2 h-4 w-4" /> Delete
                 </DropdownMenuItem>

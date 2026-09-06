@@ -321,3 +321,57 @@ export type PurchaseFilters = {
 };
 export type WasteFilters = { search?: string; reason?: WasteReason };
 export type PurchaseReturnFiltersLegacy = PurchaseReturnFilters;
+
+export type AdjustmentType = "credit" | "debit";
+export type AdjustmentCategory =
+  | "rate_difference"
+  | "discount"
+  | "shortage"
+  | "freight"
+  | "tax_correction"
+  | "opening_balance"
+  | "other";
+export type AdjustmentStatus = "draft" | "posted" | "cancelled" | "applied";
+export type SupplierAdjustment = {
+  id: string;
+  adjustment_number: string; // CN-SUP-YYYY-NNN or DN-SUP-YYYY-NNN
+  type: AdjustmentType;
+  supplier_id: string;
+  supplier_name?: string;
+  purchase_id?: string | null;
+  purchase_number?: string;
+  category: AdjustmentCategory;
+  reference?: string;
+  notes?: string;
+  amount: number; // total including tax — entered or sum of items
+  tax_amount?: number;
+  subtotal?: number;
+  items?: PurchaseReturnItem[]; // optional line audit, same shape as return items when item-linked
+  bill_date: string;
+  status: AdjustmentStatus;
+  created_at: string;
+  updated_at: string;
+  posted_at?: string;
+  applied_amount?: number;
+};
+export type SupplierAdjustmentPayload = Partial<
+  Omit<
+    SupplierAdjustment,
+    | "id"
+    | "created_at"
+    | "updated_at"
+    | "adjustment_number"
+    | "supplier_name"
+    | "purchase_number"
+    | "status"
+    | "posted_at"
+  >
+> &
+  Pick<SupplierAdjustment, "supplier_id" | "type" | "category" | "amount" | "bill_date">;
+export type SupplierAdjustmentFilters = {
+  search?: string;
+  supplier_id?: string;
+  type?: AdjustmentType;
+  status?: AdjustmentStatus;
+  category?: AdjustmentCategory;
+};

@@ -344,6 +344,15 @@ function PurchaseRow({ pur }: { pur: Purchase }) {
                 >
                   <Icons.clipboardList className="mr-2 h-4 w-4" /> Return / Credit Note
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    router.push(
+                      `/dashboard/inventory/supplier-credits/new?purchaseId=${pur.id}&supplierId=${pur.supplier_id}`,
+                    )
+                  }
+                >
+                  <Icons.billing className="mr-2 h-4 w-4" /> Supplier Credit/Debit
+                </DropdownMenuItem>
                 {isPaid && (
                   <DropdownMenuItem
                     onClick={() => cloneMut.mutate(pur.id)}
