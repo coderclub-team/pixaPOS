@@ -152,65 +152,39 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Outlet",
+    label: "Outlet — Profile",
     items: [
       {
-        title: "Outlet",
+        title: "Profile",
+        url: "#",
+        icon: "user",
+        isActive: true,
+        items: [
+          {
+            title: "Outlet Profile",
+            url: "/dashboard/settings/outlet/profile",
+            icon: "user",
+            shortcut: ["o", "o"],
+            access: { requireOrg: true, permission: "org:sys_profile:manage" },
+          },
+        ],
+      },
+    ],
+  },
+  {
+    label: "Outlet — Setup",
+    items: [
+      {
+        title: "Setup",
         url: "#",
         icon: "settings",
         isActive: true,
         items: [
           {
-            title: "Basic Information",
-            url: "/dashboard/settings/outlet/general/basic-information",
-            icon: "user",
-            shortcut: ["o", "b"],
-            access: { requireOrg: true, permission: "org:sys_profile:manage" },
-          },
-          {
-            title: "Contact",
-            url: "/dashboard/settings/outlet/general/contact",
-            icon: "phone",
-            shortcut: ["o", "c"],
-            access: { requireOrg: true, permission: "org:sys_profile:manage" },
-          },
-          {
-            title: "Address",
-            url: "/dashboard/settings/outlet/general/address",
-            icon: "workspace",
-            shortcut: ["o", "a"],
-            access: { requireOrg: true, permission: "org:sys_profile:manage" },
-          },
-          {
-            title: "Business Details",
-            url: "/dashboard/settings/outlet/legal/business-details",
-            icon: "page",
-            shortcut: ["o", "d"],
-            access: { requireOrg: true, permission: "org:sys_profile:manage" },
-          },
-          {
-            title: "Invoice",
-            url: "/dashboard/settings/outlet/billing/invoice",
-            icon: "billing",
-            shortcut: ["o", "i"],
-          },
-          {
-            title: "Receipt",
-            url: "/dashboard/settings/outlet/billing/receipt",
-            icon: "billing",
-            shortcut: ["o", "r"],
-          },
-          {
             title: "Business Hours",
             url: "/dashboard/settings/outlet/operations/business-hours",
             icon: "clock",
             shortcut: ["o", "h"],
-          },
-          {
-            title: "Timezone",
-            url: "/dashboard/settings/outlet/operations/timezone",
-            icon: "clock",
-            shortcut: ["o", "z"],
           },
           {
             title: "Order Settings",
@@ -219,23 +193,30 @@ export const navGroups: NavGroup[] = [
             shortcut: ["o", "o"],
           },
           {
-            title: "Online Ordering",
-            url: "/dashboard/settings/outlet/integrations/online-ordering",
-            icon: "share",
-            shortcut: ["o", "n"],
+            title: "Preferences",
+            url: "/dashboard/settings/outlet/operations/timezone",
+            icon: "clock",
+            shortcut: ["o", "z"],
           },
           {
-            title: "Delivery",
-            url: "/dashboard/settings/outlet/integrations/delivery",
-            icon: "share",
-            shortcut: ["o", "l"],
+            title: "Billing Templates",
+            url: "/dashboard/settings/outlet/billing/invoice",
+            icon: "billing",
+            shortcut: ["o", "i"],
           },
-          {
-            title: "Aggregators",
-            url: "/dashboard/settings/outlet/integrations/aggregators",
-            icon: "code",
-            shortcut: ["o", "a", "g"],
-          },
+        ],
+      },
+    ],
+  },
+  {
+    label: "Outlet — Floor Management",
+    items: [
+      {
+        title: "Floors & Tables",
+        url: "#",
+        icon: "layers",
+        isActive: true,
+        items: [
           {
             title: "Floors",
             url: "/dashboard/settings/outlet/floors",
