@@ -60,14 +60,7 @@ export const navGroups: NavGroup[] = [
         items: [],
         access: { requireOrg: true },
       },
-      {
-        title: "Product",
-        url: "/dashboard/product",
-        icon: "product",
-        shortcut: ["p", "p"],
-        isActive: false,
-        items: [],
-      },
+
       {
         title: "Users",
         url: "/dashboard/users",
@@ -230,6 +223,33 @@ export const navGroups: NavGroup[] = [
             icon: "table",
             shortcut: ["o", "t"],
             access: { requireOrg: true, permission: "org:tables:manage" },
+          },
+        ],
+      },
+    ],
+  },
+  {
+    label: "Menu — Catalog",
+    items: [
+      {
+        title: "Menu",
+        url: "#",
+        icon: "pizza",
+        isActive: true,
+        items: [
+          {
+            title: "Categories",
+            url: "/dashboard/menu/categories",
+            icon: "layers",
+            shortcut: ["m", "c"],
+            access: { requireOrg: true },
+          },
+          {
+            title: "Menu Items",
+            url: "/dashboard/menu/items",
+            icon: "pizza",
+            shortcut: ["m", "i"],
+            access: { requireOrg: true },
           },
         ],
       },
