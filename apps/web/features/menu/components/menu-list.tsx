@@ -136,16 +136,24 @@ function MenuRow({ item }: { item: MenuItem }) {
         <TableCell className="text-sm capitalize text-muted-foreground">
           {item.category_name ?? "-"}
         </TableCell>
-        <TableCell className="text-xs">
+        <TableCell
+          className="text-xs"
+          title={item.variants.map((v) => `${v.name} ${v.sku} ₹${v.selling_price}`).join(", ")}
+        >
           {visibleVariants
             .map(
               (v) =>
-                `${v.name}${v.label ? ` (${v.label})` : v.qty ? ` ${v.qty}${v.unit ?? ""}` : ""}`,
+                `${v.name}${v.label ? ` (${v.label})` : v.qty ? ` ${v.qty}${v.unit ?? ""}` : ""}${v.is_default ? " ★" : ""}`,
             )
             .join(", ")}
           {remaining > 0 && <span className="text-muted-foreground"> +{remaining} more</span>}
         </TableCell>
-        <TableCell className="text-right font-mono text-xs font-medium">{priceRange}</TableCell>
+        <TableCell
+          className="text-right font-mono text-xs font-medium"
+          title={item.variants.map((v) => `${v.name}: ₹${v.selling_price}`).join(" | ")}
+        >
+          {priceRange}
+        </TableCell>
         <TableCell className="text-xs capitalize text-muted-foreground">
           {item.available_channels.slice(0, 3).join(", ")}
           {item.available_channels.length > 3 ? ` +${item.available_channels.length - 3}` : ""}

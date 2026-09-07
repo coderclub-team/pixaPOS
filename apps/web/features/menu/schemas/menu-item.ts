@@ -28,6 +28,9 @@ export const menuItemSchema = z.object({
     .array(z.enum(["dine_in", "pickup", "delivery", "zomato", "swiggy", "ondc"]))
     .optional(),
   is_active: z.boolean().optional(),
-  variants: z.array(menuVariantSchema).min(1, "Add at least one variant (Small/Large/250ml)"),
+  variants: z
+    .array(menuVariantSchema)
+    .min(1, "Add at least one variant (Small/Large/250ml)")
+    .max(8, "Max 8 variants"),
 });
 export type MenuItemValues = z.infer<typeof menuItemSchema>;

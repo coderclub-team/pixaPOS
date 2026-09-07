@@ -48,8 +48,11 @@ type VariantForm = {
   qty?: number | string;
   unit?: string;
   selling_price: number | string;
+  compare_price?: number | string;
+  barcode?: string;
   recipe_id?: string;
   is_default?: boolean;
+  is_active?: boolean;
 };
 
 export default function MenuForm({
@@ -72,9 +75,24 @@ export default function MenuForm({
       qty: v.qty,
       unit: v.unit,
       selling_price: v.selling_price,
+      compare_price: (v as any).compare_price,
+      barcode: (v as any).barcode,
       recipe_id: (v as any).recipe_id,
       is_default: v.is_default,
-    })) ?? [{ name: "Regular", sku: "", selling_price: 0, qty: "", unit: "pcs", recipe_id: "" }],
+      is_active: v.is_active,
+    })) ?? [
+      {
+        name: "Regular",
+        sku: "",
+        label: "",
+        selling_price: 0,
+        qty: "",
+        unit: "pcs",
+        barcode: "",
+        is_default: true,
+        is_active: true,
+      },
+    ],
   );
   const [variantsError, setVariantsError] = useState<string | null>(null);
   const [availableChannels, setAvailableChannels] = useState<string[]>(
@@ -88,6 +106,10 @@ export default function MenuForm({
         variants: variants.map((x) => ({
           ...x,
           selling_price: Number(x.selling_price),
+          compare_price:
+            x.compare_price === "" || x.compare_price === undefined
+              ? undefined
+              : Number(x.compare_price),
           qty: x.qty === "" ? undefined : Number(x.qty),
         })),
         available_channels: availableChannels,
@@ -106,6 +128,10 @@ export default function MenuForm({
         variants: variants.map((x) => ({
           ...x,
           selling_price: Number(x.selling_price),
+          compare_price:
+            x.compare_price === "" || x.compare_price === undefined
+              ? undefined
+              : Number(x.compare_price),
           qty: x.qty === "" ? undefined : Number(x.qty),
         })),
         available_channels: availableChannels,
@@ -141,6 +167,7 @@ export default function MenuForm({
     },
     onSubmit: async ({ value }) => {
       if (variants.length === 0) return setVariantsError("Add at least one variant");
+      if (variants.length > 8) return setVariantsError("Max 8 variants per item");
       for (let i = 0; i < variants.length; i++) {
         const v = variants[i];
         if (!v.name) return setVariantsError(`Variant ${i + 1}: name required (Small/Large/250ml)`);
@@ -156,8 +183,22 @@ export default function MenuForm({
     },
   });
 
-  const addVariant = () =>
-    setVariants((p) => [...p, { name: "", sku: "", selling_price: 0, qty: "", unit: "pcs" }]);
+  const addVariant = () => {
+    if (variants.length >= 8) return toast.error("Max 8 variants");
+    setVariants((p) => [
+      ...p,
+      {
+        name: "",
+        sku: "",
+        label: "",
+        selling_price: 0,
+        qty: "",
+        unit: "pcs",
+        barcode: "",
+        is_active: true,
+      },
+    ]);
+  };
   const updateVariant = (idx: number, patch: Partial<VariantForm>) =>
     setVariants((prev) => prev.map((v, i) => (i === idx ? { ...v, ...patch } : v)));
   const removeVariant = (idx: number) => {
@@ -336,101 +377,163 @@ export default function MenuForm({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex justify-end">
-              <Button type="button" variant="outline" size="sm" onClick={addVariant}>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">{variants.length}/8 variants</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addVariant}
+                disabled={variants.length >= 8}
+              >
                 <Icons.add className="mr-1 h-4 w-4" /> Add Variant
               </Button>
             </div>
             {variants.map((v, idx) => (
-              <div
-                key={idx}
-                className="grid grid-cols-1 gap-3 rounded-lg border p-3 md:grid-cols-[140px_140px_110px_90px_90px_1fr_40px]"
-              >
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Name *</Label>
-                  <Input
-                    placeholder="Small / 250ml"
-                    value={v.name}
-                    onChange={(e) => updateVariant(idx, { name: e.target.value })}
-                  />
+              <div key={idx} className="space-y-3 rounded-lg border p-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-[140px_140px_110px_90px_90px_1fr_40px]">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Name *</Label>
+                    <Input
+                      placeholder="Small / 250ml"
+                      value={v.name}
+                      onChange={(e) => updateVariant(idx, { name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">SKU *</Label>
+                    <Input
+                      placeholder="BIRY-SM-001"
+                      value={v.sku}
+                      onChange={(e) => updateVariant(idx, { sku: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Qty</Label>
+                    <Input
+                      type="number"
+                      placeholder="250"
+                      value={v.qty as any}
+                      onChange={(e) =>
+                        updateVariant(idx, {
+                          qty: e.target.value === "" ? "" : (Number(e.target.value) as any),
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Unit</Label>
+                    <Select
+                      value={v.unit ?? "pcs"}
+                      onValueChange={(nv) => updateVariant(idx, { unit: nv })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pcs">pcs</SelectItem>
+                        <SelectItem value="ml">ml</SelectItem>
+                        <SelectItem value="gr">gr</SelectItem>
+                        <SelectItem value="kg">kg</SelectItem>
+                        <SelectItem value="l">l</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Price *</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={v.selling_price as any}
+                      onChange={(e) =>
+                        updateVariant(idx, {
+                          selling_price:
+                            e.target.value === "" ? "" : (Number(e.target.value) as any),
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Recipe (optional)</Label>
+                    <Input
+                      placeholder="Recipe ID"
+                      value={(v as any).recipe_id ?? ""}
+                      onChange={(e) => updateVariant(idx, { recipe_id: e.target.value })}
+                    />
+                    <Link
+                      href="/dashboard/inventory/recipes/new"
+                      target="_blank"
+                      className="text-[11px] text-muted-foreground underline"
+                    >
+                      Create recipe <Icons.externalLink className="inline size-3" />
+                    </Link>
+                  </div>
+                  <div className="flex items-end pb-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => removeVariant(idx)}
+                      disabled={variants.length === 1}
+                    >
+                      <Icons.trash className="size-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">SKU *</Label>
-                  <Input
-                    placeholder="BIRY-SM-001"
-                    value={v.sku}
-                    onChange={(e) => updateVariant(idx, { sku: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Qty</Label>
-                  <Input
-                    type="number"
-                    placeholder="250"
-                    value={v.qty as any}
-                    onChange={(e) =>
-                      updateVariant(idx, {
-                        qty: e.target.value === "" ? "" : (Number(e.target.value) as any),
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Unit</Label>
-                  <Select
-                    value={v.unit ?? "pcs"}
-                    onValueChange={(nv) => updateVariant(idx, { unit: nv })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pcs">pcs</SelectItem>
-                      <SelectItem value="ml">ml</SelectItem>
-                      <SelectItem value="gr">gr</SelectItem>
-                      <SelectItem value="kg">kg</SelectItem>
-                      <SelectItem value="l">l</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Price *</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={v.selling_price as any}
-                    onChange={(e) =>
-                      updateVariant(idx, {
-                        selling_price: e.target.value === "" ? "" : (Number(e.target.value) as any),
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Recipe (optional)</Label>
-                  <Input
-                    placeholder="Recipe ID"
-                    value={(v as any).recipe_id ?? ""}
-                    onChange={(e) => updateVariant(idx, { recipe_id: e.target.value })}
-                  />
-                  <Link
-                    href="/dashboard/inventory/recipes/new"
-                    target="_blank"
-                    className="text-[11px] text-muted-foreground underline"
-                  >
-                    Create recipe <Icons.externalLink className="inline size-3" />
-                  </Link>
-                </div>
-                <div className="flex items-end pb-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => removeVariant(idx)}
-                    disabled={variants.length === 1}
-                  >
-                    <Icons.trash className="size-4" />
-                  </Button>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-[140px_140px_140px_90px_1fr]">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Label</Label>
+                    <Input
+                      placeholder="250ml display"
+                      value={v.label ?? ""}
+                      onChange={(e) => updateVariant(idx, { label: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Barcode</Label>
+                    <Input
+                      placeholder="890123..."
+                      value={v.barcode ?? ""}
+                      onChange={(e) => updateVariant(idx, { barcode: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Compare Price</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="299"
+                      value={(v.compare_price as any) ?? ""}
+                      onChange={(e) =>
+                        updateVariant(idx, {
+                          compare_price:
+                            e.target.value === "" ? "" : (Number(e.target.value) as any),
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="flex items-end gap-3 pb-1">
+                    <label className="flex items-center gap-1 text-xs">
+                      <input
+                        type="radio"
+                        name={`default-${idx}`}
+                        checked={!!v.is_default}
+                        onChange={() =>
+                          setVariants((prev) =>
+                            prev.map((x, i) => ({ ...x, is_default: i === idx })),
+                          )
+                        }
+                      />{" "}
+                      Default
+                    </label>
+                    <label className="flex items-center gap-1 text-xs">
+                      <Switch
+                        checked={v.is_active ?? true}
+                        onCheckedChange={(nv) => updateVariant(idx, { is_active: nv })}
+                      />{" "}
+                      Active
+                    </label>
+                  </div>
                 </div>
               </div>
             ))}

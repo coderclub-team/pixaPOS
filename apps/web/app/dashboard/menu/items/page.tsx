@@ -21,6 +21,8 @@ export default function MenuItemsPage() {
   const [search, setSearch] = React.useState("");
   const [categoryId, setCategoryId] = React.useState<string | undefined>(undefined);
   const [veg, setVeg] = React.useState<string | undefined>(undefined);
+  const [channel, setChannel] = React.useState<string | undefined>(undefined);
+  const [showActiveOnly, setShowActiveOnly] = React.useState(true);
   const [inputValue, setInputValue] = React.useState("");
   React.useEffect(() => {
     const id = setTimeout(() => setSearch(inputValue), 300);
@@ -32,7 +34,8 @@ export default function MenuItemsPage() {
       search: search || undefined,
       category_id: categoryId,
       veg_type: veg as any,
-      is_active: true,
+      channel: channel as any,
+      is_active: showActiveOnly ? true : undefined,
     }),
   );
   if (isPending)
@@ -88,6 +91,31 @@ export default function MenuItemsPage() {
             <SelectItem value="egg">Egg</SelectItem>
           </SelectContent>
         </Select>
+        <Select
+          value={channel ?? "all"}
+          onValueChange={(v) => setChannel(v === "all" ? undefined : v)}
+        >
+          <SelectTrigger className="w-[140px]">
+            <SelectValue placeholder="All channels" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All channels</SelectItem>
+            <SelectItem value="dine_in">Dine-in</SelectItem>
+            <SelectItem value="pickup">Pickup</SelectItem>
+            <SelectItem value="delivery">Delivery</SelectItem>
+            <SelectItem value="zomato">Zomato</SelectItem>
+            <SelectItem value="swiggy">Swiggy</SelectItem>
+            <SelectItem value="ondc">ONDC</SelectItem>
+          </SelectContent>
+        </Select>
+        <label className="flex items-center gap-1 text-xs">
+          <input
+            type="checkbox"
+            checked={showActiveOnly}
+            onChange={(e) => setShowActiveOnly(e.target.checked)}
+          />{" "}
+          Active only
+        </label>
       </div>
       <MenuList items={items ?? []} />
     </PageContainer>
