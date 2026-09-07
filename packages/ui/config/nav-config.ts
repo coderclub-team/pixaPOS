@@ -255,10 +255,10 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Inventory",
+    label: "Inventory — Masters",
     items: [
       {
-        title: "Inventory",
+        title: "Masters",
         url: "#",
         icon: "warehouse",
         isActive: true,
@@ -271,12 +271,32 @@ export const navGroups: NavGroup[] = [
             access: { requireOrg: true },
           },
           {
+            title: "Recipes",
+            url: "/dashboard/inventory/recipes",
+            icon: "recipe",
+            shortcut: ["i", "c"],
+            access: { requireOrg: true },
+          },
+          {
             title: "Suppliers",
             url: "/dashboard/inventory/suppliers",
             icon: "supplier",
             shortcut: ["i", "s"],
             access: { requireOrg: true },
           },
+        ],
+      },
+    ],
+  },
+  {
+    label: "Inventory — Buying",
+    items: [
+      {
+        title: "Buying",
+        url: "#",
+        icon: "cart",
+        isActive: true,
+        items: [
           {
             title: "Purchase Orders",
             url: "/dashboard/inventory/purchase-orders",
@@ -285,10 +305,10 @@ export const navGroups: NavGroup[] = [
             access: { requireOrg: true },
           },
           {
-            title: "Purchases",
+            title: "Purchase Bills",
             url: "/dashboard/inventory/purchases",
             icon: "fileTypePdf",
-            shortcut: ["i", "u"],
+            shortcut: ["i", "b"],
             access: { requireOrg: true },
           },
           {
@@ -299,38 +319,44 @@ export const navGroups: NavGroup[] = [
             access: { requireOrg: true },
           },
           {
-            title: "Supplier Credits",
+            title: "Vendor Credits",
             url: "/dashboard/inventory/supplier-credits",
-            icon: "billing",
+            icon: "badgeCheck",
             shortcut: ["i", "d"],
-            access: { requireOrg: true },
-          },
-          {
-            title: "Supplier Ledger",
-            url: "/dashboard/inventory/supplier-ledger",
-            icon: "billing",
-            shortcut: ["i", "g"],
             access: { requireOrg: true },
           },
           {
             title: "Payments",
             url: "/dashboard/inventory/payments",
             icon: "billing",
-            shortcut: ["i", "y"],
+            shortcut: ["i", "m"],
             access: { requireOrg: true },
           },
+        ],
+      },
+    ],
+  },
+  {
+    label: "Inventory — Reports",
+    items: [
+      {
+        title: "Reports",
+        url: "#",
+        icon: "warehouse",
+        isActive: true,
+        items: [
           {
-            title: "Recipes",
-            url: "/dashboard/inventory/recipes",
-            icon: "recipe",
-            shortcut: ["i", "c"],
-            access: { requireOrg: true },
-          },
-          {
-            title: "Stock Ledger",
+            title: "Stock History",
             url: "/dashboard/inventory/stock",
             icon: "warehouse",
-            shortcut: ["i", "l"],
+            shortcut: ["i", "h"],
+            access: { requireOrg: true },
+          },
+          {
+            title: "Payables Ledger",
+            url: "/dashboard/inventory/supplier-ledger",
+            icon: "table",
+            shortcut: ["i", "o"],
             access: { requireOrg: true },
           },
           {
