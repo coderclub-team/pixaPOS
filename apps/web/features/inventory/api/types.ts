@@ -145,6 +145,11 @@ export type StockLedgerEntry = {
   total_cost?: number;
   avg_cost_before?: number;
   avg_cost_after?: number;
+  location_id?: string; // e.g., main, kitchen, waste — Odoo location
+  lot_number?: string; // batch for expiry trace
+  supplier_name?: string;
+  expiry_date?: string;
+  landed_share?: number; // per-line landed amount
   created_at: string;
   created_by?: string;
 };
