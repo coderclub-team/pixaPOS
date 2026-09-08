@@ -3,16 +3,19 @@ import * as React from "react";
 import PageContainer from "@/components/layout/page-container";
 import { menuCategoriesQueryOptions } from "@/features/menu/api/queries";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import {
-  createMenuCategory,
-  deleteMenuCategory,
-  updateMenuCategory,
-} from "@/features/menu/api/service";
+import { deleteMenuCategory, updateMenuCategory } from "@/features/menu/api/service";
 import { menuKeys } from "@/features/menu/api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
 import { Input } from "@pixa/ui/base-ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@pixa/ui/base-ui/select";
 import {
   Table,
   TableBody,
@@ -46,30 +49,25 @@ import { cn } from "@pixa/ui/lib/utils";
 
 export default function CategoriesPage() {
   const [search, setSearch] = React.useState("");
+  const [status, setStatus] = React.useState<string | undefined>(undefined);
   const [inputValue, setInputValue] = React.useState("");
   React.useEffect(() => {
     const id = setTimeout(() => setSearch(inputValue), 300);
     return () => clearTimeout(id);
   }, [inputValue]);
   const { data: cats, isPending } = useQuery(
-    menuCategoriesQueryOptions({ search: search || undefined }),
+    menuCategoriesQueryOptions({
+      search: search || undefined,
+      is_active: status === "active" ? true : status === "inactive" ? false : undefined,
+    }),
   );
-  const [name, setName] = React.useState("");
   const [editOpen, setEditOpen] = React.useState(false);
   const [editId, setEditId] = React.useState<string | null>(null);
   const [editName, setEditName] = React.useState("");
   const [editActive, setEditActive] = React.useState(true);
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
-  const createMut = useMutation({
-    mutationFn: () => createMenuCategory({ name }),
-    onSuccess: () => {
-      getQueryClient().invalidateQueries({ queryKey: menuKeys.all });
-      toast.success("Category created");
-      setName("");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+
   const delMut = useMutation({
     mutationFn: (id: string) => deleteMenuCategory(id),
     onSuccess: () => {
@@ -113,15 +111,19 @@ export default function CategoriesPage() {
           onChange={(e) => setInputValue(e.target.value)}
           className="max-w-sm"
         />
-        <Input
-          placeholder="New category name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="max-w-sm"
-        />
-        <Button onClick={() => createMut.mutate()} disabled={createMut.isPending || !name}>
-          Add
-        </Button>
+        <Select
+          value={status ?? "all"}
+          onValueChange={(v) => setStatus(v === "all" ? undefined : v)}
+        >
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="All status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All status</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       <Card>
         <CardContent className="p-0">
