@@ -161,7 +161,7 @@ export async function createMenuCategory(payload: MenuCategoryPayload): Promise<
     name: payload.name,
     slug: (payload as any).slug ?? slugify(payload.name),
     description: (payload as any).description,
-    image_url: undefined, // placeholder this phase, not stored even if passed
+    image_url: (payload as any).image_url,
     parent_id: (payload as any).parent_id,
     sort_order: payload.sort_order ?? mockCategories.length + 1,
     is_active: payload.is_active ?? true,
