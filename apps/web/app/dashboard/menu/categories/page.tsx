@@ -21,7 +21,21 @@ import {
   TableHeader,
   TableRow,
 } from "@pixa/ui/base-ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@pixa/ui/base-ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@pixa/ui/base-ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@pixa/ui/base-ui/dropdown-menu";
 import { Switch } from "@pixa/ui/base-ui/switch";
 import { Icons } from "@pixa/ui/icons";
 import { toast } from "sonner";
@@ -42,6 +56,8 @@ export default function CategoriesPage() {
   const [editId, setEditId] = React.useState<string | null>(null);
   const [editName, setEditName] = React.useState("");
   const [editActive, setEditActive] = React.useState(true);
+  const [deleteId, setDeleteId] = React.useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
   const createMut = useMutation({
     mutationFn: () => createMenuCategory({ name }),
     onSuccess: () => {
@@ -114,23 +130,38 @@ export default function CategoriesPage() {
                   <TableCell className="font-mono text-xs">{c.slug}</TableCell>
                   <TableCell className="text-xs">{c.is_active ? "Yes" : "No"}</TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => {
-                          setEditId(c.id);
-                          setEditName(c.name);
-                          setEditActive(c.is_active);
-                          setEditOpen(true);
-                        }}
+                    <DropdownMenu modal={false}>
+                      <DropdownMenuTrigger
+                        render={<Button variant="ghost" className="h-8 w-8 p-0" />}
                       >
-                        <Icons.edit className="size-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon-sm" onClick={() => delMut.mutate(c.id)}>
-                        <Icons.trash className="size-4" />
-                      </Button>
-                    </div>
+                        <Icons.ellipsis className="h-4 w-4" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuGroup>
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        </DropdownMenuGroup>
+                        <DropdownMenuGroup>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setEditId(c.id);
+                              setEditName(c.name);
+                              setEditActive(c.is_active);
+                              setEditOpen(true);
+                            }}
+                          >
+                            <Icons.edit className="mr-2 h-4 w-4" /> Update
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setDeleteId(c.id);
+                              setDeleteOpen(true);
+                            }}
+                          >
+                            <Icons.trash className="mr-2 h-4 w-4" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuGroup>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}
@@ -163,6 +194,28 @@ export default function CategoriesPage() {
                 Save
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete category?</DialogTitle>
+            <DialogDescription>
+              Are you sure? Menu items using it will block delete.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteId && delMut.mutate(deleteId)}
+              disabled={delMut.isPending}
+            >
+              Delete
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
