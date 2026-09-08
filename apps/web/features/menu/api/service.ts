@@ -160,6 +160,9 @@ export async function createMenuCategory(payload: MenuCategoryPayload): Promise<
     id: `mc_${Date.now().toString(36)}`,
     name: payload.name,
     slug: (payload as any).slug ?? slugify(payload.name),
+    description: (payload as any).description,
+    image_url: undefined, // placeholder this phase, not stored even if passed
+    parent_id: (payload as any).parent_id,
     sort_order: payload.sort_order ?? mockCategories.length + 1,
     is_active: payload.is_active ?? true,
     created_at: now,
@@ -179,6 +182,7 @@ export async function updateMenuCategory(
     ...mockCategories[idx],
     ...payload,
     slug: (payload as any).slug ?? mockCategories[idx].slug,
+    image_url: (payload as any).image_url ?? mockCategories[idx].image_url,
     updated_at: new Date().toISOString(),
   };
   return { ...mockCategories[idx] };
@@ -189,6 +193,8 @@ export async function deleteMenuCategory(id: string): Promise<void> {
   if (idx === -1) throw new Error("Category not found");
   if (mockMenuItems.some((m) => m.category_id === id))
     throw new Error("Category in use by menu items");
+  if (mockCategories.some((c) => c.parent_id === id))
+    throw new Error("Category has sub-categories");
   mockCategories.splice(idx, 1);
 }
 

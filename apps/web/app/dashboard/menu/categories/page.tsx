@@ -40,6 +40,9 @@ import { Switch } from "@pixa/ui/base-ui/switch";
 import { Icons } from "@pixa/ui/icons";
 import { toast } from "sonner";
 import { Label } from "@pixa/ui/base-ui/label";
+import Link from "next/link";
+import { buttonVariants } from "@pixa/ui/base-ui/button";
+import { cn } from "@pixa/ui/lib/utils";
 
 export default function CategoriesPage() {
   const [search, setSearch] = React.useState("");
@@ -94,6 +97,14 @@ export default function CategoriesPage() {
     <PageContainer
       pageTitle="Menu Categories"
       pageDescription="Menu categories — Starters, Biryani etc. Separate from RawMaterial category. Search, edit, active toggle."
+      pageHeaderAction={
+        <Link
+          href="/dashboard/menu/categories/new"
+          className={cn(buttonVariants(), "text-xs md:text-sm")}
+        >
+          <Icons.add className="mr-2 h-4 w-4" /> Add Category
+        </Link>
+      }
     >
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Input
@@ -126,7 +137,20 @@ export default function CategoriesPage() {
             <TableBody>
               {(cats ?? []).map((c) => (
                 <TableRow key={c.id}>
-                  <TableCell>{c.name}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {c.image_url ? (
+                        <img
+                          src={c.image_url}
+                          alt={c.name}
+                          className="size-6 rounded object-cover"
+                        />
+                      ) : (
+                        <span className="size-6 rounded bg-muted" />
+                      )}
+                      <span>{c.name}</span>
+                    </div>
+                  </TableCell>
                   <TableCell className="font-mono text-xs">{c.slug}</TableCell>
                   <TableCell className="text-xs">{c.is_active ? "Yes" : "No"}</TableCell>
                   <TableCell className="text-right">
@@ -142,6 +166,13 @@ export default function CategoriesPage() {
                         </DropdownMenuGroup>
                         <DropdownMenuGroup>
                           <DropdownMenuItem
+                            onClick={() =>
+                              (window.location.href = `/dashboard/menu/categories/${c.id}/edit`)
+                            }
+                          >
+                            <Icons.edit className="mr-2 h-4 w-4" /> Update (Page)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
                             onClick={() => {
                               setEditId(c.id);
                               setEditName(c.name);
@@ -149,7 +180,7 @@ export default function CategoriesPage() {
                               setEditOpen(true);
                             }}
                           >
-                            <Icons.edit className="mr-2 h-4 w-4" /> Update
+                            <Icons.edit className="mr-2 h-4 w-4" /> Quick Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => {

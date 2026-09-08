@@ -2,6 +2,9 @@ export type MenuCategory = {
   id: string;
   name: string;
   slug: string;
+  description?: string;
+  image_url?: string; // placeholder this phase, not uploaded
+  parent_id?: string;
   sort_order?: number;
   is_active: boolean;
   created_at: string;
