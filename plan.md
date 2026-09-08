@@ -22,3 +22,4 @@
 - Never skip reference check — even if user says "proceed with your suggestion", still verify 4 apps.
 - Keep plan concise, `file_path:line` cited, tradeoffs asked (e.g., `Variant per-recipe link?` / `Channel single menu vs duplicate?`).
 - Store plan here (`plan.md`) so user never repeats instruction.
+- Table actions uniform: 3dots vertical + Dialog (see `AGENTS.md` Rule 14) — applies to Menu, Categories, Stock, etc.
