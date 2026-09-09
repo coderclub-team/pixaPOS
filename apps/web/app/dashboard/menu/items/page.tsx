@@ -22,6 +22,7 @@ export default function MenuItemsPage() {
   const [categoryId, setCategoryId] = React.useState<string | undefined>(undefined);
   const [veg, setVeg] = React.useState<string | undefined>(undefined);
   const [channel, setChannel] = React.useState<string | undefined>(undefined);
+  const [itemType, setItemType] = React.useState<string | undefined>(undefined);
   const [showActiveOnly, setShowActiveOnly] = React.useState(true);
   const [inputValue, setInputValue] = React.useState("");
   React.useEffect(() => {
@@ -35,6 +36,7 @@ export default function MenuItemsPage() {
       category_id: categoryId,
       veg_type: veg as any,
       channel: channel as any,
+      item_type: itemType as any,
       is_active: showActiveOnly ? true : undefined,
     }),
   );
@@ -106,6 +108,19 @@ export default function MenuItemsPage() {
             <SelectItem value="zomato">Zomato</SelectItem>
             <SelectItem value="swiggy">Swiggy</SelectItem>
             <SelectItem value="ondc">ONDC</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={itemType ?? "all"}
+          onValueChange={(v) => setItemType(v === "all" ? undefined : v)}
+        >
+          <SelectTrigger className="w-[130px]">
+            <SelectValue placeholder="All types" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All types</SelectItem>
+            <SelectItem value="goods">Goods</SelectItem>
+            <SelectItem value="service">Service</SelectItem>
           </SelectContent>
         </Select>
         <label className="flex items-center gap-1 text-xs">

@@ -1,13 +1,7 @@
 "use client";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@pixa/ui/base-ui/card";
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-} from "@pixa/ui/base-ui/field";
+import { Field, FieldGroup, FieldLabel } from "@pixa/ui/base-ui/field";
 import { Input } from "@pixa/ui/base-ui/input";
 import { Label } from "@pixa/ui/base-ui/label";
 import { Switch } from "@pixa/ui/base-ui/switch";
@@ -35,15 +29,14 @@ import { toast } from "sonner";
 import { createMenuItem, updateMenuItem } from "../api/service";
 import { menuKeys, menuCategoriesQueryOptions } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
-import type { MenuItem, ProductType } from "../api/types";
+import type { MenuItem, ProductType, ItemType } from "../api/types";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 type VariantForm = {
   name: string;
   sku: string;
-  label?: string;
   qty?: number | string;
   unit?: string;
   selling_price: number | string;
@@ -70,11 +63,17 @@ export default function MenuForm({
     (initialData?.product_type as ProductType) ??
       (initialData && initialData.variants.length > 1 ? "variant" : "simple"),
   );
+  const [itemType, setItemType] = useState<ItemType>((initialData as any)?.item_type ?? "service");
+  const initialImages: string[] =
+    ((initialData as any)?.image_urls as string[]) ??
+    ((initialData as any)?.images ? (initialData as any).images.map((i: any) => i.url) : []) ??
+    ((initialData as any)?.image_url ? [(initialData as any).image_url] : []);
+  const [images, setImages] = useState<string[]>(initialImages);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [variants, setVariants] = useState<VariantForm[]>(
     initialData?.variants.map((v) => ({
       name: v.name,
       sku: v.sku,
-      label: v.label,
       qty: v.qty,
       unit: v.unit,
       selling_price: v.selling_price,
@@ -85,7 +84,6 @@ export default function MenuForm({
       {
         name: "Regular",
         sku: "",
-        label: "",
         selling_price: 0,
         qty: "",
         unit: "pcs",
@@ -99,11 +97,48 @@ export default function MenuForm({
     initialData?.available_channels ?? ["dine_in", "pickup", "delivery"],
   );
 
+  const handleFiles = (files: FileList | null) => {
+    if (!files) return;
+    const arr = Array.from(files);
+    if (images.length + arr.length > 6) {
+      toast.error("Max 6 images");
+      return;
+    }
+    const valid: string[] = [];
+    for (const f of arr) {
+      if (!f.type.startsWith("image/")) {
+        toast.error(`${f.name}: not an image`);
+        continue;
+      }
+      if (f.size > 5 * 1024 * 1024) {
+        toast.error(`${f.name}: max 5MB`);
+        continue;
+      }
+      valid.push(URL.createObjectURL(f));
+    }
+    if (valid.length) setImages((p) => [...p, ...valid].slice(0, 6));
+  };
+  const removeImage = (idx: number) => setImages((p) => p.filter((_, i) => i !== idx));
+  const setPrimary = (idx: number) => setImages((p) => [p[idx], ...p.filter((_, i) => i !== idx)]);
+  const moveImage = (idx: number, dir: -1 | 1) => {
+    const n = idx + dir;
+    if (n < 0 || n >= images.length) return;
+    setImages((p) => {
+      const c = [...p];
+      const [v] = c.splice(idx, 1);
+      c.splice(n, 0, v);
+      return c;
+    });
+  };
+
   const createMut = useMutation({
     mutationFn: (v: any) =>
       createMenuItem({
         ...v,
+        item_type: itemType,
         product_type: productType,
+        image_urls: images,
+        images: images.map((url, i) => ({ url, sort_order: i })),
         variants:
           productType === "simple"
             ? [
@@ -143,7 +178,10 @@ export default function MenuForm({
     mutationFn: (v: any) =>
       updateMenuItem(initialData!.id, {
         ...v,
+        item_type: itemType,
         product_type: productType,
+        image_urls: images,
+        images: images.map((url, i) => ({ url, sort_order: i })),
         variants:
           productType === "simple"
             ? [
@@ -207,6 +245,7 @@ export default function MenuForm({
         return setVariantsError("Add at least one variant");
       if (productType === "variant" && toValidate.length > 8)
         return setVariantsError("Max 8 variants per item");
+      if (images.length > 6) return toast.error("Max 6 images");
       for (let i = 0; i < toValidate.length; i++) {
         const v = toValidate[i];
         if (productType === "variant" && !v.name)
@@ -221,8 +260,19 @@ export default function MenuForm({
             `${productType === "simple" ? "Price" : `Variant ${i + 1}: price`} ≥0`,
           );
       }
+      if (value.hsn_code) {
+        if (itemType === "service" && !/^[0-9]{6}$/.test(value.hsn_code))
+          return toast.error("Invalid SAC 6 digits for service (e.g., 996331)");
+        if (itemType === "goods" && !/^[0-9]{4,8}$/.test(value.hsn_code))
+          return toast.error("Invalid HSN 4-8 digits for goods");
+      }
       setVariantsError(null);
-      const payload = { ...value, veg_type: value.veg_type || "veg", product_type: productType };
+      const payload = {
+        ...value,
+        veg_type: value.veg_type || "veg",
+        product_type: productType,
+        item_type: itemType,
+      };
       if (isEdit) await updateMut.mutateAsync(payload);
       else await createMut.mutateAsync(payload);
     },
@@ -235,7 +285,6 @@ export default function MenuForm({
       {
         name: "",
         sku: "",
-        label: "",
         selling_price: 0,
         qty: "",
         unit: "pcs",
@@ -249,6 +298,16 @@ export default function MenuForm({
   const removeVariant = (idx: number) => {
     if (variants.length === 1) return toast.error("At least one variant required");
     setVariants((p) => p.filter((_, i) => i !== idx));
+  };
+  const moveVariant = (idx: number, dir: -1 | 1) => {
+    const n = idx + dir;
+    if (n < 0 || n >= variants.length) return;
+    setVariants((p) => {
+      const c = [...p];
+      const [v] = c.splice(idx, 1);
+      c.splice(n, 0, v);
+      return c;
+    });
   };
   const toggleChannel = (ch: string) =>
     setAvailableChannels((prev) =>
@@ -339,7 +398,24 @@ export default function MenuForm({
                   }}
                 />
               </div>
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Item Type *</Label>
+                  <Select value={itemType} onValueChange={(v) => setItemType(v as ItemType)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="service">Service — Restaurant food (SAC)</SelectItem>
+                      <SelectItem value="goods">Goods — Packaged (HSN)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {itemType === "goods"
+                      ? "Supply of Goods — 5% / 18% (HSN)"
+                      : "Supply of Service — 5% (SAC 996331)"}
+                  </p>
+                </div>
                 <form.AppField
                   name="veg_type"
                   children={(field) => (
@@ -395,6 +471,117 @@ export default function MenuForm({
                 )}
               />
             </FieldGroup>
+          </CardContent>
+        </Card>
+
+        {/* Images — multi (max 6) */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Images</CardTitle>
+            <CardDescription>
+              Up to 6 images. First is primary. Drag reorder with arrows.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => handleFiles(e.target.files)}
+            />
+            {images.length === 0 ? (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex w-full flex-col items-center justify-center rounded-lg border border-dashed p-6 text-sm text-muted-foreground hover:bg-muted/50"
+              >
+                <Icons.upload className="mb-2 h-6 w-6" />
+                Click to upload images (PNG/JPG/WebP, 5MB, max 6)
+              </button>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                {images.map((url, idx) => (
+                  <div
+                    key={idx}
+                    className={cn(
+                      "relative rounded-lg border p-2",
+                      idx === 0 && "ring-2 ring-primary",
+                    )}
+                  >
+                    <img
+                      src={url}
+                      alt={`image-${idx}`}
+                      className="h-24 w-full rounded object-cover"
+                    />
+                    {idx === 0 && (
+                      <span className="absolute left-2 top-2 rounded bg-primary px-1.5 py-0.5 text-xs text-primary-foreground">
+                        ★ Primary
+                      </span>
+                    )}
+                    <div className="mt-2 flex items-center justify-between gap-1">
+                      <div className="flex gap-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          onClick={() => moveImage(idx, -1)}
+                          disabled={idx === 0}
+                          title="Move left"
+                        >
+                          <Icons.chevronUp className="h-3 w-3 rotate-[-90deg]" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          onClick={() => moveImage(idx, 1)}
+                          disabled={idx === images.length - 1}
+                          title="Move right"
+                        >
+                          <Icons.chevronUp className="h-3 w-3 rotate-90" />
+                        </Button>
+                      </div>
+                      <div className="flex gap-1">
+                        {idx !== 0 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPrimary(idx)}
+                            className="h-6 px-2 text-xs"
+                          >
+                            Set primary
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => removeImage(idx)}
+                          className="h-6 w-6"
+                        >
+                          <Icons.trash className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {images.length < 6 && (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex h-24 items-center justify-center rounded-lg border border-dashed text-xs text-muted-foreground hover:bg-muted/50"
+                  >
+                    <Icons.add className="mr-1 h-4 w-4" /> Add more
+                  </button>
+                )}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {images.length}/6 images {images.length >= 6 && "— max reached"}
+            </p>
           </CardContent>
         </Card>
 
@@ -528,7 +715,7 @@ export default function MenuForm({
             <CardHeader>
               <CardTitle className="text-base">Variants *</CardTitle>
               <CardDescription>
-                Flexible sizes — Small/Large/250ml/500ml/100gr etc. User creates different types.
+                Flexible sizes — Small/Large/250ml/500ml/100gr etc. Toggle Active at row start.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -546,7 +733,56 @@ export default function MenuForm({
               </div>
               {variants.map((v, idx) => (
                 <div key={idx} className="space-y-3 rounded-lg border p-3">
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[140px_140px_110px_90px_90px_40px]">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded bg-muted text-xs font-medium">
+                      #{idx + 1}
+                    </span>
+                    <Switch
+                      checked={v.is_active ?? true}
+                      onCheckedChange={(nv) => updateVariant(idx, { is_active: nv })}
+                    />
+                    <span
+                      className={cn(
+                        "text-xs font-medium",
+                        (v.is_active ?? true) ? "text-foreground" : "text-muted-foreground",
+                      )}
+                    >
+                      {(v.is_active ?? true) ? "Active" : "Inactive"}
+                    </span>
+                    <span className="text-xs text-muted-foreground">— POS visible</span>
+                    <div className="ml-auto flex gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => moveVariant(idx, -1)}
+                        disabled={idx === 0}
+                        title="Move up"
+                      >
+                        <Icons.chevronUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => moveVariant(idx, 1)}
+                        disabled={idx === variants.length - 1}
+                        title="Move down"
+                      >
+                        <Icons.chevronDown className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => removeVariant(idx)}
+                        disabled={variants.length === 1}
+                      >
+                        <Icons.trash className="size-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[140px_140px_110px_90px_110px]">
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Name *</Label>
                       <Input
@@ -608,27 +844,8 @@ export default function MenuForm({
                         }
                       />
                     </div>
-                    <div className="flex items-end pb-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => removeVariant(idx)}
-                        disabled={variants.length === 1}
-                      >
-                        <Icons.trash className="size-4" />
-                      </Button>
-                    </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[140px_140px_140px_1fr]">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Label</Label>
-                      <Input
-                        placeholder="250ml display"
-                        value={v.label ?? ""}
-                        onChange={(e) => updateVariant(idx, { label: e.target.value })}
-                      />
-                    </div>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[140px_140px_140px]">
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Barcode</Label>
                       <Input
@@ -652,15 +869,6 @@ export default function MenuForm({
                         }
                       />
                     </div>
-                    <div className="flex items-end pb-1">
-                      <label className="flex items-center gap-1 text-xs">
-                        <Switch
-                          checked={v.is_active ?? true}
-                          onCheckedChange={(nv) => updateVariant(idx, { is_active: nv })}
-                        />{" "}
-                        Active
-                      </label>
-                    </div>
                   </div>
                 </div>
               ))}
@@ -674,8 +882,9 @@ export default function MenuForm({
           <CardHeader>
             <CardTitle className="text-base">Tax & Channels</CardTitle>
             <CardDescription>
-              Optional GST, channels dine-in/pickup/delivery + aggregators zomato/swiggy/ondc.
-              Single menu via flags.
+              {itemType === "goods"
+                ? "Goods: HSN + 5%/18% (Biscuits/Cookies/Chocolates). 5% Basic, 18% Premium."
+                : "Service: SAC + 5% (Dine-in/Takeaway restaurant service)."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -705,16 +914,37 @@ export default function MenuForm({
                     <form.AppField
                       name="tax_percent"
                       children={(field) => (
-                        <field.TextField label="Tax %" type="number" placeholder="5" />
+                        <field.SelectField
+                          label="GST Rate"
+                          options={
+                            itemType === "goods"
+                              ? ([
+                                  { label: "5% — Standard/Basic", value: "5" },
+                                  { label: "12%", value: "12" },
+                                  { label: "18% — Premium/Branded", value: "18" },
+                                  { label: "28%", value: "28" },
+                                ] as any)
+                              : ([
+                                  { label: "0% — Exempt", value: "0" },
+                                  { label: "5% — Restaurant Service", value: "5" },
+                                  { label: "18% — With ITC", value: "18" },
+                                ] as any)
+                          }
+                          placeholder={itemType === "goods" ? "5 or 18" : "5"}
+                        />
                       )}
                     />
                     <form.AppField
                       name="hsn_code"
                       children={(field) => (
                         <field.TextField
-                          label="HSN"
-                          placeholder="21069030"
-                          description="4-8 digits"
+                          label={itemType === "goods" ? "HSN" : "SAC"}
+                          placeholder={itemType === "goods" ? "19059040" : "996331"}
+                          description={
+                            itemType === "goods"
+                              ? "4-8 digits (goods)"
+                              : "6 digits (service) e.g., 996331 restaurant, 999732 packing"
+                          }
                         />
                       )}
                     />
@@ -754,7 +984,7 @@ export default function MenuForm({
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Single menu, channel flags — Takeaway = Pickup (counter), Dine-in table, Delivery
-                  courier. No-variant items use 1 Regular variant.
+                  courier.
                 </p>
               </div>
             </FieldGroup>

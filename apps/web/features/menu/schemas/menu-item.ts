@@ -3,7 +3,6 @@ import * as z from "zod";
 export const menuVariantSchema = z.object({
   name: z.string().min(1, "Variant name required"), // Small, Large, 250ml etc — user creates different type
   sku: z.string().min(2, "SKU required"),
-  label: z.string().optional(),
   qty: z.number().min(0).optional(),
   unit: z.string().optional(), // ml, gr, pcs
   selling_price: z.number().min(0, "Price ≥0"),
@@ -18,6 +17,8 @@ export const menuItemSchema = z.object({
   category_id: z.string().min(1, "Category required"),
   description: z.string().max(500).optional().or(z.literal("")),
   product_type: z.enum(["simple", "variant"]).optional(),
+  item_type: z.enum(["goods", "service"]).optional(),
+  image_urls: z.array(z.string().url()).max(6, "Max 6 images").optional(),
   veg_type: z.enum(["veg", "nonveg", "egg"]),
   spice_level: z.enum(["mild", "medium", "spicy"]).optional().or(z.literal("")),
   prep_time_min: z.number().min(0).optional(),

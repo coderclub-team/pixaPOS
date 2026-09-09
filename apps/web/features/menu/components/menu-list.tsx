@@ -95,8 +95,14 @@ function MenuRow({ item }: { item: MenuItem }) {
       max = Math.max(...prices);
     return min === max ? `₹${min}` : `₹${min} – ₹${max}`;
   })();
+  const thumb = ((item as any).images?.[0]?.url ??
+    (item as any).image_url ??
+    (item as any).image_urls?.[0]) as string | undefined;
   const visibleVariants = item.variants.slice(0, 3);
   const remaining = item.variants.length - visibleVariants.length;
+  const galleryCount = ((item as any).images?.length ??
+    (item as any).image_urls?.length ??
+    0) as number;
   return (
     <>
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
@@ -117,20 +123,49 @@ function MenuRow({ item }: { item: MenuItem }) {
       </Dialog>
       <TableRow>
         <TableCell>
-          <div className="flex items-center gap-1.5">
-            <span
-              className={`inline-block size-1.5 rounded-full ${item.veg_type === "veg" ? "bg-green-600" : item.veg_type === "nonveg" ? "bg-destructive" : "bg-amber-500"}`}
-              title={item.veg_type}
-            />
-            <span className="font-medium">{item.name}</span>
-            {!item.is_active && <span className="text-xs text-muted-foreground">• Inactive</span>}
-          </div>
-          <div className="text-xs text-muted-foreground">
-            {item.variants
-              .map((v) => v.sku)
-              .slice(0, 2)
-              .join(", ")}
-            {item.variants.length > 2 ? " …" : ""}
+          <div className="flex items-center gap-2">
+            {thumb ? (
+              <img src={thumb} alt={item.name} className="h-8 w-8 rounded object-cover border" />
+            ) : (
+              <span
+                className={`inline-flex h-8 w-8 items-center justify-center rounded border text-xs ${item.veg_type === "veg" ? "bg-green-600 text-white" : item.veg_type === "nonveg" ? "bg-destructive text-white" : "bg-amber-500 text-white"}`}
+                title={item.veg_type}
+              >
+                {(item.name[0] ?? "?").toUpperCase()}
+              </span>
+            )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`inline-block size-1.5 rounded-full ${item.veg_type === "veg" ? "bg-green-600" : item.veg_type === "nonveg" ? "bg-destructive" : "bg-amber-500"}`}
+                  title={item.veg_type}
+                />
+                <span className="font-medium truncate">{item.name}</span>
+                {(item as any).item_type === "goods" && (
+                  <span className="rounded border px-1 py-0 text-xs text-muted-foreground">
+                    Goods
+                  </span>
+                )}
+                {(item as any).item_type === "service" && (
+                  <span className="rounded border px-1 py-0 text-xs text-muted-foreground">
+                    Service
+                  </span>
+                )}
+                {!item.is_active && (
+                  <span className="text-xs text-muted-foreground">• Inactive</span>
+                )}
+                {galleryCount > 1 && (
+                  <span className="text-xs text-muted-foreground">• +{galleryCount - 1}</span>
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground truncate">
+                {item.variants
+                  .map((v) => v.sku)
+                  .slice(0, 2)
+                  .join(", ")}
+                {item.variants.length > 2 ? " …" : ""}
+              </div>
+            </div>
           </div>
         </TableCell>
         <TableCell className="text-sm capitalize text-muted-foreground">
@@ -143,7 +178,7 @@ function MenuRow({ item }: { item: MenuItem }) {
           {visibleVariants
             .map(
               (v) =>
-                `${v.name}${v.label ? ` (${v.label})` : v.qty ? ` ${v.qty}${v.unit ?? ""}` : ""}${v.is_default ? " ★" : ""}`,
+                `${v.name}${v.qty ? ` ${v.qty}${v.unit ?? ""}` : ""}${v.is_default ? " ★" : ""}${v.is_active === false ? " (off)" : ""}`,
             )
             .join(", ")}
           {remaining > 0 && <span className="text-muted-foreground"> +{remaining} more</span>}
