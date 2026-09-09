@@ -32,7 +32,8 @@ import { getQueryClient } from "@/lib/query-client";
 import type { MenuItem, ProductType, ItemType } from "../api/types";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
-import { useState, useRef } from "react";
+import { useState } from "react";
+import { FileUploader } from "@/components/file-uploader";
 
 type VariantForm = {
   name: string;
@@ -69,7 +70,7 @@ export default function MenuForm({
     ((initialData as any)?.images ? (initialData as any).images.map((i: any) => i.url) : []) ??
     ((initialData as any)?.image_url ? [(initialData as any).image_url] : []);
   const [images, setImages] = useState<string[]>(initialImages);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [variants, setVariants] = useState<VariantForm[]>(
     initialData?.variants.map((v) => ({
       name: v.name,
@@ -97,28 +98,21 @@ export default function MenuForm({
     initialData?.available_channels ?? ["dine_in", "pickup", "delivery"],
   );
 
-  const handleFiles = (files: FileList | null) => {
-    if (!files) return;
-    const arr = Array.from(files);
-    if (images.length + arr.length > 6) {
-      toast.error("Max 6 images");
-      return;
+  const syncFromUploader = (files: File[]) => {
+    const remaining = 6 - images.length;
+    if (files.length > remaining) {
+      toast.error(`Only ${remaining} more image(s) allowed (max 6)`);
     }
-    const valid: string[] = [];
-    for (const f of arr) {
-      if (!f.type.startsWith("image/")) {
-        toast.error(`${f.name}: not an image`);
-        continue;
-      }
-      if (f.size > 5 * 1024 * 1024) {
-        toast.error(`${f.name}: max 5MB`);
-        continue;
-      }
-      valid.push(URL.createObjectURL(f));
-    }
-    if (valid.length) setImages((p) => [...p, ...valid].slice(0, 6));
+    const toAdd = files.slice(0, remaining);
+    const urls = toAdd.map((f) => URL.createObjectURL(f));
+    if (urls.length) setImages((p) => [...p, ...urls].slice(0, 6));
+    setUploadFiles([]);
   };
-  const removeImage = (idx: number) => setImages((p) => p.filter((_, i) => i !== idx));
+  const removeImage = (idx: number) => {
+    const url = images[idx];
+    if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+    setImages((p) => p.filter((_, i) => i !== idx));
+  };
   const setPrimary = (idx: number) => setImages((p) => [p[idx], ...p.filter((_, i) => i !== idx)]);
   const moveImage = (idx: number, dir: -1 | 1) => {
     const n = idx + dir;
@@ -315,7 +309,7 @@ export default function MenuForm({
     );
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6">
+    <div className="mx-auto w-full max-w-5xl space-y-6">
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -474,114 +468,114 @@ export default function MenuForm({
           </CardContent>
         </Card>
 
-        {/* Images — multi (max 6) */}
+        {/* Images — outlet profile FileUploader pattern */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Images</CardTitle>
             <CardDescription>
-              Up to 6 images. First is primary. Drag reorder with arrows.
+              Up to 6 images (JPG/PNG/WebP, 5MB each). First is primary — use arrows to reorder.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
+          <CardContent className="space-y-4">
+            <FileUploader
+              value={uploadFiles}
+              onValueChange={(files) => {
+                const next = typeof files === "function" ? (files as any)(uploadFiles) : files;
+                if (next.length > uploadFiles.length) {
+                  const added = next.slice(uploadFiles.length);
+                  syncFromUploader(added);
+                } else {
+                  setUploadFiles(next);
+                }
+              }}
+              maxFiles={6 - images.length || 1}
+              maxSize={5 * 1024 * 1024}
               multiple
-              className="hidden"
-              onChange={(e) => handleFiles(e.target.files)}
+              accept={{ "image/*": [] }}
+              className={images.length >= 6 ? "pointer-events-none opacity-60" : ""}
             />
-            {images.length === 0 ? (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex w-full flex-col items-center justify-center rounded-lg border border-dashed p-6 text-sm text-muted-foreground hover:bg-muted/50"
-              >
-                <Icons.upload className="mb-2 h-6 w-6" />
-                Click to upload images (PNG/JPG/WebP, 5MB, max 6)
-              </button>
-            ) : (
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-                {images.map((url, idx) => (
-                  <div
-                    key={idx}
-                    className={cn(
-                      "relative rounded-lg border p-2",
-                      idx === 0 && "ring-2 ring-primary",
-                    )}
-                  >
-                    <img
-                      src={url}
-                      alt={`image-${idx}`}
-                      className="h-24 w-full rounded object-cover"
-                    />
-                    {idx === 0 && (
-                      <span className="absolute left-2 top-2 rounded bg-primary px-1.5 py-0.5 text-xs text-primary-foreground">
-                        ★ Primary
+            {images.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Gallery {images.length}/6 {images.length >= 6 && "— max reached"}
+                </p>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                  {images.map((url, idx) => (
+                    <div
+                      key={idx}
+                      className={cn(
+                        "relative overflow-hidden rounded-lg border bg-muted/20 p-2",
+                        idx === 0 && "ring-2 ring-primary",
+                      )}
+                    >
+                      <img
+                        src={url}
+                        alt={`image-${idx + 1}`}
+                        className="h-20 w-full rounded object-cover"
+                      />
+                      {idx === 0 && (
+                        <span className="absolute left-2 top-2 rounded bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground">
+                          ★ Primary
+                        </span>
+                      )}
+                      <span className="absolute right-2 top-2 rounded bg-background/90 px-1 py-0.5 text-xs font-mono">
+                        {idx + 1}
                       </span>
-                    )}
-                    <div className="mt-2 flex items-center justify-between gap-1">
-                      <div className="flex gap-1">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon-sm"
-                          onClick={() => moveImage(idx, -1)}
-                          disabled={idx === 0}
-                          title="Move left"
-                        >
-                          <Icons.chevronUp className="h-3 w-3 rotate-[-90deg]" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon-sm"
-                          onClick={() => moveImage(idx, 1)}
-                          disabled={idx === images.length - 1}
-                          title="Move right"
-                        >
-                          <Icons.chevronUp className="h-3 w-3 rotate-90" />
-                        </Button>
-                      </div>
-                      <div className="flex gap-1">
-                        {idx !== 0 && (
+                      <div className="mt-2 flex items-center justify-between gap-1">
+                        <div className="flex gap-1">
                           <Button
                             type="button"
                             variant="outline"
-                            size="sm"
-                            onClick={() => setPrimary(idx)}
-                            className="h-6 px-2 text-xs"
+                            size="icon-sm"
+                            className="h-6 w-6"
+                            onClick={() => moveImage(idx, -1)}
+                            disabled={idx === 0}
+                            title="Move left"
                           >
-                            Set primary
+                            <Icons.chevronLeft className="h-3 w-3" />
                           </Button>
-                        )}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => removeImage(idx)}
-                          className="h-6 w-6"
-                        >
-                          <Icons.trash className="h-3 w-3" />
-                        </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon-sm"
+                            className="h-6 w-6"
+                            onClick={() => moveImage(idx, 1)}
+                            disabled={idx === images.length - 1}
+                            title="Move right"
+                          >
+                            <Icons.chevronRight className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <div className="flex gap-1">
+                          {idx !== 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setPrimary(idx)}
+                              className="h-6 px-2 text-xs"
+                              title="Make primary"
+                            >
+                              Primary
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => removeImage(idx)}
+                            className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                            title="Remove"
+                          >
+                            <Icons.trash className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-                {images.length < 6 && (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex h-24 items-center justify-center rounded-lg border border-dashed text-xs text-muted-foreground hover:bg-muted/50"
-                  >
-                    <Icons.add className="mr-1 h-4 w-4" /> Add more
-                  </button>
-                )}
+                  ))}
+                </div>
               </div>
             )}
-            <p className="text-xs text-muted-foreground">
-              {images.length}/6 images {images.length >= 6 && "— max reached"}
-            </p>
           </CardContent>
         </Card>
 
@@ -664,8 +658,8 @@ export default function MenuForm({
               <CardTitle className="text-base">Pricing</CardTitle>
               <CardDescription>Simple item — SKU + Price</CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_140px_1fr]">
-              <div className="space-y-1">
+            <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-4">
+              <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">SKU *</Label>
                 <Input
                   placeholder="IDLY-001"
@@ -673,7 +667,7 @@ export default function MenuForm({
                   onChange={(e) => updateVariant(0, { sku: e.target.value, name: "Regular" })}
                 />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Price *</Label>
                 <Input
                   type="number"
@@ -686,7 +680,7 @@ export default function MenuForm({
                   }
                 />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Barcode</Label>
                 <Input
                   placeholder="890123..."
@@ -694,7 +688,7 @@ export default function MenuForm({
                   onChange={(e) => updateVariant(0, { barcode: e.target.value })}
                 />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Compare Price</Label>
                 <Input
                   type="number"
@@ -782,8 +776,8 @@ export default function MenuForm({
                       </Button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[140px_140px_110px_90px_110px]">
-                    <div className="space-y-1">
+                  <div className="grid grid-cols-2 gap-4 md:grid-cols-12">
+                    <div className="col-span-2 md:col-span-3 space-y-1.5">
                       <Label className="text-xs text-muted-foreground">Name *</Label>
                       <Input
                         placeholder="Small / 250ml"
@@ -791,7 +785,7 @@ export default function MenuForm({
                         onChange={(e) => updateVariant(idx, { name: e.target.value })}
                       />
                     </div>
-                    <div className="space-y-1">
+                    <div className="col-span-2 md:col-span-3 space-y-1.5">
                       <Label className="text-xs text-muted-foreground">SKU *</Label>
                       <Input
                         placeholder="BIRY-SM-001"
@@ -799,7 +793,7 @@ export default function MenuForm({
                         onChange={(e) => updateVariant(idx, { sku: e.target.value })}
                       />
                     </div>
-                    <div className="space-y-1">
+                    <div className="col-span-1 md:col-span-2 space-y-1.5">
                       <Label className="text-xs text-muted-foreground">Qty</Label>
                       <Input
                         type="number"
@@ -812,7 +806,7 @@ export default function MenuForm({
                         }
                       />
                     </div>
-                    <div className="space-y-1">
+                    <div className="col-span-1 md:col-span-2 space-y-1.5">
                       <Label className="text-xs text-muted-foreground">Unit</Label>
                       <Select
                         value={v.unit ?? "pcs"}
@@ -830,7 +824,7 @@ export default function MenuForm({
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-1">
+                    <div className="col-span-2 md:col-span-2 space-y-1.5">
                       <Label className="text-xs text-muted-foreground">Price *</Label>
                       <Input
                         type="number"
@@ -845,8 +839,8 @@ export default function MenuForm({
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[140px_140px_140px]">
-                    <div className="space-y-1">
+                  <div className="grid grid-cols-2 gap-4 md:grid-cols-12">
+                    <div className="col-span-1 md:col-span-4 space-y-1.5">
                       <Label className="text-xs text-muted-foreground">Barcode</Label>
                       <Input
                         placeholder="890123..."
@@ -854,7 +848,7 @@ export default function MenuForm({
                         onChange={(e) => updateVariant(idx, { barcode: e.target.value })}
                       />
                     </div>
-                    <div className="space-y-1">
+                    <div className="col-span-1 md:col-span-4 space-y-1.5">
                       <Label className="text-xs text-muted-foreground">Compare Price</Label>
                       <Input
                         type="number"
