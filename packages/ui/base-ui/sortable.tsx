@@ -1,8 +1,10 @@
 "use client";
 
 import {
+  closestCenter,
   DndContext,
   KeyboardSensor,
+  MeasuringStrategy,
   MouseSensor,
   TouchSensor,
   type DndContextProps,
@@ -138,7 +140,8 @@ function SortableList<T>(props: SortableListProps<T>) {
     <SortableListContext.Provider value={contextValue}>
       <DndContext
         sensors={sensors}
-        collisionDetection={undefined}
+        collisionDetection={closestCenter}
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
         accessibility={
           {
             screenReaderInstructions: {
