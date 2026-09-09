@@ -309,7 +309,7 @@ export default function MenuForm({
     );
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6">
+    <div className="mx-auto w-full max-w-4xl space-y-6">
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -392,7 +392,7 @@ export default function MenuForm({
                   }}
                 />
               </div>
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Item Type *</Label>
                   <Select value={itemType} onValueChange={(v) => setItemType(v as ItemType)}>
@@ -425,6 +425,8 @@ export default function MenuForm({
                     />
                   )}
                 />
+              </div>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <form.AppField
                   name="spice_level"
                   children={(field) => (
@@ -439,12 +441,22 @@ export default function MenuForm({
                     />
                   )}
                 />
-              </div>
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <form.AppField
                   name="prep_time_min"
                   children={(field) => (
                     <field.TextField label="Prep Time (min)" type="number" placeholder="15" />
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <form.AppField
+                  name="description"
+                  children={(field) => (
+                    <field.TextareaField
+                      label="Description"
+                      placeholder="Hyderabadi dum..."
+                      rows={2}
+                    />
                   )}
                 />
                 <form.AppField
@@ -454,16 +466,6 @@ export default function MenuForm({
                   )}
                 />
               </div>
-              <form.AppField
-                name="description"
-                children={(field) => (
-                  <field.TextareaField
-                    label="Description"
-                    placeholder="Hyderabadi dum..."
-                    rows={2}
-                  />
-                )}
-              />
             </FieldGroup>
           </CardContent>
         </Card>
@@ -743,7 +745,6 @@ export default function MenuForm({
                     >
                       {(v.is_active ?? true) ? "Active" : "Inactive"}
                     </span>
-                    <span className="text-xs text-muted-foreground">— POS visible</span>
                     <div className="ml-auto flex gap-1">
                       <Button
                         type="button"
@@ -777,7 +778,7 @@ export default function MenuForm({
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4 md:grid-cols-12">
-                    <div className="col-span-2 md:col-span-3 space-y-1.5">
+                    <div className="col-span-1 md:col-span-3 space-y-1.5">
                       <Label className="text-xs text-muted-foreground">Name *</Label>
                       <Input
                         placeholder="Small / 250ml"
@@ -785,7 +786,7 @@ export default function MenuForm({
                         onChange={(e) => updateVariant(idx, { name: e.target.value })}
                       />
                     </div>
-                    <div className="col-span-2 md:col-span-3 space-y-1.5">
+                    <div className="col-span-1 md:col-span-3 space-y-1.5">
                       <Label className="text-xs text-muted-foreground">SKU *</Label>
                       <Input
                         placeholder="BIRY-SM-001"
@@ -840,7 +841,7 @@ export default function MenuForm({
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4 md:grid-cols-12">
-                    <div className="col-span-1 md:col-span-4 space-y-1.5">
+                    <div className="col-span-1 md:col-span-6 space-y-1.5">
                       <Label className="text-xs text-muted-foreground">Barcode</Label>
                       <Input
                         placeholder="890123..."
@@ -848,7 +849,7 @@ export default function MenuForm({
                         onChange={(e) => updateVariant(idx, { barcode: e.target.value })}
                       />
                     </div>
-                    <div className="col-span-1 md:col-span-4 space-y-1.5">
+                    <div className="col-span-1 md:col-span-6 space-y-1.5">
                       <Label className="text-xs text-muted-foreground">Compare Price</Label>
                       <Input
                         type="number"
@@ -891,7 +892,7 @@ export default function MenuForm({
               />
               {(form.getFieldValue("taxable" as any) as boolean) && (
                 <>
-                  <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-[1fr_1fr_1.2fr]">
                     <form.AppField
                       name="tax_type"
                       children={(field) => (
