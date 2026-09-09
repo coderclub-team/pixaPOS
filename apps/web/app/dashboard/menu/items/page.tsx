@@ -23,7 +23,7 @@ export default function MenuItemsPage() {
   const [veg, setVeg] = React.useState<string | undefined>(undefined);
   const [channel, setChannel] = React.useState<string | undefined>(undefined);
   const [itemType, setItemType] = React.useState<string | undefined>(undefined);
-  const [showActiveOnly, setShowActiveOnly] = React.useState(true);
+  const [status, setStatus] = React.useState<string | undefined>("active");
   const [inputValue, setInputValue] = React.useState("");
   React.useEffect(() => {
     const id = setTimeout(() => setSearch(inputValue), 300);
@@ -37,7 +37,7 @@ export default function MenuItemsPage() {
       veg_type: veg as any,
       channel: channel as any,
       item_type: itemType as any,
-      is_active: showActiveOnly ? true : undefined,
+      is_active: status === "active" ? true : status === "inactive" ? false : undefined,
     }),
   );
   if (isPending)
@@ -123,14 +123,16 @@ export default function MenuItemsPage() {
             <SelectItem value="service">Service</SelectItem>
           </SelectContent>
         </Select>
-        <label className="flex items-center gap-1 text-xs">
-          <input
-            type="checkbox"
-            checked={showActiveOnly}
-            onChange={(e) => setShowActiveOnly(e.target.checked)}
-          />{" "}
-          Active only
-        </label>
+        <Select value={status ?? "all"} onValueChange={(v) => setStatus(v === "all" ? undefined : v)}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="All status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All status</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       <MenuList items={items ?? []} />
     </PageContainer>
