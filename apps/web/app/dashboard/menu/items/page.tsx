@@ -84,7 +84,7 @@ export default function MenuItemsPage() {
         </Select>
         <Select value={veg ?? "all"} onValueChange={(v) => setVeg(v === "all" ? undefined : v)}>
           <SelectTrigger className="w-[130px]">
-            <SelectValue placeholder="All veg" />
+            <SelectValue placeholder="All dietary" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All</SelectItem>

@@ -34,8 +34,10 @@ import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { useState } from "react";
 import { FileUploader } from "@/components/file-uploader";
+import { SortableList, SortableItem, SortableItemHandle } from "@pixa/ui/base-ui/sortable";
 
 type VariantForm = {
+  _uid: string;
   name: string;
   sku: string;
   qty?: number | string;
@@ -47,6 +49,8 @@ type VariantForm = {
   is_default?: boolean;
   is_active?: boolean;
 };
+
+const uid = () => `v_${Math.random().toString(36).slice(2, 10)}`;
 
 export default function MenuForm({
   initialData,
@@ -73,6 +77,7 @@ export default function MenuForm({
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [variants, setVariants] = useState<VariantForm[]>(
     initialData?.variants.map((v) => ({
+      _uid: uid(),
       name: v.name,
       sku: v.sku,
       qty: v.qty,
@@ -83,6 +88,7 @@ export default function MenuForm({
       is_active: v.is_active,
     })) ?? [
       {
+        _uid: uid(),
         name: "Regular",
         sku: "",
         selling_price: 0,
@@ -114,16 +120,13 @@ export default function MenuForm({
     setImages((p) => p.filter((_, i) => i !== idx));
   };
   const setPrimary = (idx: number) => setImages((p) => [p[idx], ...p.filter((_, i) => i !== idx)]);
-  const moveImage = (idx: number, dir: -1 | 1) => {
-    const n = idx + dir;
-    if (n < 0 || n >= images.length) return;
+  const reorderImage = (from: number, to: number) =>
     setImages((p) => {
       const c = [...p];
-      const [v] = c.splice(idx, 1);
-      c.splice(n, 0, v);
+      const [v] = c.splice(from, 1);
+      c.splice(to, 0, v);
       return c;
     });
-  };
 
   const createMut = useMutation({
     mutationFn: (v: any) =>
@@ -277,6 +280,7 @@ export default function MenuForm({
     setVariants((p) => [
       ...p,
       {
+        _uid: uid(),
         name: "",
         sku: "",
         selling_price: 0,
@@ -303,6 +307,13 @@ export default function MenuForm({
       return c;
     });
   };
+  const reorderVariant = (from: number, to: number) =>
+    setVariants((p) => {
+      const c = [...p];
+      const [v] = c.splice(from, 1);
+      c.splice(to, 0, v);
+      return c;
+    });
   const toggleChannel = (ch: string) =>
     setAvailableChannels((prev) =>
       prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch],
@@ -414,7 +425,7 @@ export default function MenuForm({
                   name="veg_type"
                   children={(field) => (
                     <field.SelectField
-                      label="Veg Type *"
+                      label="Dietary Type *"
                       required
                       options={[
                         { label: "Veg", value: "veg" },
@@ -501,81 +512,67 @@ export default function MenuForm({
                 <p className="text-xs font-medium text-muted-foreground">
                   Gallery {images.length}/6 {images.length >= 6 && "— max reached"}
                 </p>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                  {images.map((url, idx) => (
-                    <div
-                      key={idx}
-                      className={cn(
-                        "relative overflow-hidden rounded-lg border bg-muted/20 p-2",
-                        idx === 0 && "ring-2 ring-primary",
-                      )}
-                    >
-                      <img
-                        src={url}
-                        alt={`image-${idx + 1}`}
-                        className="h-20 w-full rounded object-cover"
-                      />
-                      {idx === 0 && (
-                        <span className="absolute left-2 top-2 rounded bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground">
-                          ★ Primary
+                <SortableList
+                  value={images}
+                  getItemValue={(url) => url}
+                  onReorder={({ activeIndex, overIndex }) => reorderImage(activeIndex, overIndex)}
+                >
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                    {images.map((url, idx) => (
+                      <SortableItem
+                        key={url}
+                        value={url}
+                        className={cn(
+                          "relative overflow-hidden rounded-lg border bg-muted/20 p-2",
+                          idx === 0 && "ring-2 ring-primary",
+                        )}
+                      >
+                        <img
+                          src={url}
+                          alt={`image-${idx + 1}`}
+                          className="h-20 w-full rounded object-cover"
+                        />
+                        {idx === 0 && (
+                          <span className="absolute left-2 top-2 rounded bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground">
+                            ★ Primary
+                          </span>
+                        )}
+                        <span className="absolute right-2 top-2 rounded bg-background/90 px-1 py-0.5 text-xs font-mono">
+                          {idx + 1}
                         </span>
-                      )}
-                      <span className="absolute right-2 top-2 rounded bg-background/90 px-1 py-0.5 text-xs font-mono">
-                        {idx + 1}
-                      </span>
-                      <div className="mt-2 flex items-center justify-between gap-1">
-                        <div className="flex gap-1">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon-sm"
-                            className="h-6 w-6"
-                            onClick={() => moveImage(idx, -1)}
-                            disabled={idx === 0}
-                            title="Move left"
-                          >
-                            <Icons.chevronLeft className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon-sm"
-                            className="h-6 w-6"
-                            onClick={() => moveImage(idx, 1)}
-                            disabled={idx === images.length - 1}
-                            title="Move right"
-                          >
-                            <Icons.chevronRight className="h-3 w-3" />
-                          </Button>
-                        </div>
-                        <div className="flex gap-1">
-                          {idx !== 0 && (
+                        <div className="mt-2 flex items-center justify-between gap-1">
+                          <SortableItemHandle className="flex h-6 w-6 items-center justify-center text-muted-foreground">
+                            <Icons.gripVertical className="h-3 w-3" />
+                          </SortableItemHandle>
+                          <div className="flex gap-1">
+                            {idx !== 0 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setPrimary(idx)}
+                                className="h-6 px-2 text-xs"
+                                title="Make primary"
+                              >
+                                Primary
+                              </Button>
+                            )}
                             <Button
                               type="button"
                               variant="ghost"
-                              size="sm"
-                              onClick={() => setPrimary(idx)}
-                              className="h-6 px-2 text-xs"
-                              title="Make primary"
+                              size="icon-sm"
+                              onClick={() => removeImage(idx)}
+                              className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                              title="Remove"
                             >
-                              Primary
+                              <Icons.trash className="h-3 w-3" />
                             </Button>
-                          )}
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => removeImage(idx)}
-                            className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                            title="Remove"
-                          >
-                            <Icons.trash className="h-3 w-3" />
-                          </Button>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                      </SortableItem>
+                    ))}
+                  </div>
+                </SortableList>
               </div>
             )}
           </CardContent>
@@ -599,6 +596,7 @@ export default function MenuForm({
                   setProductType("simple");
                   setVariants((prev) => [
                     prev[0] ?? {
+                      _uid: uid(),
                       name: "Regular",
                       sku: "",
                       selling_price: 0,
@@ -621,6 +619,7 @@ export default function MenuForm({
                   if (variants.length === 1 && variants[0].name === "Regular") {
                     setVariants([
                       {
+                        _uid: uid(),
                         name: "Small",
                         sku: "",
                         selling_price: 0,
@@ -630,6 +629,7 @@ export default function MenuForm({
                         is_active: true,
                       },
                       {
+                        _uid: uid(),
                         name: "Large",
                         sku: "",
                         selling_price: 0,
@@ -727,146 +727,159 @@ export default function MenuForm({
                   <Icons.add className="mr-1 h-4 w-4" /> Add Variant
                 </Button>
               </div>
-              {variants.map((v, idx) => (
-                <div key={idx} className="space-y-3 rounded-lg border p-3">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded bg-muted text-xs font-medium">
-                      #{idx + 1}
-                    </span>
-                    <Switch
-                      checked={v.is_active ?? true}
-                      onCheckedChange={(nv) => updateVariant(idx, { is_active: nv })}
-                    />
-                    <span
-                      className={cn(
-                        "text-xs font-medium",
-                        (v.is_active ?? true) ? "text-foreground" : "text-muted-foreground",
-                      )}
-                    >
-                      {(v.is_active ?? true) ? "Active" : "Inactive"}
-                    </span>
-                    <div className="ml-auto flex gap-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => moveVariant(idx, -1)}
-                        disabled={idx === 0}
-                        title="Move up"
+              <SortableList
+                value={variants}
+                getItemValue={(v) => v._uid}
+                onReorder={({ activeIndex, overIndex }) => reorderVariant(activeIndex, overIndex)}
+              >
+                {variants.map((v, idx) => (
+                  <SortableItem
+                    key={v._uid}
+                    value={v._uid}
+                    className="space-y-3 rounded-lg border p-3"
+                  >
+                    <div className="flex items-center gap-2">
+                      <SortableItemHandle className="flex h-8 w-8 items-center justify-center text-muted-foreground">
+                        <Icons.gripVertical className="h-4 w-4" />
+                      </SortableItemHandle>
+                      <span className="flex h-6 w-6 items-center justify-center rounded bg-muted text-xs font-medium">
+                        #{idx + 1}
+                      </span>
+                      <Switch
+                        checked={v.is_active ?? true}
+                        onCheckedChange={(nv) => updateVariant(idx, { is_active: nv })}
+                      />
+                      <span
+                        className={cn(
+                          "text-xs font-medium",
+                          (v.is_active ?? true) ? "text-foreground" : "text-muted-foreground",
+                        )}
                       >
-                        <Icons.chevronUp className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => moveVariant(idx, 1)}
-                        disabled={idx === variants.length - 1}
-                        title="Move down"
-                      >
-                        <Icons.chevronDown className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => removeVariant(idx)}
-                        disabled={variants.length === 1}
-                      >
-                        <Icons.trash className="size-4" />
-                      </Button>
+                        {(v.is_active ?? true) ? "Active" : "Inactive"}
+                      </span>
+                      <div className="ml-auto flex gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => moveVariant(idx, -1)}
+                          disabled={idx === 0}
+                          title="Move up"
+                        >
+                          <Icons.chevronUp className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => moveVariant(idx, 1)}
+                          disabled={idx === variants.length - 1}
+                          title="Move down"
+                        >
+                          <Icons.chevronDown className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => removeVariant(idx)}
+                          disabled={variants.length === 1}
+                        >
+                          <Icons.trash className="size-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 md:grid-cols-12">
-                    <div className="col-span-1 md:col-span-3 space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Name *</Label>
-                      <Input
-                        placeholder="Small / 250ml"
-                        value={v.name}
-                        onChange={(e) => updateVariant(idx, { name: e.target.value })}
-                      />
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-12">
+                      <div className="col-span-1 md:col-span-3 space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Name *</Label>
+                        <Input
+                          placeholder="Small / 250ml"
+                          value={v.name}
+                          onChange={(e) => updateVariant(idx, { name: e.target.value })}
+                        />
+                      </div>
+                      <div className="col-span-1 md:col-span-3 space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">SKU *</Label>
+                        <Input
+                          placeholder="BIRY-SM-001"
+                          value={v.sku}
+                          onChange={(e) => updateVariant(idx, { sku: e.target.value })}
+                        />
+                      </div>
+                      <div className="col-span-1 md:col-span-2 space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Qty</Label>
+                        <Input
+                          type="number"
+                          placeholder="250"
+                          value={v.qty as any}
+                          onChange={(e) =>
+                            updateVariant(idx, {
+                              qty: e.target.value === "" ? "" : (Number(e.target.value) as any),
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="col-span-1 md:col-span-2 space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Unit</Label>
+                        <Select
+                          value={v.unit ?? "pcs"}
+                          onValueChange={(nv) => updateVariant(idx, { unit: nv })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pcs">pcs</SelectItem>
+                            <SelectItem value="ml">ml</SelectItem>
+                            <SelectItem value="gr">gr</SelectItem>
+                            <SelectItem value="kg">kg</SelectItem>
+                            <SelectItem value="l">l</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="col-span-2 md:col-span-2 space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Price *</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={v.selling_price as any}
+                          onChange={(e) =>
+                            updateVariant(idx, {
+                              selling_price:
+                                e.target.value === "" ? "" : (Number(e.target.value) as any),
+                            })
+                          }
+                        />
+                      </div>
                     </div>
-                    <div className="col-span-1 md:col-span-3 space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">SKU *</Label>
-                      <Input
-                        placeholder="BIRY-SM-001"
-                        value={v.sku}
-                        onChange={(e) => updateVariant(idx, { sku: e.target.value })}
-                      />
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-12">
+                      <div className="col-span-1 md:col-span-6 space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Barcode</Label>
+                        <Input
+                          placeholder="890123..."
+                          value={v.barcode ?? ""}
+                          onChange={(e) => updateVariant(idx, { barcode: e.target.value })}
+                        />
+                      </div>
+                      <div className="col-span-1 md:col-span-6 space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Compare Price</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          placeholder="299"
+                          value={(v.compare_price as any) ?? ""}
+                          onChange={(e) =>
+                            updateVariant(idx, {
+                              compare_price:
+                                e.target.value === "" ? "" : (Number(e.target.value) as any),
+                            })
+                          }
+                        />
+                      </div>
                     </div>
-                    <div className="col-span-1 md:col-span-2 space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Qty</Label>
-                      <Input
-                        type="number"
-                        placeholder="250"
-                        value={v.qty as any}
-                        onChange={(e) =>
-                          updateVariant(idx, {
-                            qty: e.target.value === "" ? "" : (Number(e.target.value) as any),
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="col-span-1 md:col-span-2 space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Unit</Label>
-                      <Select
-                        value={v.unit ?? "pcs"}
-                        onValueChange={(nv) => updateVariant(idx, { unit: nv })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pcs">pcs</SelectItem>
-                          <SelectItem value="ml">ml</SelectItem>
-                          <SelectItem value="gr">gr</SelectItem>
-                          <SelectItem value="kg">kg</SelectItem>
-                          <SelectItem value="l">l</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="col-span-2 md:col-span-2 space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Price *</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={v.selling_price as any}
-                        onChange={(e) =>
-                          updateVariant(idx, {
-                            selling_price:
-                              e.target.value === "" ? "" : (Number(e.target.value) as any),
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 md:grid-cols-12">
-                    <div className="col-span-1 md:col-span-6 space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Barcode</Label>
-                      <Input
-                        placeholder="890123..."
-                        value={v.barcode ?? ""}
-                        onChange={(e) => updateVariant(idx, { barcode: e.target.value })}
-                      />
-                    </div>
-                    <div className="col-span-1 md:col-span-6 space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Compare Price</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        placeholder="299"
-                        value={(v.compare_price as any) ?? ""}
-                        onChange={(e) =>
-                          updateVariant(idx, {
-                            compare_price:
-                              e.target.value === "" ? "" : (Number(e.target.value) as any),
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  </SortableItem>
+                ))}
+              </SortableList>
               {variantsError && <p className="text-sm text-destructive">{variantsError}</p>}
             </CardContent>
           </Card>
