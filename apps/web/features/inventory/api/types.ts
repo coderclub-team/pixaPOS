@@ -89,15 +89,54 @@ export type RecipeIngredient = {
   qty: number;
   unit: string;
   wastage_percent?: number;
+  step_no?: number; // which method step consumes it (Odoo consumed-in-operation lite)
+};
+
+export type RecipeVessel =
+  | "kadai"
+  | "handi"
+  | "tawa"
+  | "pressure_cooker"
+  | "oven"
+  | "tandoor"
+  | "steamer"
+  | "wok"
+  | "pan"
+  | "pot"
+  | "grill"
+  | "fryer"
+  | "other";
+export type HeatLevel = "low" | "medium" | "high";
+export type RecipeYieldUnit = "serves" | "plates" | "kg" | "l" | "pcs";
+
+export type RecipeStep = {
+  id: string;
+  step_no: number;
+  instruction: string;
+  vessel?: RecipeVessel;
+  vessel_note?: string; // when vessel === other, or extra detail
+  temperature_c?: number; // 0-300, Celsius only
+  heat_level?: HeatLevel;
+  duration_min?: number;
+  is_optional?: boolean;
 };
 
 export type Recipe = {
   id: string;
   name: string;
   yields: number;
+  yield_unit?: RecipeYieldUnit;
   ingredients: RecipeIngredient[];
+  steps: RecipeStep[];
   cost_per_serve: number;
   selling_price?: number;
+  prep_time_min?: number;
+  cook_time_min?: number;
+  plating_notes?: string;
+  garnish?: string;
+  serving_vessel?: string;
+  menu_item_id?: string; // back-link to menu item (variant link lives on MenuItemVariant.recipe_id)
+  photo_url?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -242,7 +281,10 @@ export type PurchaseOrderPayload = Partial<
 export type RecipePayload = Partial<
   Omit<Recipe, "id" | "created_at" | "updated_at" | "cost_per_serve">
 > &
-  Pick<Recipe, "name" | "ingredients">;
+  Pick<Recipe, "name" | "ingredients"> & {
+    steps?: Partial<RecipeStep>[];
+  };
+export type RecipeFilters = { search?: string; is_active?: boolean };
 export type WastePayload = Partial<
   Omit<WasteLog, "id" | "created_at" | "cost_loss" | "material_name">
 > &

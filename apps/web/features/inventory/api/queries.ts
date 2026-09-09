@@ -28,6 +28,7 @@ import type {
   PurchaseOrderFilters,
   PurchaseReturnFilters,
   RawMaterialFilters,
+  RecipeFilters,
   StockLedgerFilters,
   SupplierAdjustmentFilters,
   SupplierFilters,
@@ -43,7 +44,8 @@ export const inventoryKeys = {
   suppliers: (filters?: SupplierFilters) =>
     [...inventoryKeys.all, "suppliers", filters ?? {}] as const,
   supplier: (id: string) => [...inventoryKeys.all, "supplier", id] as const,
-  recipes: () => [...inventoryKeys.all, "recipes"] as const,
+  recipes: (filters?: RecipeFilters) =>
+    [...inventoryKeys.all, "recipes", filters ?? {}] as const,
   recipe: (id: string) => [...inventoryKeys.all, "recipe", id] as const,
   purchaseOrders: (filters?: PurchaseOrderFilters) =>
     [...inventoryKeys.all, "purchase-orders", filters ?? {}] as const,
@@ -87,8 +89,8 @@ export const suppliersQueryOptions = (filters?: SupplierFilters) =>
 export const supplierQueryOptions = (id: string) =>
   queryOptions({ queryKey: inventoryKeys.supplier(id), queryFn: () => getSupplierById(id) });
 
-export const recipesQueryOptions = () =>
-  queryOptions({ queryKey: inventoryKeys.recipes(), queryFn: () => getRecipes() });
+export const recipesQueryOptions = (filters?: RecipeFilters) =>
+  queryOptions({ queryKey: inventoryKeys.recipes(filters), queryFn: () => getRecipes(filters) });
 
 export const recipeQueryOptions = (id: string) =>
   queryOptions({ queryKey: inventoryKeys.recipe(id), queryFn: () => getRecipeById(id) });
