@@ -15,6 +15,7 @@ import type {
   WastePayload,
   WasteFilters,
   StockLedgerEntry,
+  StockLedgerFilters,
   MaterialPriceHistory,
   Purchase,
   PurchasePayload,
@@ -2047,9 +2048,25 @@ export async function cancelPayment(id: string): Promise<void> {
 }
 
 // Stock Ledger
-export async function getStockLedger(): Promise<StockLedgerEntry[]> {
+export async function getStockLedger(filters?: StockLedgerFilters): Promise<StockLedgerEntry[]> {
   await delay(400);
-  return [...mockStockLedger].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  let result = [...mockStockLedger].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  if (filters?.material_id) result = result.filter((e) => e.material_id === filters.material_id);
+  if (filters?.type) result = result.filter((e) => e.type === filters.type);
+  if (filters?.search) {
+    const q = filters.search.toLowerCase();
+    result = result.filter(
+      (e) =>
+        (e.material_name ?? "").toLowerCase().includes(q) ||
+        (e.reason ?? "").toLowerCase().includes(q) ||
+        (e.reference_id ?? "").toLowerCase().includes(q),
+    );
+  }
+  if (filters?.date_from)
+    result = result.filter((e) => e.created_at.slice(0, 10) >= filters.date_from!);
+  if (filters?.date_to)
+    result = result.filter((e) => e.created_at.slice(0, 10) <= filters.date_to!);
+  return result;
 }
 
 export async function getPriceHistory(materialId?: string): Promise<MaterialPriceHistory[]> {
