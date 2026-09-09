@@ -47,7 +47,7 @@ export default function MenuItemsPage() {
   return (
     <PageContainer
       pageTitle="Menu Items"
-      pageDescription="Dishes — list like other inventory pages. Pricing per variant, GST optional, recipe link. Image upload placeholder not used this phase."
+      pageDescription="Dishes — list like other inventory pages. Pricing per variant, GST optional, recipe link."
       pageHeaderAction={
         <Link
           href="/dashboard/menu/items/new"

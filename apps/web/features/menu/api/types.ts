@@ -3,7 +3,7 @@ export type MenuCategory = {
   name: string;
   slug: string;
   description?: string;
-  image_url?: string; // placeholder this phase, not uploaded
+  image_url?: string;
   parent_id?: string;
   sort_order?: number;
   is_active: boolean;
@@ -40,7 +40,7 @@ export type MenuItem = {
   category_id: string;
   category_name?: string;
   description?: string;
-  image_url?: string; // placeholder not used this phase
+  image_url?: string;
   product_type: ProductType; // simple = no variants (Regular), variant = has variants (Petpooja/Zoho)
   veg_type: VegType;
   spice_level?: "mild" | "medium" | "spicy";
