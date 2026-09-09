@@ -142,8 +142,10 @@ function RecipeRow({ recipe: r }: { recipe: Recipe }) {
                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
               </DropdownMenuGroup>
               <DropdownMenuGroup>
-                <DropdownMenuItem onClick={() => router.push(`/dashboard/inventory/recipes/${r.id}`)}>
-                  <Icons.edit className="mr-2 h-4 w-4" /> View
+                <DropdownMenuItem
+                  onClick={() => router.push(`/dashboard/inventory/recipes/${r.id}/card`)}
+                >
+                  <Icons.edit className="mr-2 h-4 w-4" /> View card
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => router.push(`/dashboard/inventory/recipes/${r.id}/edit`)}
