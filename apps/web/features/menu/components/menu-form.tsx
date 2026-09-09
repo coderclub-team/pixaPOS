@@ -28,6 +28,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createMenuItem, updateMenuItem } from "../api/service";
 import { menuKeys, menuCategoriesQueryOptions } from "../api/queries";
+import { recipesQueryOptions } from "@/features/inventory/api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import type { MenuItem, ProductType, ItemType } from "../api/types";
 import { Icons } from "@pixa/ui/icons";
@@ -63,6 +64,12 @@ export default function MenuForm({
   const isEdit = !!initialData;
   const { data: categories } = useQuery(menuCategoriesQueryOptions());
   const categoryOptions = (categories ?? []).map((c) => ({ label: c.name, value: c.id }));
+  const { data: recipes } = useQuery(recipesQueryOptions());
+  const recipeOptions = (recipes ?? []).map((r) => ({
+    label: `${r.name} — ₹${r.cost_per_serve}/serve`,
+    value: r.id,
+  }));
+  const recipeById = Object.fromEntries((recipes ?? []).map((r) => [r.id, r]));
 
   const [productType, setProductType] = useState<ProductType>(
     (initialData?.product_type as ProductType) ??
@@ -85,6 +92,7 @@ export default function MenuForm({
       selling_price: v.selling_price,
       compare_price: (v as any).compare_price,
       barcode: (v as any).barcode,
+      recipe_id: (v as any).recipe_id ?? "",
       is_active: v.is_active,
     })) ?? [
       {
@@ -150,10 +158,11 @@ export default function MenuForm({
                   qty: variants[0]?.qty === "" ? undefined : Number(variants[0]?.qty),
                   unit: variants[0]?.unit,
                   barcode: variants[0]?.barcode,
+                  recipe_id: variants[0]?.recipe_id || undefined,
                   is_active: true,
                 },
               ]
-            : variants.map((x) => ({
+            : variants.map(({ _uid, ...x }) => ({
                 ...x,
                 selling_price: Number(x.selling_price),
                 compare_price:
@@ -161,6 +170,7 @@ export default function MenuForm({
                     ? undefined
                     : Number(x.compare_price),
                 qty: x.qty === "" ? undefined : Number(x.qty),
+                recipe_id: (x.recipe_id as string) || undefined,
               })),
         available_channels: availableChannels,
       }),
@@ -193,10 +203,11 @@ export default function MenuForm({
                   qty: variants[0]?.qty === "" ? undefined : Number(variants[0]?.qty),
                   unit: variants[0]?.unit,
                   barcode: variants[0]?.barcode,
+                  recipe_id: variants[0]?.recipe_id || undefined,
                   is_active: true,
                 },
               ]
-            : variants.map((x) => ({
+            : variants.map(({ _uid, ...x }) => ({
                 ...x,
                 selling_price: Number(x.selling_price),
                 compare_price:
@@ -204,6 +215,7 @@ export default function MenuForm({
                     ? undefined
                     : Number(x.compare_price),
                 qty: x.qty === "" ? undefined : Number(x.qty),
+                recipe_id: (x.recipe_id as string) || undefined,
               })),
         available_channels: availableChannels,
       }),
@@ -701,6 +713,31 @@ export default function MenuForm({
                   }
                 />
               </div>
+              <div className="space-y-1.5 md:col-span-4">
+                <Label className="text-xs text-muted-foreground">Recipe (BOM)</Label>
+                <Select
+                  value={variants[0]?.recipe_id || ""}
+                  onValueChange={(nv) => updateVariant(0, { recipe_id: nv })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Link recipe for costing…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {recipeOptions.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {variants[0]?.recipe_id && recipeById[variants[0].recipe_id] && (
+                  <p className="text-xs text-muted-foreground">
+                    Cost ₹{recipeById[variants[0].recipe_id].cost_per_serve}/serve
+                    {Number(variants[0]?.selling_price) > 0 &&
+                      ` • Margin ${Math.round(((Number(variants[0].selling_price) - recipeById[variants[0].recipe_id].cost_per_serve) / Number(variants[0].selling_price)) * 100)}%`}
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
         ) : (
@@ -850,7 +887,7 @@ export default function MenuForm({
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4 md:grid-cols-12">
-                      <div className="col-span-1 md:col-span-6 space-y-1.5">
+                      <div className="col-span-1 md:col-span-4 space-y-1.5">
                         <Label className="text-xs text-muted-foreground">Barcode</Label>
                         <Input
                           placeholder="890123..."
@@ -858,7 +895,7 @@ export default function MenuForm({
                           onChange={(e) => updateVariant(idx, { barcode: e.target.value })}
                         />
                       </div>
-                      <div className="col-span-1 md:col-span-6 space-y-1.5">
+                      <div className="col-span-1 md:col-span-4 space-y-1.5">
                         <Label className="text-xs text-muted-foreground">Compare Price</Label>
                         <Input
                           type="number"
@@ -872,6 +909,31 @@ export default function MenuForm({
                             })
                           }
                         />
+                      </div>
+                      <div className="col-span-2 md:col-span-4 space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Recipe (BOM)</Label>
+                        <Select
+                          value={v.recipe_id || ""}
+                          onValueChange={(nv) => updateVariant(idx, { recipe_id: nv })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Link recipe…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {recipeOptions.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {v.recipe_id && recipeById[v.recipe_id] && (
+                          <p className="text-xs text-muted-foreground">
+                            Cost ₹{recipeById[v.recipe_id].cost_per_serve}/serve
+                            {Number(v.selling_price) > 0 &&
+                              ` • Margin ${Math.round(((Number(v.selling_price) - recipeById[v.recipe_id].cost_per_serve) / Number(v.selling_price)) * 100)}%`}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </SortableItem>

@@ -1,16 +1,37 @@
 "use client";
+import * as React from "react";
 import PageContainer from "@/components/layout/page-container";
 import { RecipeList } from "@/features/inventory/components/recipe-list";
 import { recipesQueryOptions } from "@/features/inventory/api/queries";
 import { useQuery } from "@tanstack/react-query";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
+import { Input } from "@pixa/ui/base-ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@pixa/ui/base-ui/select";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
 import { Show } from "@clerk/nextjs";
 
 export default function RecipesPage() {
-  const { data: recipes, isPending } = useQuery(recipesQueryOptions());
+  const [search, setSearch] = React.useState("");
+  const [status, setStatus] = React.useState<string | undefined>(undefined);
+  const [inputValue, setInputValue] = React.useState("");
+  React.useEffect(() => {
+    const id = setTimeout(() => setSearch(inputValue), 300);
+    return () => clearTimeout(id);
+  }, [inputValue]);
+  const { data: recipes, isPending } = useQuery(
+    recipesQueryOptions({
+      search: search || undefined,
+      is_active: status === "active" ? true : status === "inactive" ? false : undefined,
+    }),
+  );
   if (isPending)
     return (
       <PageContainer pageTitle="Recipes" pageDescription="Inventory — Recipes (BOM)" isLoading>
@@ -32,6 +53,24 @@ export default function RecipesPage() {
         </Show>
       }
     >
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <Input
+          placeholder="Search recipes, ingredients..."
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          className="max-w-sm"
+        />
+        <Select value={status ?? "all"} onValueChange={(v) => setStatus(v === "all" ? undefined : v)}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="All status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All status</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
       <RecipeList recipes={recipes ?? []} />
     </PageContainer>
   );

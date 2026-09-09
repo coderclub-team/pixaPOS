@@ -346,7 +346,7 @@ export async function createMenuItem(payload: MenuItemPayload): Promise<MenuItem
       unit: v.unit,
       selling_price: Number(v.selling_price ?? 0),
       compare_price: v.compare_price,
-      recipe_id: undefined, // hidden this phase
+      recipe_id: v.recipe_id || undefined,
       is_active: v.is_active ?? true,
     }),
   );
@@ -422,7 +422,7 @@ export async function updateMenuItem(id: string, payload: MenuItemPayload): Prom
       unit: v.unit,
       selling_price: Number(v.selling_price ?? 0),
       compare_price: v.compare_price,
-      recipe_id: undefined,
+      recipe_id: v.recipe_id || undefined,
       is_active: v.is_active ?? true,
     }));
   }

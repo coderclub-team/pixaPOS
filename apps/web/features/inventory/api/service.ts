@@ -214,6 +214,7 @@ let mockRecipes: Recipe[] = [
     id: "rec_001",
     name: "Chicken Biryani",
     yields: 1,
+    yield_unit: "serves",
     ingredients: [
       {
         material_id: "rm_001",
@@ -221,6 +222,7 @@ let mockRecipes: Recipe[] = [
         qty: 0.2,
         unit: "kg",
         wastage_percent: 2,
+        step_no: 2,
       },
       {
         material_id: "rm_002",
@@ -228,11 +230,49 @@ let mockRecipes: Recipe[] = [
         qty: 0.25,
         unit: "kg",
         wastage_percent: 5,
+        step_no: 1,
       },
-      { material_id: "rm_004", material_name: "Cooking Oil", qty: 0.05, unit: "l" },
+      { material_id: "rm_004", material_name: "Cooking Oil", qty: 0.05, unit: "l", step_no: 2 },
+    ],
+    steps: [
+      {
+        id: "rs_001_1",
+        step_no: 1,
+        instruction: "Marinate chicken with spices and curd",
+        vessel: "handi",
+        heat_level: "medium",
+        duration_min: 30,
+      },
+      {
+        id: "rs_001_2",
+        step_no: 2,
+        instruction: "Layer rice over chicken and dum cook",
+        vessel: "handi",
+        temperature_c: 200,
+        heat_level: "medium",
+        duration_min: 25,
+      },
+      {
+        id: "rs_001_3",
+        step_no: 3,
+        instruction: "Rest covered before serving",
+        duration_min: 10,
+        is_optional: true,
+      },
+      {
+        id: "rs_001_4",
+        step_no: 4,
+        instruction: "Plate with garnish",
+        vessel_note: "Serve in handi",
+      },
     ],
     cost_per_serve: 110,
     selling_price: 299,
+    prep_time_min: 30,
+    cook_time_min: 35,
+    plating_notes: "Serve layered, saffron rice on top",
+    garnish: "Fried onions, mint, boiled egg",
+    serving_vessel: "Handi",
     is_active: true,
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 15).toISOString(),
     updated_at: new Date().toISOString(),
@@ -241,13 +281,37 @@ let mockRecipes: Recipe[] = [
     id: "rec_002",
     name: "Veg Pulao",
     yields: 1,
+    yield_unit: "serves",
     ingredients: [
-      { material_id: "rm_001", material_name: "Basmati Rice", qty: 0.2, unit: "kg" },
-      { material_id: "rm_003", material_name: "Tomato", qty: 0.1, unit: "kg" },
-      { material_id: "rm_004", material_name: "Cooking Oil", qty: 0.03, unit: "l" },
+      { material_id: "rm_001", material_name: "Basmati Rice", qty: 0.2, unit: "kg", step_no: 2 },
+      { material_id: "rm_003", material_name: "Tomato", qty: 0.1, unit: "kg", step_no: 1 },
+      { material_id: "rm_004", material_name: "Cooking Oil", qty: 0.03, unit: "l", step_no: 1 },
+    ],
+    steps: [
+      {
+        id: "rs_002_1",
+        step_no: 1,
+        instruction: "Saute vegetables in oil",
+        vessel: "kadai",
+        heat_level: "medium",
+        duration_min: 5,
+      },
+      {
+        id: "rs_002_2",
+        step_no: 2,
+        instruction: "Add rice and water, cook covered",
+        vessel: "handi",
+        heat_level: "low",
+        duration_min: 15,
+      },
     ],
     cost_per_serve: 45,
     selling_price: 199,
+    prep_time_min: 10,
+    cook_time_min: 20,
+    plating_notes: "Fluff rice, serve hot",
+    garnish: "Coriander",
+    serving_vessel: "Plate",
     is_active: true,
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString(),
     updated_at: new Date().toISOString(),
@@ -623,9 +687,19 @@ export async function deleteSupplier(id: string): Promise<void> {
 }
 
 // Recipes
-export async function getRecipes(): Promise<Recipe[]> {
+export async function getRecipes(filters?: import("./types").RecipeFilters): Promise<Recipe[]> {
   await delay(400);
-  return [...mockRecipes];
+  let r = [...mockRecipes].sort((a, b) => a.name.localeCompare(b.name));
+  if (filters?.search) {
+    const q = filters.search.toLowerCase();
+    r = r.filter(
+      (x) =>
+        x.name.toLowerCase().includes(q) ||
+        x.ingredients.some((ing) => ing.material_name?.toLowerCase().includes(q)),
+    );
+  }
+  if (filters?.is_active !== undefined) r = r.filter((x) => x.is_active === filters.is_active);
+  return r;
 }
 
 export async function getRecipeById(id: string): Promise<Recipe | null> {
@@ -644,13 +718,34 @@ export async function createRecipe(payload: RecipePayload): Promise<Recipe> {
     return { ...ing, material_name: mat?.name };
   });
   const now = new Date().toISOString();
+  const rid = `rec_${Date.now().toString(36)}`;
+  const steps = ((payload as any).steps ?? []).map((s: any, i: number) => ({
+    id: s.id ?? `rs_${Date.now().toString(36)}_${i}`,
+    step_no: i + 1,
+    instruction: s.instruction ?? "",
+    vessel: s.vessel,
+    vessel_note: s.vessel_note,
+    temperature_c: s.temperature_c,
+    heat_level: s.heat_level || undefined,
+    duration_min: s.duration_min,
+    is_optional: s.is_optional ?? false,
+  }));
   const recipe: Recipe = {
-    id: `rec_${Date.now().toString(36)}`,
+    id: rid,
     name: payload.name,
     yields: payload.yields ?? 1,
+    yield_unit: (payload as any).yield_unit || undefined,
     ingredients,
+    steps,
     cost_per_serve: Math.round(cost * 100) / 100,
     selling_price: payload.selling_price,
+    prep_time_min: (payload as any).prep_time_min,
+    cook_time_min: (payload as any).cook_time_min,
+    plating_notes: (payload as any).plating_notes,
+    garnish: (payload as any).garnish,
+    serving_vessel: (payload as any).serving_vessel,
+    menu_item_id: (payload as any).menu_item_id || undefined,
+    photo_url: (payload as any).photo_url,
     is_active: payload.is_active ?? true,
     created_at: now,
     updated_at: now,
@@ -673,10 +768,25 @@ export async function updateRecipe(id: string, payload: RecipePayload): Promise<
     const mat = materials[ing.material_id];
     cost += ing.qty * (mat?.avg_cost ?? 0) * (1 + (ing.wastage_percent ?? 0) / 100);
   });
+  let steps = mockRecipes[idx].steps ?? [];
+  if ((payload as any).steps !== undefined) {
+    steps = ((payload as any).steps as any[]).map((s: any, i: number) => ({
+      id: s.id ?? `rs_${Date.now().toString(36)}_${i}`,
+      step_no: i + 1,
+      instruction: s.instruction ?? "",
+      vessel: s.vessel,
+      vessel_note: s.vessel_note,
+      temperature_c: s.temperature_c,
+      heat_level: s.heat_level || undefined,
+      duration_min: s.duration_min,
+      is_optional: s.is_optional ?? false,
+    }));
+  }
   const updated: Recipe = {
     ...mockRecipes[idx],
     ...payload,
     ingredients,
+    steps,
     cost_per_serve: Math.round(cost * 100) / 100,
     updated_at: new Date().toISOString(),
   };
