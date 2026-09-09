@@ -101,6 +101,11 @@ export default function RecipeForm({
   const linkedItem = (menuItems ?? []).find((m) => m.id === linkedMenuItemId);
   const variantCols =
     linkedItem && linkedItem.variants.length > 1 ? linkedItem.variants : [];
+  const dishOptions = (menuItems ?? []).map((m) => ({
+    label: `${m.name} — ${m.category_name ?? "Uncategorized"}${m.variants.length > 1 ? ` (${m.variants.length} variants)` : ""}`,
+    value: m.id,
+  }));
+  const linkedDish = dishOptions.find((o) => o.value === linkedMenuItemId);
 
   const [ingredients, setIngredients] = useState<IngForm[]>(
     initialData?.ingredients.map((ing) => ({
@@ -438,24 +443,69 @@ export default function RecipeForm({
               </div>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Linked Menu Item</Label>
-                  <Select
-                    value={linkedMenuItemId || "__none"}
-                    onValueChange={(nv) => setLinkedMenuItemId(nv === "__none" ? "" : nv)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Link dish for variant quantities…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none">No link (simple recipe)</SelectItem>
-                      {(menuItems ?? []).map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                          {m.name}
-                          {m.variants.length > 1 ? ` (${m.variants.length} variants)` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Field>
+                    <FieldLabel>Linked Menu Item</FieldLabel>
+                    <Popover>
+                      <PopoverTrigger
+                        render={
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className={cn(
+                              "w-full justify-between font-normal",
+                              !linkedMenuItemId && "text-muted-foreground",
+                            )}
+                          />
+                        }
+                      >
+                        <span className="truncate text-left">
+                          {linkedDish?.label ?? "Search dish…"}
+                        </span>
+                        <Icons.chevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[--anchor-width] p-0" align="start">
+                        <Command>
+                          <CommandInput placeholder="Search dish, category..." />
+                          <CommandList>
+                            <CommandEmpty>No results</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem
+                                value="__none"
+                                keywords={["No link", "simple recipe"]}
+                                onSelect={() => setLinkedMenuItemId("")}
+                              >
+                                <Icons.check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    !linkedMenuItemId ? "opacity-100" : "opacity-0",
+                                  )}
+                                />
+                                <span className="truncate">No link (simple recipe)</span>
+                              </CommandItem>
+                              {dishOptions.slice(0, 50).map((opt) => (
+                                <CommandItem
+                                  key={opt.value}
+                                  value={opt.value}
+                                  keywords={[opt.label]}
+                                  onSelect={(v) => setLinkedMenuItemId(v)}
+                                >
+                                  <Icons.check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      linkedMenuItemId === opt.value
+                                        ? "opacity-100"
+                                        : "opacity-0",
+                                    )}
+                                  />
+                                  <span className="truncate">{opt.label}</span>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </Field>
                   <p className="text-xs text-muted-foreground">
                     {variantCols.length > 0
                       ? `Variant dish — per-variant qty columns below (${variantCols.map((v) => v.name).join(" / ")})`
