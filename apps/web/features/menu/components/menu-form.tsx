@@ -110,7 +110,7 @@ export default function MenuForm({
       toast.error(`Only ${remaining} more image(s) allowed (max 6)`);
     }
     const toAdd = files.slice(0, remaining);
-    const urls = toAdd.map((f) => URL.createObjectURL(f));
+    const urls = toAdd.map((f) => (f as any).preview ?? URL.createObjectURL(f));
     if (urls.length) setImages((p) => [...p, ...urls].slice(0, 6));
     setUploadFiles([]);
   };
@@ -494,12 +494,9 @@ export default function MenuForm({
               value={uploadFiles}
               onValueChange={(files) => {
                 const next = typeof files === "function" ? (files as any)(uploadFiles) : files;
-                if (next.length > uploadFiles.length) {
-                  const added = next.slice(uploadFiles.length);
-                  syncFromUploader(added);
-                } else {
-                  setUploadFiles(next);
-                }
+                const added = next.slice(uploadFiles.length);
+                if (added.length) syncFromUploader(added);
+                setUploadFiles([]);
               }}
               maxFiles={6 - images.length || 1}
               maxSize={5 * 1024 * 1024}
