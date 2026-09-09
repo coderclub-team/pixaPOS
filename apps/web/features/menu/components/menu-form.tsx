@@ -270,9 +270,7 @@ export default function MenuForm({
             <CardTitle className="text-left text-2xl font-bold">
               {pageTitle ?? (isEdit ? "Update Menu Item" : "New Menu Item")}
             </CardTitle>
-            <CardDescription>
-              Dish — searchable category, veg, description. Image placeholder not used this phase.
-            </CardDescription>
+            <CardDescription>Dish — category, veg type, description.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <FieldGroup>
@@ -396,18 +394,6 @@ export default function MenuForm({
                   />
                 )}
               />
-              <div className="rounded-lg border border-dashed p-6 text-center">
-                <div className="mx-auto flex max-w-xs flex-col items-center gap-2">
-                  <Icons.upload className="size-6 text-muted-foreground" />
-                  <p className="text-sm font-medium">Image upload placeholder</p>
-                  <p className="text-xs text-muted-foreground">
-                    Not used this phase — will store image_url later
-                  </p>
-                  <Button type="button" variant="outline" size="sm" disabled>
-                    Upload image (coming soon)
-                  </Button>
-                </div>
-              </div>
             </FieldGroup>
           </CardContent>
         </Card>
