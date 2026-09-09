@@ -22,7 +22,8 @@ export default function MenuItemsPage() {
   const [categoryId, setCategoryId] = React.useState<string | undefined>(undefined);
   const [veg, setVeg] = React.useState<string | undefined>(undefined);
   const [channel, setChannel] = React.useState<string | undefined>(undefined);
-  const [showActiveOnly, setShowActiveOnly] = React.useState(true);
+  const [itemType, setItemType] = React.useState<string | undefined>(undefined);
+  const [status, setStatus] = React.useState<string | undefined>("active");
   const [inputValue, setInputValue] = React.useState("");
   React.useEffect(() => {
     const id = setTimeout(() => setSearch(inputValue), 300);
@@ -35,7 +36,8 @@ export default function MenuItemsPage() {
       category_id: categoryId,
       veg_type: veg as any,
       channel: channel as any,
-      is_active: showActiveOnly ? true : undefined,
+      item_type: itemType as any,
+      is_active: status === "active" ? true : status === "inactive" ? false : undefined,
     }),
   );
   if (isPending)
@@ -82,7 +84,7 @@ export default function MenuItemsPage() {
         </Select>
         <Select value={veg ?? "all"} onValueChange={(v) => setVeg(v === "all" ? undefined : v)}>
           <SelectTrigger className="w-[130px]">
-            <SelectValue placeholder="All veg" />
+            <SelectValue placeholder="All dietary" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All</SelectItem>
@@ -108,14 +110,29 @@ export default function MenuItemsPage() {
             <SelectItem value="ondc">ONDC</SelectItem>
           </SelectContent>
         </Select>
-        <label className="flex items-center gap-1 text-xs">
-          <input
-            type="checkbox"
-            checked={showActiveOnly}
-            onChange={(e) => setShowActiveOnly(e.target.checked)}
-          />{" "}
-          Active only
-        </label>
+        <Select
+          value={itemType ?? "all"}
+          onValueChange={(v) => setItemType(v === "all" ? undefined : v)}
+        >
+          <SelectTrigger className="w-[130px]">
+            <SelectValue placeholder="All types" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All types</SelectItem>
+            <SelectItem value="goods">Goods</SelectItem>
+            <SelectItem value="service">Service</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={status ?? "all"} onValueChange={(v) => setStatus(v === "all" ? undefined : v)}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="All status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All status</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       <MenuList items={items ?? []} />
     </PageContainer>

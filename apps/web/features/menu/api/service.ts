@@ -55,12 +55,15 @@ let mockMenuItems: MenuItem[] = [
     category_id: "mc_002",
     category_name: "Biryani",
     description: "Hyderabadi dum biryani",
+    item_type: "service",
     product_type: "variant",
     veg_type: "nonveg",
     taxable: true,
     tax_type: "GST",
     tax_percent: 5,
-    hsn_code: "21069030",
+    hsn_code: "996331",
+    images: [],
+    image_urls: [],
     available_channels: ["dine_in", "pickup", "delivery"],
     modifier_group_ids: [],
     variants: [
@@ -96,8 +99,11 @@ let mockMenuItems: MenuItem[] = [
     category_id: "mc_003",
     category_name: "Beverages",
     veg_type: "veg",
+    item_type: "service",
     product_type: "simple",
     taxable: false,
+    images: [],
+    image_urls: [],
     available_channels: ["dine_in", "delivery", "zomato"],
     modifier_group_ids: [],
     variants: [
@@ -107,6 +113,50 @@ let mockMenuItems: MenuItem[] = [
         name: "Regular",
         sku: "BEV-CC-REG",
         selling_price: 129,
+        is_active: true,
+      },
+    ],
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "mi_003",
+    name: "Butter Cookies",
+    slug: "butter-cookies",
+    category_id: "mc_003",
+    category_name: "Beverages",
+    description: "Premium biscuits — goods",
+    item_type: "goods",
+    product_type: "variant",
+    veg_type: "veg",
+    taxable: true,
+    tax_type: "GST",
+    tax_percent: 18,
+    hsn_code: "19059040",
+    images: [],
+    image_urls: [],
+    available_channels: ["dine_in", "pickup", "delivery", "zomato", "swiggy"],
+    modifier_group_ids: [],
+    variants: [
+      {
+        id: "mv_004",
+        menu_item_id: "mi_003",
+        name: "100gr",
+        sku: "BSC-BC-100",
+        selling_price: 99,
+        qty: 100,
+        unit: "gr",
+        is_active: true,
+      },
+      {
+        id: "mv_005",
+        menu_item_id: "mi_003",
+        name: "250gr",
+        sku: "BSC-BC-250",
+        selling_price: 199,
+        qty: 250,
+        unit: "gr",
         is_active: true,
       },
     ],
@@ -231,6 +281,7 @@ export async function getMenuItems(filters?: MenuItemFilters): Promise<MenuItem[
   if (filters?.category_id) r = r.filter((m) => m.category_id === filters.category_id);
   if (filters?.veg_type) r = r.filter((m) => m.veg_type === filters.veg_type);
   if (filters?.channel) r = r.filter((m) => m.available_channels.includes(filters.channel!));
+  if (filters?.item_type) r = r.filter((m) => (m as any).item_type === filters.item_type);
   if (filters?.is_active !== undefined) r = r.filter((m) => m.is_active === filters.is_active);
   return r;
 }
@@ -243,6 +294,15 @@ export async function createMenuItem(payload: MenuItemPayload): Promise<MenuItem
   const productType =
     (payload as any).product_type ??
     (payload.variants && payload.variants.length > 1 ? "variant" : "simple");
+  const itemType = (payload as any).item_type ?? "service";
+  // images: accept image_urls or images array, max 6, urls must be valid
+  const rawUrls: string[] =
+    (payload as any).image_urls ??
+    ((payload as any).images ? (payload as any).images.map((i: any) => i.url ?? i) : []);
+  if (rawUrls.length > 6) throw new Error("Max 6 images");
+  const images = rawUrls.map((url, idx) => ({ url, sort_order: idx }));
+  const image_urls = rawUrls;
+  const image_url = rawUrls[0];
   const variantsInput =
     payload.variants && payload.variants.length > 0
       ? payload.variants
@@ -264,8 +324,12 @@ export async function createMenuItem(payload: MenuItemPayload): Promise<MenuItem
     )
       throw new Error("SKU already exists");
   }
-  if (payload.hsn_code && !/^[0-9]{4,8}$/.test(payload.hsn_code))
-    throw new Error("Invalid HSN 4-8 digits");
+  if (payload.hsn_code) {
+    if (itemType === "service" && !/^[0-9]{6}$/.test(payload.hsn_code))
+      throw new Error("Invalid SAC 6 digits for service (e.g., 996331, 999732)");
+    if (itemType === "goods" && !/^[0-9]{4,8}$/.test(payload.hsn_code))
+      throw new Error("Invalid HSN 4-8 digits for goods");
+  }
   const now = new Date().toISOString();
   const slug = (payload as any).slug ?? slugify(payload.name);
   if (mockMenuItems.some((m) => m.slug === slug)) throw new Error("Slug already exists");
@@ -278,7 +342,6 @@ export async function createMenuItem(payload: MenuItemPayload): Promise<MenuItem
       name: v.name ?? "Regular",
       sku: (v.sku ?? `${slug.toUpperCase()}-${String(idx + 1).padStart(3, "0")}`).toUpperCase(),
       barcode: v.barcode,
-      label: v.label,
       qty: v.qty,
       unit: v.unit,
       selling_price: Number(v.selling_price ?? 0),
@@ -294,7 +357,10 @@ export async function createMenuItem(payload: MenuItemPayload): Promise<MenuItem
     category_id: payload.category_id,
     category_name: cat?.name,
     description: (payload as any).description,
-    image_url: undefined,
+    image_url,
+    images,
+    image_urls,
+    item_type: itemType,
     product_type: productType,
     veg_type: (payload as any).veg_type ?? "veg",
     spice_level: (payload as any).spice_level,
@@ -322,6 +388,26 @@ export async function updateMenuItem(id: string, payload: MenuItemPayload): Prom
   const cat = payload.category_id
     ? mockCategories.find((c) => c.id === payload.category_id)
     : undefined;
+  // validate images if provided
+  let image_patch: Partial<MenuItem> = {};
+  if ((payload as any).image_urls !== undefined || (payload as any).images !== undefined) {
+    const raw: string[] =
+      (payload as any).image_urls ??
+      ((payload as any).images ? (payload as any).images.map((i: any) => i.url ?? i) : []);
+    if (raw.length > 6) throw new Error("Max 6 images");
+    image_patch = {
+      images: raw.map((url, idx) => ({ url, sort_order: idx })),
+      image_urls: raw,
+      image_url: raw[0],
+    } as any;
+  }
+  if ((payload as any).hsn_code) {
+    const it = (payload as any).item_type ?? (current as any).item_type ?? "service";
+    if (it === "service" && !/^[0-9]{6}$/.test((payload as any).hsn_code))
+      throw new Error("Invalid SAC 6 digits for service");
+    if (it === "goods" && !/^[0-9]{4,8}$/.test((payload as any).hsn_code))
+      throw new Error("Invalid HSN 4-8 digits for goods");
+  }
   let variants = current.variants;
   if (payload.variants) {
     const pt = (payload as any).product_type ?? current.product_type;
@@ -332,7 +418,6 @@ export async function updateMenuItem(id: string, payload: MenuItemPayload): Prom
       name: v.name ?? "Regular",
       sku: (v.sku ?? `SKU-${vidx}`).toUpperCase(),
       barcode: v.barcode,
-      label: v.label,
       qty: v.qty,
       unit: v.unit,
       selling_price: Number(v.selling_price ?? 0),
@@ -344,6 +429,7 @@ export async function updateMenuItem(id: string, payload: MenuItemPayload): Prom
   const updated: MenuItem = {
     ...current,
     ...payload,
+    ...image_patch,
     slug: (payload as any).slug ?? current.slug,
     category_name: cat?.name ?? current.category_name,
     variants,

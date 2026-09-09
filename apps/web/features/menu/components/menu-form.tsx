@@ -1,13 +1,7 @@
 "use client";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@pixa/ui/base-ui/card";
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-} from "@pixa/ui/base-ui/field";
+import { Field, FieldGroup, FieldLabel } from "@pixa/ui/base-ui/field";
 import { Input } from "@pixa/ui/base-ui/input";
 import { Label } from "@pixa/ui/base-ui/label";
 import { Switch } from "@pixa/ui/base-ui/switch";
@@ -35,15 +29,17 @@ import { toast } from "sonner";
 import { createMenuItem, updateMenuItem } from "../api/service";
 import { menuKeys, menuCategoriesQueryOptions } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
-import type { MenuItem, ProductType } from "../api/types";
+import type { MenuItem, ProductType, ItemType } from "../api/types";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { useState } from "react";
+import { FileUploader } from "@/components/file-uploader";
+import { SortableList, SortableItem, SortableItemHandle } from "@pixa/ui/base-ui/sortable";
 
 type VariantForm = {
+  _uid: string;
   name: string;
   sku: string;
-  label?: string;
   qty?: number | string;
   unit?: string;
   selling_price: number | string;
@@ -53,6 +49,8 @@ type VariantForm = {
   is_default?: boolean;
   is_active?: boolean;
 };
+
+const uid = () => `v_${Math.random().toString(36).slice(2, 10)}`;
 
 export default function MenuForm({
   initialData,
@@ -70,11 +68,18 @@ export default function MenuForm({
     (initialData?.product_type as ProductType) ??
       (initialData && initialData.variants.length > 1 ? "variant" : "simple"),
   );
+  const [itemType, setItemType] = useState<ItemType>((initialData as any)?.item_type ?? "service");
+  const initialImages: string[] =
+    ((initialData as any)?.image_urls as string[]) ??
+    ((initialData as any)?.images ? (initialData as any).images.map((i: any) => i.url) : []) ??
+    ((initialData as any)?.image_url ? [(initialData as any).image_url] : []);
+  const [images, setImages] = useState<string[]>(initialImages);
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [variants, setVariants] = useState<VariantForm[]>(
     initialData?.variants.map((v) => ({
+      _uid: uid(),
       name: v.name,
       sku: v.sku,
-      label: v.label,
       qty: v.qty,
       unit: v.unit,
       selling_price: v.selling_price,
@@ -83,9 +88,9 @@ export default function MenuForm({
       is_active: v.is_active,
     })) ?? [
       {
+        _uid: uid(),
         name: "Regular",
         sku: "",
-        label: "",
         selling_price: 0,
         qty: "",
         unit: "pcs",
@@ -99,11 +104,38 @@ export default function MenuForm({
     initialData?.available_channels ?? ["dine_in", "pickup", "delivery"],
   );
 
+  const syncFromUploader = (files: File[]) => {
+    const remaining = 6 - images.length;
+    if (files.length > remaining) {
+      toast.error(`Only ${remaining} more image(s) allowed (max 6)`);
+    }
+    const toAdd = files.slice(0, remaining);
+    const urls = toAdd.map((f) => (f as any).preview ?? URL.createObjectURL(f));
+    if (urls.length) setImages((p) => [...p, ...urls].slice(0, 6));
+    setUploadFiles([]);
+  };
+  const removeImage = (idx: number) => {
+    const url = images[idx];
+    if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+    setImages((p) => p.filter((_, i) => i !== idx));
+  };
+  const setPrimary = (idx: number) => setImages((p) => [p[idx], ...p.filter((_, i) => i !== idx)]);
+  const reorderImage = (from: number, to: number) =>
+    setImages((p) => {
+      const c = [...p];
+      const [v] = c.splice(from, 1);
+      c.splice(to, 0, v);
+      return c;
+    });
+
   const createMut = useMutation({
     mutationFn: (v: any) =>
       createMenuItem({
         ...v,
+        item_type: itemType,
         product_type: productType,
+        image_urls: images,
+        images: images.map((url, i) => ({ url, sort_order: i })),
         variants:
           productType === "simple"
             ? [
@@ -143,7 +175,10 @@ export default function MenuForm({
     mutationFn: (v: any) =>
       updateMenuItem(initialData!.id, {
         ...v,
+        item_type: itemType,
         product_type: productType,
+        image_urls: images,
+        images: images.map((url, i) => ({ url, sort_order: i })),
         variants:
           productType === "simple"
             ? [
@@ -207,6 +242,7 @@ export default function MenuForm({
         return setVariantsError("Add at least one variant");
       if (productType === "variant" && toValidate.length > 8)
         return setVariantsError("Max 8 variants per item");
+      if (images.length > 6) return toast.error("Max 6 images");
       for (let i = 0; i < toValidate.length; i++) {
         const v = toValidate[i];
         if (productType === "variant" && !v.name)
@@ -221,8 +257,19 @@ export default function MenuForm({
             `${productType === "simple" ? "Price" : `Variant ${i + 1}: price`} ≥0`,
           );
       }
+      if (value.hsn_code) {
+        if (itemType === "service" && !/^[0-9]{6}$/.test(value.hsn_code))
+          return toast.error("Invalid SAC 6 digits for service (e.g., 996331)");
+        if (itemType === "goods" && !/^[0-9]{4,8}$/.test(value.hsn_code))
+          return toast.error("Invalid HSN 4-8 digits for goods");
+      }
       setVariantsError(null);
-      const payload = { ...value, veg_type: value.veg_type || "veg", product_type: productType };
+      const payload = {
+        ...value,
+        veg_type: value.veg_type || "veg",
+        product_type: productType,
+        item_type: itemType,
+      };
       if (isEdit) await updateMut.mutateAsync(payload);
       else await createMut.mutateAsync(payload);
     },
@@ -233,9 +280,9 @@ export default function MenuForm({
     setVariants((p) => [
       ...p,
       {
+        _uid: uid(),
         name: "",
         sku: "",
-        label: "",
         selling_price: 0,
         qty: "",
         unit: "pcs",
@@ -250,6 +297,23 @@ export default function MenuForm({
     if (variants.length === 1) return toast.error("At least one variant required");
     setVariants((p) => p.filter((_, i) => i !== idx));
   };
+  const moveVariant = (idx: number, dir: -1 | 1) => {
+    const n = idx + dir;
+    if (n < 0 || n >= variants.length) return;
+    setVariants((p) => {
+      const c = [...p];
+      const [v] = c.splice(idx, 1);
+      c.splice(n, 0, v);
+      return c;
+    });
+  };
+  const reorderVariant = (from: number, to: number) =>
+    setVariants((p) => {
+      const c = [...p];
+      const [v] = c.splice(from, 1);
+      c.splice(to, 0, v);
+      return c;
+    });
   const toggleChannel = (ch: string) =>
     setAvailableChannels((prev) =>
       prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch],
@@ -340,11 +404,28 @@ export default function MenuForm({
                 />
               </div>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Item Type *</Label>
+                  <Select value={itemType} onValueChange={(v) => setItemType(v as ItemType)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="service">Service — Restaurant food (SAC)</SelectItem>
+                      <SelectItem value="goods">Goods — Packaged (HSN)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {itemType === "goods"
+                      ? "Supply of Goods — 5% / 18% (HSN)"
+                      : "Supply of Service — 5% (SAC 996331)"}
+                  </p>
+                </div>
                 <form.AppField
                   name="veg_type"
                   children={(field) => (
                     <field.SelectField
-                      label="Veg Type *"
+                      label="Dietary Type *"
                       required
                       options={[
                         { label: "Veg", value: "veg" },
@@ -355,6 +436,8 @@ export default function MenuForm({
                     />
                   )}
                 />
+              </div>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <form.AppField
                   name="spice_level"
                   children={(field) => (
@@ -369,12 +452,22 @@ export default function MenuForm({
                     />
                   )}
                 />
-              </div>
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <form.AppField
                   name="prep_time_min"
                   children={(field) => (
                     <field.TextField label="Prep Time (min)" type="number" placeholder="15" />
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <form.AppField
+                  name="description"
+                  children={(field) => (
+                    <field.TextareaField
+                      label="Description"
+                      placeholder="Hyderabadi dum..."
+                      rows={2}
+                    />
                   )}
                 />
                 <form.AppField
@@ -384,17 +477,101 @@ export default function MenuForm({
                   )}
                 />
               </div>
-              <form.AppField
-                name="description"
-                children={(field) => (
-                  <field.TextareaField
-                    label="Description"
-                    placeholder="Hyderabadi dum..."
-                    rows={2}
-                  />
-                )}
-              />
             </FieldGroup>
+          </CardContent>
+        </Card>
+
+        {/* Images — outlet profile FileUploader pattern */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Images</CardTitle>
+            <CardDescription>
+              Up to 6 images (JPG/PNG/WebP, 5MB each). First is primary — use arrows to reorder.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <FileUploader
+              value={uploadFiles}
+              onValueChange={(files) => {
+                const next = typeof files === "function" ? (files as any)(uploadFiles) : files;
+                const added = next.slice(uploadFiles.length);
+                if (added.length) syncFromUploader(added);
+                setUploadFiles([]);
+              }}
+              maxFiles={6 - images.length || 1}
+              maxSize={5 * 1024 * 1024}
+              multiple
+              accept={{ "image/*": [] }}
+              className={images.length >= 6 ? "pointer-events-none opacity-60" : ""}
+            />
+            {images.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Gallery {images.length}/6 {images.length >= 6 && "— max reached"}
+                </p>
+                <SortableList
+                  value={images}
+                  getItemValue={(url) => url}
+                  onReorder={({ activeIndex, overIndex }) => reorderImage(activeIndex, overIndex)}
+                >
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                    {images.map((url, idx) => (
+                      <SortableItem
+                        key={url}
+                        value={url}
+                        className={cn(
+                          "relative overflow-hidden rounded-lg border bg-muted/20 p-2",
+                          idx === 0 && "ring-2 ring-primary",
+                        )}
+                      >
+                        <img
+                          src={url}
+                          alt={`image-${idx + 1}`}
+                          className="h-20 w-full rounded object-cover"
+                        />
+                        {idx === 0 && (
+                          <span className="absolute left-2 top-2 rounded bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground">
+                            ★ Primary
+                          </span>
+                        )}
+                        <span className="absolute right-2 top-2 rounded bg-background/90 px-1 py-0.5 text-xs font-mono">
+                          {idx + 1}
+                        </span>
+                        <div className="mt-2 flex items-center justify-between gap-1">
+                          <SortableItemHandle className="flex h-6 w-6 items-center justify-center text-muted-foreground">
+                            <Icons.gripVertical className="h-3 w-3" />
+                          </SortableItemHandle>
+                          <div className="flex gap-1">
+                            {idx !== 0 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setPrimary(idx)}
+                                className="h-6 px-2 text-xs"
+                                title="Make primary"
+                              >
+                                Primary
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => removeImage(idx)}
+                              className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                              title="Remove"
+                            >
+                              <Icons.trash className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </SortableItem>
+                    ))}
+                  </div>
+                </SortableList>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -416,6 +593,7 @@ export default function MenuForm({
                   setProductType("simple");
                   setVariants((prev) => [
                     prev[0] ?? {
+                      _uid: uid(),
                       name: "Regular",
                       sku: "",
                       selling_price: 0,
@@ -438,6 +616,7 @@ export default function MenuForm({
                   if (variants.length === 1 && variants[0].name === "Regular") {
                     setVariants([
                       {
+                        _uid: uid(),
                         name: "Small",
                         sku: "",
                         selling_price: 0,
@@ -447,6 +626,7 @@ export default function MenuForm({
                         is_active: true,
                       },
                       {
+                        _uid: uid(),
                         name: "Large",
                         sku: "",
                         selling_price: 0,
@@ -477,8 +657,8 @@ export default function MenuForm({
               <CardTitle className="text-base">Pricing</CardTitle>
               <CardDescription>Simple item — SKU + Price</CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_140px_1fr]">
-              <div className="space-y-1">
+            <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-4">
+              <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">SKU *</Label>
                 <Input
                   placeholder="IDLY-001"
@@ -486,7 +666,7 @@ export default function MenuForm({
                   onChange={(e) => updateVariant(0, { sku: e.target.value, name: "Regular" })}
                 />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Price *</Label>
                 <Input
                   type="number"
@@ -499,7 +679,7 @@ export default function MenuForm({
                   }
                 />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Barcode</Label>
                 <Input
                   placeholder="890123..."
@@ -507,7 +687,7 @@ export default function MenuForm({
                   onChange={(e) => updateVariant(0, { barcode: e.target.value })}
                 />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Compare Price</Label>
                 <Input
                   type="number"
@@ -528,7 +708,7 @@ export default function MenuForm({
             <CardHeader>
               <CardTitle className="text-base">Variants *</CardTitle>
               <CardDescription>
-                Flexible sizes — Small/Large/250ml/500ml/100gr etc. User creates different types.
+                Flexible sizes — Small/Large/250ml/500ml/100gr etc. Toggle Active at row start.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -544,126 +724,159 @@ export default function MenuForm({
                   <Icons.add className="mr-1 h-4 w-4" /> Add Variant
                 </Button>
               </div>
-              {variants.map((v, idx) => (
-                <div key={idx} className="space-y-3 rounded-lg border p-3">
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[140px_140px_110px_90px_90px_40px]">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Name *</Label>
-                      <Input
-                        placeholder="Small / 250ml"
-                        value={v.name}
-                        onChange={(e) => updateVariant(idx, { name: e.target.value })}
+              <SortableList
+                value={variants}
+                getItemValue={(v) => v._uid}
+                onReorder={({ activeIndex, overIndex }) => reorderVariant(activeIndex, overIndex)}
+              >
+                {variants.map((v, idx) => (
+                  <SortableItem
+                    key={v._uid}
+                    value={v._uid}
+                    className="space-y-3 rounded-lg border p-3"
+                  >
+                    <div className="flex items-center gap-2">
+                      <SortableItemHandle className="flex h-8 w-8 items-center justify-center text-muted-foreground">
+                        <Icons.gripVertical className="h-4 w-4" />
+                      </SortableItemHandle>
+                      <span className="flex h-6 w-6 items-center justify-center rounded bg-muted text-xs font-medium">
+                        #{idx + 1}
+                      </span>
+                      <Switch
+                        checked={v.is_active ?? true}
+                        onCheckedChange={(nv) => updateVariant(idx, { is_active: nv })}
                       />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">SKU *</Label>
-                      <Input
-                        placeholder="BIRY-SM-001"
-                        value={v.sku}
-                        onChange={(e) => updateVariant(idx, { sku: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Qty</Label>
-                      <Input
-                        type="number"
-                        placeholder="250"
-                        value={v.qty as any}
-                        onChange={(e) =>
-                          updateVariant(idx, {
-                            qty: e.target.value === "" ? "" : (Number(e.target.value) as any),
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Unit</Label>
-                      <Select
-                        value={v.unit ?? "pcs"}
-                        onValueChange={(nv) => updateVariant(idx, { unit: nv })}
+                      <span
+                        className={cn(
+                          "text-xs font-medium",
+                          (v.is_active ?? true) ? "text-foreground" : "text-muted-foreground",
+                        )}
                       >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pcs">pcs</SelectItem>
-                          <SelectItem value="ml">ml</SelectItem>
-                          <SelectItem value="gr">gr</SelectItem>
-                          <SelectItem value="kg">kg</SelectItem>
-                          <SelectItem value="l">l</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        {(v.is_active ?? true) ? "Active" : "Inactive"}
+                      </span>
+                      <div className="ml-auto flex gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => moveVariant(idx, -1)}
+                          disabled={idx === 0}
+                          title="Move up"
+                        >
+                          <Icons.chevronUp className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => moveVariant(idx, 1)}
+                          disabled={idx === variants.length - 1}
+                          title="Move down"
+                        >
+                          <Icons.chevronDown className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => removeVariant(idx)}
+                          disabled={variants.length === 1}
+                        >
+                          <Icons.trash className="size-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Price *</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={v.selling_price as any}
-                        onChange={(e) =>
-                          updateVariant(idx, {
-                            selling_price:
-                              e.target.value === "" ? "" : (Number(e.target.value) as any),
-                          })
-                        }
-                      />
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-12">
+                      <div className="col-span-1 md:col-span-3 space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Name *</Label>
+                        <Input
+                          placeholder="Small / 250ml"
+                          value={v.name}
+                          onChange={(e) => updateVariant(idx, { name: e.target.value })}
+                        />
+                      </div>
+                      <div className="col-span-1 md:col-span-3 space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">SKU *</Label>
+                        <Input
+                          placeholder="BIRY-SM-001"
+                          value={v.sku}
+                          onChange={(e) => updateVariant(idx, { sku: e.target.value })}
+                        />
+                      </div>
+                      <div className="col-span-1 md:col-span-2 space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Qty</Label>
+                        <Input
+                          type="number"
+                          placeholder="250"
+                          value={v.qty as any}
+                          onChange={(e) =>
+                            updateVariant(idx, {
+                              qty: e.target.value === "" ? "" : (Number(e.target.value) as any),
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="col-span-1 md:col-span-2 space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Unit</Label>
+                        <Select
+                          value={v.unit ?? "pcs"}
+                          onValueChange={(nv) => updateVariant(idx, { unit: nv })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pcs">pcs</SelectItem>
+                            <SelectItem value="ml">ml</SelectItem>
+                            <SelectItem value="gr">gr</SelectItem>
+                            <SelectItem value="kg">kg</SelectItem>
+                            <SelectItem value="l">l</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="col-span-2 md:col-span-2 space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Price *</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={v.selling_price as any}
+                          onChange={(e) =>
+                            updateVariant(idx, {
+                              selling_price:
+                                e.target.value === "" ? "" : (Number(e.target.value) as any),
+                            })
+                          }
+                        />
+                      </div>
                     </div>
-                    <div className="flex items-end pb-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => removeVariant(idx)}
-                        disabled={variants.length === 1}
-                      >
-                        <Icons.trash className="size-4" />
-                      </Button>
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-12">
+                      <div className="col-span-1 md:col-span-6 space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Barcode</Label>
+                        <Input
+                          placeholder="890123..."
+                          value={v.barcode ?? ""}
+                          onChange={(e) => updateVariant(idx, { barcode: e.target.value })}
+                        />
+                      </div>
+                      <div className="col-span-1 md:col-span-6 space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Compare Price</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          placeholder="299"
+                          value={(v.compare_price as any) ?? ""}
+                          onChange={(e) =>
+                            updateVariant(idx, {
+                              compare_price:
+                                e.target.value === "" ? "" : (Number(e.target.value) as any),
+                            })
+                          }
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[140px_140px_140px_1fr]">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Label</Label>
-                      <Input
-                        placeholder="250ml display"
-                        value={v.label ?? ""}
-                        onChange={(e) => updateVariant(idx, { label: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Barcode</Label>
-                      <Input
-                        placeholder="890123..."
-                        value={v.barcode ?? ""}
-                        onChange={(e) => updateVariant(idx, { barcode: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Compare Price</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        placeholder="299"
-                        value={(v.compare_price as any) ?? ""}
-                        onChange={(e) =>
-                          updateVariant(idx, {
-                            compare_price:
-                              e.target.value === "" ? "" : (Number(e.target.value) as any),
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="flex items-end pb-1">
-                      <label className="flex items-center gap-1 text-xs">
-                        <Switch
-                          checked={v.is_active ?? true}
-                          onCheckedChange={(nv) => updateVariant(idx, { is_active: nv })}
-                        />{" "}
-                        Active
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  </SortableItem>
+                ))}
+              </SortableList>
               {variantsError && <p className="text-sm text-destructive">{variantsError}</p>}
             </CardContent>
           </Card>
@@ -674,8 +887,9 @@ export default function MenuForm({
           <CardHeader>
             <CardTitle className="text-base">Tax & Channels</CardTitle>
             <CardDescription>
-              Optional GST, channels dine-in/pickup/delivery + aggregators zomato/swiggy/ondc.
-              Single menu via flags.
+              {itemType === "goods"
+                ? "Goods: HSN + 5%/18% (Biscuits/Cookies/Chocolates). 5% Basic, 18% Premium."
+                : "Service: SAC + 5% (Dine-in/Takeaway restaurant service)."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -688,7 +902,7 @@ export default function MenuForm({
               />
               {(form.getFieldValue("taxable" as any) as boolean) && (
                 <>
-                  <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-[1fr_1fr_1.2fr]">
                     <form.AppField
                       name="tax_type"
                       children={(field) => (
@@ -705,16 +919,37 @@ export default function MenuForm({
                     <form.AppField
                       name="tax_percent"
                       children={(field) => (
-                        <field.TextField label="Tax %" type="number" placeholder="5" />
+                        <field.SelectField
+                          label="GST Rate"
+                          options={
+                            itemType === "goods"
+                              ? ([
+                                  { label: "5% — Standard/Basic", value: "5" },
+                                  { label: "12%", value: "12" },
+                                  { label: "18% — Premium/Branded", value: "18" },
+                                  { label: "28%", value: "28" },
+                                ] as any)
+                              : ([
+                                  { label: "0% — Exempt", value: "0" },
+                                  { label: "5% — Restaurant Service", value: "5" },
+                                  { label: "18% — With ITC", value: "18" },
+                                ] as any)
+                          }
+                          placeholder={itemType === "goods" ? "5 or 18" : "5"}
+                        />
                       )}
                     />
                     <form.AppField
                       name="hsn_code"
                       children={(field) => (
                         <field.TextField
-                          label="HSN"
-                          placeholder="21069030"
-                          description="4-8 digits"
+                          label={itemType === "goods" ? "HSN" : "SAC"}
+                          placeholder={itemType === "goods" ? "19059040" : "996331"}
+                          description={
+                            itemType === "goods"
+                              ? "4-8 digits (goods)"
+                              : "6 digits (service) e.g., 996331 restaurant, 999732 packing"
+                          }
                         />
                       )}
                     />
@@ -754,7 +989,7 @@ export default function MenuForm({
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Single menu, channel flags — Takeaway = Pickup (counter), Dine-in table, Delivery
-                  courier. No-variant items use 1 Regular variant.
+                  courier.
                 </p>
               </div>
             </FieldGroup>

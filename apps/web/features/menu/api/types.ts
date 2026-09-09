@@ -21,7 +21,6 @@ export type MenuItemVariant = {
   name: string; // e.g., Small, Large, 250ml, 100gr — user creates different type of variants
   sku: string;
   barcode?: string;
-  label?: string; // display like 250ml if name is Small — optional extra
   qty?: number; // e.g., 250
   unit?: string; // ml, gr, pcs etc.
   selling_price: number;
@@ -33,6 +32,8 @@ export type MenuItemVariant = {
 };
 
 export type ProductType = "simple" | "variant";
+export type ItemType = "goods" | "service"; // Zoho Goods|Service / Odoo Goods|Service/Combo; RistaPOS goods vs service (packing charge)
+export type MenuItemImage = { url: string; sort_order: number };
 export type MenuItem = {
   id: string;
   name: string;
@@ -40,7 +41,10 @@ export type MenuItem = {
   category_id: string;
   category_name?: string;
   description?: string;
-  image_url?: string;
+  image_url?: string; // deprecated alias = images[0].url
+  images?: MenuItemImage[]; // gallery max 6 (Zoho 15 but POS cap 6)
+  image_urls?: string[]; // flat alias for form
+  item_type: ItemType; // goods = Supply of Goods (HSN + 5%/18%), service = Supply of Service (SAC 9973/9997 + 5%)
   product_type: ProductType; // simple = no variants (Regular), variant = has variants (Petpooja/Zoho)
   veg_type: VegType;
   spice_level?: "mild" | "medium" | "spicy";
@@ -49,7 +53,7 @@ export type MenuItem = {
   taxable: boolean;
   tax_type?: TaxTypeMenu;
   tax_percent?: number;
-  hsn_code?: string;
+  hsn_code?: string; // HSN for goods (4-8 digits) or SAC for service (6 digits 9973/9997)
   available_channels: Channel[]; // dine_in, pickup, delivery, zomato, swiggy, ondc
   variants: MenuItemVariant[];
   modifier_group_ids?: string[]; // skeleton, no raw material mapping this phase
@@ -87,6 +91,9 @@ export type MenuItemPayload = Partial<
   Pick<MenuItem, "name" | "category_id"> & {
     variants?: Partial<MenuItemVariant>[];
     product_type?: ProductType;
+    item_type?: ItemType;
+    images?: MenuItemImage[];
+    image_urls?: string[];
   };
 
 // Filters
@@ -96,5 +103,6 @@ export type MenuItemFilters = {
   category_id?: string;
   veg_type?: VegType;
   channel?: Channel;
+  item_type?: ItemType;
   is_active?: boolean;
 };
