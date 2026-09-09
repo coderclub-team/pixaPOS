@@ -55,12 +55,14 @@ let mockMenuItems: MenuItem[] = [
     category_id: "mc_002",
     category_name: "Biryani",
     description: "Hyderabadi dum biryani",
+    product_type: "variant",
     veg_type: "nonveg",
     taxable: true,
     tax_type: "GST",
     tax_percent: 5,
     hsn_code: "21069030",
     available_channels: ["dine_in", "pickup", "delivery"],
+    modifier_group_ids: [],
     variants: [
       {
         id: "mv_001",
@@ -70,7 +72,6 @@ let mockMenuItems: MenuItem[] = [
         selling_price: 199,
         qty: 500,
         unit: "gr",
-        is_default: true,
         is_active: true,
       },
       {
@@ -95,30 +96,17 @@ let mockMenuItems: MenuItem[] = [
     category_id: "mc_003",
     category_name: "Beverages",
     veg_type: "veg",
+    product_type: "simple",
     taxable: false,
     available_channels: ["dine_in", "delivery", "zomato"],
+    modifier_group_ids: [],
     variants: [
       {
         id: "mv_003",
         menu_item_id: "mi_002",
-        name: "250ml",
-        sku: "BEV-CC-250",
-        label: "250ml",
-        qty: 250,
-        unit: "ml",
-        selling_price: 99,
-        is_default: true,
-        is_active: true,
-      },
-      {
-        id: "mv_004",
-        menu_item_id: "mi_002",
-        name: "500ml",
-        sku: "BEV-CC-500",
-        label: "500ml",
-        qty: 500,
-        unit: "ml",
-        selling_price: 159,
+        name: "Regular",
+        sku: "BEV-CC-REG",
+        selling_price: 129,
         is_active: true,
       },
     ],
@@ -126,6 +114,35 @@ let mockMenuItems: MenuItem[] = [
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
+];
+
+// Modifiers skeleton — no raw material mapping this phase
+let mockModifierGroups: import("./types").ModifierGroup[] = [
+  {
+    id: "mg_001",
+    name: "Add-ons",
+    selection_type: "multiple",
+    min_selection: 0,
+    max_selection: 3,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "mg_002",
+    name: "Spice Level",
+    selection_type: "single",
+    min_selection: 0,
+    max_selection: 1,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
+let mockModifiers: import("./types").Modifier[] = [
+  { id: "mod_001", modifier_group_id: "mg_001", name: "Extra Cheese", price: 20, is_active: true },
+  { id: "mod_002", modifier_group_id: "mg_001", name: "Extra Chicken", price: 40, is_active: true },
+  { id: "mod_003", modifier_group_id: "mg_002", name: "Less Spicy", price: 0, is_active: true },
 ];
 
 function slugify(s: string) {
@@ -223,8 +240,22 @@ export async function getMenuItemById(id: string): Promise<MenuItem | null> {
 }
 export async function createMenuItem(payload: MenuItemPayload): Promise<MenuItem> {
   await delay(600);
-  if (payload.variants && payload.variants.length > 0) {
-    const skus = payload.variants.map((v) => (v.sku ?? "").toLowerCase()).filter(Boolean);
+  const productType =
+    (payload as any).product_type ??
+    (payload.variants && payload.variants.length > 1 ? "variant" : "simple");
+  const variantsInput =
+    payload.variants && payload.variants.length > 0
+      ? payload.variants
+      : [
+          {
+            name: "Regular",
+            sku: "",
+            selling_price: (payload as any).basePrice ?? 0,
+            is_active: true,
+          },
+        ];
+  if (variantsInput.length > 0) {
+    const skus = variantsInput.map((v) => (v.sku ?? "").toLowerCase()).filter(Boolean);
     if (new Set(skus).size !== skus.length) throw new Error("Variant SKU duplicate");
     if (
       skus.some((s) =>
@@ -240,25 +271,22 @@ export async function createMenuItem(payload: MenuItemPayload): Promise<MenuItem
   if (mockMenuItems.some((m) => m.slug === slug)) throw new Error("Slug already exists");
   const cat = mockCategories.find((c) => c.id === payload.category_id);
   const id = `mi_${Date.now().toString(36)}`;
-  const variants = (
-    payload.variants ?? [
-      { name: "Regular", sku: `${slug.toUpperCase()}-REG`, selling_price: 0, is_active: true },
-    ]
-  ).map((v: any, idx: number) => ({
-    id: v.id ?? `mv_${Date.now().toString(36)}_${idx}`,
-    menu_item_id: id,
-    name: v.name ?? "Regular",
-    sku: (v.sku ?? `${slug.toUpperCase()}-${String(idx + 1).padStart(3, "0")}`).toUpperCase(),
-    barcode: v.barcode,
-    label: v.label,
-    qty: v.qty,
-    unit: v.unit,
-    selling_price: Number(v.selling_price ?? 0),
-    compare_price: v.compare_price,
-    recipe_id: v.recipe_id,
-    is_default: v.is_default ?? idx === 0,
-    is_active: v.is_active ?? true,
-  }));
+  const variants = (productType === "simple" ? [variantsInput[0]] : variantsInput).map(
+    (v: any, idx: number) => ({
+      id: v.id ?? `mv_${Date.now().toString(36)}_${idx}`,
+      menu_item_id: id,
+      name: v.name ?? "Regular",
+      sku: (v.sku ?? `${slug.toUpperCase()}-${String(idx + 1).padStart(3, "0")}`).toUpperCase(),
+      barcode: v.barcode,
+      label: v.label,
+      qty: v.qty,
+      unit: v.unit,
+      selling_price: Number(v.selling_price ?? 0),
+      compare_price: v.compare_price,
+      recipe_id: undefined, // hidden this phase
+      is_active: v.is_active ?? true,
+    }),
+  );
   const item: MenuItem = {
     id,
     name: payload.name,
@@ -266,7 +294,8 @@ export async function createMenuItem(payload: MenuItemPayload): Promise<MenuItem
     category_id: payload.category_id,
     category_name: cat?.name,
     description: (payload as any).description,
-    image_url: undefined, // placeholder not used this phase
+    image_url: undefined,
+    product_type: productType,
     veg_type: (payload as any).veg_type ?? "veg",
     spice_level: (payload as any).spice_level,
     prep_time_min: (payload as any).prep_time_min,
@@ -277,6 +306,7 @@ export async function createMenuItem(payload: MenuItemPayload): Promise<MenuItem
     hsn_code: (payload as any).hsn_code,
     available_channels: (payload as any).available_channels ?? ["dine_in", "pickup", "delivery"],
     variants,
+    modifier_group_ids: (payload as any).modifier_group_ids ?? [],
     is_active: (payload as any).is_active ?? true,
     created_at: now,
     updated_at: now,
@@ -294,7 +324,9 @@ export async function updateMenuItem(id: string, payload: MenuItemPayload): Prom
     : undefined;
   let variants = current.variants;
   if (payload.variants) {
-    variants = (payload.variants as any).map((v: any, vidx: number) => ({
+    const pt = (payload as any).product_type ?? current.product_type;
+    const input = pt === "simple" ? [payload.variants[0]] : payload.variants;
+    variants = (input as any).map((v: any, vidx: number) => ({
       id: v.id ?? `mv_${Date.now().toString(36)}_${vidx}`,
       menu_item_id: id,
       name: v.name ?? "Regular",
@@ -305,8 +337,7 @@ export async function updateMenuItem(id: string, payload: MenuItemPayload): Prom
       unit: v.unit,
       selling_price: Number(v.selling_price ?? 0),
       compare_price: v.compare_price,
-      recipe_id: v.recipe_id,
-      is_default: v.is_default ?? vidx === 0,
+      recipe_id: undefined,
       is_active: v.is_active ?? true,
     }));
   }
@@ -316,10 +347,23 @@ export async function updateMenuItem(id: string, payload: MenuItemPayload): Prom
     slug: (payload as any).slug ?? current.slug,
     category_name: cat?.name ?? current.category_name,
     variants,
+    modifier_group_ids:
+      (payload as any).modifier_group_ids ?? (current as any).modifier_group_ids ?? [],
     updated_at: new Date().toISOString(),
   };
   mockMenuItems[idx] = updated;
   return { ...updated };
+}
+
+export async function getModifierGroups(): Promise<import("./types").ModifierGroup[]> {
+  await delay(300);
+  return [...mockModifierGroups];
+}
+export async function getModifiers(groupId?: string): Promise<import("./types").Modifier[]> {
+  await delay(300);
+  let r = [...mockModifiers];
+  if (groupId) r = r.filter((m) => m.modifier_group_id === groupId);
+  return r;
 }
 export async function deleteMenuItem(id: string): Promise<void> {
   await delay(400);

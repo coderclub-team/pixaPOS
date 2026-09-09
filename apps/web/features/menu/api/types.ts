@@ -32,6 +32,7 @@ export type MenuItemVariant = {
   is_active: boolean;
 };
 
+export type ProductType = "simple" | "variant";
 export type MenuItem = {
   id: string;
   name: string;
@@ -40,6 +41,7 @@ export type MenuItem = {
   category_name?: string;
   description?: string;
   image_url?: string; // placeholder not used this phase
+  product_type: ProductType; // simple = no variants (Regular), variant = has variants (Petpooja/Zoho)
   veg_type: VegType;
   spice_level?: "mild" | "medium" | "spicy";
   prep_time_min?: number;
@@ -50,9 +52,28 @@ export type MenuItem = {
   hsn_code?: string;
   available_channels: Channel[]; // dine_in, pickup, delivery, zomato, swiggy, ondc
   variants: MenuItemVariant[];
+  modifier_group_ids?: string[]; // skeleton, no raw material mapping this phase
   is_active: boolean;
   created_at: string;
   updated_at: string;
+};
+
+export type ModifierGroup = {
+  id: string;
+  name: string;
+  selection_type: "single" | "multiple";
+  min_selection: number;
+  max_selection: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+export type Modifier = {
+  id: string;
+  modifier_group_id: string;
+  name: string;
+  price: number;
+  is_active: boolean;
 };
 
 // Payloads
@@ -65,6 +86,7 @@ export type MenuItemPayload = Partial<
 > &
   Pick<MenuItem, "name" | "category_id"> & {
     variants?: Partial<MenuItemVariant>[];
+    product_type?: ProductType;
   };
 
 // Filters

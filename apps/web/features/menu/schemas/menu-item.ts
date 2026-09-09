@@ -17,6 +17,7 @@ export const menuItemSchema = z.object({
   name: z.string().min(2, "Name required").max(50),
   category_id: z.string().min(1, "Category required"),
   description: z.string().max(500).optional().or(z.literal("")),
+  product_type: z.enum(["simple", "variant"]).optional(),
   veg_type: z.enum(["veg", "nonveg", "egg"]),
   spice_level: z.enum(["mild", "medium", "spicy"]).optional().or(z.literal("")),
   prep_time_min: z.number().min(0).optional(),
