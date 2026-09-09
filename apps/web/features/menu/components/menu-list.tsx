@@ -155,7 +155,10 @@ function MenuRow({ item }: { item: MenuItem }) {
           {priceRange}
         </TableCell>
         <TableCell className="text-xs capitalize text-muted-foreground">
-          {item.available_channels.slice(0, 3).join(", ")}
+          {item.available_channels
+            .map((c) => (c === "pickup" ? "takeaway" : c.replace("_", "-")))
+            .slice(0, 3)
+            .join(", ")}
           {item.available_channels.length > 3 ? ` +${item.available_channels.length - 3}` : ""}
         </TableCell>
         <TableCell className="text-right">

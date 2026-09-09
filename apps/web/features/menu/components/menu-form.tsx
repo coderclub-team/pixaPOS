@@ -596,30 +596,37 @@ export default function MenuForm({
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Available Channels</Label>
                 <div className="flex flex-wrap gap-2">
-                  {(["dine_in", "pickup", "delivery", "zomato", "swiggy", "ondc"] as const).map(
-                    (ch) => (
-                      <label
-                        key={ch}
-                        className={cn(
-                          "flex items-center gap-1.5 rounded border px-2 py-1 text-xs",
-                          availableChannels.includes(ch) &&
-                            "bg-primary text-primary-foreground border-primary",
-                        )}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={availableChannels.includes(ch)}
-                          onChange={() => toggleChannel(ch)}
-                          className="sr-only"
-                        />
-                        <span className="capitalize">{ch.replace("_", "-")}</span>
-                      </label>
-                    ),
-                  )}
+                  {(
+                    [
+                      ["dine_in", "Dine-in"],
+                      ["pickup", "Takeaway"],
+                      ["delivery", "Delivery"],
+                      ["zomato", "Zomato"],
+                      ["swiggy", "Swiggy"],
+                      ["ondc", "ONDC"],
+                    ] as const
+                  ).map(([val, label]) => (
+                    <label
+                      key={val}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded border px-2 py-1 text-xs",
+                        availableChannels.includes(val) &&
+                          "bg-primary text-primary-foreground border-primary",
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={availableChannels.includes(val)}
+                        onChange={() => toggleChannel(val)}
+                        className="sr-only"
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Single menu, channel flags — like Odoo POS Category + Pricelist per channel, Zoho
-                  Sales Channel Visibility.
+                  Single menu, channel flags — Takeaway = Pickup (counter), Dine-in table, Delivery
+                  courier. No-variant items use 1 Regular variant.
                 </p>
               </div>
             </FieldGroup>

@@ -101,7 +101,7 @@ export default function MenuItemsPage() {
           <SelectContent>
             <SelectItem value="all">All channels</SelectItem>
             <SelectItem value="dine_in">Dine-in</SelectItem>
-            <SelectItem value="pickup">Pickup</SelectItem>
+            <SelectItem value="pickup">Takeaway</SelectItem>
             <SelectItem value="delivery">Delivery</SelectItem>
             <SelectItem value="zomato">Zomato</SelectItem>
             <SelectItem value="swiggy">Swiggy</SelectItem>
