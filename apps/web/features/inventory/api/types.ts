@@ -83,13 +83,20 @@ export type PurchaseOrder = {
   updated_at: string;
 };
 
+export type RecipeVariantQty = {
+  variant_id: string; // MenuItemVariant.id
+  variant_name: string; // denormalized label (Small / Half)
+  qty: number;
+};
+
 export type RecipeIngredient = {
   material_id: string;
   material_name?: string;
-  qty: number;
+  qty: number; // base qty = simple-dish qty + fallback for variants without override (Odoo blank = all)
   unit: string;
   wastage_percent?: number;
   step_no?: number; // which method step consumes it (Odoo consumed-in-operation lite)
+  variant_qtys?: RecipeVariantQty[]; // per-variant overrides, only when linked dish has variants
 };
 
 export type RecipeVessel =
@@ -118,8 +125,11 @@ export type RecipeStep = {
   temperature_c?: number; // 0-300, Celsius only
   heat_level?: HeatLevel;
   duration_min?: number;
+  image_url?: string; // optional step photo (same FileUploader pattern as menu gallery)
   is_optional?: boolean;
 };
+
+export type RecipeVariantCost = { variant_id: string; variant_name: string; cost: number };
 
 export type Recipe = {
   id: string;
@@ -128,7 +138,8 @@ export type Recipe = {
   yield_unit?: RecipeYieldUnit;
   ingredients: RecipeIngredient[];
   steps: RecipeStep[];
-  cost_per_serve: number;
+  cost_per_serve: number; // base/simple-dish cost
+  cost_per_variant?: RecipeVariantCost[]; // derived on read, not stored
   selling_price?: number;
   prep_time_min?: number;
   cook_time_min?: number;

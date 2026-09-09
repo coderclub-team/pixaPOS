@@ -929,9 +929,18 @@ export default function MenuForm({
                         </Select>
                         {v.recipe_id && recipeById[v.recipe_id] && (
                           <p className="text-xs text-muted-foreground">
-                            Cost ₹{recipeById[v.recipe_id].cost_per_serve}/serve
-                            {Number(v.selling_price) > 0 &&
-                              ` • Margin ${Math.round(((Number(v.selling_price) - recipeById[v.recipe_id].cost_per_serve) / Number(v.selling_price)) * 100)}%`}
+                            {(() => {
+                              const rec = recipeById[v.recipe_id];
+                              const vc = (rec.cost_per_variant ?? []).find(
+                                (x) => x.variant_id === (v as any).id,
+                              );
+                              const cost = vc ? vc.cost : rec.cost_per_serve;
+                              const margin =
+                                Number(v.selling_price) > 0
+                                  ? ` • Margin ${Math.round(((Number(v.selling_price) - cost) / Number(v.selling_price)) * 100)}%`
+                                  : "";
+                              return `Cost ₹${cost}/serve${vc ? ` (${vc.variant_name})` : ""}${margin} • qty from recipe variant columns`;
+                            })()}
                           </p>
                         )}
                       </div>

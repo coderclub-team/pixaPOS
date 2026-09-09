@@ -1,11 +1,18 @@
 import * as z from "zod";
 
+export const recipeVariantQtySchema = z.object({
+  variant_id: z.string().min(1),
+  variant_name: z.string().min(1),
+  qty: z.number().min(0, "Qty ≥ 0"),
+});
+
 export const recipeIngredientSchema = z.object({
   material_id: z.string().min(1, "Material required"),
   qty: z.number().min(0.01, "Qty min 0.01"),
   unit: z.string().min(1),
   wastage_percent: z.number().min(0).max(100).optional(),
   step_no: z.number().int().min(1).optional(),
+  variant_qtys: z.array(recipeVariantQtySchema).optional(),
 });
 
 export const recipeStepSchema = z.object({
@@ -31,6 +38,7 @@ export const recipeStepSchema = z.object({
   temperature_c: z.number().min(0).max(300).optional(),
   heat_level: z.enum(["low", "medium", "high"]).optional().or(z.literal("")),
   duration_min: z.number().min(0).max(1440).optional(),
+  image_url: z.string().url().optional().or(z.literal("")),
   is_optional: z.boolean().optional(),
 });
 

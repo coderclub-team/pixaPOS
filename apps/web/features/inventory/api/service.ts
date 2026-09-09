@@ -223,6 +223,10 @@ let mockRecipes: Recipe[] = [
         unit: "kg",
         wastage_percent: 2,
         step_no: 2,
+        variant_qtys: [
+          { variant_id: "mv_001", variant_name: "Half", qty: 0.2 },
+          { variant_id: "mv_002", variant_name: "Full", qty: 0.35 },
+        ],
       },
       {
         material_id: "rm_002",
@@ -231,8 +235,22 @@ let mockRecipes: Recipe[] = [
         unit: "kg",
         wastage_percent: 5,
         step_no: 1,
+        variant_qtys: [
+          { variant_id: "mv_001", variant_name: "Half", qty: 0.25 },
+          { variant_id: "mv_002", variant_name: "Full", qty: 0.4 },
+        ],
       },
-      { material_id: "rm_004", material_name: "Cooking Oil", qty: 0.05, unit: "l", step_no: 2 },
+      {
+        material_id: "rm_004",
+        material_name: "Cooking Oil",
+        qty: 0.05,
+        unit: "l",
+        step_no: 2,
+        variant_qtys: [
+          { variant_id: "mv_001", variant_name: "Half", qty: 0.05 },
+          { variant_id: "mv_002", variant_name: "Full", qty: 0.08 },
+        ],
+      },
     ],
     steps: [
       {
@@ -273,6 +291,7 @@ let mockRecipes: Recipe[] = [
     plating_notes: "Serve layered, saffron rice on top",
     garnish: "Fried onions, mint, boiled egg",
     serving_vessel: "Handi",
+    menu_item_id: "mi_001",
     is_active: true,
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 15).toISOString(),
     updated_at: new Date().toISOString(),
@@ -687,6 +706,27 @@ export async function deleteSupplier(id: string): Promise<void> {
 }
 
 // Recipes
+function enrichRecipe(r: Recipe): Recipe {
+  const materials = materialMap();
+  const byVariant = new Map<string, { name: string; cost: number }>();
+  r.ingredients.forEach((ing) => {
+    const mat = materials[ing.material_id];
+    const unitCost = mat?.avg_cost ?? 0;
+    const w = 1 + (ing.wastage_percent ?? 0) / 100;
+    (ing.variant_qtys ?? []).forEach((vq) => {
+      const e = byVariant.get(vq.variant_id) ?? { name: vq.variant_name, cost: 0 };
+      e.cost += vq.qty * unitCost * w;
+      byVariant.set(vq.variant_id, e);
+    });
+  });
+  const cost_per_variant = [...byVariant.entries()].map(([variant_id, v]) => ({
+    variant_id,
+    variant_name: v.name,
+    cost: Math.round(v.cost * 100) / 100,
+  }));
+  return { ...r, cost_per_variant };
+}
+
 export async function getRecipes(filters?: import("./types").RecipeFilters): Promise<Recipe[]> {
   await delay(400);
   let r = [...mockRecipes].sort((a, b) => a.name.localeCompare(b.name));
@@ -699,12 +739,13 @@ export async function getRecipes(filters?: import("./types").RecipeFilters): Pro
     );
   }
   if (filters?.is_active !== undefined) r = r.filter((x) => x.is_active === filters.is_active);
-  return r;
+  return r.map(enrichRecipe);
 }
 
 export async function getRecipeById(id: string): Promise<Recipe | null> {
   await delay(300);
-  return mockRecipes.find((r) => r.id === id) ?? null;
+  const r = mockRecipes.find((x) => x.id === id) ?? null;
+  return r ? enrichRecipe(r) : null;
 }
 
 export async function createRecipe(payload: RecipePayload): Promise<Recipe> {
@@ -728,6 +769,7 @@ export async function createRecipe(payload: RecipePayload): Promise<Recipe> {
     temperature_c: s.temperature_c,
     heat_level: s.heat_level || undefined,
     duration_min: s.duration_min,
+    image_url: s.image_url || undefined,
     is_optional: s.is_optional ?? false,
   }));
   const recipe: Recipe = {
@@ -751,7 +793,7 @@ export async function createRecipe(payload: RecipePayload): Promise<Recipe> {
     updated_at: now,
   };
   mockRecipes.push(recipe);
-  return { ...recipe };
+  return enrichRecipe(recipe);
 }
 
 export async function updateRecipe(id: string, payload: RecipePayload): Promise<Recipe> {
@@ -779,6 +821,7 @@ export async function updateRecipe(id: string, payload: RecipePayload): Promise<
       temperature_c: s.temperature_c,
       heat_level: s.heat_level || undefined,
       duration_min: s.duration_min,
+      image_url: s.image_url || undefined,
       is_optional: s.is_optional ?? false,
     }));
   }
@@ -791,7 +834,7 @@ export async function updateRecipe(id: string, payload: RecipePayload): Promise<
     updated_at: new Date().toISOString(),
   };
   mockRecipes[idx] = updated;
-  return { ...updated };
+  return enrichRecipe(updated);
 }
 
 export async function deleteRecipe(id: string): Promise<void> {
