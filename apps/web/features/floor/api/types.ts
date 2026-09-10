@@ -24,10 +24,32 @@ export type Floor = {
   version: number;
 };
 
+export type FloorObjectKind = "wall" | "separator" | "decor" | "label";
+
+export type FloorObject = {
+  id: string;
+  floor_id: string;
+  outlet_id: string;
+  kind: FloorObjectKind;
+  label?: string;
+  x_mm: number;
+  y_mm: number;
+  w_mm: number;
+  h_mm: number;
+  rotation_deg: number;
+  z_index: number;
+  color?: string;
+  deleted_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  version: number;
+};
+
 export type FloorLayout = {
   floor: Floor;
   tables: TableWithDerived[];
   groups: OccupancyGroup[];
+  objects: FloorObject[];
 };
 
 export type FloorPayload = Partial<Omit<Floor, "id" | "created_at" | "updated_at" | "version">> &

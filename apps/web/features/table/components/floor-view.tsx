@@ -4,6 +4,7 @@ import { useState } from "react";
 import PageContainer from "@/components/layout/page-container";
 import { useQuery } from "@tanstack/react-query";
 import { floorsQueryOptions } from "@/features/floor/api/queries";
+import { tableQueryOptions } from "@/features/table/api/queries";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@pixa/ui/base-ui/tabs";
 import FloorPlanCanvas from "@/features/table/components/floor-plan-canvas";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
@@ -22,6 +23,11 @@ export default function FloorViewPage() {
 
   const activeFloors = (floors ?? []).filter((f) => f.is_active);
   const currentFloorId = selectedFloorId ?? activeFloors[0]?.id;
+  // H10: resolve the real table entity — never display ID fragments as names
+  const { data: selectedTable } = useQuery({
+    ...tableQueryOptions(selectedTableId ?? ""),
+    enabled: !!selectedTableId,
+  });
 
   return (
     <PageContainer
@@ -75,12 +81,21 @@ export default function FloorViewPage() {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {/* Detailed occupancy info here in PR-3 */}
                   <div className="rounded-lg border bg-muted/30 p-4">
                     <p className="text-xs font-medium uppercase text-muted-foreground">Table Status</p>
-                    <p className="text-2xl font-bold">Table #{selectedTableId.slice(-3)}</p>
+                    <p className="text-2xl font-bold">
+                      {selectedTable ? `Table ${selectedTable.number}` : "Table"}
+                    </p>
+                    {selectedTable && (
+                      <p className="mt-1 text-xs capitalize text-muted-foreground">
+                        {selectedTable.status.replace("_", " ")} • {selectedTable.seated_seats}/
+                        {selectedTable.capacity} seats
+                        {selectedTable.active_groups.length > 0 &&
+                          ` • ${selectedTable.active_groups.length} group(s)`}
+                      </p>
+                    )}
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Button className="w-full justify-start gap-2">
                       <Icons.add className="size-4" /> Seat Guests

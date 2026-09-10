@@ -11,6 +11,7 @@ import type {
   TableWithDerived,
 } from "./types";
 import { deriveTableInfo, canTransition } from "./utils";
+import type { TableStatus } from "./types";
 
 let mockTables: RestaurantTable[] = [
   {
@@ -89,6 +90,36 @@ loadTables();
 // Exported for layout read-model in floor-service
 export { mockTables, mockGroups, mockBlocks, mockHolds };
 
+/**
+ * C1: single choke point for ALL table status writes.
+ * Asserts the explicit transition map, bumps version, emits the event.
+ */
+async function transitionTable(
+  idx: number,
+  to: TableStatus,
+  ctx: { actor_id?: string; reason_code?: string; reason_text?: string; event_type?: any },
+): Promise<void> {
+  const current = mockTables[idx];
+  const from = current.status;
+  if (from === to) return;
+  if (!canTransition(from, to)) {
+    throw new Error(`Illegal table transition ${from} → ${to}`);
+  }
+  const now = new Date().toISOString();
+  mockTables[idx] = { ...current, status: to, updated_at: now, version: current.version + 1 };
+  await recordEvent({
+    outlet_id: current.outlet_id,
+    entity_type: "TABLE",
+    entity_id: current.id,
+    event_type: ctx.event_type ?? "TABLE_UPDATED",
+    from_state: from,
+    to_state: to,
+    actor_id: ctx.actor_id,
+    reason_code: ctx.reason_code,
+    reason_text: ctx.reason_text,
+  });
+}
+
 function enrichTable(table: RestaurantTable): TableWithDerived {
   const activeGroups = mockGroups.filter(
     (g) => g.table_id === table.id && (g.status === "SEATED" || g.status === "ORDERING"),
@@ -128,6 +159,31 @@ export async function getTableById(id: string): Promise<TableWithDerived | null>
   await delay(200);
   const t = mockTables.find((t) => t.id === id && !t.deleted_at);
   return t ? enrichTable(t) : null;
+}
+
+/**
+ * C4: typed layout API for the floor module.
+ * Floor service must compose through this — never the raw mock arrays.
+ */
+export async function getTablesWithDerivedByFloor(floorId: string): Promise<{
+  tables: TableWithDerived[];
+  groups: OccupancyGroup[];
+  blocks: TableBlock[];
+  holds: ReservationHold[];
+}> {
+  await delay(100);
+  const tables = mockTables
+    .filter((t) => t.floor_id === floorId && !t.deleted_at)
+    .map(enrichTable);
+  const tableIds = new Set(tables.map((t) => t.id));
+  return {
+    tables,
+    groups: mockGroups.filter(
+      (g) => tableIds.has(g.table_id) && (g.status === "SEATED" || g.status === "ORDERING"),
+    ),
+    blocks: mockBlocks.filter((b) => tableIds.has(b.table_id) && !b.released_at),
+    holds: mockHolds.filter((h) => tableIds.has(h.table_id) && h.status === "HELD"),
+  };
 }
 
 export async function createTable(payload: TablePayload): Promise<TableWithDerived> {
@@ -189,12 +245,28 @@ export async function updateTable(id: string, payload: TablePayload): Promise<Ta
     const activeGroups = mockGroups.filter(
       (g) => g.table_id === id && (g.status === "SEATED" || g.status === "ORDERING"),
     );
-    
-    // Safety guard on structural changes
-    if (activeGroups.length > 0 && (payload.capacity || (payload as any).allows_sharing)) {
+
+    // H2: moving a seated table across floors orphans its groups — reject
+    if (
+      payload.floor_id !== undefined &&
+      payload.floor_id !== current.floor_id &&
+      activeGroups.length > 0
+    ) {
+      throw new Error("Cannot move table to another floor with active guests. Release or transfer groups first.");
+    }
+
+    // Safety guard on structural changes (H5: presence-checked, not truthiness-checked)
+    if (activeGroups.length > 0) {
       const seated = activeGroups.reduce((s, g) => s + g.seats, 0);
-      if (payload.capacity && payload.capacity < seated) {
+      if (payload.capacity !== undefined && payload.capacity < seated) {
         throw new Error(`Cannot reduce capacity below current occupancy (${seated})`);
+      }
+      if (
+        "allows_sharing" in payload &&
+        (payload as any).allows_sharing === false &&
+        activeGroups.length > 1
+      ) {
+        throw new Error("Cannot disable sharing with multiple active groups");
       }
     }
 
@@ -253,32 +325,60 @@ export async function deleteTable(id: string): Promise<void> {
   }
 }
 
-// Layout Commands
+// Layout Commands — C3: single pose writer with lock, version bump, and audit.
+// Callers must batch a drag into ONE setTablePose call per pointer-up.
+
+export async function setTablePose(
+  id: string,
+  params: { x_mm?: number; y_mm?: number; w_mm?: number; h_mm?: number; rotation_deg?: number },
+): Promise<void> {
+  const release = await entityMutex.acquire(`table-${id}`);
+  try {
+    await delay(200);
+    const idx = mockTables.findIndex(t => t.id === id && !t.deleted_at);
+    if (idx === -1) return;
+    const moved =
+      (params.x_mm !== undefined && params.x_mm !== mockTables[idx].x_mm) ||
+      (params.y_mm !== undefined && params.y_mm !== mockTables[idx].y_mm);
+    const resized =
+      (params.w_mm !== undefined && params.w_mm !== mockTables[idx].w_mm) ||
+      (params.h_mm !== undefined && params.h_mm !== mockTables[idx].h_mm);
+    const rotated =
+      params.rotation_deg !== undefined && params.rotation_deg !== mockTables[idx].rotation_deg;
+    if (!moved && !resized && !rotated) return;
+    mockTables[idx] = {
+      ...mockTables[idx],
+      ...(params.x_mm !== undefined ? { x_mm: params.x_mm } : {}),
+      ...(params.y_mm !== undefined ? { y_mm: params.y_mm } : {}),
+      ...(params.w_mm !== undefined ? { w_mm: params.w_mm } : {}),
+      ...(params.h_mm !== undefined ? { h_mm: params.h_mm } : {}),
+      ...(params.rotation_deg !== undefined ? { rotation_deg: params.rotation_deg } : {}),
+      updated_at: new Date().toISOString(),
+      version: mockTables[idx].version + 1,
+    };
+    saveTables();
+    await recordEvent({
+      outlet_id: mockTables[idx].outlet_id,
+      entity_type: "TABLE",
+      entity_id: id,
+      event_type: resized ? "TABLE_RESIZED" : "TABLE_MOVED",
+      metadata: { ...params },
+    });
+  } finally {
+    release();
+  }
+}
 
 export async function moveTable(id: string, params: { x_mm: number; y_mm: number }): Promise<void> {
-  const idx = mockTables.findIndex(t => t.id === id);
-  if (idx === -1) return;
-  mockTables[idx].x_mm = params.x_mm;
-  mockTables[idx].y_mm = params.y_mm;
-  mockTables[idx].updated_at = new Date().toISOString();
-  saveTables();
+  return setTablePose(id, params);
 }
 
 export async function resizeTable(id: string, params: { w_mm: number; h_mm: number }): Promise<void> {
-  const idx = mockTables.findIndex(t => t.id === id);
-  if (idx === -1) return;
-  mockTables[idx].w_mm = params.w_mm;
-  mockTables[idx].h_mm = params.h_mm;
-  mockTables[idx].updated_at = new Date().toISOString();
-  saveTables();
+  return setTablePose(id, params);
 }
 
 export async function rotateTable(id: string, params: { rotation_deg: number }): Promise<void> {
-  const idx = mockTables.findIndex(t => t.id === id);
-  if (idx === -1) return;
-  mockTables[idx].rotation_deg = params.rotation_deg;
-  mockTables[idx].updated_at = new Date().toISOString();
-  saveTables();
+  return setTablePose(id, params);
 }
 
 // Occupancy Commands (Transactional - Design ruling C4)
@@ -328,13 +428,19 @@ export async function seatOccupancy(params: {
 
     mockGroups.push(group);
 
+    // M3: seating consumes matching reservation holds on this table
+    mockHolds.forEach((h) => {
+      if (h.table_id === params.table_id && h.status === "HELD") {
+        h.status = "SEATED";
+      }
+    });
+
     // Side effect: update table status
     const tableIdx = mockTables.findIndex(t => t.id === params.table_id);
     if (tableIdx !== -1) {
       const oldStatus = mockTables[tableIdx].status;
       if (oldStatus === "available" || oldStatus === "reserved") {
-        mockTables[tableIdx].status = "occupied";
-        mockTables[tableIdx].updated_at = now;
+        await transitionTable(tableIdx, "occupied", {});
       }
     }
     saveTables();
@@ -359,13 +465,16 @@ export async function releaseOccupancy(params: {
   released_by: string;
   reason: string;
 }): Promise<void> {
-  const group = mockGroups.find(g => g.id === params.group_id);
-  if (!group) throw new Error("Group not found");
-  
-  const release = await entityMutex.acquire(`table-${group.table_id}`);
+  // C2: resolve the table first (for lock key), but re-read the group INSIDE the lock
+  const probe = mockGroups.find(g => g.id === params.group_id);
+  if (!probe) throw new Error("Group not found");
+
+  const release = await entityMutex.acquire(`table-${probe.table_id}`);
   try {
     await delay(400);
     const idx = mockGroups.findIndex(g => g.id === params.group_id);
+    if (idx === -1) throw new Error("Group not found");
+    const group = mockGroups[idx];
     if (group.status === "RELEASED" || group.status === "CANCELLED") return;
 
     const now = new Date().toISOString();
@@ -378,26 +487,18 @@ export async function releaseOccupancy(params: {
     };
 
     // Side effect: Transition table to CLEANING if last group (Design Ruling C6)
-    const activeOnTable = mockGroups.filter(g => 
-      g.table_id === group.table_id && 
-      g.id !== group.id && 
+    const activeOnTable = mockGroups.filter(g =>
+      g.table_id === group.table_id &&
+      g.id !== group.id &&
       (g.status === "SEATED" || g.status === "ORDERING")
     );
 
     if (activeOnTable.length === 0) {
       const tableIdx = mockTables.findIndex(t => t.id === group.table_id);
-      if (tableIdx !== -1) {
-        mockTables[tableIdx].status = "cleaning";
-        mockTables[tableIdx].updated_at = now;
-        
-        await recordEvent({
-          outlet_id: group.outlet_id,
-          entity_type: "TABLE",
-          entity_id: group.table_id,
-          event_type: "TABLE_CLEANING_STARTED",
-          from_state: "occupied",
-          to_state: "cleaning",
+      if (tableIdx !== -1 && mockTables[tableIdx].status === "occupied") {
+        await transitionTable(tableIdx, "cleaning", {
           actor_id: params.released_by,
+          event_type: "TABLE_CLEANING_STARTED",
         });
       }
     }
