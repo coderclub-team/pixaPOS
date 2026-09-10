@@ -43,6 +43,49 @@ let mockGroups: OccupancyGroup[] = [];
 let mockBlocks: TableBlock[] = [];
 let mockHolds: ReservationHold[] = [];
 
+// Persist mock state to localStorage so created tables/groups survive dev-server
+// restarts (same PO_STORAGE_KEY pattern as inventory service).
+const TABLE_STORAGE_KEY = "pixaTables";
+function saveTables() {
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(
+        TABLE_STORAGE_KEY,
+        JSON.stringify({
+          tables: mockTables,
+          groups: mockGroups,
+          blocks: mockBlocks,
+          holds: mockHolds,
+        }),
+      );
+    } catch {}
+  }
+}
+function loadTables(): void {
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(TABLE_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed?.tables) && parsed.tables.length > 0) {
+          mockTables = parsed.tables;
+        }
+        if (Array.isArray(parsed?.groups)) {
+          mockGroups = parsed.groups;
+        }
+        if (Array.isArray(parsed?.blocks)) {
+          mockBlocks = parsed.blocks;
+        }
+        if (Array.isArray(parsed?.holds)) {
+          mockHolds = parsed.holds;
+        }
+      }
+    } catch {}
+  }
+}
+// hydrate from storage on browser init
+loadTables();
+
 // Exported for layout read-model in floor-service
 export { mockTables, mockGroups, mockBlocks, mockHolds };
 
@@ -121,6 +164,7 @@ export async function createTable(payload: TablePayload): Promise<TableWithDeriv
     };
 
     mockTables.push(table);
+    saveTables();
     await recordEvent({
       outlet_id: table.outlet_id,
       entity_type: "TABLE",
@@ -164,6 +208,7 @@ export async function updateTable(id: string, payload: TablePayload): Promise<Ta
     } as any;
     
     mockTables[idx] = updated;
+    saveTables();
 
     await recordEvent({
       outlet_id: current.outlet_id,
@@ -195,7 +240,8 @@ export async function deleteTable(id: string): Promise<void> {
 
     mockTables[idx].deleted_at = new Date().toISOString();
     mockTables[idx].is_active = false;
-    
+    saveTables();
+
     await recordEvent({
       outlet_id: mockTables[idx].outlet_id,
       entity_type: "TABLE",
@@ -215,6 +261,7 @@ export async function moveTable(id: string, params: { x_mm: number; y_mm: number
   mockTables[idx].x_mm = params.x_mm;
   mockTables[idx].y_mm = params.y_mm;
   mockTables[idx].updated_at = new Date().toISOString();
+  saveTables();
 }
 
 export async function resizeTable(id: string, params: { w_mm: number; h_mm: number }): Promise<void> {
@@ -223,6 +270,7 @@ export async function resizeTable(id: string, params: { w_mm: number; h_mm: numb
   mockTables[idx].w_mm = params.w_mm;
   mockTables[idx].h_mm = params.h_mm;
   mockTables[idx].updated_at = new Date().toISOString();
+  saveTables();
 }
 
 export async function rotateTable(id: string, params: { rotation_deg: number }): Promise<void> {
@@ -230,6 +278,7 @@ export async function rotateTable(id: string, params: { rotation_deg: number }):
   if (idx === -1) return;
   mockTables[idx].rotation_deg = params.rotation_deg;
   mockTables[idx].updated_at = new Date().toISOString();
+  saveTables();
 }
 
 // Occupancy Commands (Transactional - Design ruling C4)
@@ -288,6 +337,7 @@ export async function seatOccupancy(params: {
         mockTables[tableIdx].updated_at = now;
       }
     }
+    saveTables();
 
     await recordEvent({
       outlet_id: group.outlet_id,
@@ -351,6 +401,8 @@ export async function releaseOccupancy(params: {
         });
       }
     }
+
+    saveTables();
 
     await recordEvent({
       outlet_id: group.outlet_id,

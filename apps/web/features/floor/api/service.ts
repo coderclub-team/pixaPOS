@@ -46,6 +46,32 @@ import {
   mockHolds,
 } from "@/features/table/api/service";
 
+// Persist mock floors to localStorage so created floors survive dev-server
+// restarts (same PO_STORAGE_KEY pattern as inventory service).
+const FLOOR_STORAGE_KEY = "pixaFloors";
+function saveFloors() {
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(FLOOR_STORAGE_KEY, JSON.stringify(mockFloors));
+    } catch {}
+  }
+}
+function loadFloors(): void {
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(FLOOR_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          mockFloors = parsed;
+        }
+      }
+    } catch {}
+  }
+}
+// hydrate from storage on browser init
+loadFloors();
+
 export async function getFloors(filters?: FloorFilters): Promise<Floor[]> {
   await delay(300);
   let r = [...mockFloors].filter((f) => !f.deleted_at);
@@ -117,6 +143,7 @@ export async function createFloor(payload: FloorPayload): Promise<Floor> {
       updated_at: now,
     };
     mockFloors.push(floor);
+    saveFloors();
     await recordEvent({
       outlet_id: floor.outlet_id,
       entity_type: "FLOOR",
@@ -156,6 +183,7 @@ export async function updateFloor(id: string, payload: FloorPayload): Promise<Fl
       version: mockFloors[idx].version + 1,
     };
     mockFloors[idx] = updated;
+    saveFloors();
     await recordEvent({
       outlet_id: updated.outlet_id,
       entity_type: "FLOOR",
@@ -180,6 +208,7 @@ export async function reorderFloors(input: ReorderFloorInput[]): Promise<void> {
         mockFloors[idx].updated_at = new Date().toISOString();
       }
     });
+    saveFloors();
     await recordEvent({
       outlet_id: "out_001",
       entity_type: "FLOOR",
@@ -206,6 +235,7 @@ export async function deleteFloor(id: string): Promise<void> {
 
     mockFloors[idx].deleted_at = new Date().toISOString();
     mockFloors[idx].is_active = false;
+    saveFloors();
     await recordEvent({
       outlet_id: mockFloors[idx].outlet_id,
       entity_type: "FLOOR",
