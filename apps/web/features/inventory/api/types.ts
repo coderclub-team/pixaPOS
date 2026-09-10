@@ -12,7 +12,9 @@ export type RawMaterial = {
   name: string;
   sku: string;
   category: string;
-  unit: "kg" | "g" | "l" | "ml" | "pcs" | "box";
+  unit: "kg" | "g" | "l" | "ml" | "pcs" | "box"; // base (stock) unit — recipes, ledger, costing
+  purchase_unit?: "kg" | "g" | "l" | "ml" | "pcs" | "box"; // buying unit (Odoo purchase UoM)
+  purchase_to_base_rate?: number; // 1 purchase_unit = X base units (e.g. 1 box = 12 pcs)
   stock_qty: number;
   low_stock_threshold: number; // simple threshold for reorder alerts
   opening_stock?: number;
@@ -53,11 +55,14 @@ export type PurchaseOrderStatus = "draft" | "sent" | "received" | "cancelled";
 export type PurchaseOrderItem = {
   material_id: string;
   material_name?: string;
-  qty: number;
-  unit_cost: number;
+  qty: number; // base-unit qty (authoritative for stock/costing)
+  unit_cost: number; // per base unit
   tax_percent?: number;
   unit?: string;
   line_total?: number;
+  purchase_qty?: number; // as-bought qty (audit, e.g. 2 boxes)
+  purchase_unit?: string; // as-bought unit
+  purchase_unit_cost?: number; // price per purchase unit
 };
 
 export type PurchaseOrder = {
@@ -231,10 +236,13 @@ export type MaterialPriceHistory = {
 export type PurchaseItem = {
   material_id: string;
   material_name?: string;
-  qty: number;
-  unit_cost: number;
+  qty: number; // base-unit qty (authoritative for stock/costing)
+  unit_cost: number; // per base unit
   tax_percent?: number;
   line_total?: number;
+  purchase_qty?: number; // as-bought qty (audit)
+  purchase_unit?: string; // as-bought unit
+  purchase_unit_cost?: number; // price per purchase unit
 };
 
 export type PurchasePaymentStatus = "unpaid" | "partial" | "paid";

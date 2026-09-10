@@ -44,7 +44,14 @@ type POItem = {
   qty: number | string;
   unit_cost: number | string;
   tax_percent?: number;
+  entry_unit?: string; // unit the row is entered in (purchase unit or base unit)
 };
+
+// 1 purchase_unit = rate base units; entry in purchase unit converts to base for stock/costing
+const rawRate = (mat: any): number => Number(mat?.purchase_to_base_rate) || 0;
+const hasPurchaseUom = (mat: any): boolean =>
+  !!mat?.purchase_unit && mat.purchase_unit !== mat?.unit && rawRate(mat) > 0;
+const rateFor = (mat: any): number => (hasPurchaseUom(mat) ? rawRate(mat) : 1);
 
 export default function PurchaseOrderForm({
   pageTitle,
@@ -69,13 +76,37 @@ export default function PurchaseOrderForm({
   const selectedSupplier = suppliers?.find((s) => s.id === (initialData?.supplier_id ?? ""));
 
   const [items, setItems] = useState<POItem[]>(
-    initialData?.items?.map((it) => ({
-      material_id: it.material_id,
-      qty: it.qty,
-      unit_cost: it.unit_cost,
-      tax_percent: it.tax_percent,
-    })) ?? [{ material_id: "", qty: 1, unit_cost: 0, tax_percent: undefined }],
+    initialData?.items?.map((it) => {
+      const pu = (it as any).purchase_unit;
+      const inPurchase = !!pu && (it as any).purchase_qty !== undefined;
+      return {
+        material_id: it.material_id,
+        qty: inPurchase ? ((it as any).purchase_qty as number) : it.qty,
+        unit_cost: inPurchase ? ((it as any).purchase_unit_cost as number) : it.unit_cost,
+        tax_percent: it.tax_percent,
+        entry_unit: inPurchase ? pu : undefined,
+      };
+    }) ?? [{ material_id: "", qty: 1, unit_cost: 0, tax_percent: undefined }],
   );
+
+  const toBaseItems = () =>
+    items.map((it) => {
+      const mat = materials?.find((m) => m.id === it.material_id);
+      if (mat && hasPurchaseUom(mat) && (it.entry_unit ?? mat.purchase_unit) === mat.purchase_unit) {
+        const rate = rateFor(mat);
+        return {
+          ...it,
+          qty: Math.round((Number(it.qty) || 0) * rate * 1000) / 1000,
+          unit_cost: Math.round(((Number(it.unit_cost) || 0) / rate) * 100) / 100,
+          purchase_qty: Number(it.qty) || 0,
+          purchase_unit: mat.purchase_unit,
+          purchase_unit_cost: Number(it.unit_cost) || 0,
+          entry_unit: undefined,
+        };
+      }
+      const { entry_unit, ...rest } = it as any;
+      return { ...rest, qty: Number(it.qty), unit_cost: Number(it.unit_cost) };
+    });
   const [itemsError, setItemsError] = useState<string | null>(null);
 
   const totals = useMemo(() => {
@@ -138,12 +169,8 @@ export default function PurchaseOrderForm({
         if (it.unit_cost === "" || Number.isNaN(costNum) || costNum < 0)
           return setItemsError(`Row ${i + 1}: unit cost invalid`);
       }
-      // coerce to numbers for API
-      const cleanItems = items.map((it) => ({
-        ...it,
-        qty: Number(it.qty),
-        unit_cost: Number(it.unit_cost),
-      }));
+      // coerce to numbers for API (purchase-unit rows convert to base)
+      const cleanItems = toBaseItems();
       setItemsError(null);
       const payload = { ...value, items: cleanItems };
       // validate items via zod
@@ -172,10 +199,14 @@ export default function PurchaseOrderForm({
   };
   const onMaterialChange = (idx: number, materialId: string) => {
     const mat = materials?.find((m) => m.id === materialId);
+    const inPurchase = mat ? hasPurchaseUom(mat) : false;
     updateItem(idx, {
       material_id: materialId,
       tax_percent: mat?.tax_percent,
-      unit_cost: mat?.cost_price ?? 0,
+      unit_cost: inPurchase
+        ? Math.round((mat!.cost_price * rateFor(mat)) * 100) / 100
+        : (mat?.cost_price ?? 0),
+      entry_unit: inPurchase ? mat!.purchase_unit : mat?.unit,
     });
   };
 
@@ -370,6 +401,15 @@ export default function PurchaseOrderForm({
             <div className="space-y-3">
               {items.map((it, idx) => {
                 const mat = materials?.find((m) => m.id === it.material_id);
+                const uom = mat && hasPurchaseUom(mat);
+                const entryUnit = (it.entry_unit as string) || mat?.unit || "";
+                const inPurchase = !!uom && entryUnit === (mat as any)?.purchase_unit;
+                const baseQty = inPurchase
+                  ? (Number(it.qty) || 0) * rateFor(mat)
+                  : Number(it.qty) || 0;
+                const baseCost = inPurchase
+                  ? (Number(it.unit_cost) || 0) / rateFor(mat)
+                  : Number(it.unit_cost) || 0;
                 return (
                   <div
                     key={idx}
@@ -459,11 +499,33 @@ export default function PurchaseOrderForm({
                       {mat && (
                         <div className="text-[11px] text-muted-foreground">
                           {mat.unit} • Stock {mat.stock_qty} • Avg ₹{mat.avg_cost}
+                          {uom &&
+                            ` • Buys in ${(mat as any).purchase_unit} ×${rateFor(mat)}`}
+                        </div>
+                      )}
+                      {uom && (
+                        <div className="flex gap-1">
+                          {[(mat as any).purchase_unit, mat.unit].map((u: string) => (
+                            <button
+                              key={u}
+                              type="button"
+                              onClick={() => updateItem(idx, { entry_unit: u })}
+                              className={cn(
+                                "rounded border px-1.5 py-0.5 text-[11px]",
+                                entryUnit === u &&
+                                  "border-primary bg-primary text-primary-foreground",
+                              )}
+                            >
+                              {u}
+                            </button>
+                          ))}
                         </div>
                       )}
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Qty *</Label>
+                      <Label className="text-xs text-muted-foreground">
+                        Qty *{entryUnit ? ` (${entryUnit})` : ""}
+                      </Label>
                       <Input
                         type="number"
                         min={1}
@@ -475,10 +537,18 @@ export default function PurchaseOrderForm({
                           })
                         }
                       />
-                      {mat && <div className="text-[11px] text-muted-foreground">{mat.unit}</div>}
+                      {inPurchase ? (
+                        <div className="text-[11px] text-muted-foreground">
+                          → {baseQty} {mat.unit}
+                        </div>
+                      ) : (
+                        mat && <div className="text-[11px] text-muted-foreground">{mat.unit}</div>
+                      )}
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Rate *</Label>
+                      <Label className="text-xs text-muted-foreground">
+                        Rate *{entryUnit ? ` (₹/${entryUnit})` : ""}
+                      </Label>
                       <Input
                         type="number"
                         min={0}
@@ -492,6 +562,7 @@ export default function PurchaseOrderForm({
                       />
                       <div className="text-[11px] text-muted-foreground">
                         ₹{((Number(it.qty) || 0) * (Number(it.unit_cost) || 0)).toFixed(0)} line
+                        {inPurchase && ` • ₹${baseCost.toFixed(2)}/${mat.unit}`}
                       </div>
                     </div>
                     <div className="space-y-1">

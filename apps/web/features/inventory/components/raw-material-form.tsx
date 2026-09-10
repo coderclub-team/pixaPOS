@@ -78,6 +78,8 @@ export default function RawMaterialForm({
       sku: initialData?.sku ?? "",
       category: initialData?.category ?? "General",
       unit: initialData?.unit ?? "kg",
+      purchase_unit: (initialData as any)?.purchase_unit ?? "",
+      purchase_to_base_rate: (initialData as any)?.purchase_to_base_rate ?? "",
       stock_qty: initialData?.stock_qty ?? 0,
       low_stock_threshold: initialData?.low_stock_threshold ?? 5,
       opening_stock: initialData?.opening_stock ?? 0,
@@ -96,8 +98,16 @@ export default function RawMaterialForm({
     } as RawMaterialValues,
     validators: { onSubmit: rawMaterialSchema },
     onSubmit: async ({ value }) => {
-      if (isEdit) await updateMutation.mutateAsync(value);
-      else await createMutation.mutateAsync(value);
+      const payload = {
+        ...value,
+        purchase_unit: (value as any).purchase_unit || undefined,
+        purchase_to_base_rate:
+          (value as any).purchase_to_base_rate === ""
+            ? undefined
+            : (value as any).purchase_to_base_rate,
+      };
+      if (isEdit) await updateMutation.mutateAsync(payload);
+      else await createMutation.mutateAsync(payload);
     },
   });
 
@@ -151,15 +161,50 @@ export default function RawMaterialForm({
                   name="unit"
                   children={(field) => (
                     <field.SelectField
-                      label="Unit *"
+                      label="Stock Unit *"
                       required
                       options={unitOptions}
                       placeholder="kg"
-                      description="0.05 = 50g"
+                      description="Base unit — recipes, stock, costing"
                     />
                   )}
                 />
               </div>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <form.AppField
+                  name="purchase_unit"
+                  children={(field) => (
+                    <field.SelectField
+                      label="Purchase Unit"
+                      options={[{ label: "Same as stock", value: "" }, ...unitOptions]}
+                      placeholder="Same as stock"
+                      description="Buying unit (Odoo purchase UoM)"
+                    />
+                  )}
+                />
+                <form.AppField
+                  name="purchase_to_base_rate"
+                  children={(field) => (
+                    <field.TextField
+                      label="Conversion Rate"
+                      type="number"
+                      placeholder="12"
+                      description="1 purchase unit = X stock units (e.g. 1 box = 12 pcs; kg→g = 1000)"
+                    />
+                  )}
+                />
+              </div>
+              {(() => {
+                const pu = form.getFieldValue("purchase_unit" as any) as string;
+                const su = form.getFieldValue("unit" as any) as string;
+                const rate = form.getFieldValue("purchase_to_base_rate" as any) as number;
+                if (!pu || pu === su || !(rate > 0)) return null;
+                return (
+                  <p className="text-xs text-muted-foreground">
+                    1 {pu} = {rate} {su} — POs entered in {pu} convert to {su} automatically.
+                  </p>
+                );
+              })()}
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <form.AppField
                   name="cost_price"
@@ -168,7 +213,11 @@ export default function RawMaterialForm({
                       label="Purchase Price *"
                       type="number"
                       placeholder="80"
-                      description={initialData ? `Avg ₹${initialData.avg_cost}` : "Last price"}
+                      description={
+                        initialData
+                          ? `Avg ₹${initialData.avg_cost} per ${initialData.unit}`
+                          : "Per stock unit"
+                      }
                     />
                   )}
                 />
