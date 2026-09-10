@@ -207,6 +207,31 @@ export async function deleteTable(id: string): Promise<void> {
   }
 }
 
+// Layout Commands
+
+export async function moveTable(id: string, params: { x_mm: number; y_mm: number }): Promise<void> {
+  const idx = mockTables.findIndex(t => t.id === id);
+  if (idx === -1) return;
+  mockTables[idx].x_mm = params.x_mm;
+  mockTables[idx].y_mm = params.y_mm;
+  mockTables[idx].updated_at = new Date().toISOString();
+}
+
+export async function resizeTable(id: string, params: { w_mm: number; h_mm: number }): Promise<void> {
+  const idx = mockTables.findIndex(t => t.id === id);
+  if (idx === -1) return;
+  mockTables[idx].w_mm = params.w_mm;
+  mockTables[idx].h_mm = params.h_mm;
+  mockTables[idx].updated_at = new Date().toISOString();
+}
+
+export async function rotateTable(id: string, params: { rotation_deg: number }): Promise<void> {
+  const idx = mockTables.findIndex(t => t.id === id);
+  if (idx === -1) return;
+  mockTables[idx].rotation_deg = params.rotation_deg;
+  mockTables[idx].updated_at = new Date().toISOString();
+}
+
 // Occupancy Commands (Transactional - Design ruling C4)
 
 export async function seatOccupancy(params: {

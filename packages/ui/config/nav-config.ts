@@ -214,6 +214,13 @@ export const navGroups: NavGroup[] = [
             shortcut: ["o", "t"],
             access: { requireOrg: true, permission: "org:tables:manage" },
           },
+          {
+            title: "Floor View",
+            url: "/dashboard/settings/outlet/floor-plan",
+            icon: "layers",
+            shortcut: ["o", "v"],
+            access: { requireOrg: true },
+          },
         ],
       },
     ],

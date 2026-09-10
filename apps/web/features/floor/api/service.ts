@@ -39,11 +39,12 @@ let mockFloors: Floor[] = [
   },
 ];
 
-// Reference to other stores for layout read-model
-let mockTables: RestaurantTable[] = []; 
-let mockGroups: OccupancyGroup[] = [];
-let mockBlocks: TableBlock[] = [];
-let mockHolds: ReservationHold[] = [];
+import {
+  mockTables,
+  mockGroups,
+  mockBlocks,
+  mockHolds,
+} from "@/features/table/api/service";
 
 export async function getFloors(filters?: FloorFilters): Promise<Floor[]> {
   await delay(300);
