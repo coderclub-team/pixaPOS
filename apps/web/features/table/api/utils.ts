@@ -1,4 +1,3 @@
-import { auth } from "@clerk/nextjs/server";
 import { TableStatus, OccupancyGroup, TableBlock, ReservationHold, RestaurantTable } from "./types";
 
 /**
@@ -39,19 +38,5 @@ export function deriveTableInfo(
     occupancyFill,
     isBlocked: !!activeBlock || table.status === "out_of_service",
     isReserved: !!activeHold && activeGroups.length === 0,
-  };
-}
-
-/**
- * Shared server ctx helper for services.
- * In a real backend, this would be middleware.
- */
-export async function getServiceContext() {
-  const { userId, orgId } = await auth();
-  // Mocking outletId as out_001 for now until full multi-outlet lands
-  return {
-    userId,
-    orgId,
-    outletId: "out_001",
   };
 }
