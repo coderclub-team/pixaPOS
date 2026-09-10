@@ -71,7 +71,6 @@ export function FloorList({ floors, onEdit }: FloorListProps) {
               <TableHead>Level</TableHead>
               <TableHead>Capacity</TableHead>
               <TableHead>Sort</TableHead>
-              <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -133,7 +132,10 @@ function FloorRow({
       </Dialog>
       <TableRow>
         <TableCell>
-          <div className="font-medium">{floor.name}</div>
+          <div className="font-medium">
+            {floor.name}
+            {!floor.is_active && <span className="text-xs text-muted-foreground"> • Inactive</span>}
+          </div>
           {floor.description && (
             <p className="line-clamp-1 text-xs text-muted-foreground">{floor.description}</p>
           )}
@@ -145,9 +147,6 @@ function FloorRow({
         </TableCell>
         <TableCell>{floor.capacity} covers</TableCell>
         <TableCell>{floor.sort_order}</TableCell>
-        <TableCell className="text-xs text-muted-foreground">
-          {floor.is_active ? "Active" : "Inactive"}
-        </TableCell>
         <TableCell className="text-right">
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger render={<Button variant="ghost" className="h-8 w-8 p-0" />}>

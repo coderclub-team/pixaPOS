@@ -70,7 +70,6 @@ export function TableList({ tables }: TableListProps) {
               <TableHead>Capacity</TableHead>
               <TableHead>Shape</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Active</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -79,7 +78,12 @@ export function TableList({ tables }: TableListProps) {
               <TableRow key={table.id}>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{table.number}</span>
+                    <span className="font-medium">
+                      {table.number}
+                      {!table.is_active && (
+                        <span className="text-xs text-muted-foreground"> • Inactive</span>
+                      )}
+                    </span>
                     <span className="font-mono text-xs text-muted-foreground">{table.code}</span>
                   </div>
                 </TableCell>
@@ -90,9 +94,6 @@ export function TableList({ tables }: TableListProps) {
                 <TableCell className="capitalize">{table.shape}</TableCell>
                 <TableCell className="text-xs capitalize text-muted-foreground">
                   {table.status.replace("_", " ")}
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {table.is_active ? "Active" : "Inactive"}
                 </TableCell>
                 <TableCell className="text-right">
                   <TableActions table={table} />
