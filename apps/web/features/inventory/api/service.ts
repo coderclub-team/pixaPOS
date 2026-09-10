@@ -1926,10 +1926,15 @@ export async function getWasteLogs(filters?: WasteFilters): Promise<WasteLog[]> 
   if (filters?.search) {
     const q = filters.search.toLowerCase();
     result = result.filter(
-      (w) => (w.material_name ?? "").toLowerCase().includes(q) || w.reason.includes(q),
+      (w) =>
+        (w.material_name ?? "").toLowerCase().includes(q) ||
+        w.reason.includes(q) ||
+        (w.order_number ?? "").toLowerCase().includes(q) ||
+        (w.order_id ?? "").toLowerCase().includes(q),
     );
   }
   if (filters?.reason) result = result.filter((w) => w.reason === filters.reason);
+  if (filters?.order_id) result = result.filter((w) => w.order_id === filters.order_id);
   return result;
 }
 
@@ -1972,11 +1977,111 @@ export async function createWasteLog(payload: WastePayload): Promise<WasteLog> {
     unit: payload.unit ?? mat?.unit ?? "pcs",
     reason: payload.reason,
     notes: payload.notes,
+    photo_url: (payload as any).photo_url || undefined,
     cost_loss: Math.round(costLoss * 100) / 100,
+    created_by: (payload as any).created_by,
     created_at: new Date().toISOString(),
   };
   mockWaste.push(log);
   return { ...log };
+}
+
+// Cancelled-order wastage: explode prepared lines into ingredient waste.
+// Caller (orders module) passes ONLY kitchen-consumed (PREPARING+) lines.
+// Per-variant quantities resolve via variant_qtys override, else base qty × servings.
+export async function recordWasteForCancelledOrder(
+  input: import("./types").CancelledOrderWasteInput,
+): Promise<import("./types").CancelledOrderWasteResult> {
+  await delay(600);
+  const materials = materialMap();
+  const logs: WasteLog[] = [];
+  const skipped: { recipe_id: string; reason: string }[] = [];
+  // aggregate per material so stock deducts once
+  const agg = new Map<
+    string,
+    { qty: number; unit: string; recipe_id: string; recipe_name?: string; variant_id?: string; variant_name?: string }
+  >();
+  for (const line of input.lines) {
+    const recipe = mockRecipes.find((r) => r.id === line.recipe_id);
+    if (!recipe) {
+      skipped.push({ recipe_id: line.recipe_id, reason: "recipe not found" });
+      continue;
+    }
+    if (!(line.servings > 0)) {
+      skipped.push({ recipe_id: line.recipe_id, reason: "servings must be > 0" });
+      continue;
+    }
+    for (const ing of recipe.ingredients) {
+      const override = line.variant_id
+        ? ing.variant_qtys?.find((vq) => vq.variant_id === line.variant_id)
+        : undefined;
+      const qty = ((override?.qty ?? ing.qty) as number) * line.servings;
+      if (!(qty > 0)) continue;
+      const cur = agg.get(ing.material_id);
+      if (cur) cur.qty = Math.round((cur.qty + qty) * 1000) / 1000;
+      else
+        agg.set(ing.material_id, {
+          qty: Math.round(qty * 1000) / 1000,
+          unit: ing.unit,
+          recipe_id: recipe.id,
+          recipe_name: recipe.name,
+          variant_id: line.variant_id,
+          variant_name: line.variant_name,
+        });
+    }
+  }
+  let total = 0;
+  for (const [material_id, a] of agg) {
+    const mat = materials[material_id];
+    const unitCost = mat?.avg_cost ?? 0;
+    const costLoss = Math.round(unitCost * a.qty * 100) / 100;
+    const prev = mat?.stock_qty ?? 0;
+    if (mat) {
+      const newQty = Math.max(0, prev - a.qty);
+      const idx = mockRawMaterials.findIndex((m) => m.id === material_id);
+      if (idx !== -1) {
+        mockRawMaterials[idx].stock_qty = newQty;
+        mockRawMaterials[idx].updated_at = new Date().toISOString();
+        mockStockLedger.push({
+          id: `stk_${Date.now().toString(36)}_woc`,
+          material_id,
+          material_name: mat.name,
+          type: "waste",
+          qty_delta: -a.qty,
+          reason: `order_cancelled ${input.order_number ?? input.order_id}`,
+          reference_id: input.order_id,
+          previous_qty: prev,
+          new_qty: newQty,
+          unit_cost: mat.avg_cost,
+          total_cost: costLoss,
+          avg_cost_before: mat.avg_cost,
+          avg_cost_after: mat.avg_cost,
+          created_at: new Date().toISOString(),
+        });
+      }
+    }
+    const log: WasteLog = {
+      id: `wst_${Date.now().toString(36)}_${material_id}`,
+      material_id,
+      material_name: mat?.name,
+      recipe_id: a.recipe_id,
+      recipe_name: a.recipe_name,
+      variant_id: a.variant_id,
+      variant_name: a.variant_name,
+      order_id: input.order_id,
+      order_number: input.order_number,
+      qty: a.qty,
+      unit: a.unit,
+      reason: "order_cancelled",
+      cost_loss: costLoss,
+      created_by: input.created_by,
+      created_at: new Date().toISOString(),
+    };
+    mockWaste.push(log);
+    logs.push({ ...log });
+    total = Math.round((total + costLoss) * 100) / 100;
+  }
+  return { logs, total_cost_loss: total, skipped };
 }
 
 // Supplier Ledger — global payables (derived, no extra storage)
