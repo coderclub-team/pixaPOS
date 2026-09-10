@@ -64,4 +64,11 @@ Inactive products stay out of new orders; history keeps referencing them (snapsh
 
 ## 8. Business events (audit trail)
 
-`ORDER_CREATED, ORDER_CONFIRMED, ORDER_SENT_TO_KITCHEN, ITEM_ADDED, ITEM_MODIFIED, ITEM_REMOVED, KITCHEN_STARTED, KITCHEN_ITEM_READY, ORDER_READY, ORDER_SERVED, PAYMENT_STARTED, PAYMENT_COMPLETED, PAYMENT_FAILED, REFUND_CREATED, ORDER_CANCELLED, ORDER_COMPLETED` — append-only, feeding audit, KDS, reports, integrations.
+`ORDER_CREATED, ORDER_CONFIRMED, ORDER_SENT_TO_KITCHEN, ITEM_ADDED, ITEM_MODIFIED, ITEM_REMOVED, KITCHEN_STARTED, KITCHEN_ITEM_READY, ORDER_READY, ORDER_SERVED, PAYMENT_STARTED, PAYMENT_COMPLETED, PAYMENT_FAILED, REFUND_CREATED, ORDER_CANCELLED, ORDER_COMPLETED, WASTE_LOGGED, WASTE_FROM_ORDER_CANCELLED` — append-only, feeding audit, KDS, reports, integrations.
+
+## 9. Wastage
+
+Two sources, one log (`WasteLog`), direct-logged (no approval):
+
+- **Manual** — expiry, spillage, spoilage, trimming, overproduction. Logged from Waste Log with material, qty, reason, optional photo evidence. Stock deducts immediately; `cost_loss = avg_cost × qty`.
+- **Cancelled orders** — only kitchen-consumed (`PREPARING`+) lines waste ingredients. The orders module calls `recordWasteForCancelledOrder({ order_id, lines: [{ recipe_id, variant_id?, servings }] })`; quantities resolve per-variant overrides else base qty × servings (per ADR-0002); one log per ingredient with `reason: "order_cancelled"`, ledger `reference_id` = order. Pre-kitchen lines waste nothing.

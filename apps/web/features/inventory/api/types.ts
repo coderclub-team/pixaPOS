@@ -164,6 +164,7 @@ export type WasteReason =
   | "overproduction"
   | "trimming"
   | "spillage"
+  | "order_cancelled"
   | "other";
 
 export type WasteLog = {
@@ -171,12 +172,39 @@ export type WasteLog = {
   material_id?: string;
   material_name?: string;
   recipe_id?: string;
+  recipe_name?: string;
+  variant_id?: string;
+  variant_name?: string;
+  order_id?: string;
+  order_number?: string;
   qty: number;
   unit: string;
   reason: WasteReason;
   notes?: string;
+  photo_url?: string;
   cost_loss: number;
+  created_by?: string;
   created_at: string;
+};
+
+export type CancelledOrderLine = {
+  variant_id?: string;
+  variant_name?: string;
+  recipe_id: string;
+  servings: number; // how many serves were already prepared
+};
+
+export type CancelledOrderWasteInput = {
+  order_id: string;
+  order_number?: string;
+  created_by?: string;
+  lines: CancelledOrderLine[]; // only kitchen-consumed (PREPARING+) lines — caller enforces
+};
+
+export type CancelledOrderWasteResult = {
+  logs: WasteLog[];
+  total_cost_loss: number;
+  skipped: { recipe_id: string; reason: string }[];
 };
 
 export type StockTransactionType =
@@ -406,7 +434,7 @@ export type PurchaseFilters = {
   supplier_id?: string;
   payment_status?: PurchasePaymentStatus;
 };
-export type WasteFilters = { search?: string; reason?: WasteReason };
+export type WasteFilters = { search?: string; reason?: WasteReason; order_id?: string };
 export type PurchaseReturnFiltersLegacy = PurchaseReturnFilters;
 
 export type AdjustmentType = "credit" | "debit";
