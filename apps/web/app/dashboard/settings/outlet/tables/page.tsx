@@ -19,7 +19,6 @@ import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
 import { useQuery as useFloorQuery } from "@tanstack/react-query";
 import { floorsQueryOptions } from "@/features/floor/api/queries";
-import { Show } from "@clerk/nextjs";
 
 export default function TablesPage() {
   const [search, setSearch] = React.useState("");
@@ -50,14 +49,12 @@ export default function TablesPage() {
       pageTitle="Tables"
       pageDescription="Outlet — Tables. Tables belong to floors, have capacity and status for POS seating and KOT routing."
       pageHeaderAction={
-        <Show when={{ permission: "org:tables:manage" }} fallback={null}>
-          <Link
-            href="/dashboard/settings/outlet/tables/new"
-            className={cn(buttonVariants(), "text-xs md:text-sm")}
-          >
-            <Icons.add className="mr-2 h-4 w-4" /> Add New
-          </Link>
-        </Show>
+        <Link
+          href="/dashboard/settings/outlet/tables/new"
+          className={cn(buttonVariants(), "text-xs md:text-sm")}
+        >
+          <Icons.add className="mr-2 h-4 w-4" /> New Table
+        </Link>
       }
     >
       <div className="mb-4 flex flex-wrap items-center gap-2">
