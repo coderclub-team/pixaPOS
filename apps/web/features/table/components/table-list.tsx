@@ -71,7 +71,6 @@ export function TableList({ tables }: TableListProps) {
               <TableHead>Capacity</TableHead>
               <TableHead>Shape</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Active</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -89,11 +88,14 @@ export function TableList({ tables }: TableListProps) {
                 </TableCell>
                 <TableCell>{table.capacity} pax</TableCell>
                 <TableCell className="capitalize">{table.shape}</TableCell>
-                <TableCell className="text-xs capitalize text-muted-foreground">
-                  {table.status.replace("_", " ")}
-                </TableCell>
                 <TableCell>
-                  <StatusDot isActive={table.is_active} />
+                  {table.is_active ? (
+                    <span className="text-xs capitalize text-muted-foreground">
+                      {table.status.replace("_", " ")}
+                    </span>
+                  ) : (
+                    <StatusDot isActive={false} />
+                  )}
                 </TableCell>
                 <TableCell className="text-right">
                   <TableActions table={table} />
