@@ -12,6 +12,9 @@ export const tableShapeOptions = [
   { label: "Square", value: "square" },
   { label: "Round", value: "round" },
   { label: "Rectangle", value: "rectangle" },
+  { label: "Triangle", value: "triangle" },
+  { label: "Ellipse", value: "ellipse" },
+  { label: "Half Circle", value: "half_circle" },
 ] as const;
 
 export const tableSchema = z.object({
@@ -27,7 +30,7 @@ export const tableSchema = z.object({
     .max(20, "Max 20 chars")
     .regex(/^[A-Za-z0-9-_]+$/, "Alphanumeric with -/_ only"),
   capacity: z.number().int().min(1, "Capacity min 1").max(20, "Max 20 covers"),
-  shape: z.enum(["square", "round", "rectangle"]),
+  shape: z.enum(["square", "round", "rectangle", "triangle", "ellipse", "half_circle"]),
   type: z.enum(["standard", "bar_counter", "communal", "outdoor", "private"]).optional(),
   allows_sharing: z.boolean().optional(),
   status: z.enum(["available", "occupied", "reserved", "cleaning", "out_of_service"]),

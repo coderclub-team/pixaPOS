@@ -5,7 +5,13 @@ export type TableStatus =
   | "cleaning"
   | "out_of_service";
 
-export type TableShape = "square" | "round" | "rectangle";
+export type TableShape =
+  | "square"
+  | "round"
+  | "rectangle"
+  | "triangle"
+  | "ellipse"
+  | "half_circle";
 
 export type TableType =
   | "standard"
