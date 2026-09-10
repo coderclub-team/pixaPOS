@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from "@pixa/ui/base-ui/dialog";
 import { Icons } from "@pixa/ui/icons";
+import { StatusDot } from "@pixa/ui/base-ui/status-dot";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { deleteSupplier } from "../api/service";
@@ -115,14 +116,7 @@ function SupplierRow({ supplier: s }: { supplier: Supplier }) {
         <TableCell>{s.phone}</TableCell>
         <TableCell className="font-mono text-xs">{s.gstin ?? "-"}</TableCell>
         <TableCell>
-          <span
-            className={`text-xs font-medium ${s.is_active ? "text-green-600" : "text-muted-foreground"}`}
-          >
-            <span
-              className={`mr-1 inline-block size-1.5 rounded-full ${s.is_active ? "bg-green-600" : "bg-muted-foreground"}`}
-            />{" "}
-            {s.is_active ? "Active" : "Inactive"}
-          </span>
+          <StatusDot isActive={s.is_active} />
         </TableCell>
         <TableCell className="text-right">
           <DropdownMenu modal={false}>

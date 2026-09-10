@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from "@pixa/ui/base-ui/dialog";
 import { Icons } from "@pixa/ui/icons";
+import { StatusDot } from "@pixa/ui/base-ui/status-dot";
 import { useMutation } from "@tanstack/react-query";
 import { deleteRecipe } from "../api/service";
 import { inventoryKeys } from "../api/queries";
@@ -55,6 +56,7 @@ export function RecipeList({ recipes }: { recipes: Recipe[] }) {
               <TableHead>Cost/Serve</TableHead>
               <TableHead>Selling</TableHead>
               <TableHead>Margin</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -111,7 +113,6 @@ function RecipeRow({ recipe: r }: { recipe: Recipe }) {
             Yields {r.yields}
             {(r as any).yield_unit ? ` ${(r as any).yield_unit}` : ""} • {r.ingredients.length}{" "}
             items
-            {!r.is_active && " • Inactive"}
           </div>
         </TableCell>
         <TableCell
@@ -131,6 +132,9 @@ function RecipeRow({ recipe: r }: { recipe: Recipe }) {
           >
             {margin}%
           </span>
+        </TableCell>
+        <TableCell>
+          <StatusDot isActive={r.is_active} />
         </TableCell>
         <TableCell className="text-right">
           <DropdownMenu modal={false}>

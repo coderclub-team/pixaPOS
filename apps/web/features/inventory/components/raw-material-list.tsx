@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from "@pixa/ui/base-ui/dialog";
 import { Icons } from "@pixa/ui/icons";
+import { StatusDot } from "@pixa/ui/base-ui/status-dot";
 import { useMutation } from "@tanstack/react-query";
 import { deleteRawMaterial } from "../api/service";
 import { inventoryKeys } from "../api/queries";
@@ -63,6 +64,7 @@ export function RawMaterialList({ materials }: { materials: RawMaterial[] }) {
               <TableHead>Category</TableHead>
               <TableHead>Stock</TableHead>
               <TableHead className="text-right">Valuation</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -140,7 +142,6 @@ function RawMaterialRow({ m }: { m: RawMaterial }) {
                 title="Low stock"
               />
             )}
-            {!m.is_active && <span className="text-xs text-muted-foreground">• Inactive</span>}
           </div>
           <div className="text-[11px] text-muted-foreground">
             Threshold {m.low_stock_threshold} • Value ₹{stockValue.toFixed(2)}
@@ -160,6 +161,9 @@ function RawMaterialRow({ m }: { m: RawMaterial }) {
               </span>
             )}
           </div>
+        </TableCell>
+        <TableCell>
+          <StatusDot isActive={m.is_active} />
         </TableCell>
         <TableCell className="text-right">
           <DropdownMenu modal={false}>

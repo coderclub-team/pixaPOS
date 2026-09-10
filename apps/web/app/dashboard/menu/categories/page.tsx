@@ -41,6 +41,7 @@ import {
 } from "@pixa/ui/base-ui/dropdown-menu";
 import { Switch } from "@pixa/ui/base-ui/switch";
 import { Icons } from "@pixa/ui/icons";
+import { StatusDot } from "@pixa/ui/base-ui/status-dot";
 import { toast } from "sonner";
 import { Label } from "@pixa/ui/base-ui/label";
 import Link from "next/link";
@@ -132,7 +133,7 @@ export default function CategoriesPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Slug</TableHead>
-                <TableHead>Active</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -154,7 +155,9 @@ export default function CategoriesPage() {
                     </div>
                   </TableCell>
                   <TableCell className="font-mono text-xs">{c.slug}</TableCell>
-                  <TableCell className="text-xs">{c.is_active ? "Yes" : "No"}</TableCell>
+                  <TableCell>
+                    <StatusDot isActive={c.is_active} />
+                  </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu modal={false}>
                       <DropdownMenuTrigger

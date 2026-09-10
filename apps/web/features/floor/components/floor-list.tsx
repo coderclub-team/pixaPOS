@@ -1,9 +1,23 @@
 "use client";
 
 import type { Floor } from "../api/types";
-import { Badge } from "@pixa/ui/base-ui/badge";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@pixa/ui/base-ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@pixa/ui/base-ui/dialog";
 import {
   Table,
   TableBody,
@@ -13,12 +27,13 @@ import {
   TableRow,
 } from "@pixa/ui/base-ui/table";
 import { Icons } from "@pixa/ui/icons";
+import { StatusDot } from "@pixa/ui/base-ui/status-dot";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { deleteFloor } from "../api/service";
 import { floorKeys } from "../api/queries";
 import { toast } from "sonner";
-import Link from "next/link";
-import { Show } from "@clerk/nextjs";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 interface FloorListProps {
   floors: Floor[];
@@ -27,15 +42,6 @@ interface FloorListProps {
 
 export function FloorList({ floors, onEdit }: FloorListProps) {
   const queryClient = useQueryClient();
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteFloor(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: floorKeys.all });
-      toast.success("Floor deleted");
-    },
-    onError: (error: Error) => toast.error(error.message || "Failed to delete floor"),
-  });
 
   if (floors.length === 0) {
     return (
@@ -72,81 +78,106 @@ export function FloorList({ floors, onEdit }: FloorListProps) {
           </TableHeader>
           <TableBody>
             {floors.map((floor) => (
-              <TableRow key={floor.id}>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{floor.name}</span>
-                    {floor.is_outdoor && (
-                      <Badge variant="outline" className="text-xs">
-                        Outdoor
-                      </Badge>
-                    )}
-                  </div>
-                  {floor.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-1">
-                      {floor.description}
-                    </p>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <span className="font-mono text-xs">{floor.code}</span>
-                </TableCell>
-                <TableCell>
-                  {floor.level === 0
-                    ? "Ground"
-                    : floor.level > 0
-                      ? `L${floor.level}`
-                      : `B${Math.abs(floor.level)}`}
-                </TableCell>
-                <TableCell>{floor.capacity} covers</TableCell>
-                <TableCell>{floor.sort_order}</TableCell>
-                <TableCell>
-                  <Badge variant={floor.is_active ? "default" : "secondary"}>
-                    {floor.is_active ? "Active" : "Inactive"}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <Show when={{ permission: "org:floors:manage" }} fallback={null}>
-                      {onEdit ? (
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => onEdit(floor)}
-                          aria-label={`Edit ${floor.name}`}
-                        >
-                          <Icons.edit className="size-4" />
-                        </Button>
-                      ) : (
-                        <Link
-                          href={`/dashboard/settings/outlet/floors/${floor.id}`}
-                          aria-label={`Edit ${floor.name}`}
-                        >
-                          <Button variant="ghost" size="icon-sm">
-                            <Icons.edit className="size-4" />
-                          </Button>
-                        </Link>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => {
-                          if (confirm(`Delete floor "${floor.name}"?`))
-                            deleteMutation.mutate(floor.id);
-                        }}
-                        disabled={deleteMutation.isPending}
-                        aria-label={`Delete ${floor.name}`}
-                      >
-                        <Icons.trash className="size-4" />
-                      </Button>
-                    </Show>
-                  </div>
-                </TableCell>
-              </TableRow>
+              <FloorRow key={floor.id} floor={floor} onEdit={onEdit} queryClient={queryClient} />
             ))}
           </TableBody>
         </Table>
       </CardContent>
     </Card>
+  );
+}
+
+function FloorRow({
+  floor,
+  onEdit,
+  queryClient,
+}: {
+  floor: Floor;
+  onEdit?: (floor: Floor) => void;
+  queryClient: ReturnType<typeof useQueryClient>;
+}) {
+  const router = useRouter();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteFloor(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: floorKeys.all });
+      toast.success("Floor deleted");
+      setDeleteOpen(false);
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to delete floor"),
+  });
+
+  return (
+    <>
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {floor.name}?</DialogTitle>
+            <DialogDescription>
+              Floors with tables or active occupancy cannot be deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteMutation.mutate(floor.id)}
+              disabled={deleteMutation.isPending}
+            >
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <TableRow>
+        <TableCell>
+          <div className="font-medium">{floor.name}</div>
+          {floor.description && (
+            <p className="line-clamp-1 text-xs text-muted-foreground">{floor.description}</p>
+          )}
+          {floor.is_outdoor && <span className="text-xs text-muted-foreground">Outdoor</span>}
+        </TableCell>
+        <TableCell className="font-mono text-xs">{floor.code}</TableCell>
+        <TableCell>
+          {floor.level === 0 ? "Ground" : floor.level > 0 ? `L${floor.level}` : `B${Math.abs(floor.level)}`}
+        </TableCell>
+        <TableCell>{floor.capacity} covers</TableCell>
+        <TableCell>{floor.sort_order}</TableCell>
+        <TableCell>
+          <StatusDot isActive={floor.is_active} />
+        </TableCell>
+        <TableCell className="text-right">
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger render={<Button variant="ghost" className="h-8 w-8 p-0" />}>
+              <Icons.ellipsis className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              </DropdownMenuGroup>
+              <DropdownMenuGroup>
+                {onEdit ? (
+                  <DropdownMenuItem onClick={() => onEdit(floor)}>
+                    <Icons.edit className="mr-2 h-4 w-4" /> Update
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    onClick={() => router.push(`/dashboard/settings/outlet/floors/${floor.id}`)}
+                  >
+                    <Icons.edit className="mr-2 h-4 w-4" /> Update
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => setDeleteOpen(true)}>
+                  <Icons.trash className="mr-2 h-4 w-4" /> Delete
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </TableCell>
+      </TableRow>
+    </>
   );
 }

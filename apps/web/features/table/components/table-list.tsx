@@ -1,9 +1,23 @@
 "use client";
 
 import type { RestaurantTable } from "../api/types";
-import { Badge } from "@pixa/ui/base-ui/badge";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@pixa/ui/base-ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@pixa/ui/base-ui/dialog";
 import {
   Table,
   TableBody,
@@ -13,44 +27,20 @@ import {
   TableRow,
 } from "@pixa/ui/base-ui/table";
 import { Icons } from "@pixa/ui/icons";
+import { StatusDot } from "@pixa/ui/base-ui/status-dot";
 import { useMutation } from "@tanstack/react-query";
 import { deleteTable } from "../api/service";
 import { tableKeys } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
-import Link from "next/link";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 interface TableListProps {
   tables: RestaurantTable[];
 }
 
-function statusVariant(status: RestaurantTable["status"]) {
-  switch (status) {
-    case "available":
-      return "default" as const;
-    case "occupied":
-      return "destructive" as const;
-    case "reserved":
-      return "secondary" as const;
-    case "cleaning":
-      return "secondary" as const;
-    case "out_of_service":
-      return "outline" as const;
-    default:
-      return "secondary" as const;
-  }
-}
-
 export function TableList({ tables }: TableListProps) {
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteTable(id),
-    onSuccess: () => {
-      getQueryClient().invalidateQueries({ queryKey: tableKeys.all });
-      toast.success("Table deleted");
-    },
-    onError: (error: Error) => toast.error(error.message || "Failed to delete table"),
-  });
-
   if (tables.length === 0) {
     return (
       <Card>
@@ -81,7 +71,6 @@ export function TableList({ tables }: TableListProps) {
               <TableHead>Capacity</TableHead>
               <TableHead>Shape</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Active</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -94,44 +83,22 @@ export function TableList({ tables }: TableListProps) {
                     <span className="font-mono text-xs text-muted-foreground">{table.code}</span>
                   </div>
                 </TableCell>
-                <TableCell>
-                  <Badge variant="outline">{table.floor_name ?? table.floor_id}</Badge>
+                <TableCell className="text-sm text-muted-foreground">
+                  {table.floor_name ?? table.floor_id}
                 </TableCell>
                 <TableCell>{table.capacity} pax</TableCell>
                 <TableCell className="capitalize">{table.shape}</TableCell>
                 <TableCell>
-                  <Badge variant={statusVariant(table.status)} className="capitalize">
-                    {table.status.replace("_", " ")}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={table.is_active ? "default" : "secondary"}>
-                    {table.is_active ? "Active" : "Inactive"}
-                  </Badge>
+                  {table.is_active ? (
+                    <span className="text-xs capitalize text-muted-foreground">
+                      {table.status.replace("_", " ")}
+                    </span>
+                  ) : (
+                    <StatusDot isActive={false} />
+                  )}
                 </TableCell>
                 <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <Link
-                      href={`/dashboard/settings/outlet/tables/${table.id}`}
-                      aria-label={`Edit ${table.code}`}
-                    >
-                      <Button variant="ghost" size="icon-sm">
-                        <Icons.edit className="size-4" />
-                      </Button>
-                    </Link>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => {
-                        if (confirm(`Delete table "${table.code}"?`))
-                          deleteMutation.mutate(table.id);
-                      }}
-                      disabled={deleteMutation.isPending}
-                      aria-label={`Delete ${table.code}`}
-                    >
-                      <Icons.trash className="size-4" />
-                    </Button>
-                  </div>
+                  <TableActions table={table} />
                 </TableCell>
               </TableRow>
             ))}
@@ -139,5 +106,66 @@ export function TableList({ tables }: TableListProps) {
         </Table>
       </CardContent>
     </Card>
+  );
+}
+
+function TableActions({ table }: { table: RestaurantTable }) {
+  const router = useRouter();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteTable(id),
+    onSuccess: () => {
+      getQueryClient().invalidateQueries({ queryKey: tableKeys.all });
+      toast.success("Table deleted");
+      setDeleteOpen(false);
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to delete table"),
+  });
+
+  return (
+    <>
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {table.code}?</DialogTitle>
+            <DialogDescription>
+              Tables with active guests cannot be deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteMutation.mutate(table.id)}
+              disabled={deleteMutation.isPending}
+            >
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger render={<Button variant="ghost" className="h-8 w-8 p-0" />}>
+          <Icons.ellipsis className="h-4 w-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+          </DropdownMenuGroup>
+          <DropdownMenuGroup>
+            <DropdownMenuItem
+              onClick={() => router.push(`/dashboard/settings/outlet/tables/${table.id}`)}
+            >
+              <Icons.edit className="mr-2 h-4 w-4" /> Update
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setDeleteOpen(true)}>
+              <Icons.trash className="mr-2 h-4 w-4" /> Delete
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
   );
 }
