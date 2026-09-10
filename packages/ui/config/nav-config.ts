@@ -205,14 +205,14 @@ export const navGroups: NavGroup[] = [
             url: "/dashboard/settings/outlet/floors",
             icon: "layers",
             shortcut: ["o", "f", "l"],
-            access: { requireOrg: true, permission: "org:floors:manage" },
+            access: { requireOrg: true },
           },
           {
             title: "Tables",
             url: "/dashboard/settings/outlet/tables",
             icon: "table",
             shortcut: ["o", "t"],
-            access: { requireOrg: true, permission: "org:tables:manage" },
+            access: { requireOrg: true },
           },
           {
             title: "Floor View",
