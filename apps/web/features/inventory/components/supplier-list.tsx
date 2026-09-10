@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from "@pixa/ui/base-ui/dialog";
 import { Icons } from "@pixa/ui/icons";
+import { StatusDot } from "@pixa/ui/base-ui/status-dot";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { deleteSupplier } from "../api/service";
@@ -60,6 +61,7 @@ export function SupplierList({ suppliers }: { suppliers: Supplier[] }) {
               <TableHead>Supplier</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>GSTIN</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -108,14 +110,14 @@ function SupplierRow({ supplier: s }: { supplier: Supplier }) {
       </Dialog>
       <TableRow>
         <TableCell>
-          <div className="font-medium">
-            {s.name}
-            {!s.is_active && <span className="text-xs text-muted-foreground"> • Inactive</span>}
-          </div>
+          <div className="font-medium">{s.name}</div>
           <div className="text-xs text-muted-foreground">{s.contact_person ?? s.email ?? "-"}</div>
         </TableCell>
         <TableCell>{s.phone}</TableCell>
         <TableCell className="font-mono text-xs">{s.gstin ?? "-"}</TableCell>
+        <TableCell>
+          <StatusDot isActive={s.is_active} />
+        </TableCell>
         <TableCell className="text-right">
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger render={<Button variant="ghost" className="h-8 w-8 p-0" />}>

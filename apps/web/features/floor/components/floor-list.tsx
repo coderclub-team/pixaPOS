@@ -27,6 +27,7 @@ import {
   TableRow,
 } from "@pixa/ui/base-ui/table";
 import { Icons } from "@pixa/ui/icons";
+import { StatusDot } from "@pixa/ui/base-ui/status-dot";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { deleteFloor } from "../api/service";
 import { floorKeys } from "../api/queries";
@@ -71,6 +72,7 @@ export function FloorList({ floors, onEdit }: FloorListProps) {
               <TableHead>Level</TableHead>
               <TableHead>Capacity</TableHead>
               <TableHead>Sort</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -132,10 +134,7 @@ function FloorRow({
       </Dialog>
       <TableRow>
         <TableCell>
-          <div className="font-medium">
-            {floor.name}
-            {!floor.is_active && <span className="text-xs text-muted-foreground"> • Inactive</span>}
-          </div>
+          <div className="font-medium">{floor.name}</div>
           {floor.description && (
             <p className="line-clamp-1 text-xs text-muted-foreground">{floor.description}</p>
           )}
@@ -147,6 +146,9 @@ function FloorRow({
         </TableCell>
         <TableCell>{floor.capacity} covers</TableCell>
         <TableCell>{floor.sort_order}</TableCell>
+        <TableCell>
+          <StatusDot isActive={floor.is_active} />
+        </TableCell>
         <TableCell className="text-right">
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger render={<Button variant="ghost" className="h-8 w-8 p-0" />}>

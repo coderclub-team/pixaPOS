@@ -27,6 +27,7 @@ import {
   TableRow,
 } from "@pixa/ui/base-ui/table";
 import { Icons } from "@pixa/ui/icons";
+import { StatusDot } from "@pixa/ui/base-ui/status-dot";
 import { useMutation } from "@tanstack/react-query";
 import { deleteTable } from "../api/service";
 import { tableKeys } from "../api/queries";
@@ -70,6 +71,7 @@ export function TableList({ tables }: TableListProps) {
               <TableHead>Capacity</TableHead>
               <TableHead>Shape</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Active</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -78,12 +80,7 @@ export function TableList({ tables }: TableListProps) {
               <TableRow key={table.id}>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">
-                      {table.number}
-                      {!table.is_active && (
-                        <span className="text-xs text-muted-foreground"> • Inactive</span>
-                      )}
-                    </span>
+                    <span className="font-medium">{table.number}</span>
                     <span className="font-mono text-xs text-muted-foreground">{table.code}</span>
                   </div>
                 </TableCell>
@@ -94,6 +91,9 @@ export function TableList({ tables }: TableListProps) {
                 <TableCell className="capitalize">{table.shape}</TableCell>
                 <TableCell className="text-xs capitalize text-muted-foreground">
                   {table.status.replace("_", " ")}
+                </TableCell>
+                <TableCell>
+                  <StatusDot isActive={table.is_active} />
                 </TableCell>
                 <TableCell className="text-right">
                   <TableActions table={table} />

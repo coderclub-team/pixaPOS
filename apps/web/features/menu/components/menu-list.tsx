@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from "@pixa/ui/base-ui/dialog";
 import { Icons } from "@pixa/ui/icons";
+import { StatusDot } from "@pixa/ui/base-ui/status-dot";
 import { useMutation } from "@tanstack/react-query";
 import { deleteMenuItem } from "../api/service";
 import { menuKeys } from "../api/queries";
@@ -63,6 +64,7 @@ export function MenuList({ items }: { items: MenuItem[] }) {
               <TableHead>Variants</TableHead>
               <TableHead className="text-right">Price</TableHead>
               <TableHead>Channels</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -151,9 +153,6 @@ function MenuRow({ item }: { item: MenuItem }) {
                     Service
                   </span>
                 )}
-                {!item.is_active && (
-                  <span className="text-xs text-muted-foreground">• Inactive</span>
-                )}
                 {galleryCount > 1 && (
                   <span className="text-xs text-muted-foreground">• +{galleryCount - 1}</span>
                 )}
@@ -195,6 +194,9 @@ function MenuRow({ item }: { item: MenuItem }) {
             .slice(0, 3)
             .join(", ")}
           {item.available_channels.length > 3 ? ` +${item.available_channels.length - 3}` : ""}
+        </TableCell>
+        <TableCell>
+          <StatusDot isActive={item.is_active} />
         </TableCell>
         <TableCell className="text-right">
           <DropdownMenu modal={false}>
