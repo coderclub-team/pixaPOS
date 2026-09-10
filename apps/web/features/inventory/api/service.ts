@@ -148,6 +148,8 @@ let mockRawMaterials: RawMaterial[] = [
     sku: "RM-OIL-001",
     category: "Oil",
     unit: "l",
+    purchase_unit: "box",
+    purchase_to_base_rate: 15, // 1 box (15L jar) = 15 l
     stock_qty: 25,
     low_stock_threshold: 10,
     opening_stock: 30,
@@ -541,6 +543,15 @@ export async function getRawMaterialById(id: string): Promise<RawMaterial | null
   return mockRawMaterials.find((m) => m.id === id) ?? null;
 }
 
+function validatePurchaseUom(payload: RawMaterialPayload, fallbackUnit?: RawMaterial["unit"]) {
+  const pu = (payload as any).purchase_unit as string | undefined;
+  const rate = (payload as any).purchase_to_base_rate as number | undefined;
+  if (!pu) return;
+  const base = payload.unit ?? fallbackUnit;
+  if (base && pu !== base && (rate === undefined || !(rate > 0)))
+    throw new Error("Conversion rate required (> 0) when purchase unit differs from stock unit");
+}
+
 export async function createRawMaterial(payload: RawMaterialPayload): Promise<RawMaterial> {
   await delay(600);
   if (mockRawMaterials.some((m) => m.sku.toLowerCase() === payload.sku.toLowerCase()))
@@ -549,6 +560,7 @@ export async function createRawMaterial(payload: RawMaterialPayload): Promise<Ra
     throw new Error(`Barcode "${payload.barcode}" already exists`);
   if (payload.hsn_code && !/^[0-9]{4,8}$/.test(payload.hsn_code))
     throw new Error("Invalid HSN 4-8 digits");
+  validatePurchaseUom(payload);
   const now = new Date().toISOString();
   const supplierMap = supplierNameMap();
   const suppliers = (payload as any).suppliers as RawMaterial["suppliers"] | undefined;
@@ -564,6 +576,8 @@ export async function createRawMaterial(payload: RawMaterialPayload): Promise<Ra
     sku: payload.sku.toUpperCase(),
     category: payload.category ?? "General",
     unit: payload.unit ?? "pcs",
+    purchase_unit: (payload as any).purchase_unit || undefined,
+    purchase_to_base_rate: (payload as any).purchase_to_base_rate,
     stock_qty: payload.stock_qty ?? 0,
     low_stock_threshold: payload.low_stock_threshold ?? 5,
     opening_stock: (payload as any).opening_stock ?? payload.stock_qty ?? 0,
@@ -607,6 +621,7 @@ export async function updateRawMaterial(
   )
     throw new Error(`Barcode "${(payload as any).barcode}" already exists`);
   const current = mockRawMaterials[idx];
+  validatePurchaseUom(payload, current.unit);
   const supplierMap = supplierNameMap();
   const suppliers = (payload as any).suppliers as RawMaterial["suppliers"] | undefined;
   const enrichedSuppliers = suppliers
@@ -911,6 +926,9 @@ export async function createPurchaseOrder(payload: PurchaseOrderPayload): Promis
     tax_percent: (it as any).tax_percent ?? materials[it.material_id]?.tax_percent ?? 5,
     unit: materials[it.material_id]?.unit,
     line_total: Math.round(it.qty * it.unit_cost * 100) / 100,
+    purchase_qty: (it as any).purchase_qty,
+    purchase_unit: (it as any).purchase_unit,
+    purchase_unit_cost: (it as any).purchase_unit_cost,
   }));
   const { subtotal, tax_amount, total_amount } = computePOTotals(items as any);
   const now = new Date().toISOString();
@@ -1322,6 +1340,9 @@ export async function createPurchase(payload: PurchasePayload): Promise<Purchase
     unit_cost: it.unit_cost,
     tax_percent: (it as any).tax_percent ?? materials[it.material_id]?.tax_percent ?? 5,
     line_total: Math.round(it.qty * it.unit_cost * 100) / 100,
+    purchase_qty: (it as any).purchase_qty,
+    purchase_unit: (it as any).purchase_unit,
+    purchase_unit_cost: (it as any).purchase_unit_cost,
   }));
   const landedCostsRaw = (payload as any).landed_costs as
     | import("./types").LandedCostLine[]

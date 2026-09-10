@@ -50,7 +50,22 @@ type FormItem = {
   qty: number | string;
   unit_cost: number | string;
   tax_percent?: number;
+  entry_unit?: string; // unit the row is entered in (purchase unit or base unit)
 };
+
+// 1 purchase_unit = rate base units; entry in purchase unit converts to base for stock/costing
+const rawRate = (mat: any): number => Number(mat?.purchase_to_base_rate) || 0;
+const hasPurchaseUom = (mat: any): boolean =>
+  !!mat?.purchase_unit && mat.purchase_unit !== mat?.unit && rawRate(mat) > 0;
+const rateFor = (mat: any): number => (hasPurchaseUom(mat) ? rawRate(mat) : 1);
+const baseQtyOf = (it: FormItem, mat: any): number =>
+  it.entry_unit && mat && it.entry_unit === mat.purchase_unit
+    ? (Number(it.qty) || 0) * rateFor(mat)
+    : Number(it.qty) || 0;
+const baseCostOf = (it: FormItem, mat: any): number =>
+  it.entry_unit && mat && it.entry_unit === mat.purchase_unit
+    ? (Number(it.unit_cost) || 0) / rateFor(mat)
+    : Number(it.unit_cost) || 0;
 
 export default function PurchaseForm({
   pageTitle,
@@ -91,12 +106,17 @@ export default function PurchaseForm({
     }));
 
   const [items, setItems] = useState<FormItem[]>(
-    initialData?.items?.map((it) => ({
-      material_id: it.material_id,
-      qty: it.qty,
-      unit_cost: it.unit_cost,
-      tax_percent: it.tax_percent,
-    })) ?? [{ material_id: "", qty: 1, unit_cost: 0, tax_percent: undefined }],
+    initialData?.items?.map((it) => {
+      const pu = (it as any).purchase_unit;
+      const inPurchase = !!pu && (it as any).purchase_qty !== undefined;
+      return {
+        material_id: it.material_id,
+        qty: inPurchase ? ((it as any).purchase_qty as number) : it.qty,
+        unit_cost: inPurchase ? ((it as any).purchase_unit_cost as number) : it.unit_cost,
+        tax_percent: it.tax_percent,
+        entry_unit: inPurchase ? pu : undefined,
+      };
+    }) ?? [{ material_id: "", qty: 1, unit_cost: 0, tax_percent: undefined }],
   );
   const [itemsError, setItemsError] = useState<string | null>(null);
   const [landedCosts, setLandedCosts] = useState<
@@ -125,13 +145,28 @@ export default function PurchaseForm({
     };
   }, [items]);
 
+  const toBaseItems = () =>
+    items.map((it) => {
+      const mat = materials?.find((m) => m.id === it.material_id);
+      if (mat && hasPurchaseUom(mat) && (it.entry_unit ?? mat.purchase_unit) === mat.purchase_unit) {
+        const rate = rateFor(mat);
+        return {
+          ...it,
+          qty: Math.round((Number(it.qty) || 0) * rate * 1000) / 1000,
+          unit_cost: Math.round(((Number(it.unit_cost) || 0) / rate) * 100) / 100,
+          purchase_qty: Number(it.qty) || 0,
+          purchase_unit: mat.purchase_unit,
+          purchase_unit_cost: Number(it.unit_cost) || 0,
+          entry_unit: undefined,
+        };
+      }
+      const { entry_unit, ...rest } = it as any;
+      return { ...rest, qty: Number(it.qty), unit_cost: Number(it.unit_cost) };
+    });
+
   const createMutation = useMutation({
     mutationFn: (v: any) => {
-      const cleanItems = items.map((it) => ({
-        ...it,
-        qty: Number(it.qty),
-        unit_cost: Number(it.unit_cost),
-      }));
+      const cleanItems = toBaseItems();
       const normalizedLandedCosts = landedCosts
         .filter((l) => Number((l as any).amount) > 0)
         .map((l) => ({
@@ -155,11 +190,7 @@ export default function PurchaseForm({
   });
   const updateMutation = useMutation({
     mutationFn: (v: any) => {
-      const cleanItems = items.map((it) => ({
-        ...it,
-        qty: Number(it.qty),
-        unit_cost: Number(it.unit_cost),
-      }));
+      const cleanItems = toBaseItems();
       const normalizedLandedCosts = landedCosts
         .filter((l) => Number((l as any).amount) > 0)
         .map((l) => ({
@@ -292,14 +323,19 @@ export default function PurchaseForm({
         }
         form.setFieldValue("supplier_id" as any, po.supplier_id);
         setItems(
-          po.items.map((it) => ({
-            material_id: it.material_id,
-            qty: it.qty,
-            unit_cost: it.unit_cost,
-            tax_percent:
-              (it as any).tax_percent ??
-              materials?.find((m) => m.id === it.material_id)?.tax_percent,
-          })),
+          po.items.map((it) => {
+            const pu = (it as any).purchase_unit;
+            const inPurchase = !!pu && (it as any).purchase_qty !== undefined;
+            return {
+              material_id: it.material_id,
+              qty: inPurchase ? ((it as any).purchase_qty as number) : it.qty,
+              unit_cost: inPurchase ? ((it as any).purchase_unit_cost as number) : it.unit_cost,
+              tax_percent:
+                (it as any).tax_percent ??
+                materials?.find((m) => m.id === it.material_id)?.tax_percent,
+              entry_unit: inPurchase ? pu : undefined,
+            };
+          }),
         );
       }
     }
@@ -496,6 +532,11 @@ export default function PurchaseForm({
             <div className="space-y-3">
               {items.map((it, idx) => {
                 const mat = materials?.find((m) => m.id === it.material_id);
+                const uom = mat && hasPurchaseUom(mat);
+                const entryUnit = (it.entry_unit as string) || mat?.unit || "";
+                const inPurchase = !!uom && entryUnit === (mat as any)?.purchase_unit;
+                const baseQty = baseQtyOf(it, mat);
+                const baseCost = baseCostOf(it, mat);
                 return (
                   <div
                     key={idx}
@@ -564,15 +605,22 @@ export default function PurchaseForm({
                                       key={opt.value}
                                       value={opt.value}
                                       keywords={[opt.label]}
-                                      onSelect={(v) =>
+                                      onSelect={(v) => {
+                                        const mat = materials?.find((m) => m.id === v);
+                                        const inPurchase = mat ? hasPurchaseUom(mat) : false;
                                         updateItem(idx, {
                                           material_id: v,
-                                          tax_percent: materials?.find((m) => m.id === v)
-                                            ?.tax_percent,
-                                          unit_cost:
-                                            materials?.find((m) => m.id === v)?.cost_price ?? 0,
-                                        } as any)
-                                      }
+                                          tax_percent: mat?.tax_percent,
+                                          unit_cost: inPurchase
+                                            ? Math.round(
+                                                (mat!.cost_price * rateFor(mat)) * 100,
+                                              ) / 100
+                                            : (mat?.cost_price ?? 0),
+                                          entry_unit: inPurchase
+                                            ? mat!.purchase_unit
+                                            : mat?.unit,
+                                        } as any);
+                                      }}
                                     >
                                       <Icons.check
                                         className={cn(
@@ -593,11 +641,33 @@ export default function PurchaseForm({
                       {mat && (
                         <div className="text-[11px] text-muted-foreground">
                           {mat.unit} • Stock {mat.stock_qty} • Avg ₹{mat.avg_cost}
+                          {uom &&
+                            ` • Buys in ${(mat as any).purchase_unit} ×${rateFor(mat)}`}
+                        </div>
+                      )}
+                      {uom && (
+                        <div className="flex gap-1">
+                          {[(mat as any).purchase_unit, mat.unit].map((u: string) => (
+                            <button
+                              key={u}
+                              type="button"
+                              onClick={() => updateItem(idx, { entry_unit: u })}
+                              className={cn(
+                                "rounded border px-1.5 py-0.5 text-[11px]",
+                                entryUnit === u &&
+                                  "border-primary bg-primary text-primary-foreground",
+                              )}
+                            >
+                              {u}
+                            </button>
+                          ))}
                         </div>
                       )}
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Qty</Label>
+                      <Label className="text-xs text-muted-foreground">
+                        Qty{entryUnit ? ` (${entryUnit})` : ""}
+                      </Label>
                       <Input
                         type="number"
                         min={1}
@@ -608,9 +678,16 @@ export default function PurchaseForm({
                           })
                         }
                       />
+                      {inPurchase && (
+                        <div className="text-[11px] text-muted-foreground">
+                          → {baseQty} {mat.unit}
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Unit Cost</Label>
+                      <Label className="text-xs text-muted-foreground">
+                        Unit Cost{entryUnit ? ` (₹/${entryUnit})` : ""}
+                      </Label>
                       <Input
                         type="number"
                         min={0}
@@ -623,6 +700,7 @@ export default function PurchaseForm({
                       />
                       <div className="text-[11px] text-muted-foreground">
                         ₹{((Number(it.qty) || 0) * (Number(it.unit_cost) || 0)).toFixed(0)}
+                        {inPurchase && ` • ₹${baseCost.toFixed(2)}/${mat.unit}`}
                       </div>
                     </div>
                     <div className="space-y-1">
