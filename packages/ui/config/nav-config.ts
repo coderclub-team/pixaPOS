@@ -145,7 +145,7 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Outlet — Profile",
+    label: "Outlet",
     items: [
       {
         title: "Profile",
@@ -162,11 +162,6 @@ export const navGroups: NavGroup[] = [
           },
         ],
       },
-    ],
-  },
-  {
-    label: "Outlet — Setup",
-    items: [
       {
         title: "Setup",
         url: "#",
@@ -199,11 +194,6 @@ export const navGroups: NavGroup[] = [
           },
         ],
       },
-    ],
-  },
-  {
-    label: "Outlet — Floor Management",
-    items: [
       {
         title: "Floors & Tables",
         url: "#",
@@ -224,12 +214,19 @@ export const navGroups: NavGroup[] = [
             shortcut: ["o", "t"],
             access: { requireOrg: true, permission: "org:tables:manage" },
           },
+          {
+            title: "Floor View",
+            url: "/dashboard/settings/outlet/floor-plan",
+            icon: "layers",
+            shortcut: ["o", "v"],
+            access: { requireOrg: true },
+          },
         ],
       },
     ],
   },
   {
-    label: "Menu — Catalog",
+    label: "Menu",
     items: [
       {
         title: "Menu",
@@ -256,7 +253,7 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Inventory — Masters",
+    label: "Inventory",
     items: [
       {
         title: "Masters",
@@ -287,11 +284,6 @@ export const navGroups: NavGroup[] = [
           },
         ],
       },
-    ],
-  },
-  {
-    label: "Inventory — Buying",
-    items: [
       {
         title: "Buying",
         url: "#",
@@ -335,11 +327,6 @@ export const navGroups: NavGroup[] = [
           },
         ],
       },
-    ],
-  },
-  {
-    label: "Inventory — Reports",
-    items: [
       {
         title: "Reports",
         url: "#",

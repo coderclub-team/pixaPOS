@@ -48,7 +48,17 @@ AVAILABLE → OCCUPIED → CLEANING → AVAILABLE
 AVAILABLE → RESERVED → OCCUPIED
 ```
 
-Also `OUT_OF_SERVICE`. Current `TableStatus` (`available|occupied|reserved|maintenance`) still needs `CLEANING` (Phase 4).
+Also `OUT_OF_SERVICE`. Current `TableStatus` is now explicit: `available|occupied|reserved|cleaning|out_of_service`.
+
+Occupancy is separate from table state. A table may contain multiple active `OccupancyGroup` records only when `allows_sharing=true`. The invariant is:
+
+```text
+sum(active_group.seats) <= table.capacity
+```
+
+The table's `occupancy_fill` is derived as `EMPTY`, `PARTIAL`, or `FULL`; it is not a replacement for the table state machine. Seating, adding guests, transfer, release, and cleaning transitions run through table-domain commands.
+
+Deleting a floor or table with active occupancy is rejected. Layout changes (move, resize, rotate) do not mutate occupancy or historical snapshots.
 
 ## 6. Product workflow
 
@@ -64,7 +74,7 @@ Inactive products stay out of new orders; history keeps referencing them (snapsh
 
 ## 8. Business events (audit trail)
 
-`ORDER_CREATED, ORDER_CONFIRMED, ORDER_SENT_TO_KITCHEN, ITEM_ADDED, ITEM_MODIFIED, ITEM_REMOVED, KITCHEN_STARTED, KITCHEN_ITEM_READY, ORDER_READY, ORDER_SERVED, PAYMENT_STARTED, PAYMENT_COMPLETED, PAYMENT_FAILED, REFUND_CREATED, ORDER_CANCELLED, ORDER_COMPLETED, WASTE_LOGGED, WASTE_FROM_ORDER_CANCELLED` — append-only, feeding audit, KDS, reports, integrations.
+`ORDER_CREATED, ORDER_CONFIRMED, ORDER_SENT_TO_KITCHEN, ITEM_ADDED, ITEM_MODIFIED, ITEM_REMOVED, KITCHEN_STARTED, KITCHEN_ITEM_READY, ORDER_READY, ORDER_SERVED, PAYMENT_STARTED, PAYMENT_COMPLETED, PAYMENT_FAILED, REFUND_CREATED, ORDER_CANCELLED, ORDER_COMPLETED, WASTE_LOGGED, WASTE_FROM_ORDER_CANCELLED, FLOOR_CREATED, FLOOR_UPDATED, FLOOR_DELETED, FLOOR_REORDERED, TABLE_CREATED, TABLE_UPDATED, TABLE_MOVED, TABLE_RESIZED, TABLE_DELETED, TABLE_CLEANING_STARTED, OCCUPANCY_SEATED, OCCUPANCY_TRANSFERRED, OCCUPANCY_RELEASED, OCCUPANCY_CANCELLED` — append-only, feeding audit, KDS, reports, integrations.
 
 ## 9. Wastage
 

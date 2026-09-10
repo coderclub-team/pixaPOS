@@ -35,7 +35,7 @@ export default function TableForm({
     .map((f) => ({ label: `${f.name} (${f.code})`, value: f.id }));
 
   const createMutation = useMutation({
-    mutationFn: (values: TableValues) => createTable(values),
+    mutationFn: (values: TableValues) => createTable(values as any),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: tableKeys.all });
       toast.success("Table created");
@@ -45,7 +45,7 @@ export default function TableForm({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (values: TableValues) => updateTable(initialData!.id, values),
+    mutationFn: (values: TableValues) => updateTable(initialData!.id, values as any),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: tableKeys.all });
       toast.success("Table updated");
@@ -64,7 +64,9 @@ export default function TableForm({
       status: initialData?.status ?? "available",
       sort_order: initialData?.sort_order ?? 0,
       is_active: initialData?.is_active ?? true,
-    } as TableValues,
+      allows_sharing: initialData?.allows_sharing ?? false,
+      type: initialData?.type ?? "standard",
+    } as any,
     validators: { onSubmit: tableSchema },
     onSubmit: async ({ value }) => {
       if (isEdit) await updateMutation.mutateAsync(value);
@@ -113,6 +115,34 @@ export default function TableForm({
                     required
                     placeholder="T-GF-01"
                     description="Unique, e.g., T-GF-01"
+                  />
+                )}
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <form.AppField
+                name="type"
+                children={(field) => (
+                  <field.SelectField
+                    label="Table Type"
+                    required
+                    options={[
+                      { label: "Standard", value: "standard" },
+                      { label: "Bar Counter", value: "bar_counter" },
+                      { label: "Communal", value: "communal" },
+                      { label: "Outdoor", value: "outdoor" },
+                      { label: "Private", value: "private" },
+                    ]}
+                    placeholder="Select type"
+                  />
+                )}
+              />
+              <form.AppField
+                name="allows_sharing"
+                children={(field) => (
+                  <field.SwitchField
+                    label="Allow Sharing"
+                    description="Multiple guest groups on one table"
                   />
                 )}
               />

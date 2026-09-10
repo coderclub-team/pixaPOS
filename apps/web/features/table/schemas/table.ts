@@ -4,7 +4,8 @@ export const tableStatusOptions = [
   { label: "Available", value: "available" },
   { label: "Occupied", value: "occupied" },
   { label: "Reserved", value: "reserved" },
-  { label: "Maintenance", value: "maintenance" },
+  { label: "Cleaning", value: "cleaning" },
+  { label: "Out of Service", value: "out_of_service" },
 ] as const;
 
 export const tableShapeOptions = [
@@ -27,7 +28,9 @@ export const tableSchema = z.object({
     .regex(/^[A-Za-z0-9-_]+$/, "Alphanumeric with -/_ only"),
   capacity: z.number().int().min(1, "Capacity min 1").max(20, "Max 20 covers"),
   shape: z.enum(["square", "round", "rectangle"]),
-  status: z.enum(["available", "occupied", "reserved", "maintenance"]),
+  type: z.enum(["standard", "bar_counter", "communal", "outdoor", "private"]).optional(),
+  allows_sharing: z.boolean().optional(),
+  status: z.enum(["available", "occupied", "reserved", "cleaning", "out_of_service"]),
   sort_order: z.number().int().min(0).max(100),
   is_active: z.boolean(),
 });
