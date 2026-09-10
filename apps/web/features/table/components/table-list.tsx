@@ -19,7 +19,6 @@ import { tableKeys } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Show } from "@clerk/nextjs";
 
 interface TableListProps {
   tables: RestaurantTable[];
@@ -33,7 +32,9 @@ function statusVariant(status: RestaurantTable["status"]) {
       return "destructive" as const;
     case "reserved":
       return "secondary" as const;
-    case "maintenance":
+    case "cleaning":
+      return "secondary" as const;
+    case "out_of_service":
       return "outline" as const;
     default:
       return "secondary" as const;
@@ -100,7 +101,7 @@ export function TableList({ tables }: TableListProps) {
                 <TableCell className="capitalize">{table.shape}</TableCell>
                 <TableCell>
                   <Badge variant={statusVariant(table.status)} className="capitalize">
-                    {table.status}
+                    {table.status.replace("_", " ")}
                   </Badge>
                 </TableCell>
                 <TableCell>
@@ -110,28 +111,26 @@ export function TableList({ tables }: TableListProps) {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
-                    <Show when={{ permission: "org:tables:manage" }} fallback={null}>
-                      <Link
-                        href={`/dashboard/settings/outlet/tables/${table.id}`}
-                        aria-label={`Edit ${table.code}`}
-                      >
-                        <Button variant="ghost" size="icon-sm">
-                          <Icons.edit className="size-4" />
-                        </Button>
-                      </Link>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => {
-                          if (confirm(`Delete table "${table.code}"?`))
-                            deleteMutation.mutate(table.id);
-                        }}
-                        disabled={deleteMutation.isPending}
-                        aria-label={`Delete ${table.code}`}
-                      >
-                        <Icons.trash className="size-4" />
+                    <Link
+                      href={`/dashboard/settings/outlet/tables/${table.id}`}
+                      aria-label={`Edit ${table.code}`}
+                    >
+                      <Button variant="ghost" size="icon-sm">
+                        <Icons.edit className="size-4" />
                       </Button>
-                    </Show>
+                    </Link>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => {
+                        if (confirm(`Delete table "${table.code}"?`))
+                          deleteMutation.mutate(table.id);
+                      }}
+                      disabled={deleteMutation.isPending}
+                      aria-label={`Delete ${table.code}`}
+                    >
+                      <Icons.trash className="size-4" />
+                    </Button>
                   </div>
                 </TableCell>
               </TableRow>

@@ -1,5 +1,14 @@
 import { delay } from "@/constants/mock-api";
-import type { RestaurantTable, TableFilters, TablePayload } from "./types";
+import type {
+  RestaurantTable,
+  TableFilters,
+  TablePayload,
+  OccupancyGroup,
+  TableBlock,
+  ReservationHold,
+  TableWithDerived,
+} from "./types";
+import { deriveTableInfo } from "./utils";
 
 let mockTables: RestaurantTable[] = [
   {
@@ -7,14 +16,23 @@ let mockTables: RestaurantTable[] = [
     outlet_id: "out_001",
     floor_id: "fl_001",
     floor_name: "Ground Floor",
-    number: "T1",
-    code: "T-GF-01",
+    number: "101",
+    code: "T101",
     capacity: 4,
     shape: "square",
+    type: "standard",
+    allows_sharing: false,
     status: "available",
     is_active: true,
-    sort_order: 0,
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 20).toISOString(),
+    sort_order: 1,
+    x_mm: 500,
+    y_mm: 500,
+    w_mm: 800,
+    h_mm: 800,
+    rotation_deg: 0,
+    z_index: 1,
+    version: 1,
+    created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
@@ -22,176 +40,170 @@ let mockTables: RestaurantTable[] = [
     outlet_id: "out_001",
     floor_id: "fl_001",
     floor_name: "Ground Floor",
-    number: "T2",
-    code: "T-GF-02",
+    number: "102",
+    code: "T102",
     capacity: 2,
     shape: "round",
+    type: "standard",
+    allows_sharing: false,
     status: "occupied",
     is_active: true,
-    sort_order: 1,
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 18).toISOString(),
+    sort_order: 2,
+    x_mm: 2000,
+    y_mm: 500,
+    w_mm: 800,
+    h_mm: 800,
+    rotation_deg: 0,
+    z_index: 1,
+    version: 1,
+    created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
     id: "tbl_003",
     outlet_id: "out_001",
-    floor_id: "fl_002",
-    floor_name: "First Floor",
-    number: "T1",
-    code: "T-FF-01",
+    floor_id: "fl_001",
+    floor_name: "Ground Floor",
+    number: "BAR-1",
+    code: "BAR01",
     capacity: 6,
     shape: "rectangle",
-    status: "reserved",
-    is_active: true,
-    sort_order: 0,
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 15).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "tbl_004",
-    outlet_id: "out_001",
-    floor_id: "fl_003",
-    floor_name: "Rooftop",
-    number: "T1",
-    code: "T-RT-01",
-    capacity: 4,
-    shape: "round",
+    type: "bar_counter",
+    allows_sharing: true,
     status: "available",
     is_active: true,
-    sort_order: 0,
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "tbl_005",
-    outlet_id: "out_001",
-    floor_id: "fl_003",
-    floor_name: "Rooftop",
-    number: "T2",
-    code: "T-RT-02",
-    capacity: 2,
-    shape: "square",
-    status: "maintenance",
-    is_active: false,
-    sort_order: 1,
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
+    sort_order: 3,
+    x_mm: 4000,
+    y_mm: 2000,
+    w_mm: 2000,
+    h_mm: 600,
+    rotation_deg: 0,
+    z_index: 1,
+    version: 1,
+    created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
 ];
 
-const floorNameMap: Record<string, string> = {
-  fl_001: "Ground Floor",
-  fl_002: "First Floor",
-  fl_003: "Rooftop",
-  fl_004: "Basement",
-};
+let mockGroups: OccupancyGroup[] = [];
+let mockBlocks: TableBlock[] = [];
+let mockHolds: ReservationHold[] = [];
 
-function sortedTables(): RestaurantTable[] {
-  return [...mockTables].sort(
-    (a, b) => a.sort_order - b.sort_order || a.number.localeCompare(b.number),
+function enrichTable(table: RestaurantTable): TableWithDerived {
+  const activeGroups = mockGroups.filter(
+    (g) => g.table_id === table.id && (g.status === "SEATED" || g.status === "ORDERING"),
   );
+  const activeBlock = mockBlocks.find((b) => b.table_id === table.id && !b.released_at);
+  const activeHold = mockHolds.find((h) => h.table_id === table.id && h.status === "HELD");
+
+  const info = deriveTableInfo(table, activeGroups, activeBlock, activeHold);
+
+  return {
+    ...table,
+    occupancy_fill: info.occupancyFill,
+    seated_seats: info.seatedSeats,
+    active_groups: activeGroups,
+    active_block: activeBlock,
+    active_hold: activeHold,
+    revenue_paise: 0, 
+  };
 }
 
-export async function getTables(filters?: TableFilters): Promise<RestaurantTable[]> {
-  await delay(400);
-  let result = sortedTables();
+export async function getTables(filters?: TableFilters): Promise<TableWithDerived[]> {
+  await delay(300);
+  let r = [...mockTables].filter((t) => !t.deleted_at);
   if (filters?.search) {
     const q = filters.search.toLowerCase();
-    result = result.filter(
-      (t) => t.number.toLowerCase().includes(q) || t.code.toLowerCase().includes(q),
-    );
+    r = r.filter((t) => t.number.toLowerCase().includes(q) || t.code.toLowerCase().includes(q));
   }
-  if (filters?.floor_id) {
-    result = result.filter((t) => t.floor_id === filters.floor_id);
-  }
-  if (filters?.status) {
-    result = result.filter((t) => t.status === filters.status);
-  }
-  if (filters?.is_active !== undefined) {
-    result = result.filter((t) => t.is_active === filters.is_active);
-  }
-  return result;
+  if (filters?.floor_id) r = r.filter((t) => t.floor_id === filters.floor_id);
+  if (filters?.status) r = r.filter((t) => t.status === filters.status);
+  if (filters?.is_active !== undefined) r = r.filter((t) => t.is_active === filters.is_active);
+
+  return r.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)).map(enrichTable);
 }
 
-export async function getTableById(id: string): Promise<RestaurantTable | null> {
-  await delay(300);
-  return mockTables.find((t) => t.id === id) ?? null;
+export async function getTableById(id: string): Promise<TableWithDerived | null> {
+  await delay(200);
+  const t = mockTables.find((t) => t.id === id && !t.deleted_at);
+  return t ? enrichTable(t) : null;
 }
 
-export async function createTable(payload: TablePayload): Promise<RestaurantTable> {
-  await delay(600);
-  if (mockTables.some((t) => t.code.toLowerCase() === payload.code.toLowerCase())) {
+export async function createTable(payload: TablePayload): Promise<TableWithDerived> {
+  await delay(500);
+  if (mockTables.some((t) => !t.deleted_at && t.code.toUpperCase() === payload.code.toUpperCase())) {
     throw new Error(`Table code "${payload.code}" already exists`);
   }
-  // unique number per floor
-  if (
-    mockTables.some(
-      (t) =>
-        t.floor_id === payload.floor_id && t.number.toLowerCase() === payload.number.toLowerCase(),
-    )
-  ) {
-    throw new Error(`Table number "${payload.number}" already exists on this floor`);
-  }
+
   const now = new Date().toISOString();
   const table: RestaurantTable = {
     id: `tbl_${Date.now().toString(36)}`,
-    outlet_id: "out_001",
+    outlet_id: payload.outlet_id ?? "out_001",
     floor_id: payload.floor_id,
-    floor_name: floorNameMap[payload.floor_id] ?? payload.floor_id,
     number: payload.number.toUpperCase(),
     code: payload.code.toUpperCase(),
     capacity: payload.capacity,
     shape: payload.shape ?? "square",
-    status: payload.status ?? "available",
+    type: (payload as any).type ?? "standard",
+    allows_sharing: (payload as any).allows_sharing ?? false,
+    status: (payload as any).status ?? "available",
     is_active: payload.is_active ?? true,
-    sort_order:
-      payload.sort_order ?? mockTables.filter((t) => t.floor_id === payload.floor_id).length,
+    sort_order: payload.sort_order ?? mockTables.length + 1,
+    x_mm: (payload as any).x_mm ?? 0,
+    y_mm: (payload as any).y_mm ?? 0,
+    w_mm: (payload as any).w_mm ?? 800,
+    h_mm: (payload as any).h_mm ?? 800,
+    rotation_deg: (payload as any).rotation_deg ?? 0,
+    z_index: (payload as any).z_index ?? 1,
+    version: 1,
     created_at: now,
     updated_at: now,
   };
+
   mockTables.push(table);
-  return { ...table };
+  return enrichTable(table);
 }
 
-export async function updateTable(id: string, payload: TablePayload): Promise<RestaurantTable> {
-  await delay(600);
-  const idx = mockTables.findIndex((t) => t.id === id);
-  if (idx === -1) throw new Error("Table not found");
-  if (
-    payload.code &&
-    mockTables.some((t) => t.id !== id && t.code.toLowerCase() === payload.code!.toLowerCase())
-  ) {
-    throw new Error(`Table code "${payload.code}" already exists`);
-  }
-  if (
-    payload.number &&
-    payload.floor_id &&
-    mockTables.some(
-      (t) =>
-        t.id !== id &&
-        t.floor_id === payload.floor_id &&
-        t.number.toLowerCase() === payload.number!.toLowerCase(),
-    )
-  ) {
-    throw new Error(`Table number "${payload.number}" already exists on this floor`);
-  }
-  const current = mockTables[idx];
-  const nextFloorId = payload.floor_id ?? current.floor_id;
-  const updated: RestaurantTable = {
-    ...current,
-    ...payload,
-    number: payload.number ? payload.number.toUpperCase() : current.number,
-    code: payload.code ? payload.code.toUpperCase() : current.code,
-    floor_name: floorNameMap[nextFloorId] ?? nextFloorId,
-    updated_at: new Date().toISOString(),
-  };
-  mockTables[idx] = updated;
-  return { ...updated };
-}
-
-export async function deleteTable(id: string): Promise<void> {
+export async function updateTable(id: string, payload: TablePayload): Promise<TableWithDerived> {
   await delay(500);
   const idx = mockTables.findIndex((t) => t.id === id);
   if (idx === -1) throw new Error("Table not found");
-  mockTables.splice(idx, 1);
+
+  const current = mockTables[idx];
+  const activeGroups = mockGroups.filter(
+    (g) => g.table_id === id && (g.status === "SEATED" || g.status === "ORDERING"),
+  );
+  if (activeGroups.length > 0 && (payload.capacity || (payload as any).allows_sharing)) {
+    const seated = activeGroups.reduce((s, g) => s + g.seats, 0);
+    if (payload.capacity && payload.capacity < seated) {
+      throw new Error(`Cannot reduce capacity below current occupancy (${seated})`);
+    }
+  }
+
+  mockTables[idx] = {
+    ...current,
+    ...payload,
+    number: payload.number?.toUpperCase() ?? current.number,
+    code: payload.code?.toUpperCase() ?? current.code,
+    updated_at: new Date().toISOString(),
+    version: current.version + 1,
+  } as any;
+
+  return enrichTable(mockTables[idx]);
+}
+
+export async function deleteTable(id: string): Promise<void> {
+  await delay(400);
+  const idx = mockTables.findIndex((t) => t.id === id);
+  if (idx === -1) throw new Error("Table not found");
+
+  const activeGroups = mockGroups.filter(
+    (g) => g.table_id === id && (g.status === "SEATED" || g.status === "ORDERING"),
+  );
+  if (activeGroups.length > 0) {
+    throw new Error("Cannot delete table with active guests");
+  }
+
+  mockTables[idx].deleted_at = new Date().toISOString();
+  mockTables[idx].is_active = false;
 }
