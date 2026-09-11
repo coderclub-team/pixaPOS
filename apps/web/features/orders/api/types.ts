@@ -44,6 +44,7 @@ export type RestaurantOrder = {
   table_id?: string;
   table_number_snapshot?: string;
   occupancy_group_id?: string;
+  customer_id?: string;
   customer_name?: string;
   customer_phone?: string;
   external_ref?: string;
@@ -91,5 +92,6 @@ export type OrderFilters = {
   channel?: OrderChannel;
   status?: OrderStatus;
   table_id?: string;
+  customer_id?: string;
   outlet_id?: string;
 };
