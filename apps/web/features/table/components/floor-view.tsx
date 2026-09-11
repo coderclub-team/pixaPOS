@@ -18,16 +18,16 @@ export default function FloorViewPage() {
   const { data: floors, isLoading } = useQuery(floorsQueryOptions());
   const [selectedFloorId, setSelectedFloorId] = useState<string | null>(null);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
-
-  if (isLoading) return <PageContainer pageTitle="Floor View" isLoading><div/></PageContainer>;
-
-  const activeFloors = (floors ?? []).filter((f) => f.is_active);
-  const currentFloorId = selectedFloorId ?? activeFloors[0]?.id;
   // H10: resolve the real table entity — never display ID fragments as names
   const { data: selectedTable } = useQuery({
     ...tableQueryOptions(selectedTableId ?? ""),
     enabled: !!selectedTableId,
   });
+
+  if (isLoading) return <PageContainer pageTitle="Floor View" isLoading><div/></PageContainer>;
+
+  const activeFloors = (floors ?? []).filter((f) => f.is_active);
+  const currentFloorId = selectedFloorId ?? activeFloors[0]?.id;
 
   return (
     <PageContainer
