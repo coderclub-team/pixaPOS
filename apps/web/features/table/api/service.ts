@@ -833,6 +833,50 @@ export async function attachOrder(params: {
   }
 }
 
+/**
+ * Counterpart to attachOrder: clears the order pointer when the linked order
+ * is deleted as a draft. Idempotent when the group points elsewhere (or
+ * nowhere) — only detaches the exact order id passed in.
+ */
+export async function detachOrder(params: {
+  group_id: string;
+  order_id: string;
+  ctx?: Partial<CommandContext>;
+}): Promise<void> {
+  const probe = mockGroups.find((g) => g.id === params.group_id);
+  if (!probe) return;
+  const release = await entityMutex.acquire(`table-${probe.table_id}`);
+  try {
+    await delay(200);
+    const idx = mockGroups.findIndex((g) => g.id === params.group_id);
+    const group = mockGroups[idx];
+    if (group.order_id !== params.order_id) return;
+    const ctx = ctxOf(params.ctx);
+    assertOutlet(group.outlet_id, ctx, "Occupancy group");
+    const now = new Date().toISOString();
+    mockGroups[idx] = {
+      ...group,
+      order_id: null,
+      status: group.status === "ORDERING" ? "SEATED" : group.status,
+      updated_at: now,
+      version: group.version + 1,
+    };
+    saveTables();
+    await recordEvent({
+      outlet_id: group.outlet_id,
+      entity_type: "OCCUPANCY_GROUP",
+      entity_id: group.id,
+      event_type: "OCCUPANCY_ORDER_DETACHED",
+      from_state: "ORDERING",
+      to_state: "SEATED",
+      actor_id: ctx.actor_id,
+      metadata: { order_id: params.order_id },
+    });
+  } finally {
+    release();
+  }
+}
+
 export async function cancelOccupancy(params: {
   group_id: string;
   by?: string;

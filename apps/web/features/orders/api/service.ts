@@ -3,7 +3,7 @@ import { recordEvent } from "@/features/events/api/service";
 import { entityMutex } from "@/lib/mutex";
 import { toPaise } from "@/lib/money";
 import { getMenuItemById, getModifiers } from "@/features/menu/api/service";
-import { attachOrder, getTableById, seatOccupancy } from "@/features/table/api/service";
+import { attachOrder, detachOrder, getTableById, seatOccupancy } from "@/features/table/api/service";
 import type {
   AddItemInput,
   CreateOrderInput,
@@ -481,6 +481,57 @@ export async function ensureTableOrder(
     return order;
   } finally {
     release();
+  }
+}
+
+/**
+ * Delete a draft order (soft-delete). Only DRAFT orders without fired lines
+ * can be deleted — anything fired must go through cancelOrder. Unlinks the
+ * occupancy group so release guards don't demand a force-release later.
+ */
+export async function deleteOrder(orderId: string, by?: string): Promise<void> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  let groupId: string | undefined;
+  try {
+    await delay(300);
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (order.status !== "DRAFT") {
+      throw new Error("Only draft orders can be deleted — cancel it instead");
+    }
+    if (order.items.some((i) => i.kot_id)) {
+      throw new Error("Order has fired items — cancel it instead");
+    }
+    groupId = order.occupancy_group_id;
+    const now = new Date().toISOString();
+    mockOrders[idx] = {
+      ...order,
+      deleted_at: now,
+      cancelled_reason: "Draft deleted",
+      cancelled_by: by ?? "staff",
+      updated_at: now,
+      version: order.version + 1,
+    };
+    saveOrders();
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: order.id,
+      event_type: "ORDER_CANCELLED",
+      from_state: "DRAFT",
+      actor_id: by ?? "staff",
+      reason_text: "Draft deleted",
+    });
+  } finally {
+    release();
+  }
+  if (groupId) {
+    try {
+      await detachOrder({ group_id: groupId, order_id: orderId });
+    } catch {
+      // Group already released/transferred — pointer is harmless.
+    }
   }
 }
 

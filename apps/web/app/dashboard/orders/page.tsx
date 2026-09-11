@@ -1,11 +1,26 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import PageContainer from "@/components/layout/page-container";
-import { Button, buttonVariants } from "@pixa/ui/base-ui/button";
+import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@pixa/ui/base-ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@pixa/ui/base-ui/dialog";
 import { Input } from "@pixa/ui/base-ui/input";
 import {
   Select,
@@ -23,11 +38,11 @@ import {
   TableRow,
 } from "@pixa/ui/base-ui/table";
 import { Icons } from "@pixa/ui/icons";
-import { cn } from "@pixa/ui/lib/utils";
 import { formatINR } from "@/lib/money";
 import { orderKeys, ordersQueryOptions } from "@/features/orders/api/queries";
-import { confirmOrder } from "@/features/orders/api/service";
-import type { OrderChannel, OrderStatus } from "@/features/orders/api/types";
+import { confirmOrder, deleteOrder } from "@/features/orders/api/service";
+import type { OrderChannel, OrderStatus, OrderWithDerived } from "@/features/orders/api/types";
+import OrderStatusText from "@/features/orders/components/order-status";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 
@@ -67,15 +82,6 @@ export default function OrdersPage() {
     }),
   );
 
-  const confirmMut = useMutation({
-    mutationFn: (id: string) => confirmOrder(id),
-    onSuccess: (o) => {
-      getQueryClient().invalidateQueries({ queryKey: orderKeys.all });
-      toast.success(`Order ${o.order_number} confirmed`);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   if (isPending) {
     return (
       <PageContainer pageTitle="Orders" pageDescription="Sales — Orders" isLoading>
@@ -87,12 +93,7 @@ export default function OrdersPage() {
   return (
     <PageContainer
       pageTitle="Orders"
-      pageDescription="Take orders across dine-in, takeaway, delivery and online channels."
-      pageHeaderAction={
-        <Link href="/dashboard/orders/new" className={cn(buttonVariants(), "text-xs md:text-sm")}>
-          <Icons.add className="mr-2 h-4 w-4" /> New Order
-        </Link>
-      }
+      pageDescription="Orders across dine-in, takeaway, delivery and online channels. Create them from the Order Terminal."
     >
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="relative max-w-sm flex-1">
@@ -143,7 +144,7 @@ export default function OrdersPage() {
               </div>
               <p className="font-medium">No orders yet</p>
               <p className="text-sm text-muted-foreground">
-                Start a dine-in, takeaway, delivery or online order.
+                Create orders from the Order Terminal by tapping a table.
               </p>
             </div>
           </CardContent>
@@ -158,6 +159,7 @@ export default function OrdersPage() {
                   <TableHead>Channel</TableHead>
                   <TableHead>Table / Customer</TableHead>
                   <TableHead>Items</TableHead>
+                  <TableHead>KOTs</TableHead>
                   <TableHead>Total</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -167,12 +169,7 @@ export default function OrdersPage() {
                 {orders.map((o) => (
                   <TableRow key={o.id}>
                     <TableCell>
-                      <Link
-                        href={`/dashboard/orders/${o.id}`}
-                        className="font-medium underline-offset-4 hover:underline"
-                      >
-                        {o.order_number}
-                      </Link>
+                      <span className="font-medium">{o.order_number}</span>
                       {o.external_ref && (
                         <div className="font-mono text-[10px] text-muted-foreground">{o.external_ref}</div>
                       )}
@@ -202,31 +199,18 @@ export default function OrdersPage() {
                         <span className="ml-1 text-xs text-amber-600">({o.draft_items} draft)</span>
                       )}
                     </TableCell>
+                    <TableCell className="text-sm">
+                      {o.kot_count}
+                      {o.draft_items > 0 && (
+                        <span className="ml-1 text-xs text-amber-600">+{o.draft_items} draft</span>
+                      )}
+                    </TableCell>
                     <TableCell className="font-medium">{formatINR(o.total_paise)}</TableCell>
                     <TableCell>
-                      <span className="text-xs capitalize text-muted-foreground">
-                        {o.status.toLowerCase().replace("_", " ")}
-                      </span>
+                      <OrderStatusText status={o.status} />
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        {o.status === "DRAFT" && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={confirmMut.isPending}
-                            onClick={() => confirmMut.mutate(o.id)}
-                          >
-                            <Icons.check className="mr-1 h-4 w-4" /> Confirm
-                          </Button>
-                        )}
-                        <Link
-                          href={`/dashboard/orders/${o.id}`}
-                          className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-                        >
-                          Open
-                        </Link>
-                      </div>
+                      <OrderActions order={o} />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -236,5 +220,81 @@ export default function OrdersPage() {
         </Card>
       )}
     </PageContainer>
+  );
+}
+
+function OrderActions({ order }: { order: OrderWithDerived }) {
+  const router = useRouter();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const confirmMut = useMutation({
+    mutationFn: (id: string) => confirmOrder(id),
+    onSuccess: (o) => {
+      getQueryClient().invalidateQueries({ queryKey: orderKeys.all });
+      toast.success(`Order ${o.order_number} confirmed`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteOrder(id),
+    onSuccess: () => {
+      getQueryClient().invalidateQueries({ queryKey: orderKeys.all });
+      toast.success("Draft order deleted");
+      setDeleteOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <>
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {order.order_number}?</DialogTitle>
+            <DialogDescription>
+              Only draft orders can be deleted. Orders with fired items must be cancelled instead.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteMut.mutate(order.id)}
+              disabled={deleteMut.isPending}
+            >
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger render={<Button variant="ghost" className="h-8 w-8 p-0" />}>
+          <Icons.ellipsis className="h-4 w-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+          </DropdownMenuGroup>
+          <DropdownMenuGroup>
+            <DropdownMenuItem onClick={() => router.push(`/dashboard/orders/${order.id}`)}>
+              <Icons.edit className="mr-2 h-4 w-4" /> Update
+            </DropdownMenuItem>
+            {order.status === "DRAFT" && (
+              <DropdownMenuItem
+                onClick={() => confirmMut.mutate(order.id)}
+                disabled={confirmMut.isPending}
+              >
+                <Icons.check className="mr-2 h-4 w-4" /> Confirm
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={() => setDeleteOpen(true)}>
+              <Icons.trash className="mr-2 h-4 w-4" /> Delete
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
   );
 }
