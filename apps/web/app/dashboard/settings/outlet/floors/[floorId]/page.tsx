@@ -1,6 +1,4 @@
-import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
-import { getQueryClient } from "@/lib/query-client";
-import { floorQueryOptions } from "@/features/floor/api/queries";
+import { Suspense } from "react";
 import PageContainer from "@/components/layout/page-container";
 import FloorViewPage from "@/features/floor/components/floor-view-page";
 
@@ -12,18 +10,17 @@ type PageProps = { params: Promise<{ floorId: string }> };
 
 export default async function Page(props: PageProps) {
   const params = await props.params;
-  const queryClient = getQueryClient();
 
-  if (params.floorId !== "new") {
-    void queryClient.prefetchQuery(floorQueryOptions(params.floorId));
-  }
-
+  // NOTE: no server prefetch here. The floor service is a localStorage-backed
+  // mock — the server's in-memory store never sees client-created rows, so a
+  // prefetched `null` would hydrate and 404 every new floor.
+  // The client component fetches from the hydrated store instead.
   return (
     <PageContainer>
       <div className="flex-1 space-y-4">
-        <HydrationBoundary state={dehydrate(queryClient)}>
+        <Suspense fallback={<div className="text-sm text-muted-foreground">Loading floor…</div>}>
           <FloorViewPage floorId={params.floorId} />
-        </HydrationBoundary>
+        </Suspense>
       </div>
     </PageContainer>
   );
