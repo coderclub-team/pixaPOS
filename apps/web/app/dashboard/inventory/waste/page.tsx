@@ -16,8 +16,9 @@ import {
 } from "@pixa/ui/base-ui/select";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
+import { can } from "@/lib/authz";
+import { useOrganization } from "@clerk/nextjs";
 import Link from "next/link";
-import { Show } from "@clerk/nextjs";
 
 const REASONS = [
   "spoilage",
@@ -30,6 +31,8 @@ const REASONS = [
 ] as const;
 
 export default function WastePage() {
+  const { membership } = useOrganization();
+  const canManageWaste = can(membership?.permissions, "org:waste:manage");
   const [search, setSearch] = React.useState("");
   const [reason, setReason] = React.useState<string | undefined>(undefined);
   const [inputValue, setInputValue] = React.useState("");
@@ -58,14 +61,14 @@ export default function WastePage() {
       pageTitle="Waste Log"
       pageDescription="Inventory — Track spoilage, expired, overproduction, trimming, spillage. Cost loss auto-calculated and stock deducted."
       pageHeaderAction={
-        <Show when={{ permission: "org:waste:manage" }} fallback={null}>
+        canManageWaste ? (
           <Link
             href="/dashboard/inventory/waste/new"
             className={cn(buttonVariants(), "text-xs md:text-sm")}
           >
             <Icons.add className="mr-2 h-4 w-4" /> Log Waste
           </Link>
-        </Show>
+        ) : null
       }
     >
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -97,7 +100,10 @@ export default function WastePage() {
           onChange={(e) => setInputValue(e.target.value)}
           className="max-w-sm"
         />
-        <Select value={reason ?? "all"} onValueChange={(v) => setReason(v === "all" ? undefined : v)}>
+        <Select
+          value={reason ?? "all"}
+          onValueChange={(v) => setReason(v === "all" ? undefined : v)}
+        >
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="All reasons" />
           </SelectTrigger>

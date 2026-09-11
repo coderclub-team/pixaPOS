@@ -80,6 +80,14 @@ export const navGroups: NavGroup[] = [
         access: { requireOrg: true, permission: "org:sys_memberships:manage" },
       },
       {
+        title: "Roles & Permissions",
+        url: "/dashboard/roles",
+        icon: "lock",
+        isActive: false,
+        items: [],
+        access: { requireOrg: true, permission: "org:sys_memberships:manage" },
+      },
+      {
         title: "Kanban",
         url: "/dashboard/kanban",
         icon: "kanban",

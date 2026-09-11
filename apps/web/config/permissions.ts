@@ -18,6 +18,33 @@ export const POS_PERMISSIONS = {
   wasteManage: "org:waste:manage",
 } as const;
 
+export type PosPermissionKey = (typeof POS_PERMISSIONS)[keyof typeof POS_PERMISSIONS];
+
+/**
+ * Human-readable metadata for every POS permission. The `key` must match a value
+ * in POS_PERMISSIONS and an existing Clerk organization permission for it to be
+ * assignable to a role/membership.
+ */
+export const POS_PERMISSION_META: { key: PosPermissionKey; label: string; group: string }[] = [
+  { key: POS_PERMISSIONS.usersManage, label: "Manage users", group: "Team" },
+  { key: POS_PERMISSIONS.sysMembershipsManage, label: "Manage memberships", group: "Team" },
+  { key: POS_PERMISSIONS.sysProfileManage, label: "Manage organization profile", group: "Team" },
+  { key: POS_PERMISSIONS.outletManage, label: "Manage outlet", group: "Outlet" },
+  { key: POS_PERMISSIONS.floorsManage, label: "Manage floors", group: "Tables" },
+  { key: POS_PERMISSIONS.tablesManage, label: "Manage tables", group: "Tables" },
+  { key: POS_PERMISSIONS.tablesOperate, label: "Operate tables", group: "Tables" },
+  { key: POS_PERMISSIONS.ordersManage, label: "Manage orders", group: "Orders" },
+  { key: POS_PERMISSIONS.ordersView, label: "View orders", group: "Orders" },
+  { key: POS_PERMISSIONS.menuManage, label: "Manage menu", group: "Menu" },
+  { key: POS_PERMISSIONS.reportsView, label: "View reports", group: "Reports" },
+  { key: POS_PERMISSIONS.inventoryManage, label: "Manage inventory", group: "Inventory" },
+  { key: POS_PERMISSIONS.inventoryView, label: "View inventory", group: "Inventory" },
+  { key: POS_PERMISSIONS.suppliersManage, label: "Manage suppliers", group: "Inventory" },
+  { key: POS_PERMISSIONS.purchasesManage, label: "Manage purchases", group: "Inventory" },
+  { key: POS_PERMISSIONS.recipesManage, label: "Manage recipes", group: "Inventory" },
+  { key: POS_PERMISSIONS.wasteManage, label: "Manage waste", group: "Inventory" },
+];
+
 // Role -> permissions mapping (for docs / future Clerk setup)
 export const ROLE_PERMISSIONS: Record<string, string[]> = {
   "org:admin": Object.values(POS_PERMISSIONS),
