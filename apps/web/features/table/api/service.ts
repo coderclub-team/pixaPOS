@@ -198,6 +198,134 @@ export async function getTablesWithDerivedByFloor(floorId: string): Promise<{
   };
 }
 
+const DUPLICATE_POSE_OFFSET_MM = 200;
+
+/** Bump a trailing number (T1 -> T2, T-GF01 -> T-GF02, zero-padded). Null when no trailing digits. */
+function incrementTrailing(value: string): string | null {
+  const m = value.match(/^(.*?)(\d+)$/);
+  if (!m) return null;
+  const next = String(parseInt(m[2], 10) + 1).padStart(m[2].length, "0");
+  return `${m[1]}${next}`;
+}
+
+/**
+ * Suggest the next free identifier for a duplicated table.
+ * Tries trailing-number increment (T1 -> T2), then `-COPY` suffixes.
+ * Comparison is case-insensitive; result keeps the source casing.
+ */
+export function suggestUniqueTableValue(base: string, taken: Iterable<string>): string {
+  const takenUpper = new Set([...taken].map((t) => t.toUpperCase()));
+  let candidate: string | null = incrementTrailing(base);
+  for (let i = 0; i < 99 && candidate; i++) {
+    if (!takenUpper.has(candidate.toUpperCase())) return candidate;
+    candidate = incrementTrailing(candidate);
+  }
+  const copyBase = `${base}-COPY`;
+  if (!takenUpper.has(copyBase.toUpperCase())) return copyBase;
+  for (let i = 2; i < 100; i++) {
+    const c = `${copyBase}-${i}`;
+    if (!takenUpper.has(c.toUpperCase())) return c;
+  }
+  throw new Error(`Cannot suggest a unique value for "${base}" — too many copies`);
+}
+
+/** Prefill identifiers for the duplicate form: next free number + code within the outlet. */
+export function suggestDuplicateIdentifiers(
+  source: Pick<RestaurantTable, "outlet_id" | "number" | "code">,
+  existing: Pick<RestaurantTable, "outlet_id" | "number" | "code" | "deleted_at">[],
+): { number: string; code: string } {
+  const outletTables = existing.filter(
+    (t) => t.outlet_id === source.outlet_id && !t.deleted_at,
+  );
+  return {
+    number: suggestUniqueTableValue(
+      source.number,
+      outletTables.map((t) => t.number),
+    ),
+    code: suggestUniqueTableValue(
+      source.code,
+      outletTables.map((t) => t.code),
+    ),
+  };
+}
+
+/**
+ * One-click duplicate: copies layout + config from the source, resets lifecycle
+ * (new id, status=available, version=1), offsets pose so the copy doesn't stack
+ * on the original, and never copies occupancy. Emits TABLE_CREATED with
+ * metadata.duplicated_from. For the review-before-save flow, the form instead
+ * uses suggestDuplicateIdentifiers + createTable.
+ */
+export async function duplicateTable(
+  id: string,
+  overrides?: Partial<TablePayload>,
+): Promise<TableWithDerived> {
+  const release = await entityMutex.acquire("table-write");
+  try {
+    await delay(500);
+    const source = mockTables.find((t) => t.id === id && !t.deleted_at);
+    if (!source) throw new Error("Table not found");
+    const outletId = overrides?.outlet_id ?? source.outlet_id;
+
+    const outletTables = mockTables.filter(
+      (t) => !t.deleted_at && t.outlet_id === outletId,
+    );
+    const number = (
+      overrides?.number ?? suggestUniqueTableValue(source.number, outletTables.map((t) => t.number))
+    ).toUpperCase();
+    const code = (
+      overrides?.code ?? suggestUniqueTableValue(source.code, outletTables.map((t) => t.code))
+    ).toUpperCase();
+    if (
+      mockTables.some(
+        (t) => !t.deleted_at && t.outlet_id === outletId && t.code.toUpperCase() === code,
+      )
+    ) {
+      throw new Error(`Table code "${code}" already exists in this outlet`);
+    }
+
+    const now = new Date().toISOString();
+    const table: RestaurantTable = {
+      id: `tbl_${Date.now().toString(36)}`,
+      outlet_id: outletId,
+      floor_id: overrides?.floor_id ?? source.floor_id,
+      number,
+      code,
+      capacity: overrides?.capacity ?? source.capacity,
+      shape: (overrides?.shape as RestaurantTable["shape"]) ?? source.shape,
+      type: ((overrides as any)?.type as RestaurantTable["type"]) ?? source.type,
+      allows_sharing: (overrides as any)?.allows_sharing ?? source.allows_sharing,
+      status: "available",
+      is_active: overrides?.is_active ?? true,
+      sort_order:
+        overrides?.sort_order ?? Math.max(0, ...outletTables.map((t) => t.sort_order || 0)) + 1,
+      x_mm: Math.max(0, source.x_mm + DUPLICATE_POSE_OFFSET_MM),
+      y_mm: Math.max(0, source.y_mm + DUPLICATE_POSE_OFFSET_MM),
+      w_mm: source.w_mm,
+      h_mm: source.h_mm,
+      rotation_deg: source.rotation_deg,
+      z_index: source.z_index,
+      version: 1,
+      created_at: now,
+      updated_at: now,
+    };
+
+    mockTables.push(table);
+    saveTables();
+    await recordEvent({
+      outlet_id: table.outlet_id,
+      entity_type: "TABLE",
+      entity_id: table.id,
+      event_type: "TABLE_CREATED",
+      to_state: "available",
+      metadata: { duplicated_from: id },
+    });
+    return enrichTable(table);
+  } finally {
+    release();
+  }
+}
+
 export async function createTable(payload: TablePayload): Promise<TableWithDerived> {
   const release = await entityMutex.acquire("table-write");
   try {

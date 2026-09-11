@@ -7,14 +7,34 @@ import { tableQueryOptions } from "../api/queries";
 
 type TableViewPageProps = {
   tableId: string;
+  duplicateFromId?: string;
 };
 
-export default function TableViewPage({ tableId }: TableViewPageProps) {
+export default function TableViewPage({ tableId, duplicateFromId }: TableViewPageProps) {
   if (tableId === "new") {
+    if (duplicateFromId) {
+      return <DuplicateTableView sourceId={duplicateFromId} />;
+    }
     return <TableForm initialData={null} pageTitle="Create New Table" />;
   }
 
   return <EditTableView tableId={tableId} />;
+}
+
+function DuplicateTableView({ sourceId }: { sourceId: string }) {
+  const { data } = useSuspenseQuery(tableQueryOptions(sourceId));
+
+  if (!data) {
+    notFound();
+  }
+
+  return (
+    <TableForm
+      initialData={null}
+      duplicateFrom={data}
+      pageTitle={`Duplicate Table ${data.number}`}
+    />
+  );
 }
 
 function EditTableView({ tableId }: { tableId: string }) {

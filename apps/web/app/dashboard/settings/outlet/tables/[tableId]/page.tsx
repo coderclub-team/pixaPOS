@@ -8,21 +8,30 @@ export const metadata = {
   title: "Dashboard : Table",
 };
 
-type PageProps = { params: Promise<{ tableId: string }> };
+type PageProps = {
+  params: Promise<{ tableId: string }>;
+  searchParams: Promise<{ duplicate_from?: string }>;
+};
 
 export default async function Page(props: PageProps) {
   const params = await props.params;
+  const searchParams = await props.searchParams;
   const queryClient = getQueryClient();
 
   if (params.tableId !== "new") {
     void queryClient.prefetchQuery(tableQueryOptions(params.tableId));
+  }
+  const duplicateFromId =
+    params.tableId === "new" ? searchParams.duplicate_from : undefined;
+  if (duplicateFromId) {
+    void queryClient.prefetchQuery(tableQueryOptions(duplicateFromId));
   }
 
   return (
     <PageContainer>
       <div className="flex-1 space-y-4">
         <HydrationBoundary state={dehydrate(queryClient)}>
-          <TableViewPage tableId={params.tableId} />
+          <TableViewPage tableId={params.tableId} duplicateFromId={duplicateFromId} />
         </HydrationBoundary>
       </div>
     </PageContainer>
