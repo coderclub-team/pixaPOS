@@ -1,7 +1,7 @@
 import FloorViewPage from "@/features/table/components/floor-view";
 
-export const metadata = { title: "Dashboard : Floor View" };
+export const metadata = { title: "Dashboard : Floor Plan Editor" };
 
 export default function Page() {
-  return <FloorViewPage />;
+  return <FloorViewPage mode="edit" />;
 }

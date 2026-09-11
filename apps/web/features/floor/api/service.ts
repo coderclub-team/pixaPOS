@@ -269,15 +269,27 @@ export async function updateFloor(id: string, payload: FloorPayload): Promise<Fl
     await delay(500);
     const idx = mockFloors.findIndex((f) => f.id === id);
     if (idx === -1) throw new Error("Floor not found");
-    
-    // Guard: if shrinking, ensure no tables orphaned (Design Edge Case E9)
+    if (payload.outlet_id !== undefined && payload.outlet_id !== mockFloors[idx].outlet_id) {
+      throw new Error("Floor cannot move across outlets");
+    }
+
+    // Guard: if shrinking, ensure no tables or objects orphaned (Design Edge Case E9, M9)
     if (payload.width_mm || payload.height_mm) {
       const { tables } = await getTablesWithDerivedByFloor(id);
       const newW = payload.width_mm ?? mockFloors[idx].width_mm;
       const newH = payload.height_mm ?? mockFloors[idx].height_mm;
-      const orphans = tables.filter(t => t.x_mm + t.w_mm > newW || t.y_mm + t.h_mm > newH);
-      if (orphans.length > 0) {
-        throw new Error(`Floor shrink would orphan ${orphans.length} tables. Move them first.`);
+      const orphanTables = tables.filter(t => t.x_mm + t.w_mm > newW || t.y_mm + t.h_mm > newH);
+      const orphanObjects = mockObjects.filter(
+        o => o.floor_id === id && !o.deleted_at && (o.x_mm + o.w_mm > newW || o.y_mm + o.h_mm > newH),
+      );
+      const orphanNames = [
+        ...orphanTables.map(t => t.number),
+        ...orphanObjects.map(o => o.label ?? o.kind),
+      ];
+      if (orphanNames.length > 0) {
+        throw new Error(
+          `Floor shrink would orphan ${orphanNames.length} item(s) (${orphanNames.join(", ")}). Move them first.`,
+        );
       }
     }
 

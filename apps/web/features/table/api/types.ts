@@ -22,6 +22,13 @@ export type TableType =
 
 export type OccupancyStatus = "SEATED" | "ORDERING" | "RELEASED" | "CANCELLED";
 
+export type CommandContext = {
+  outlet_id: string;
+  actor_id: string;
+  idempotency_key?: string;
+  expected_version?: number;
+};
+
 export type OccupancyGroup = {
   id: string;
   table_id: string;
@@ -38,6 +45,9 @@ export type OccupancyGroup = {
   table_code_snapshot?: string;
   capacity_at_seating?: number;
   created_by?: string;
+  released_by?: string;
+  release_reason?: string;
+  force_released?: boolean;
   created_at: string;
   updated_at: string;
   version: number;
@@ -50,7 +60,9 @@ export type TableBlock = {
   reason: string;
   blocked_at: string;
   blocked_by?: string;
+  until_at?: string;
   released_at?: string;
+  released_by?: string;
   created_at: string;
 };
 
@@ -66,7 +78,11 @@ export type ReservationHold = {
   hold_from: string;
   hold_until: string;
   status: ReservationHoldStatus;
+  created_by?: string;
+  cancelled_by?: string;
+  cancelled_at?: string;
   created_at: string;
+  version: number;
 };
 
 export type OccupancyFill = "EMPTY" | "PARTIAL" | "FULL";
@@ -105,7 +121,8 @@ export type TableWithDerived = RestaurantTable & {
   active_groups: OccupancyGroup[];
   active_block?: TableBlock;
   active_hold?: ReservationHold;
-  revenue_paise: number;
+  // revenue_paise intentionally absent until wired to orders read-model (paise).
+  // Never hardcode 0 — a constant money field is a silent financial lie.
 };
 
 export type TablePayload = Partial<

@@ -1,7 +1,7 @@
 "use client";
 
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { useState, useRef } from "react";
 import { setTablePose } from "../api/service";
 import {
   createFloorObject,
@@ -17,8 +17,13 @@ import { toast } from "sonner";
 import type { TableWithDerived } from "../api/types";
 import type { FloorObject } from "@/features/floor/api/types";
 
+export type CanvasMode = "edit" | "operations";
+
 interface FloorPlanCanvasProps {
   floorId: string;
+  /** Explicit mode. Edit shows layout tools; operations is select + seat only. */
+  mode?: CanvasMode;
+  /** @deprecated use mode="edit" instead */
   isEditable?: boolean;
   selectedTableId?: string;
   onSelectTable?: (tableId: string | null) => void;
@@ -85,6 +90,272 @@ function handleCursor(handle: string): string {
   return "cursor-ew-resize";
 }
 
+const statusColors: Record<string, string> = {
+  available: "fill-green-100 stroke-green-500",
+  occupied: "fill-red-100 stroke-red-500",
+  reserved: "fill-amber-100 stroke-amber-500",
+  cleaning: "fill-blue-100 stroke-blue-500",
+  out_of_service: "fill-slate-100 stroke-slate-500",
+};
+
+// H1: memoized nodes — drag pointer events update only the dragged node's pose
+const TableNode = memo(function TableNode({
+  table,
+  pose,
+  selected,
+  editable,
+  onPointerDown,
+  onPointerUp,
+  onSelect,
+  onKeyDown,
+}: {
+  table: TableWithDerived;
+  pose: Pose & { rotation: number };
+  selected: boolean;
+  editable: boolean;
+  onPointerDown: (e: React.PointerEvent, mode: "move" | "resize" | "rotate", handle?: string) => void;
+  onPointerUp: (e: React.PointerEvent) => void;
+  onSelect: () => void;
+  onKeyDown: (e: React.KeyboardEvent) => void;
+}) {
+  const blocked = !!table.active_block || table.status === "out_of_service";
+  const held = !!table.active_hold;
+  const fillClass = blocked
+    ? "fill-zinc-200 stroke-zinc-500 dark:fill-zinc-800"
+    : statusColors[table.status] || "fill-white stroke-zinc-300";
+  const shapeClass = cn(fillClass, "stroke-2", selected && "stroke-primary");
+  const rot = pose.rotation;
+  return (
+    <g
+      transform={`translate(${pose.x},${pose.y}) rotate(${rot},${pose.w / 2},${pose.h / 2})`}
+      className={cn("group transition-opacity", editable ? "cursor-move" : "cursor-pointer")}
+      onPointerDown={(e) => onPointerDown(e, "move")}
+      onPointerUp={onPointerUp}
+      onClick={editable ? undefined : onSelect}
+      role="button"
+      tabIndex={0}
+      aria-label={`Table ${table.number}, ${blocked ? "blocked" : table.status}, ${table.seated_seats} of ${table.capacity} seats`}
+      onKeyDown={onKeyDown}
+    >
+      {renderTableShape(table.shape, pose.w, pose.h, shapeClass)}
+      {blocked && (
+        <rect width={pose.w} height={pose.h} rx={40} fill="url(#blocked-hatch)" opacity={0.5} />
+      )}
+      <g transform={`rotate(${-rot},${pose.w / 2},${pose.h / 2})`}>
+        <text
+          x={pose.w / 2}
+          y={pose.h / 2}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          className="select-none fill-zinc-900 text-[200px] font-bold dark:fill-zinc-100"
+        >
+          {table.number}
+        </text>
+        <text
+          x={pose.w / 2}
+          y={pose.h / 2 + 250}
+          textAnchor="middle"
+          className="select-none fill-zinc-500 text-[120px] font-medium"
+        >
+          {table.seated_seats}/{table.capacity}
+        </text>
+        {table.seated_seats > 0 && (
+          <g>
+            {Array.from({ length: Math.min(table.seated_seats, 10) }).map((_, i) => {
+              const shown = Math.min(table.seated_seats, 10);
+              const gap = 170;
+              const startX = pose.w / 2 - ((shown - 1) * gap) / 2;
+              return (
+                <circle
+                  key={i}
+                  cx={startX + i * gap}
+                  cy={pose.h / 2 + 480}
+                  r={65}
+                  className="fill-emerald-500 stroke-emerald-700"
+                />
+              );
+            })}
+            {table.seated_seats > 10 && (
+              <text
+                x={pose.w / 2}
+                y={pose.h / 2 + 700}
+                textAnchor="middle"
+                className="select-none fill-zinc-500 text-[110px] font-medium"
+              >
+                +{table.seated_seats - 10} more
+              </text>
+            )}
+          </g>
+        )}
+        {held && (
+          <g transform={`translate(${pose.w - 220},${-60})`}>
+            <circle r={110} className="fill-amber-400 stroke-amber-600" />
+            <text
+              textAnchor="middle"
+              dominantBaseline="middle"
+              className="select-none fill-white text-[140px] font-bold"
+            >
+              R
+            </text>
+          </g>
+        )}
+      </g>
+      {editable && selected && (
+        <>
+          {RESIZE_HANDLES.map((h) => {
+            const hp = handlePosition(h, pose.w, pose.h);
+            return (
+              <rect
+                key={h}
+                x={hp.x - 90}
+                y={hp.y - 90}
+                width={180}
+                height={180}
+                rx={40}
+                className={cn("fill-background stroke-primary stroke-2", handleCursor(h))}
+                onPointerDown={(e) => onPointerDown(e, "resize", h)}
+                onPointerUp={onPointerUp}
+              />
+            );
+          })}
+          <g
+            transform={`translate(${pose.w / 2},${-420})`}
+            className="cursor-grab"
+            onPointerDown={(e) => onPointerDown(e, "rotate")}
+            onPointerUp={onPointerUp}
+          >
+            <circle r={130} className="fill-background stroke-primary stroke-2" />
+            <path
+              d="M -55 20 A 60 60 0 1 1 55 -20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={36}
+              className="text-primary"
+              strokeLinecap="round"
+            />
+            <polygon points="55,-70 95,-10 30,-25" className="fill-primary" />
+          </g>
+        </>
+      )}
+    </g>
+  );
+},
+// Pose objects are rebuilt per render — compare by value so only the
+// dragged node re-renders during pointer moves.
+(prev, next) =>
+  prev.table === next.table &&
+  prev.selected === next.selected &&
+  prev.editable === next.editable &&
+  prev.pose.x === next.pose.x &&
+  prev.pose.y === next.pose.y &&
+  prev.pose.w === next.pose.w &&
+  prev.pose.h === next.pose.h &&
+  prev.pose.rotation === next.pose.rotation
+);
+
+const ObjectNode = memo(function ObjectNode({
+  obj,
+  pose,
+  selected,
+  editable,
+  onPointerDown,
+  onPointerUp,
+  onSelect,
+  onKeyDown,
+}: {
+  obj: FloorObject;
+  pose: Pose & { rotation: number };
+  selected: boolean;
+  editable: boolean;
+  onPointerDown: (e: React.PointerEvent, mode: "move" | "resize" | "rotate", handle?: string) => void;
+  onPointerUp: (e: React.PointerEvent) => void;
+  onSelect: () => void;
+  onKeyDown: (e: React.KeyboardEvent) => void;
+}) {
+  const objClass = cn(objectFill(obj.kind), "stroke-2", selected && "stroke-primary");
+  return (
+    <g
+      transform={`translate(${pose.x},${pose.y}) rotate(${pose.rotation},${pose.w / 2},${pose.h / 2})`}
+      className={cn(editable ? "cursor-move" : "cursor-default")}
+      onPointerDown={(e) => onPointerDown(e, "move")}
+      onPointerUp={onPointerUp}
+      onClick={editable ? undefined : onSelect}
+      role="button"
+      tabIndex={0}
+      aria-label={`${obj.kind}${obj.label ? ` ${obj.label}` : ""}`}
+      onKeyDown={onKeyDown}
+    >
+      {obj.kind === "label" ? (
+        <text
+          x={pose.w / 2}
+          y={pose.h / 2}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          className="select-none fill-zinc-500 text-[160px] font-medium"
+        >
+          {obj.label ?? "Label"}
+        </text>
+      ) : (
+        renderObjectShape({ ...obj, w_mm: pose.w, h_mm: pose.h }, pose.w, pose.h, objClass)
+      )}
+      {obj.kind === "label" && selected && (
+        <rect
+          width={pose.w}
+          height={pose.h}
+          className="fill-transparent stroke-primary stroke-2 [stroke-dasharray:120_80]"
+        />
+      )}
+      {editable && selected && (
+        <>
+          {RESIZE_HANDLES.map((h) => {
+            const hp = handlePosition(h, pose.w, pose.h);
+            return (
+              <rect
+                key={h}
+                x={hp.x - 90}
+                y={hp.y - 90}
+                width={180}
+                height={180}
+                rx={40}
+                className={cn("fill-background stroke-primary stroke-2", handleCursor(h))}
+                onPointerDown={(e) => onPointerDown(e, "resize", h)}
+                onPointerUp={onPointerUp}
+              />
+            );
+          })}
+          <g
+            transform={`translate(${pose.w / 2},${-420})`}
+            className="cursor-grab"
+            onPointerDown={(e) => onPointerDown(e, "rotate")}
+            onPointerUp={onPointerUp}
+          >
+            <circle r={130} className="fill-background stroke-primary stroke-2" />
+            <path
+              d="M -55 20 A 60 60 0 1 1 55 -20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={36}
+              className="text-primary"
+              strokeLinecap="round"
+            />
+            <polygon points="55,-70 95,-10 30,-25" className="fill-primary" />
+          </g>
+        </>
+      )}
+    </g>
+  );
+},
+(prev, next) =>
+  prev.obj === next.obj &&
+  prev.selected === next.selected &&
+  prev.editable === next.editable &&
+  prev.pose.x === next.pose.x &&
+  prev.pose.y === next.pose.y &&
+  prev.pose.w === next.pose.w &&
+  prev.pose.h === next.pose.h &&
+  prev.pose.rotation === next.pose.rotation
+);
+
 function objectFill(kind: string): string {
   switch (kind) {
     case "wall":
@@ -139,14 +410,16 @@ const SHAPE_PALETTE: PaletteSpec[] = [
 
 export default function FloorPlanCanvas({
   floorId,
-  isEditable = true,
+  mode,
+  isEditable,
   selectedTableId,
   onSelectTable,
 }: FloorPlanCanvasProps) {
   const queryClient = useQueryClient();
   const { data: layout } = useSuspenseQuery(floorLayoutQueryOptions(floorId));
 
-  const [editable, setEditable] = useState(isEditable);
+  // Explicit authoritative mode; legacy isEditable maps to edit/operations.
+  const editable = mode !== undefined ? mode === "edit" : (isEditable ?? false);
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, w: 12000, h: 8000 });
   const [zoom, setZoom] = useState(1);
   const containerRef = useRef<SVGSVGElement>(null);
@@ -159,6 +432,15 @@ export default function FloorPlanCanvas({
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [addingSpec, setAddingSpec] = useState<PaletteSpec | null>(null);
   const dragRef = useRef<DragSession>(null);
+  const rafRef = useRef<number | null>(null);
+  // M10: client-side undo stack of inverse pose mutations (cap 50)
+  const undoRef = useRef<
+    Array<
+      | { kind: "table"; id: string; prev: Pose & { rotation: number } }
+      | { kind: "object"; id: string; prev: Pose & { rotation: number } }
+    >
+  >([]);
+  const [, setUndoTick] = useState(0);
 
   const grid = layout.floor.grid_size_mm || 100;
   const snap = (v: number) => Math.round(v / grid) * grid;
@@ -166,6 +448,42 @@ export default function FloorPlanCanvas({
   const invalidateLayout = () => {
     queryClient.invalidateQueries({ queryKey: floorKeys.layout(floorId) });
     queryClient.invalidateQueries({ queryKey: tableKeys.all });
+  };
+
+  const pushUndo = (
+    entry:
+      | { kind: "table"; id: string; prev: Pose & { rotation: number } }
+      | { kind: "object"; id: string; prev: Pose & { rotation: number } }
+  ) => {
+    undoRef.current.push(entry);
+    if (undoRef.current.length > 50) undoRef.current.shift();
+    setUndoTick((t) => t + 1);
+  };
+
+  const undoLast = () => {
+    const entry = undoRef.current.pop();
+    if (!entry) {
+      toast.message("Nothing to undo");
+      return;
+    }
+    setUndoTick((t) => t + 1);
+    if (entry.kind === "table") {
+      setTablePose(entry.id, {
+        x_mm: entry.prev.x,
+        y_mm: entry.prev.y,
+        w_mm: entry.prev.w,
+        h_mm: entry.prev.h,
+        rotation_deg: entry.prev.rotation,
+      }).then(() => invalidateLayout());
+    } else {
+      setFloorObjectPose(entry.id, {
+        x_mm: entry.prev.x,
+        y_mm: entry.prev.y,
+        w_mm: entry.prev.w,
+        h_mm: entry.prev.h,
+        rotation_deg: entry.prev.rotation,
+      }).then(() => invalidateLayout());
+    }
   };
 
   // H6: single pose mutation — optimistic override, rollback + conflict toast on error
@@ -177,7 +495,14 @@ export default function FloorPlanCanvas({
       w?: number;
       h?: number;
       rotation_deg?: number;
-    }) => setTablePose(vars.id, vars),
+      prev: Pose & { rotation: number };
+    }) => {
+      const { id, prev: _prev, ...pose } = vars;
+      return setTablePose(id, pose);
+    },
+    onSuccess: (_d, vars) => {
+      pushUndo({ kind: "table", id: vars.id, prev: vars.prev });
+    },
     onError: (e: Error, vars) => {
       setOverrides((prev) => {
         const next = { ...prev };
@@ -205,7 +530,14 @@ export default function FloorPlanCanvas({
       w?: number;
       h?: number;
       rotation_deg?: number;
-    }) => setFloorObjectPose(vars.id, vars),
+      prev: Pose & { rotation: number };
+    }) => {
+      const { id, prev: _prev, ...pose } = vars;
+      return setFloorObjectPose(id, pose);
+    },
+    onSuccess: (_d, vars) => {
+      pushUndo({ kind: "object", id: vars.id, prev: vars.prev });
+    },
     onError: (e: Error, vars) => {
       setObjOverrides((prev) => {
         const next = { ...prev };
@@ -261,13 +593,9 @@ export default function FloorPlanCanvas({
   const saving = poseMut.isPending || objPoseMut.isPending;
 
   const toMm = (clientX: number, clientY: number) => {
-    const rect = containerRef.current!.getBoundingClientRect();
-    const effW = viewBox.w / zoom;
-    const effH = viewBox.h / zoom;
-    return {
-      x: viewBox.x + ((clientX - rect.left) * effW) / rect.width,
-      y: viewBox.y + ((clientY - rect.top) * effH) / rect.height,
-    };
+    const { s, ox, oy } = viewportMetrics();
+    const c = camRef.current;
+    return { x: c.x + (clientX - ox) / s, y: c.y + (clientY - oy) / s, s };
   };
 
   const poseOf = (t: TableWithDerived): Pose & { rotation: number } => {
@@ -292,11 +620,26 @@ export default function FloorPlanCanvas({
     };
   };
 
-  const clampPose = (p: Pose): Pose => {
+  // M1: containment uses the rotated bounding box so rotated items
+  // cannot overflow the floor or dodge the shrink-orphan guard.
+  const clampPose = (p: Pose, rotDeg = 0): Pose => {
     const w = Math.min(Math.max(Math.round(p.w), MIN_SIZE), layout.floor.width_mm);
     const h = Math.min(Math.max(Math.round(p.h), MIN_SIZE), layout.floor.height_mm);
-    const x = Math.min(Math.max(Math.round(p.x), 0), Math.max(0, layout.floor.width_mm - w));
-    const y = Math.min(Math.max(Math.round(p.y), 0), Math.max(0, layout.floor.height_mm - h));
+    const r = ((rotDeg || 0) * Math.PI) / 180;
+    const boxW = Math.abs(w * Math.cos(r)) + Math.abs(h * Math.sin(r));
+    const boxH = Math.abs(w * Math.sin(r)) + Math.abs(h * Math.cos(r));
+    // Position is top-left pre-rotation; keep the rotated box inside the floor
+    // by clamping against the box overhang (conservative, rotation-agnostic).
+    const padX = Math.max(0, (boxW - w) / 2);
+    const padY = Math.max(0, (boxH - h) / 2);
+    const x = Math.min(
+      Math.max(Math.round(p.x), -Math.floor(padX)),
+      Math.max(-Math.floor(padX), layout.floor.width_mm - w + Math.floor(padX))
+    );
+    const y = Math.min(
+      Math.max(Math.round(p.y), -Math.floor(padY)),
+      Math.max(-Math.floor(padY), layout.floor.height_mm - h + Math.floor(padY))
+    );
     return { x, y, w, h };
   };
 
@@ -331,16 +674,77 @@ export default function FloorPlanCanvas({
     };
   };
 
+  // H1: coalesce rapid pointer input through rAF — one state write per frame
+  const scheduleFrame = (fn: () => void) => {
+    if (rafRef.current != null) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      fn();
+    });
+  };
+
+  const cancelDragSession = () => {
+    const session = dragRef.current;
+    dragRef.current = null;
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    // Revert optimistic previews so nothing ghosts mid-drag
+    if (session?.tableId) {
+      const id = session.tableId;
+      setOverrides((prev) => {
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+    if (session?.target.kind === "object") {
+      const id = session.target.id;
+      setObjOverrides((prev) => {
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+    setIsPanning(false);
+  };
+
+  // Unified camera mirror for stable event-handler reads (H3)
+  const camRef = useRef({ x: viewBox.x, y: viewBox.y, zoom });
+  camRef.current = { x: viewBox.x, y: viewBox.y, zoom };
+
+  // Letterbox-aware viewport metrics: uniform scale + centered offsets (C4 fix)
+  const viewportMetrics = () => {
+    const rect = containerRef.current!.getBoundingClientRect();
+    const c = camRef.current;
+    const effW = viewBox.w / c.zoom;
+    const effH = viewBox.h / c.zoom;
+    const s = Math.min(rect.width / effW, rect.height / effH);
+    return {
+      rect,
+      s,
+      ox: rect.left + (rect.width - effW * s) / 2,
+      oy: rect.top + (rect.height - effH * s) / 2,
+    };
+  };
+
   // H3: pan scaled by real element size, not hardcoded 800x600
   const handleCanvasMove = (e: React.PointerEvent) => {
     if (isPanning) {
-      const rect = containerRef.current!.getBoundingClientRect();
-      const effW = viewBox.w / zoom;
-      const effH = viewBox.h / zoom;
-      const dx = ((e.clientX - dragStart.x) * effW) / rect.width;
-      const dy = ((e.clientY - dragStart.y) * effH) / rect.height;
-      setViewBox((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
-      setDragStart({ x: e.clientX, y: e.clientY });
+      const cx = e.clientX;
+      const cy = e.clientY;
+      const sx = dragStart.x;
+      const sy = dragStart.y;
+      scheduleFrame(() => {
+        const { s } = viewportMetrics();
+        const dx = (cx - sx) / s;
+        const dy = (cy - sy) / s;
+        setViewBox((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
+        setDragStart({ x: cx, y: cy });
+      });
       return;
     }
     const session = dragRef.current;
@@ -351,7 +755,23 @@ export default function FloorPlanCanvas({
       session.moved = true;
     }
 
-    const p = toMm(e.clientX, e.clientY);
+    // H1: coalesce pose math + state writes to one rAF per frame
+    const cx = e.clientX;
+    const cy = e.clientY;
+    scheduleFrame(() => {
+      const s = dragRef.current;
+      if (!s || s !== session) return;
+      applyDragFrame(s, cx, cy);
+    });
+    return;
+  };
+
+  const applyDragFrame = (
+    session: NonNullable<DragSession>,
+    clientX: number,
+    clientY: number
+  ) => {
+    const p = toMm(clientX, clientY);
     const dx = p.x - session.startMM.x;
     const dy = p.y - session.startMM.y;
 
@@ -388,7 +808,10 @@ export default function FloorPlanCanvas({
           y = session.orig.y + ly;
           hh = session.orig.h - ly;
         }
-        const next = clampPose({ x: snap(x), y: snap(y), w: snap(w), h: snap(hh) });
+        const next = clampPose(
+          { x: snap(x), y: snap(y), w: snap(w), h: snap(hh) },
+          cur.rotation
+        );
         setObjOverrides((prev) => ({
           ...prev,
           [obj.id]: { ...next, rotation: cur.rotation },
@@ -421,11 +844,14 @@ export default function FloorPlanCanvas({
     }
 
     if (session.target.mode === "move") {
-      const next = clampPose({
-        ...session.orig,
-        x: snap(session.orig.x + dx),
-        y: snap(session.orig.y + dy),
-      });
+      const next = clampPose(
+        {
+          ...session.orig,
+          x: snap(session.orig.x + dx),
+          y: snap(session.orig.y + dy),
+        },
+        table.rotation_deg
+      );
       next.w = session.orig.w;
       next.h = session.orig.h;
       setOverrides((prev) => ({ ...prev, [session.tableId!]: next }));
@@ -457,7 +883,10 @@ export default function FloorPlanCanvas({
       w = d;
       hh = d;
     }
-    const next = clampPose({ x: snap(x), y: snap(y), w: snap(w), h: snap(hh) });
+    const next = clampPose(
+      { x: snap(x), y: snap(y), w: snap(w), h: snap(hh) },
+      table.rotation_deg
+    );
     setOverrides((prev) => ({ ...prev, [session.tableId!]: next }));
   };
 
@@ -489,7 +918,7 @@ export default function FloorPlanCanvas({
       }
       const ov = objOverrides[session.target.id];
       const final = ov
-        ? clampPose({ x: ov.x, y: ov.y, w: ov.w, h: ov.h })
+        ? clampPose({ x: ov.x, y: ov.y, w: ov.w, h: ov.h }, ov.rotation ?? obj.rotation_deg)
         : { x: obj.x_mm, y: obj.y_mm, w: obj.w_mm, h: obj.h_mm };
       const finalRot = ov?.rotation ?? obj.rotation_deg;
       const changed =
@@ -513,6 +942,13 @@ export default function FloorPlanCanvas({
         w: final.w,
         h: final.h,
         rotation_deg: finalRot,
+        prev: {
+          x: obj.x_mm,
+          y: obj.y_mm,
+          w: obj.w_mm,
+          h: obj.h_mm,
+          rotation: obj.rotation_deg,
+        },
       });
       return;
     }
@@ -532,10 +968,9 @@ export default function FloorPlanCanvas({
     if (!table) return;
     const ov = overrides[session.tableId!];
     const finalPose = ov
-      ? clampPose({ x: ov.x, y: ov.y, w: ov.w, h: ov.h })
+      ? clampPose({ x: ov.x, y: ov.y, w: ov.w, h: ov.h }, ov.rotation ?? table.rotation_deg)
       : { x: table.x_mm, y: table.y_mm, w: table.w_mm, h: table.h_mm };
-    const finalRot =
-      ov?.rotation ?? table.rotation_deg;
+    const finalRot = ov?.rotation ?? table.rotation_deg;
     const movedPos = finalPose.x !== table.x_mm || finalPose.y !== table.y_mm;
     const movedSize = finalPose.w !== table.w_mm || finalPose.h !== table.h_mm;
     const movedRot = finalRot !== (table.rotation_deg || 0);
@@ -553,6 +988,13 @@ export default function FloorPlanCanvas({
       ...(movedPos ? { x: finalPose.x, y: finalPose.y } : {}),
       ...(movedSize ? { w: finalPose.w, h: finalPose.h } : {}),
       ...(movedRot ? { rotation_deg: finalRot } : {}),
+      prev: {
+        x: table.x_mm,
+        y: table.y_mm,
+        w: table.w_mm,
+        h: table.h_mm,
+        rotation: table.rotation_deg,
+      },
     });
   };
 
@@ -578,10 +1020,47 @@ export default function FloorPlanCanvas({
     }
   };
 
-  // H3: wheel zoom to cursor
-  const handleWheel = (e: React.WheelEvent) => {
-    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-    const p = toMm(e.clientX, e.clientY);
+  // H3: wheel zoom to cursor via non-passive listener (React onWheel is passive)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onWheelNative = (e: WheelEvent) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      const p = toMm(e.clientX, e.clientY);
+      setZoom((z) => {
+        const nz = Math.min(Math.max(z * factor, 0.25), 4);
+        const f = nz / z;
+        setViewBox((prev) => ({
+          ...prev,
+          x: p.x - (p.x - prev.x) / f,
+          y: p.y - (p.y - prev.y) / f,
+        }));
+        return nz;
+      });
+    };
+    el.addEventListener("wheel", onWheelNative, { passive: false });
+    return () => el.removeEventListener("wheel", onWheelNative);
+  }, [floorId]);
+
+  // H7: pointercancel / lost capture / blur cleanup — never leave a stuck drag
+  useEffect(() => {
+    const onBlur = () => cancelDragSession();
+    window.addEventListener("blur", onBlur);
+    return () => window.removeEventListener("blur", onBlur);
+  }, []);
+
+  const zoomCenter = (factor: number) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) {
+      setZoom((z) => Math.min(Math.max(z * factor, 0.25), 4));
+      return;
+    }
+    zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, factor);
+  };
+
+  const zoomAt = (clientX: number, clientY: number, factor: number) => {
+    const p = toMm(clientX, clientY);
     setZoom((z) => {
       const nz = Math.min(Math.max(z * factor, 0.25), 4);
       const f = nz / z;
@@ -594,12 +1073,46 @@ export default function FloorPlanCanvas({
     });
   };
 
-  const statusColors = {
-    available: "fill-green-100 stroke-green-500",
-    occupied: "fill-red-100 stroke-red-500",
-    reserved: "fill-amber-100 stroke-amber-500",
-    cleaning: "fill-blue-100 stroke-blue-500",
-    out_of_service: "fill-slate-100 stroke-slate-500",
+  const onTableKeyDown = (e: React.KeyboardEvent, table: TableWithDerived) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onSelectTable?.(table.id);
+      return;
+    }
+    if (e.key === "Escape") {
+      onSelectTable?.(null);
+      setSelectedObjectId(null);
+      return;
+    }
+    if (!editable) return;
+    const step = (e.shiftKey ? 5 : 1) * grid;
+    const delta: Record<string, { x: number; y: number }> = {
+      ArrowLeft: { x: -step, y: 0 },
+      ArrowRight: { x: step, y: 0 },
+      ArrowUp: { x: 0, y: -step },
+      ArrowDown: { x: 0, y: step },
+    };
+    const d = delta[e.key];
+    if (d) {
+      e.preventDefault();
+      const p = clampPose({
+        x: table.x_mm + d.x,
+        y: table.y_mm + d.y,
+        w: table.w_mm,
+        h: table.h_mm,
+      });
+      undoRef.current.push({
+        kind: "table",
+        id: table.id,
+        prev: { x: table.x_mm, y: table.y_mm, w: table.w_mm, h: table.h_mm, rotation: table.rotation_deg },
+      });
+      poseMut.mutate({
+        id: table.id,
+        x: p.x,
+        y: p.y,
+        prev: { x: table.x_mm, y: table.y_mm, w: table.w_mm, h: table.h_mm, rotation: table.rotation_deg },
+      });
+    }
   };
 
   return (
@@ -619,20 +1132,23 @@ export default function FloorPlanCanvas({
             </Button>
           ))}
         {!editable && (
-          <span className="px-1 text-xs text-muted-foreground">View mode</span>
+          <span className="px-1 text-xs text-muted-foreground">
+            Operations — select a table to seat guests
+          </span>
         )}
       </div>
       <div className="absolute right-4 top-4 z-10 flex flex-col gap-2">
-        <Button
-          variant={editable ? "default" : "secondary"}
-          size="icon-sm"
-          onClick={() => setEditable((v) => !v)}
-          title={editable ? "Exit edit mode" : "Edit layout"}
-        >
-          <Icons.edit className="size-4" />
-        </Button>
         {editable && (
           <>
+            <Button
+              variant="secondary"
+              size="icon-sm"
+              onClick={undoLast}
+              disabled={undoRef.current.length === 0}
+              title="Undo last layout change (Ctrl+Z)"
+            >
+              <Icons.close className="size-4 -scale-x-100" />
+            </Button>
             <Button
               variant="secondary"
               size="icon-sm"
@@ -644,10 +1160,10 @@ export default function FloorPlanCanvas({
             </Button>
           </>
         )}
-        <Button variant="secondary" size="icon-sm" onClick={() => setZoom((z) => z * 1.2)}>
+        <Button variant="secondary" size="icon-sm" onClick={() => zoomCenter(1.2)} title="Zoom in">
           <Icons.add className="size-4" />
         </Button>
-        <Button variant="secondary" size="icon-sm" onClick={() => setZoom((z) => z / 1.2)}>
+        <Button variant="secondary" size="icon-sm" onClick={() => zoomCenter(1 / 1.2)} title="Zoom out">
           <Icons.chevronDown className="size-4 rotate-180" />
         </Button>
       </div>
@@ -664,7 +1180,19 @@ export default function FloorPlanCanvas({
         onPointerDown={handlePointerDown}
         onPointerMove={handleCanvasMove}
         onPointerUp={endTableDrag}
-        onWheel={handleWheel}
+        onPointerCancel={cancelDragSession}
+        onLostPointerCapture={cancelDragSession}
+        onKeyDown={(e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+            e.preventDefault();
+            undoLast();
+          }
+          if (e.key === "Escape") {
+            onSelectTable?.(null);
+            setSelectedObjectId(null);
+            setAddingSpec(null);
+          }
+        }}
       >
         <defs>
           <pattern
@@ -695,233 +1223,49 @@ export default function FloorPlanCanvas({
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         {/* Floor objects (walls / bars / separators / decor / labels) */}
-        {layout.objects.map((o) => {
-          const pos = objPoseOf(o);
-          const isSel = selectedObjectId === o.id;
-          const objClass = cn(objectFill(o.kind), "stroke-2", isSel && "stroke-primary");
-          return (
-            <g
-              key={o.id}
-              transform={`translate(${pos.x},${pos.y}) rotate(${pos.rotation},${pos.w / 2},${pos.h / 2})`}
-              className={cn(editable ? "cursor-move" : "cursor-default")}
-              onPointerDown={(e) =>
-                beginDrag(e, { kind: "object", id: o.id, mode: "move" }, undefined, o)
+        {layout.objects.map((o) => (
+          <ObjectNode
+            key={o.id}
+            obj={o}
+            pose={objPoseOf(o)}
+            selected={selectedObjectId === o.id}
+            editable={editable}
+            onPointerDown={(e, m, h) =>
+              beginDrag(e, { kind: "object", id: o.id, mode: m, handle: h }, undefined, o)
+            }
+            onPointerUp={endTableDrag}
+            onSelect={() => setSelectedObjectId(o.id)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setSelectedObjectId(o.id);
               }
-              onPointerUp={endTableDrag}
-            >
-              {o.kind === "label" ? (
-                <text
-                  x={pos.w / 2}
-                  y={pos.h / 2}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  className="select-none fill-zinc-500 text-[160px] font-medium"
-                >
-                  {o.label ?? "Label"}
-                </text>
-              ) : (
-                renderObjectShape({ ...o, w_mm: pos.w, h_mm: pos.h }, pos.w, pos.h, objClass)
-              )}
-              {o.kind === "label" && isSel && (
-                <rect
-                  width={pos.w}
-                  height={pos.h}
-                  className="fill-transparent stroke-primary stroke-2 [stroke-dasharray:120_80]"
-                />
-              )}
-              {editable && isSel && (
-                <>
-                  {RESIZE_HANDLES.map((h) => {
-                    const hp = handlePosition(h, pos.w, pos.h);
-                    return (
-                      <rect
-                        key={h}
-                        x={hp.x - 90}
-                        y={hp.y - 90}
-                        width={180}
-                        height={180}
-                        rx={40}
-                        className={cn("fill-background stroke-primary stroke-2", handleCursor(h))}
-                        onPointerDown={(e) =>
-                          beginDrag(
-                            e,
-                            { kind: "object", id: o.id, mode: "resize", handle: h },
-                            undefined,
-                            o
-                          )
-                        }
-                        onPointerUp={endTableDrag}
-                      />
-                    );
-                  })}
-                  <g
-                    transform={`translate(${pos.w / 2},${-420})`}
-                    className="cursor-grab"
-                    onPointerDown={(e) =>
-                      beginDrag(e, { kind: "object", id: o.id, mode: "rotate" }, undefined, o)
-                    }
-                    onPointerUp={endTableDrag}
-                  >
-                    <circle r={130} className="fill-background stroke-primary stroke-2" />
-                    <path
-                      d="M -55 20 A 60 60 0 1 1 55 -20"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={36}
-                      className="text-primary"
-                      strokeLinecap="round"
-                    />
-                    <polygon points="55,-70 95,-10 30,-25" className="fill-primary" />
-                  </g>
-                </>
-              )}
-            </g>
-          );
-        })}
+              if (e.key === "Escape") setSelectedObjectId(null);
+            }}
+          />
+        ))}
 
-        {layout.tables.map((table) => {
-          const isSelected = selectedTableId === table.id;
-          // M2: render from derived state — blocked tables get hatch, holds get a badge
-          const blocked = !!table.active_block || table.status === "out_of_service";
-          const held = !!table.active_hold;
-          const fillClass = blocked
-            ? "fill-zinc-200 stroke-zinc-500 dark:fill-zinc-800"
-            : statusColors[table.status] || "fill-white stroke-zinc-300";
-          const pose = poseOf(table);
-          const shapeClass = cn(fillClass, "stroke-2", isSelected && "stroke-primary");
-          const rot = pose.rotation;
-
-          return (
-            <g
-              key={table.id}
-              transform={`translate(${pose.x},${pose.y}) rotate(${rot},${pose.w / 2},${pose.h / 2})`}
-              className={cn("group transition-opacity", editable ? "cursor-move" : "cursor-pointer")}
-              onPointerDown={(e) => beginDrag(e, { kind: "table", id: table.id, mode: "move" }, table)}
-              onPointerUp={endTableDrag}
-            >
-              {renderTableShape(table.shape, pose.w, pose.h, shapeClass)}
-              {blocked && (
-                <rect width={pose.w} height={pose.h} rx={40} fill="url(#blocked-hatch)" opacity={0.5} />
-              )}
-
-              {/* H8: counter-rotated labels stay upright */}
-              <g transform={`rotate(${-rot},${pose.w / 2},${pose.h / 2})`}>
-                <text
-                  x={pose.w / 2}
-                  y={pose.h / 2}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  className="select-none fill-zinc-900 text-[200px] font-bold dark:fill-zinc-100"
-                >
-                  {table.number}
-                </text>
-
-                <text
-                  x={pose.w / 2}
-                  y={pose.h / 2 + 250}
-                  textAnchor="middle"
-                  className="select-none fill-zinc-500 text-[120px] font-medium"
-                >
-                  {table.seated_seats}/{table.capacity}
-                </text>
-
-                {table.seated_seats > 0 && (
-                  <g>
-                    {Array.from({ length: Math.min(table.seated_seats, 10) }).map((_, i) => {
-                      const shown = Math.min(table.seated_seats, 10);
-                      const gap = 170;
-                      const startX = pose.w / 2 - ((shown - 1) * gap) / 2;
-                      return (
-                        <circle
-                          key={i}
-                          cx={startX + i * gap}
-                          cy={pose.h / 2 + 480}
-                          r={65}
-                          className="fill-emerald-500 stroke-emerald-700"
-                        />
-                      );
-                    })}
-                    {table.seated_seats > 10 && (
-                      <text
-                        x={pose.w / 2}
-                        y={pose.h / 2 + 700}
-                        textAnchor="middle"
-                        className="select-none fill-zinc-500 text-[110px] font-medium"
-                      >
-                        +{table.seated_seats - 10} more
-                      </text>
-                    )}
-                  </g>
-                )}
-
-                {held && (
-                  <g transform={`translate(${pose.w - 220},${-60})`}>
-                    <circle r={110} className="fill-amber-400 stroke-amber-600" />
-                    <text
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      className="select-none fill-white text-[140px] font-bold"
-                    >
-                      R
-                    </text>
-                  </g>
-                )}
-              </g>
-
-              {editable && isSelected && (
-                <>
-                  {RESIZE_HANDLES.map((h) => {
-                    const hp = handlePosition(h, pose.w, pose.h);
-                    return (
-                      <rect
-                        key={h}
-                        x={hp.x - 90}
-                        y={hp.y - 90}
-                        width={180}
-                        height={180}
-                        rx={40}
-                        className={cn("fill-background stroke-primary stroke-2", handleCursor(h))}
-                        onPointerDown={(e) =>
-                          beginDrag(e, { kind: "table", id: table.id, mode: "resize", handle: h }, table)
-                        }
-                        onPointerUp={endTableDrag}
-                      />
-                    );
-                  })}
-                  {/* H8: rotate handle above the table */}
-                  <g
-                    transform={`translate(${pose.w / 2},${-420})`}
-                    className="cursor-grab"
-                    onPointerDown={(e) =>
-                      beginDrag(e, { kind: "table", id: table.id, mode: "rotate" }, table)
-                    }
-                    onPointerUp={endTableDrag}
-                  >
-                    <circle r={130} className="fill-background stroke-primary stroke-2" />
-                    <path
-                      d="M -55 20 A 60 60 0 1 1 55 -20"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={36}
-                      className="text-primary"
-                      strokeLinecap="round"
-                    />
-                    <polygon
-                      points="55,-70 95,-10 30,-25"
-                      className="fill-primary"
-                    />
-                  </g>
-                </>
-              )}
-            </g>
-          );
-        })}
+        {layout.tables.map((table) => (
+          <TableNode
+            key={table.id}
+            table={table}
+            pose={poseOf(table)}
+            selected={selectedTableId === table.id}
+            editable={editable}
+            onPointerDown={(e, m, h) =>
+              beginDrag(e, { kind: "table", id: table.id, mode: m, handle: h }, table)
+            }
+            onPointerUp={endTableDrag}
+            onSelect={() => onSelectTable?.(table.id)}
+            onKeyDown={(e) => onTableKeyDown(e, table)}
+          />
+        ))}
       </svg>
 
       <div className="absolute bottom-4 left-4 rounded-lg bg-background/80 p-2 text-xs backdrop-blur-sm">
         {editable
           ? "Drag tables/objects to move • Bars to resize • Top handle to rotate • Click to select"
-          : "Scroll or pinch to zoom • Drag with Middle Mouse or Alt+Click to pan."}
+          : "Scroll to zoom • Drag with Middle Mouse or Alt+Click to pan. Click a table to select."}
       </div>
     </div>
   );
