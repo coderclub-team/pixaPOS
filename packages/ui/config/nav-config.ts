@@ -243,6 +243,29 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
+    label: "Sales",
+    items: [
+      {
+        title: "Orders",
+        url: "/dashboard/orders",
+        icon: "orders",
+        isActive: false,
+        shortcut: ["o", "o"],
+        items: [],
+        access: { requireOrg: true },
+      },
+      {
+        title: "Kitchen",
+        url: "/dashboard/kitchen",
+        icon: "kitchen",
+        isActive: false,
+        shortcut: ["o", "k"],
+        items: [],
+        access: { requireOrg: true },
+      },
+    ],
+  },
+  {
     label: "Menu",
     items: [
       {

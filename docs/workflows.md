@@ -67,6 +67,14 @@ is the only surface with drag/resize/rotate, the shape palette, undo, and add-ta
 pose writes go through version-CAS `setTablePose`/`setFloorObjectPose` and never touch
 occupancy.
 
+## Order ↔ KOT linkage (ADR-0005)
+
+Unfired order lines are the virtual draft KOT. `fireKOT` freezes them into an
+immutable ticket (1 order → N KOTs); voids are deletion records on the ticket
+with mandatory reason, never hard deletes. Dine-in orders attach to occupancy
+via `attachOrder`; release guards protect open orders. Detail pages fetch
+client-side (localStorage-backed mocks — server prefetch would 404 new rows).
+
 ## 6. Product workflow
 
 ```text
@@ -81,7 +89,7 @@ Inactive products stay out of new orders; history keeps referencing them (snapsh
 
 ## 8. Business events (audit trail)
 
-`ORDER_CREATED, ORDER_CONFIRMED, ORDER_SENT_TO_KITCHEN, ITEM_ADDED, ITEM_MODIFIED, ITEM_REMOVED, KITCHEN_STARTED, KITCHEN_ITEM_READY, ORDER_READY, ORDER_SERVED, PAYMENT_STARTED, PAYMENT_COMPLETED, PAYMENT_FAILED, REFUND_CREATED, ORDER_CANCELLED, ORDER_COMPLETED, WASTE_LOGGED, WASTE_FROM_ORDER_CANCELLED, FLOOR_CREATED, FLOOR_UPDATED, FLOOR_DELETED, FLOOR_REORDERED, TABLE_CREATED, TABLE_UPDATED, TABLE_MOVED, TABLE_RESIZED, TABLE_DELETED, TABLE_CLEANING_STARTED, OCCUPANCY_SEATED, OCCUPANCY_TRANSFERRED, OCCUPANCY_RELEASED, OCCUPANCY_CANCELLED` — append-only, feeding audit, KDS, reports, integrations.
+`ORDER_CREATED, ORDER_CONFIRMED, ORDER_SENT_TO_KITCHEN, ITEM_ADDED, ITEM_MODIFIED, ITEM_REMOVED, KITCHEN_TICKET_UPDATED, KITCHEN_STARTED, KITCHEN_ITEM_READY, ORDER_READY, ORDER_SERVED, KOT_VOIDED, KOT_LINE_VOIDED, PAYMENT_STARTED, PAYMENT_COMPLETED, PAYMENT_FAILED, REFUND_CREATED, ORDER_CANCELLED, ORDER_COMPLETED, WASTE_LOGGED, WASTE_FROM_ORDER_CANCELLED, FLOOR_CREATED, FLOOR_UPDATED, FLOOR_DELETED, FLOOR_REORDERED, TABLE_CREATED, TABLE_UPDATED, TABLE_MOVED, TABLE_RESIZED, TABLE_DELETED, TABLE_CLEANING_STARTED, OCCUPANCY_SEATED, OCCUPANCY_TRANSFERRED, OCCUPANCY_RELEASED, OCCUPANCY_CANCELLED` — append-only, feeding audit, KDS, reports, integrations.
 
 ## 9. Wastage
 

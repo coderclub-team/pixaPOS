@@ -69,6 +69,8 @@ import {
   IconProps,
   IconRosetteDiscountCheck,
   IconSearch,
+  IconReceipt,
+  IconChefHat,
   IconSelector,
   IconSend,
   IconSettings,
@@ -223,6 +225,8 @@ export const Icons = {
   toastLoading: IconLoader2,
 
   // Misc
+  orders: IconReceipt,
+  kitchen: IconChefHat,
   pizza: IconPizza,
   workspace: IconFolder,
   forms: IconClipboardText,
