@@ -160,6 +160,15 @@ function TableActions({ table }: { table: RestaurantTable }) {
             >
               <Icons.edit className="mr-2 h-4 w-4" /> Update
             </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() =>
+                router.push(
+                  `/dashboard/settings/outlet/tables/new?duplicate_from=${table.id}`,
+                )
+              }
+            >
+              <Icons.copy className="mr-2 h-4 w-4" /> Duplicate
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setDeleteOpen(true)}>
               <Icons.trash className="mr-2 h-4 w-4" /> Delete
             </DropdownMenuItem>
