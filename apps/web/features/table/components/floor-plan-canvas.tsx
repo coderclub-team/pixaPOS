@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { setTablePose } from "../api/service";
 import {
@@ -15,7 +15,7 @@ import { Icons } from "@pixa/ui/icons";
 import { Button } from "@pixa/ui/base-ui/button";
 import { toast } from "sonner";
 import type { TableWithDerived } from "../api/types";
-import type { FloorObject } from "@/features/floor/api/types";
+import type { FloorLayout, FloorObject } from "@/features/floor/api/types";
 
 export type CanvasMode = "edit" | "operations";
 
@@ -38,6 +38,9 @@ type DragSession = {
   tableId?: string;
   startPX: number;
   startPY: number;
+  /** Latest pointer position in client px — updated on every move, before rAF coalescing. */
+  lastPX: number;
+  lastPY: number;
   startMM: { x: number; y: number };
   orig: Pose;
   origRotation: number;
@@ -503,7 +506,35 @@ export default function FloorPlanCanvas({
     onSuccess: (_d, vars) => {
       pushUndo({ kind: "table", id: vars.id, prev: vars.prev });
     },
-    onError: (e: Error, vars) => {
+    onMutate: async (vars) => {
+      // Optimistically write the pose into the layout cache so the UI never
+      // flashes back to the old position between commit and refetch (H8).
+      const key = floorKeys.layout(floorId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<FloorLayout>(key);
+      if (previous) {
+        queryClient.setQueryData<FloorLayout>(key, {
+          ...previous,
+          tables: previous.tables.map((t) =>
+            t.id === vars.id
+              ? {
+                  ...t,
+                  ...(vars.x !== undefined ? { x_mm: vars.x } : {}),
+                  ...(vars.y !== undefined ? { y_mm: vars.y } : {}),
+                  ...(vars.w !== undefined ? { w_mm: vars.w } : {}),
+                  ...(vars.h !== undefined ? { h_mm: vars.h } : {}),
+                  ...(vars.rotation_deg !== undefined ? { rotation_deg: vars.rotation_deg } : {}),
+                }
+              : t
+          ),
+        });
+      }
+      return { previous };
+    },
+    onError: (e: Error, vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(floorKeys.layout(floorId), context.previous);
+      }
       setOverrides((prev) => {
         const next = { ...prev };
         delete next[vars.id];
@@ -538,7 +569,33 @@ export default function FloorPlanCanvas({
     onSuccess: (_d, vars) => {
       pushUndo({ kind: "object", id: vars.id, prev: vars.prev });
     },
-    onError: (e: Error, vars) => {
+    onMutate: async (vars) => {
+      const key = floorKeys.layout(floorId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<FloorLayout>(key);
+      if (previous) {
+        queryClient.setQueryData<FloorLayout>(key, {
+          ...previous,
+          objects: previous.objects.map((o) =>
+            o.id === vars.id
+              ? {
+                  ...o,
+                  ...(vars.x !== undefined ? { x_mm: vars.x } : {}),
+                  ...(vars.y !== undefined ? { y_mm: vars.y } : {}),
+                  ...(vars.w !== undefined ? { w_mm: vars.w } : {}),
+                  ...(vars.h !== undefined ? { h_mm: vars.h } : {}),
+                  ...(vars.rotation_deg !== undefined ? { rotation_deg: vars.rotation_deg } : {}),
+                }
+              : o
+          ),
+        });
+      }
+      return { previous };
+    },
+    onError: (e: Error, vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(floorKeys.layout(floorId), context.previous);
+      }
       setObjOverrides((prev) => {
         const next = { ...prev };
         delete next[vars.id];
@@ -667,6 +724,8 @@ export default function FloorPlanCanvas({
       tableId: table?.id,
       startPX: e.clientX,
       startPY: e.clientY,
+      lastPX: e.clientX,
+      lastPY: e.clientY,
       startMM: toMm(e.clientX, e.clientY),
       orig,
       origRotation: table?.rotation_deg ?? obj?.rotation_deg ?? 0,
@@ -755,6 +814,11 @@ export default function FloorPlanCanvas({
       session.moved = true;
     }
 
+    // Always record the live pointer synchronously; the rAF-coalesced frame
+    // below may not flush before pointerup (H8).
+    session.lastPX = e.clientX;
+    session.lastPY = e.clientY;
+
     // H1: coalesce pose math + state writes to one rAF per frame
     const cx = e.clientX;
     const cy = e.clientY;
@@ -766,18 +830,26 @@ export default function FloorPlanCanvas({
     return;
   };
 
-  const applyDragFrame = (
+  type ComputedDragPose = {
+    kind: "table" | "object";
+    id: string;
+    pose: Pose & { rotation: number };
+  };
+
+  // H8: pure pose math — shared by the live preview (applyDragFrame) and the
+  // pointer-up commit so the persisted pose always matches the release position.
+  const computeDragPose = (
     session: NonNullable<DragSession>,
     clientX: number,
     clientY: number
-  ) => {
+  ): ComputedDragPose | null => {
     const p = toMm(clientX, clientY);
     const dx = p.x - session.startMM.x;
     const dy = p.y - session.startMM.y;
 
     if (session.target.kind === "object") {
       const obj = layout.objects.find((o) => o.id === session.target.id);
-      if (!obj) return;
+      if (!obj) return null;
       if (session.target.mode === "rotate") {
         const pose = objPoseOf(obj);
         const cx = pose.x + pose.w / 2;
@@ -785,11 +857,11 @@ export default function FloorPlanCanvas({
         const ang = (Math.atan2(p.y - cy, p.x - cx) * 180) / Math.PI + 90;
         const snapped = Math.round(ang / ROTATE_SNAP_DEG) * ROTATE_SNAP_DEG;
         const rotation = ((snapped % 360) + 360) % 360;
-        setObjOverrides((prev) => ({
-          ...prev,
-          [obj.id]: { x: pose.x, y: pose.y, w: pose.w, h: pose.h, rotation },
-        }));
-        return;
+        return {
+          kind: "object",
+          id: obj.id,
+          pose: { x: pose.x, y: pose.y, w: pose.w, h: pose.h, rotation },
+        };
       }
       if (session.target.mode === "resize") {
         const cur = objPoseOf(obj);
@@ -812,11 +884,7 @@ export default function FloorPlanCanvas({
           { x: snap(x), y: snap(y), w: snap(w), h: snap(hh) },
           cur.rotation
         );
-        setObjOverrides((prev) => ({
-          ...prev,
-          [obj.id]: { ...next, rotation: cur.rotation },
-        }));
-        return;
+        return { kind: "object", id: obj.id, pose: { ...next, rotation: cur.rotation } };
       }
       const next = {
         x: snap(Math.min(Math.max(Math.round(session.orig.x + dx), 0), layout.floor.width_mm)),
@@ -825,12 +893,11 @@ export default function FloorPlanCanvas({
         h: obj.h_mm,
         rotation: obj.rotation_deg,
       };
-      setObjOverrides((prev) => ({ ...prev, [session.target.id]: next }));
-      return;
+      return { kind: "object", id: obj.id, pose: next };
     }
 
     const table = layout.tables.find((t) => t.id === session.tableId);
-    if (!table) return;
+    if (!table) return null;
 
     if (session.target.mode === "rotate") {
       const pose = poseOf(table);
@@ -839,8 +906,7 @@ export default function FloorPlanCanvas({
       const ang = (Math.atan2(p.y - cy, p.x - cx) * 180) / Math.PI + 90;
       const snapped = Math.round(ang / ROTATE_SNAP_DEG) * ROTATE_SNAP_DEG;
       const rotation = ((snapped % 360) + 360) % 360;
-      setOverrides((prev) => ({ ...prev, [table.id]: { ...session.orig, rotation } }));
-      return;
+      return { kind: "table", id: table.id, pose: { ...session.orig, rotation } };
     }
 
     if (session.target.mode === "move") {
@@ -854,8 +920,7 @@ export default function FloorPlanCanvas({
       );
       next.w = session.orig.w;
       next.h = session.orig.h;
-      setOverrides((prev) => ({ ...prev, [session.tableId!]: next }));
-      return;
+      return { kind: "table", id: table.id, pose: { ...next, rotation: table.rotation_deg } };
     }
 
     // Resize in the table's rotated local frame
@@ -887,7 +952,21 @@ export default function FloorPlanCanvas({
       { x: snap(x), y: snap(y), w: snap(w), h: snap(hh) },
       table.rotation_deg
     );
-    setOverrides((prev) => ({ ...prev, [session.tableId!]: next }));
+    return { kind: "table", id: table.id, pose: { ...next, rotation: table.rotation_deg } };
+  };
+
+  const applyDragFrame = (
+    session: NonNullable<DragSession>,
+    clientX: number,
+    clientY: number
+  ) => {
+    const computed = computeDragPose(session, clientX, clientY);
+    if (!computed) return;
+    if (computed.kind === "object") {
+      setObjOverrides((prev) => ({ ...prev, [computed.id]: computed.pose }));
+    } else {
+      setOverrides((prev) => ({ ...prev, [computed.id]: computed.pose }));
+    }
   };
 
   const endTableDrag = (e: React.PointerEvent) => {
@@ -902,7 +981,18 @@ export default function FloorPlanCanvas({
     }
     const session = dragRef.current;
     dragRef.current = null;
+    // Drop any pending coalesced frame so a late rAF cannot ghost the commit.
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
     if (!session) return;
+
+    // H8: compute the commit pose from the live release pointer, never from
+    // possibly-stale React override state (the last rAF may not have flushed).
+    const computed = session.moved
+      ? computeDragPose(session, session.lastPX, session.lastPY)
+      : null;
 
     if (session.target.kind === "object") {
       const obj = layout.objects.find((o) => o.id === session.target.id);
@@ -916,11 +1006,15 @@ export default function FloorPlanCanvas({
         });
         return;
       }
-      const ov = objOverrides[session.target.id];
-      const final = ov
-        ? clampPose({ x: ov.x, y: ov.y, w: ov.w, h: ov.h }, ov.rotation ?? obj.rotation_deg)
-        : { x: obj.x_mm, y: obj.y_mm, w: obj.w_mm, h: obj.h_mm };
-      const finalRot = ov?.rotation ?? obj.rotation_deg;
+      const pose = computed?.pose ?? {
+        x: obj.x_mm,
+        y: obj.y_mm,
+        w: obj.w_mm,
+        h: obj.h_mm,
+        rotation: obj.rotation_deg,
+      };
+      const final = clampPose({ x: pose.x, y: pose.y, w: pose.w, h: pose.h }, pose.rotation);
+      const finalRot = pose.rotation ?? obj.rotation_deg;
       const changed =
         final.x !== obj.x_mm ||
         final.y !== obj.y_mm ||
@@ -935,6 +1029,11 @@ export default function FloorPlanCanvas({
         });
         return;
       }
+      // Hold the final pose optimistically until the mutation settles.
+      setObjOverrides((prev) => ({
+        ...prev,
+        [session.target.id]: { ...final, rotation: finalRot },
+      }));
       objPoseMut.mutate({
         id: session.target.id,
         x: final.x,
@@ -966,11 +1065,18 @@ export default function FloorPlanCanvas({
       return;
     }
     if (!table) return;
-    const ov = overrides[session.tableId!];
-    const finalPose = ov
-      ? clampPose({ x: ov.x, y: ov.y, w: ov.w, h: ov.h }, ov.rotation ?? table.rotation_deg)
-      : { x: table.x_mm, y: table.y_mm, w: table.w_mm, h: table.h_mm };
-    const finalRot = ov?.rotation ?? table.rotation_deg;
+    const pose = computed?.pose ?? {
+      x: table.x_mm,
+      y: table.y_mm,
+      w: table.w_mm,
+      h: table.h_mm,
+      rotation: table.rotation_deg,
+    };
+    const finalPose = clampPose(
+      { x: pose.x, y: pose.y, w: pose.w, h: pose.h },
+      pose.rotation
+    );
+    const finalRot = pose.rotation ?? table.rotation_deg;
     const movedPos = finalPose.x !== table.x_mm || finalPose.y !== table.y_mm;
     const movedSize = finalPose.w !== table.w_mm || finalPose.h !== table.h_mm;
     const movedRot = finalRot !== (table.rotation_deg || 0);
@@ -982,7 +1088,12 @@ export default function FloorPlanCanvas({
       });
       return;
     }
-    // H6: one pose mutation per pointer-up (optimistic override stays until settled)
+    // Hold the final pose optimistically until the mutation settles.
+    setOverrides((prev) => ({
+      ...prev,
+      [session.tableId!]: { ...finalPose, rotation: finalRot },
+    }));
+    // H6: one pose mutation per pointer-up.
     poseMut.mutate({
       id: session.tableId!,
       ...(movedPos ? { x: finalPose.x, y: finalPose.y } : {}),
