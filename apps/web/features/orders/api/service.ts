@@ -4,6 +4,7 @@ import { entityMutex } from "@/lib/mutex";
 import { toPaise } from "@/lib/money";
 import { getMenuItemById, getModifiers } from "@/features/menu/api/service";
 import { attachOrder, detachOrder, getTableById, seatOccupancy } from "@/features/table/api/service";
+import { getCustomerById } from "@/features/customers/api/service";
 import type {
   AddItemInput,
   CreateOrderInput,
@@ -102,6 +103,7 @@ export async function getOrders(filters?: OrderFilters): Promise<OrderWithDerive
   if (filters?.channel) r = r.filter((o) => o.channel === filters.channel);
   if (filters?.status) r = r.filter((o) => o.status === filters.status);
   if (filters?.table_id) r = r.filter((o) => o.table_id === filters.table_id);
+  if (filters?.customer_id) r = r.filter((o) => o.customer_id === filters.customer_id);
   if (filters?.search) {
     const q = filters.search.toLowerCase();
     r = r.filter(
@@ -532,6 +534,51 @@ export async function deleteOrder(orderId: string, by?: string): Promise<void> {
     } catch {
       // Group already released/transferred — pointer is harmless.
     }
+  }
+}
+
+/**
+ * Link a customer record to an order. Snapshots name/phone onto the order so
+ * later customer edits never rewrite history. Blocked on terminal states.
+ */
+export async function linkCustomer(
+  orderId: string,
+  customerId: string,
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(300);
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (order.status === "COMPLETED" || order.status === "CANCELLED") {
+      throw new Error(`Cannot link a customer to a ${order.status.toLowerCase()} order`);
+    }
+    const customer = await getCustomerById(customerId);
+    if (!customer) throw new Error("Customer not found");
+    if (customer.outlet_id !== order.outlet_id) {
+      throw new Error("Customer belongs to another outlet");
+    }
+    mockOrders[idx] = {
+      ...order,
+      customer_id: customer.id,
+      customer_name: customer.name,
+      customer_phone: customer.phone,
+      updated_at: new Date().toISOString(),
+      version: order.version + 1,
+    };
+    saveOrders();
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: order.id,
+      event_type: "ORDER_CUSTOMER_LINKED",
+      actor_id: "staff",
+      metadata: { customer_id: customer.id },
+    });
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
   }
 }
 

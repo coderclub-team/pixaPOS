@@ -5,6 +5,7 @@ export type EntityType =
   | "RESERVATION"
   | "ORDER"
   | "KITCHEN_TICKET"
+  | "CUSTOMER"
   | "PAYMENT"
   | "STOCK_ITEM"
   | "WASTE_LOG";
@@ -47,6 +48,10 @@ export type BusinessEventType =
   | "ORDER_SERVED"
   | "KOT_VOIDED"
   | "KOT_LINE_VOIDED"
+  | "ORDER_CUSTOMER_LINKED"
+  | "CUSTOMER_CREATED"
+  | "CUSTOMER_UPDATED"
+  | "CUSTOMER_DELETED"
   | "WASTE_LOGGED"
   | "WASTE_FROM_ORDER_CANCELLED";
 

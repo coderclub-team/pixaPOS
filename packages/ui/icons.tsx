@@ -142,6 +142,7 @@ export const Icons = {
 
   // User
   user: IconUser,
+  customers: IconUsers,
   user2: IconUserCircle,
   account: IconUserCircle,
   profile: IconUser,
