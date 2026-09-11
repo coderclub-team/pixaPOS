@@ -500,8 +500,17 @@ export default function FloorPlanCanvas({
       rotation_deg?: number;
       prev: Pose & { rotation: number };
     }) => {
-      const { id, prev: _prev, ...pose } = vars;
-      return setTablePose(id, pose);
+      const { id, prev: _prev, x, y, w, h, rotation_deg } = vars;
+      // API expects persisted pose fields with the *_mm names. The previous
+      // implementation sent x/y/w/h, so the server could ignore the drag
+      // position and the subsequent refetch snapped the item back.
+      return setTablePose(id, {
+        ...(x !== undefined ? { x_mm: x } : {}),
+        ...(y !== undefined ? { y_mm: y } : {}),
+        ...(w !== undefined ? { w_mm: w } : {}),
+        ...(h !== undefined ? { h_mm: h } : {}),
+        ...(rotation_deg !== undefined ? { rotation_deg } : {}),
+      });
     },
     onSuccess: (_d, vars) => {
       pushUndo({ kind: "table", id: vars.id, prev: vars.prev });
@@ -563,8 +572,15 @@ export default function FloorPlanCanvas({
       rotation_deg?: number;
       prev: Pose & { rotation: number };
     }) => {
-      const { id, prev: _prev, ...pose } = vars;
-      return setFloorObjectPose(id, pose);
+      const { id, prev: _prev, x, y, w, h, rotation_deg } = vars;
+      // Keep the object API payload consistent with the floor model.
+      return setFloorObjectPose(id, {
+        ...(x !== undefined ? { x_mm: x } : {}),
+        ...(y !== undefined ? { y_mm: y } : {}),
+        ...(w !== undefined ? { w_mm: w } : {}),
+        ...(h !== undefined ? { h_mm: h } : {}),
+        ...(rotation_deg !== undefined ? { rotation_deg } : {}),
+      });
     },
     onSuccess: (_d, vars) => {
       pushUndo({ kind: "object", id: vars.id, prev: vars.prev });
@@ -886,14 +902,19 @@ export default function FloorPlanCanvas({
         );
         return { kind: "object", id: obj.id, pose: { ...next, rotation: cur.rotation } };
       }
-      const next = {
-        x: snap(Math.min(Math.max(Math.round(session.orig.x + dx), 0), layout.floor.width_mm)),
-        y: snap(Math.min(Math.max(Math.round(session.orig.y + dy), 0), layout.floor.height_mm)),
-        w: obj.w_mm,
-        h: obj.h_mm,
-        rotation: obj.rotation_deg,
-      };
-      return { kind: "object", id: obj.id, pose: next };
+      const next = clampPose(
+        {
+          x: snap(session.orig.x + dx),
+          y: snap(session.orig.y + dy),
+          w: obj.w_mm,
+          h: obj.h_mm,
+        },
+        obj.rotation_deg
+      );
+      next.w = obj.w_mm;
+      next.h = obj.h_mm;
+      const nextWithRotation = { ...next, rotation: obj.rotation_deg };
+      return { kind: "object", id: obj.id, pose: nextWithRotation };
     }
 
     const table = layout.tables.find((t) => t.id === session.tableId);
@@ -1237,7 +1258,7 @@ export default function FloorPlanCanvas({
               size="sm"
               className="h-7 px-2 text-xs"
               onClick={() => setAddingSpec((s) => (s?.key === spec.key ? null : spec))}
-              title={`Add ${spec.label} (click on canvas to place)`}
+              title={`Add ${spec.label} — then click where you want it placed`}
             >
               {spec.label}
             </Button>
@@ -1373,10 +1394,10 @@ export default function FloorPlanCanvas({
         ))}
       </svg>
 
-      <div className="absolute bottom-4 left-4 rounded-lg bg-background/80 p-2 text-xs backdrop-blur-sm">
+      <div className="absolute bottom-4 left-4 rounded-lg bg-background/80 p-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
         {editable
-          ? "Drag tables/objects to move • Bars to resize • Top handle to rotate • Click to select"
-          : "Scroll to zoom • Drag with Middle Mouse or Alt+Click to pan. Click a table to select."}
+          ? "Drag to move • Resize from handles • Rotate from the top handle • Arrow keys move the selected table • Ctrl/Cmd+Z to undo"
+          : "Scroll to zoom • Middle Mouse / Alt+drag to pan • Click a table to select"}
       </div>
     </div>
   );
