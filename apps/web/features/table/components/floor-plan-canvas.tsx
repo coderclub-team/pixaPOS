@@ -6,7 +6,7 @@ import { setTablePose } from "../api/service";
 import {
   createFloorObject,
   deleteFloorObject,
-  moveFloorObject,
+  setFloorObjectPose,
 } from "@/features/floor/api/service";
 import { floorLayoutQueryOptions, floorKeys } from "@/features/floor/api/queries";
 import { tableKeys } from "../api/queries";
@@ -27,7 +27,7 @@ interface FloorPlanCanvasProps {
 type Pose = { x: number; y: number; w: number; h: number; rotation?: number };
 type DragTarget =
   | { kind: "table"; id: string; mode: "move" | "resize" | "rotate"; handle?: string }
-  | { kind: "object"; id: string; mode: "move" };
+  | { kind: "object"; id: string; mode: "move" | "resize" | "rotate"; handle?: string };
 type DragSession = {
   target: DragTarget;
   tableId?: string;
@@ -88,6 +88,7 @@ function handleCursor(handle: string): string {
 function objectFill(kind: string): string {
   switch (kind) {
     case "wall":
+    case "bar":
       return "fill-zinc-400 stroke-zinc-600 dark:fill-zinc-600 dark:stroke-zinc-400";
     case "separator":
       return "fill-amber-200 stroke-amber-500 [stroke-dasharray:120_80]";
@@ -98,6 +99,43 @@ function objectFill(kind: string): string {
       return "fill-zinc-100 stroke-zinc-400 [stroke-dasharray:160_100] dark:fill-zinc-800";
   }
 }
+
+function renderObjectShape(
+  o: FloorObject,
+  w: number,
+  h: number,
+  className?: string
+) {
+  if (o.kind === "label") return null;
+  const v = o.shapeVariant;
+  if (v === "circle") {
+    const d = Math.min(w, h);
+    return <circle cx={w / 2} cy={h / 2} r={d / 2} className={className} />;
+  }
+  if (v === "ellipse") return <ellipse cx={w / 2} cy={h / 2} rx={w / 2} ry={h / 2} className={className} />;
+  if (v === "pill" || o.kind === "separator")
+    return <rect width={w} height={h} rx={h / 2} className={className} />;
+  return <rect width={w} height={h} rx={40} className={className} />;
+}
+
+type PaletteSpec = {
+  key: string;
+  label: string;
+  kind: "wall" | "separator" | "bar" | "decor" | "label";
+  shapeVariant?: "rect" | "pill" | "circle" | "ellipse" | "line";
+  w: number;
+  h: number;
+};
+
+const SHAPE_PALETTE: PaletteSpec[] = [
+  { key: "wall", label: "Wall", kind: "wall", w: 3000, h: 150 },
+  { key: "bar-h", label: "Bar H", kind: "bar", w: 2000, h: 150 },
+  { key: "bar-v", label: "Bar V", kind: "bar", w: 150, h: 2000 },
+  { key: "separator", label: "Divider", kind: "separator", w: 1200, h: 80 },
+  { key: "circle", label: "Circle", kind: "decor", shapeVariant: "circle", w: 800, h: 800 },
+  { key: "pill", label: "Pill", kind: "decor", shapeVariant: "pill", w: 1600, h: 400 },
+  { key: "label", label: "Label", kind: "label", w: 1200, h: 400 },
+];
 
 export default function FloorPlanCanvas({
   floorId,
@@ -115,11 +153,11 @@ export default function FloorPlanCanvas({
   const [isPanning, setIsPanning] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [overrides, setOverrides] = useState<Record<string, Pose>>({});
-  const [objOverrides, setObjOverrides] = useState<Record<string, { x: number; y: number }>>({});
-  const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
-  const [addingKind, setAddingKind] = useState<"wall" | "separator" | "decor" | "label" | null>(
-    null
+  const [objOverrides, setObjOverrides] = useState<Record<string, Pose & { rotation: number }>>(
+    {}
   );
+  const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
+  const [addingSpec, setAddingSpec] = useState<PaletteSpec | null>(null);
   const dragRef = useRef<DragSession>(null);
 
   const grid = layout.floor.grid_size_mm || 100;
@@ -159,9 +197,24 @@ export default function FloorPlanCanvas({
     },
   });
 
-  const objMoveMut = useMutation({
-    mutationFn: ({ id, x, y }: { id: string; x: number; y: number }) =>
-      moveFloorObject(id, { x_mm: x, y_mm: y }),
+  const objPoseMut = useMutation({
+    mutationFn: (vars: {
+      id: string;
+      x?: number;
+      y?: number;
+      w?: number;
+      h?: number;
+      rotation_deg?: number;
+    }) => setFloorObjectPose(vars.id, vars),
+    onError: (e: Error, vars) => {
+      setObjOverrides((prev) => {
+        const next = { ...prev };
+        delete next[vars.id];
+        return next;
+      });
+      invalidateLayout();
+      toast.error(e.message || "Pose conflict — layout refreshed");
+    },
     onSettled: (_d, _e, vars) => {
       setObjOverrides((prev) => {
         const next = { ...prev };
@@ -174,14 +227,24 @@ export default function FloorPlanCanvas({
 
   const addObjMut = useMutation({
     mutationFn: (vars: {
-      kind: "wall" | "separator" | "decor" | "label";
+      spec: PaletteSpec;
       x_mm: number;
       y_mm: number;
-    }) => createFloorObject({ floor_id: floorId, ...vars }),
+    }) =>
+      createFloorObject({
+        floor_id: floorId,
+        kind: vars.spec.kind,
+        shapeVariant: vars.spec.shapeVariant,
+        label: vars.spec.kind === "label" ? vars.spec.label : undefined,
+        x_mm: vars.spec.w ? vars.x_mm : vars.x_mm,
+        y_mm: vars.y_mm,
+        w_mm: vars.spec.w,
+        h_mm: vars.spec.h,
+      }),
     onSuccess: (obj) => {
       invalidateLayout();
       setSelectedObjectId(obj.id);
-      setAddingKind(null);
+      setAddingSpec(null);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -195,7 +258,7 @@ export default function FloorPlanCanvas({
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const saving = poseMut.isPending || objMoveMut.isPending;
+  const saving = poseMut.isPending || objPoseMut.isPending;
 
   const toMm = (clientX: number, clientY: number) => {
     const rect = containerRef.current!.getBoundingClientRect();
@@ -218,9 +281,15 @@ export default function FloorPlanCanvas({
     };
   };
 
-  const objPosOf = (o: FloorObject) => {
+  const objPoseOf = (o: FloorObject): Pose & { rotation: number } => {
     const ov = objOverrides[o.id];
-    return { x: ov?.x ?? o.x_mm, y: ov?.y ?? o.y_mm };
+    return {
+      x: ov?.x ?? o.x_mm,
+      y: ov?.y ?? o.y_mm,
+      w: ov?.w ?? o.w_mm,
+      h: ov?.h ?? o.h_mm,
+      rotation: ov?.rotation ?? o.rotation_deg,
+    };
   };
 
   const clampPose = (p: Pose): Pose => {
@@ -246,7 +315,10 @@ export default function FloorPlanCanvas({
             const p = poseOf(table);
             return { x: p.x, y: p.y, w: p.w, h: p.h };
           })()
-        : { x: objPosOf(obj!).x, y: objPosOf(obj!).y, w: obj!.w_mm, h: obj!.h_mm };
+        : (() => {
+            const p = objPoseOf(obj!);
+            return { x: p.x, y: p.y, w: p.w, h: p.h };
+          })();
     dragRef.current = {
       target,
       tableId: table?.id,
@@ -254,7 +326,7 @@ export default function FloorPlanCanvas({
       startPY: e.clientY,
       startMM: toMm(e.clientX, e.clientY),
       orig,
-      origRotation: table?.rotation_deg ?? 0,
+      origRotation: table?.rotation_deg ?? obj?.rotation_deg ?? 0,
       moved: false,
     };
   };
@@ -286,9 +358,49 @@ export default function FloorPlanCanvas({
     if (session.target.kind === "object") {
       const obj = layout.objects.find((o) => o.id === session.target.id);
       if (!obj) return;
+      if (session.target.mode === "rotate") {
+        const pose = objPoseOf(obj);
+        const cx = pose.x + pose.w / 2;
+        const cy = pose.y + pose.h / 2;
+        const ang = (Math.atan2(p.y - cy, p.x - cx) * 180) / Math.PI + 90;
+        const snapped = Math.round(ang / ROTATE_SNAP_DEG) * ROTATE_SNAP_DEG;
+        const rotation = ((snapped % 360) + 360) % 360;
+        setObjOverrides((prev) => ({
+          ...prev,
+          [obj.id]: { x: pose.x, y: pose.y, w: pose.w, h: pose.h, rotation },
+        }));
+        return;
+      }
+      if (session.target.mode === "resize") {
+        const cur = objPoseOf(obj);
+        const angle = ((cur.rotation || 0) * Math.PI) / 180;
+        const lx = dx * Math.cos(angle) + dy * Math.sin(angle);
+        const ly = -dx * Math.sin(angle) + dy * Math.cos(angle);
+        const h = session.target.handle ?? "se";
+        let { x, y, w, h: hh } = session.orig;
+        if (h.includes("e")) w = session.orig.w + lx;
+        if (h.includes("w")) {
+          x = session.orig.x + lx;
+          w = session.orig.w - lx;
+        }
+        if (h.includes("s")) hh = session.orig.h + ly;
+        if (h.includes("n")) {
+          y = session.orig.y + ly;
+          hh = session.orig.h - ly;
+        }
+        const next = clampPose({ x: snap(x), y: snap(y), w: snap(w), h: snap(hh) });
+        setObjOverrides((prev) => ({
+          ...prev,
+          [obj.id]: { ...next, rotation: cur.rotation },
+        }));
+        return;
+      }
       const next = {
         x: snap(Math.min(Math.max(Math.round(session.orig.x + dx), 0), layout.floor.width_mm)),
         y: snap(Math.min(Math.max(Math.round(session.orig.y + dy), 0), layout.floor.height_mm)),
+        w: obj.w_mm,
+        h: obj.h_mm,
+        rotation: obj.rotation_deg,
       };
       setObjOverrides((prev) => ({ ...prev, [session.target.id]: next }));
       return;
@@ -375,8 +487,18 @@ export default function FloorPlanCanvas({
         });
         return;
       }
-      const ov = objOverrides[session.target.id] ?? { x: obj.x_mm, y: obj.y_mm };
-      if (ov.x === obj.x_mm && ov.y === obj.y_mm) {
+      const ov = objOverrides[session.target.id];
+      const final = ov
+        ? clampPose({ x: ov.x, y: ov.y, w: ov.w, h: ov.h })
+        : { x: obj.x_mm, y: obj.y_mm, w: obj.w_mm, h: obj.h_mm };
+      const finalRot = ov?.rotation ?? obj.rotation_deg;
+      const changed =
+        final.x !== obj.x_mm ||
+        final.y !== obj.y_mm ||
+        final.w !== obj.w_mm ||
+        final.h !== obj.h_mm ||
+        finalRot !== (obj.rotation_deg || 0);
+      if (!changed) {
         setObjOverrides((prev) => {
           const next = { ...prev };
           delete next[session.target.id];
@@ -384,7 +506,14 @@ export default function FloorPlanCanvas({
         });
         return;
       }
-      objMoveMut.mutate({ id: session.target.id, x: ov.x, y: ov.y });
+      objPoseMut.mutate({
+        id: session.target.id,
+        x: final.x,
+        y: final.y,
+        w: final.w,
+        h: final.h,
+        rotation_deg: finalRot,
+      });
       return;
     }
 
@@ -433,13 +562,13 @@ export default function FloorPlanCanvas({
       setDragStart({ x: e.clientX, y: e.clientY });
       e.currentTarget.setPointerCapture(e.pointerId);
     } else if (e.button === 0) {
-      if (addingKind) {
-        // Click-to-place a new wall/separator/decor/label
+      if (addingSpec) {
+        // Click-to-place a new palette object, centered on cursor
         const p = toMm(e.clientX, e.clientY);
         addObjMut.mutate({
-          kind: addingKind,
-          x_mm: snap(Math.max(0, Math.round(p.x - 1000))),
-          y_mm: snap(Math.max(0, Math.round(p.y - 75))),
+          spec: addingSpec,
+          x_mm: snap(Math.max(0, Math.round(p.x - addingSpec.w / 2))),
+          y_mm: snap(Math.max(0, Math.round(p.y - addingSpec.h / 2))),
         });
         return;
       }
@@ -475,6 +604,24 @@ export default function FloorPlanCanvas({
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-xl border bg-zinc-50 dark:bg-zinc-950">
+      <div className="absolute left-4 top-12 z-10 flex max-w-[220px] flex-wrap gap-1.5 rounded-lg bg-background/80 p-2 backdrop-blur-sm">
+        {editable &&
+          SHAPE_PALETTE.map((spec) => (
+            <Button
+              key={spec.key}
+              variant={addingSpec?.key === spec.key ? "default" : "secondary"}
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => setAddingSpec((s) => (s?.key === spec.key ? null : spec))}
+              title={`Add ${spec.label} (click on canvas to place)`}
+            >
+              {spec.label}
+            </Button>
+          ))}
+        {!editable && (
+          <span className="px-1 text-xs text-muted-foreground">View mode</span>
+        )}
+      </div>
       <div className="absolute right-4 top-4 z-10 flex flex-col gap-2">
         <Button
           variant={editable ? "default" : "secondary"}
@@ -486,14 +633,6 @@ export default function FloorPlanCanvas({
         </Button>
         {editable && (
           <>
-            <Button
-              variant={addingKind === "wall" ? "default" : "secondary"}
-              size="icon-sm"
-              onClick={() => setAddingKind((k) => (k === "wall" ? null : "wall"))}
-              title="Add wall (click on canvas to place)"
-            >
-              <Icons.add className="size-4" />
-            </Button>
             <Button
               variant="secondary"
               size="icon-sm"
@@ -555,14 +694,15 @@ export default function FloorPlanCanvas({
         </defs>
         <rect width="100%" height="100%" fill="url(#grid)" />
 
-        {/* Floor objects (walls / separators / decor / labels) */}
+        {/* Floor objects (walls / bars / separators / decor / labels) */}
         {layout.objects.map((o) => {
-          const pos = objPosOf(o);
+          const pos = objPoseOf(o);
           const isSel = selectedObjectId === o.id;
+          const objClass = cn(objectFill(o.kind), "stroke-2", isSel && "stroke-primary");
           return (
             <g
               key={o.id}
-              transform={`translate(${pos.x},${pos.y}) rotate(${o.rotation_deg},${o.w_mm / 2},${o.h_mm / 2})`}
+              transform={`translate(${pos.x},${pos.y}) rotate(${pos.rotation},${pos.w / 2},${pos.h / 2})`}
               className={cn(editable ? "cursor-move" : "cursor-default")}
               onPointerDown={(e) =>
                 beginDrag(e, { kind: "object", id: o.id, mode: "move" }, undefined, o)
@@ -571,8 +711,8 @@ export default function FloorPlanCanvas({
             >
               {o.kind === "label" ? (
                 <text
-                  x={o.w_mm / 2}
-                  y={o.h_mm / 2}
+                  x={pos.w / 2}
+                  y={pos.h / 2}
                   textAnchor="middle"
                   dominantBaseline="middle"
                   className="select-none fill-zinc-500 text-[160px] font-medium"
@@ -580,20 +720,60 @@ export default function FloorPlanCanvas({
                   {o.label ?? "Label"}
                 </text>
               ) : (
-                <rect
-                  width={o.w_mm}
-                  height={o.h_mm}
-                  rx={o.kind === "separator" ? o.h_mm / 2 : 40}
-                  className={cn(objectFill(o.kind), "stroke-2", isSel && "stroke-primary")}
-                  style={o.color ? { fill: o.color } : undefined}
-                />
+                renderObjectShape({ ...o, w_mm: pos.w, h_mm: pos.h }, pos.w, pos.h, objClass)
               )}
               {o.kind === "label" && isSel && (
                 <rect
-                  width={o.w_mm}
-                  height={o.h_mm}
+                  width={pos.w}
+                  height={pos.h}
                   className="fill-transparent stroke-primary stroke-2 [stroke-dasharray:120_80]"
                 />
+              )}
+              {editable && isSel && (
+                <>
+                  {RESIZE_HANDLES.map((h) => {
+                    const hp = handlePosition(h, pos.w, pos.h);
+                    return (
+                      <rect
+                        key={h}
+                        x={hp.x - 90}
+                        y={hp.y - 90}
+                        width={180}
+                        height={180}
+                        rx={40}
+                        className={cn("fill-background stroke-primary stroke-2", handleCursor(h))}
+                        onPointerDown={(e) =>
+                          beginDrag(
+                            e,
+                            { kind: "object", id: o.id, mode: "resize", handle: h },
+                            undefined,
+                            o
+                          )
+                        }
+                        onPointerUp={endTableDrag}
+                      />
+                    );
+                  })}
+                  <g
+                    transform={`translate(${pos.w / 2},${-420})`}
+                    className="cursor-grab"
+                    onPointerDown={(e) =>
+                      beginDrag(e, { kind: "object", id: o.id, mode: "rotate" }, undefined, o)
+                    }
+                    onPointerUp={endTableDrag}
+                  >
+                    <circle r={130} className="fill-background stroke-primary stroke-2" />
+                    <path
+                      d="M -55 20 A 60 60 0 1 1 55 -20"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={36}
+                      className="text-primary"
+                      strokeLinecap="round"
+                    />
+                    <polygon points="55,-70 95,-10 30,-25" className="fill-primary" />
+                  </g>
+                </>
               )}
             </g>
           );
@@ -644,6 +824,35 @@ export default function FloorPlanCanvas({
                 >
                   {table.seated_seats}/{table.capacity}
                 </text>
+
+                {table.seated_seats > 0 && (
+                  <g>
+                    {Array.from({ length: Math.min(table.seated_seats, 10) }).map((_, i) => {
+                      const shown = Math.min(table.seated_seats, 10);
+                      const gap = 170;
+                      const startX = pose.w / 2 - ((shown - 1) * gap) / 2;
+                      return (
+                        <circle
+                          key={i}
+                          cx={startX + i * gap}
+                          cy={pose.h / 2 + 480}
+                          r={65}
+                          className="fill-emerald-500 stroke-emerald-700"
+                        />
+                      );
+                    })}
+                    {table.seated_seats > 10 && (
+                      <text
+                        x={pose.w / 2}
+                        y={pose.h / 2 + 700}
+                        textAnchor="middle"
+                        className="select-none fill-zinc-500 text-[110px] font-medium"
+                      >
+                        +{table.seated_seats - 10} more
+                      </text>
+                    )}
+                  </g>
+                )}
 
                 {held && (
                   <g transform={`translate(${pose.w - 220},${-60})`}>

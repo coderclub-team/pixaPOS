@@ -103,6 +103,7 @@ export async function getFloorLayout(floorId: string): Promise<FloorLayout> {
 export async function createFloorObject(payload: {
   floor_id: string;
   kind: FloorObjectKind;
+  shapeVariant?: FloorObject["shapeVariant"];
   label?: string;
   x_mm?: number;
   y_mm?: number;
@@ -122,6 +123,7 @@ export async function createFloorObject(payload: {
       floor_id: payload.floor_id,
       outlet_id: floor.outlet_id,
       kind: payload.kind,
+      shapeVariant: payload.shapeVariant,
       label: payload.label,
       x_mm: payload.x_mm ?? Math.round(floor.width_mm / 2 - 1000),
       y_mm: payload.y_mm ?? Math.round(floor.height_mm / 2),
@@ -154,16 +156,43 @@ export async function moveFloorObject(
   id: string,
   params: { x_mm: number; y_mm: number },
 ): Promise<void> {
+  return setFloorObjectPose(id, params);
+}
+
+export async function setFloorObjectPose(
+  id: string,
+  params: { x_mm?: number; y_mm?: number; w_mm?: number; h_mm?: number; rotation_deg?: number },
+): Promise<void> {
   const idx = mockObjects.findIndex((o) => o.id === id && !o.deleted_at);
   if (idx === -1) return;
-  mockObjects[idx] = {
-    ...mockObjects[idx],
-    x_mm: params.x_mm,
-    y_mm: params.y_mm,
+  const cur = mockObjects[idx];
+  const next = {
+    ...cur,
+    ...(params.x_mm !== undefined ? { x_mm: params.x_mm } : {}),
+    ...(params.y_mm !== undefined ? { y_mm: params.y_mm } : {}),
+    ...(params.w_mm !== undefined ? { w_mm: params.w_mm } : {}),
+    ...(params.h_mm !== undefined ? { h_mm: params.h_mm } : {}),
+    ...(params.rotation_deg !== undefined ? { rotation_deg: params.rotation_deg } : {}),
     updated_at: new Date().toISOString(),
-    version: mockObjects[idx].version + 1,
+    version: cur.version + 1,
   };
+  const changed =
+    next.x_mm !== cur.x_mm ||
+    next.y_mm !== cur.y_mm ||
+    next.w_mm !== cur.w_mm ||
+    next.h_mm !== cur.h_mm ||
+    next.rotation_deg !== cur.rotation_deg;
+  if (!changed) return;
+  mockObjects[idx] = next;
   saveFloors();
+  await recordEvent({
+    outlet_id: cur.outlet_id,
+    entity_type: "FLOOR",
+    entity_id: cur.floor_id,
+    event_type: "FLOOR_UPDATED",
+    reason_code: "OBJECT_POSE",
+    metadata: { object_id: id, ...params },
+  });
 }
 
 export async function deleteFloorObject(id: string): Promise<void> {

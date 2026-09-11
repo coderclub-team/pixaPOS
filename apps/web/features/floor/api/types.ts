@@ -24,13 +24,16 @@ export type Floor = {
   version: number;
 };
 
-export type FloorObjectKind = "wall" | "separator" | "decor" | "label";
+export type FloorObjectKind = "wall" | "separator" | "bar" | "decor" | "label";
+
+export type FloorObjectShape = "rect" | "pill" | "circle" | "ellipse" | "line";
 
 export type FloorObject = {
   id: string;
   floor_id: string;
   outlet_id: string;
   kind: FloorObjectKind;
+  shapeVariant?: FloorObjectShape;
   label?: string;
   x_mm: number;
   y_mm: number;
