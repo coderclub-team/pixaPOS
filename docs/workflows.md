@@ -60,6 +60,13 @@ The table's `occupancy_fill` is derived as `EMPTY`, `PARTIAL`, or `FULL`; it is 
 
 Deleting a floor or table with active occupancy is rejected. Layout changes (move, resize, rotate) do not mutate occupancy or historical snapshots.
 
+Surface split (ADR-0004): the operations view (`/dashboard/tables`) is select-only —
+seat, release (with reason; force-release when an order is open), transfer, block/unblock,
+and mark-cleaned all run through table-domain commands. The settings Floor Plan Editor
+is the only surface with drag/resize/rotate, the shape palette, undo, and add-table;
+pose writes go through version-CAS `setTablePose`/`setFloorObjectPose` and never touch
+occupancy.
+
 ## 6. Product workflow
 
 ```text

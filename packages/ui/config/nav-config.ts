@@ -62,10 +62,27 @@ export const navGroups: NavGroup[] = [
       },
 
       {
+        title: "Tables",
+        url: "/dashboard/tables",
+        icon: "table",
+        isActive: false,
+        shortcut: ["t", "t"],
+        items: [],
+        access: { requireOrg: true },
+      },
+      {
         title: "Users",
         url: "/dashboard/users",
         icon: "teams",
         shortcut: ["u", "u"],
+        isActive: false,
+        items: [],
+        access: { requireOrg: true, permission: "org:sys_memberships:manage" },
+      },
+      {
+        title: "Roles & Permissions",
+        url: "/dashboard/roles",
+        icon: "lock",
         isActive: false,
         items: [],
         access: { requireOrg: true, permission: "org:sys_memberships:manage" },
@@ -215,7 +232,7 @@ export const navGroups: NavGroup[] = [
             access: { requireOrg: true },
           },
           {
-            title: "Floor View",
+            title: "Floor Plan Editor",
             url: "/dashboard/settings/outlet/floor-plan",
             icon: "layers",
             shortcut: ["o", "v"],

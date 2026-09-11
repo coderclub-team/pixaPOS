@@ -7,15 +7,10 @@ import type {
   FloorPayload,
   FloorLayout,
   ReorderFloorInput,
+  FloorObject,
+  FloorObjectKind,
 } from "./types";
-import {
-  RestaurantTable,
-  TableWithDerived,
-  OccupancyGroup,
-  TableBlock,
-  ReservationHold,
-} from "@/features/table/api/types";
-import { deriveTableInfo } from "@/features/table/api/utils";
+import { getTablesWithDerivedByFloor } from "@/features/table/api/service";
 
 // In-memory stores
 let mockFloors: Floor[] = [
@@ -39,12 +34,38 @@ let mockFloors: Floor[] = [
   },
 ];
 
-import {
-  mockTables,
-  mockGroups,
-  mockBlocks,
-  mockHolds,
-} from "@/features/table/api/service";
+// Persist mock floors to localStorage so created floors survive dev-server
+// restarts (same PO_STORAGE_KEY pattern as inventory service).
+const FLOOR_STORAGE_KEY = "pixaFloors";
+function saveFloors() {
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(FLOOR_STORAGE_KEY, JSON.stringify({ floors: mockFloors, objects: mockObjects }));
+    } catch {}
+  }
+}
+function loadFloors(): void {
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(FLOOR_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        // Back-compat: v1 stored a bare floors array
+        const floors = Array.isArray(parsed) ? parsed : parsed?.floors;
+        if (Array.isArray(floors) && floors.length > 0) {
+          mockFloors = floors;
+        }
+        if (!Array.isArray(parsed) && Array.isArray(parsed?.objects)) {
+          mockObjects = parsed.objects;
+        }
+      }
+    } catch {}
+  }
+}
+
+let mockObjects: FloorObject[] = [];
+// hydrate from storage on browser init
+loadFloors();
 
 export async function getFloors(filters?: FloorFilters): Promise<Floor[]> {
   await delay(300);
@@ -68,27 +89,137 @@ export async function getFloorLayout(floorId: string): Promise<FloorLayout> {
   const floor = mockFloors.find((f) => f.id === floorId && !f.deleted_at);
   if (!floor) throw new Error("Floor not found");
 
-  const tables = mockTables.filter((t) => t.floor_id === floorId && !t.deleted_at);
-  const groups = mockGroups.filter((g) => g.floor_id === floorId && (g.status === "SEATED" || g.status === "ORDERING"));
+  // C4: compose through the table module's typed API — groups resolve
+  // through their table's current floor (H2), never the seating snapshot.
+  const { tables, groups } = await getTablesWithDerivedByFloor(floorId);
+  const objects = mockObjects.filter((o) => o.floor_id === floorId && !o.deleted_at);
+  return { floor, tables, groups, objects };
+}
 
-  const tablesWithDerived: TableWithDerived[] = tables.map((t) => {
-    const activeGroups = groups.filter((g) => g.table_id === t.id);
-    const activeBlock = mockBlocks.find((b) => b.table_id === t.id && !b.released_at);
-    const activeHold = mockHolds.find((h) => h.table_id === t.id && h.status === "HELD");
-    const info = deriveTableInfo(t, activeGroups, activeBlock, activeHold);
+// Floor objects (walls / separators / decor / labels) — H4.
+// Deliberately NOT tables: no capacity, occupancy, status machine, or code
+// uniqueness. Owned by the floor module with their own CRUD + events.
 
-    return {
-      ...t,
-      occupancy_fill: info.occupancyFill,
-      seated_seats: info.seatedSeats,
-      active_groups: activeGroups,
-      active_block: activeBlock,
-      active_hold: activeHold,
-      revenue_paise: 0,
+export async function createFloorObject(payload: {
+  floor_id: string;
+  kind: FloorObjectKind;
+  shapeVariant?: FloorObject["shapeVariant"];
+  label?: string;
+  x_mm?: number;
+  y_mm?: number;
+  w_mm?: number;
+  h_mm?: number;
+  rotation_deg?: number;
+  color?: string;
+}): Promise<FloorObject> {
+  const release = await entityMutex.acquire(`floor-${payload.floor_id}`);
+  try {
+    await delay(300);
+    const floor = mockFloors.find((f) => f.id === payload.floor_id && !f.deleted_at);
+    if (!floor) throw new Error("Floor not found");
+    const now = new Date().toISOString();
+    const obj: FloorObject = {
+      id: `fo_${Date.now().toString(36)}`,
+      floor_id: payload.floor_id,
+      outlet_id: floor.outlet_id,
+      kind: payload.kind,
+      shapeVariant: payload.shapeVariant,
+      label: payload.label,
+      x_mm: payload.x_mm ?? Math.round(floor.width_mm / 2 - 1000),
+      y_mm: payload.y_mm ?? Math.round(floor.height_mm / 2),
+      w_mm: payload.w_mm ?? 2000,
+      h_mm: payload.h_mm ?? 150,
+      rotation_deg: payload.rotation_deg ?? 0,
+      z_index: 0,
+      color: payload.color,
+      created_at: now,
+      updated_at: now,
+      version: 1,
     };
-  });
+    mockObjects.push(obj);
+    saveFloors();
+    await recordEvent({
+      outlet_id: obj.outlet_id,
+      entity_type: "FLOOR",
+      entity_id: floor.id,
+      event_type: "FLOOR_UPDATED",
+      reason_code: "OBJECT_CREATED",
+      metadata: { object_id: obj.id, kind: obj.kind },
+    });
+    return { ...obj };
+  } finally {
+    release();
+  }
+}
 
-  return { floor, tables: tablesWithDerived, groups };
+export async function moveFloorObject(
+  id: string,
+  params: { x_mm: number; y_mm: number },
+): Promise<void> {
+  return setFloorObjectPose(id, params);
+}
+
+export async function setFloorObjectPose(
+  id: string,
+  params: { x_mm?: number; y_mm?: number; w_mm?: number; h_mm?: number; rotation_deg?: number },
+): Promise<void> {
+  const idx = mockObjects.findIndex((o) => o.id === id && !o.deleted_at);
+  if (idx === -1) return;
+  const cur = mockObjects[idx];
+  const next = {
+    ...cur,
+    ...(params.x_mm !== undefined ? { x_mm: params.x_mm } : {}),
+    ...(params.y_mm !== undefined ? { y_mm: params.y_mm } : {}),
+    ...(params.w_mm !== undefined ? { w_mm: params.w_mm } : {}),
+    ...(params.h_mm !== undefined ? { h_mm: params.h_mm } : {}),
+    ...(params.rotation_deg !== undefined ? { rotation_deg: params.rotation_deg } : {}),
+    updated_at: new Date().toISOString(),
+    version: cur.version + 1,
+  };
+  const changed =
+    next.x_mm !== cur.x_mm ||
+    next.y_mm !== cur.y_mm ||
+    next.w_mm !== cur.w_mm ||
+    next.h_mm !== cur.h_mm ||
+    next.rotation_deg !== cur.rotation_deg;
+  if (!changed) return;
+  mockObjects[idx] = next;
+  saveFloors();
+  await recordEvent({
+    outlet_id: cur.outlet_id,
+    entity_type: "FLOOR",
+    entity_id: cur.floor_id,
+    event_type: "FLOOR_UPDATED",
+    reason_code: "OBJECT_POSE",
+    metadata: { object_id: id, ...params },
+  });
+}
+
+export async function deleteFloorObject(id: string): Promise<void> {
+  const obj = mockObjects.find((o) => o.id === id && !o.deleted_at);
+  if (!obj) return;
+  const release = await entityMutex.acquire(`floor-${obj.floor_id}`);
+  try {
+    await delay(200);
+    const idx = mockObjects.findIndex((o) => o.id === id);
+    if (idx === -1) return;
+    mockObjects[idx] = {
+      ...mockObjects[idx],
+      deleted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    saveFloors();
+    await recordEvent({
+      outlet_id: obj.outlet_id,
+      entity_type: "FLOOR",
+      entity_id: obj.floor_id,
+      event_type: "FLOOR_UPDATED",
+      reason_code: "OBJECT_DELETED",
+      metadata: { object_id: id, kind: obj.kind },
+    });
+  } finally {
+    release();
+  }
 }
 
 export async function createFloor(payload: FloorPayload): Promise<Floor> {
@@ -117,6 +248,7 @@ export async function createFloor(payload: FloorPayload): Promise<Floor> {
       updated_at: now,
     };
     mockFloors.push(floor);
+    saveFloors();
     await recordEvent({
       outlet_id: floor.outlet_id,
       entity_type: "FLOOR",
@@ -137,15 +269,27 @@ export async function updateFloor(id: string, payload: FloorPayload): Promise<Fl
     await delay(500);
     const idx = mockFloors.findIndex((f) => f.id === id);
     if (idx === -1) throw new Error("Floor not found");
-    
-    // Guard: if shrinking, ensure no tables orphaned (Design Edge Case E9)
+    if (payload.outlet_id !== undefined && payload.outlet_id !== mockFloors[idx].outlet_id) {
+      throw new Error("Floor cannot move across outlets");
+    }
+
+    // Guard: if shrinking, ensure no tables or objects orphaned (Design Edge Case E9, M9)
     if (payload.width_mm || payload.height_mm) {
-      const tables = mockTables.filter(t => t.floor_id === id && !t.deleted_at);
+      const { tables } = await getTablesWithDerivedByFloor(id);
       const newW = payload.width_mm ?? mockFloors[idx].width_mm;
       const newH = payload.height_mm ?? mockFloors[idx].height_mm;
-      const orphans = tables.filter(t => t.x_mm + t.w_mm > newW || t.y_mm + t.h_mm > newH);
-      if (orphans.length > 0) {
-        throw new Error(`Floor shrink would orphan ${orphans.length} tables. Move them first.`);
+      const orphanTables = tables.filter(t => t.x_mm + t.w_mm > newW || t.y_mm + t.h_mm > newH);
+      const orphanObjects = mockObjects.filter(
+        o => o.floor_id === id && !o.deleted_at && (o.x_mm + o.w_mm > newW || o.y_mm + o.h_mm > newH),
+      );
+      const orphanNames = [
+        ...orphanTables.map(t => t.number),
+        ...orphanObjects.map(o => o.label ?? o.kind),
+      ];
+      if (orphanNames.length > 0) {
+        throw new Error(
+          `Floor shrink would orphan ${orphanNames.length} item(s) (${orphanNames.join(", ")}). Move them first.`,
+        );
       }
     }
 
@@ -156,6 +300,7 @@ export async function updateFloor(id: string, payload: FloorPayload): Promise<Fl
       version: mockFloors[idx].version + 1,
     };
     mockFloors[idx] = updated;
+    saveFloors();
     await recordEvent({
       outlet_id: updated.outlet_id,
       entity_type: "FLOOR",
@@ -180,6 +325,7 @@ export async function reorderFloors(input: ReorderFloorInput[]): Promise<void> {
         mockFloors[idx].updated_at = new Date().toISOString();
       }
     });
+    saveFloors();
     await recordEvent({
       outlet_id: "out_001",
       entity_type: "FLOOR",
@@ -199,13 +345,19 @@ export async function deleteFloor(id: string): Promise<void> {
     if (idx === -1) throw new Error("Floor not found");
 
     // Guard: active occupancy or tables (Debate M1)
-    const tables = mockTables.filter(t => t.floor_id === id && !t.deleted_at);
+    const { tables, groups } = await getTablesWithDerivedByFloor(id);
+    if (groups.length > 0) {
+      throw new Error(
+        `Cannot delete floor with ${groups.length} active occupancy group(s). Release them first.`,
+      );
+    }
     if (tables.length > 0) {
-      throw new Error(`Cannot delete floor with ${tables.length} active tables.`);
+      throw new Error(`Cannot delete floor with ${tables.length} tables. Move or delete them first.`);
     }
 
     mockFloors[idx].deleted_at = new Date().toISOString();
     mockFloors[idx].is_active = false;
+    saveFloors();
     await recordEvent({
       outlet_id: mockFloors[idx].outlet_id,
       entity_type: "FLOOR",

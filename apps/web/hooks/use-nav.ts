@@ -19,6 +19,7 @@
 import { useMemo } from "react";
 import { useOrganization, useUser } from "@clerk/nextjs";
 import type { NavItem, NavGroup } from "@pixa/ui/types";
+import { hasDevBypass } from "@/lib/authz";
 
 /**
  * Hook to filter navigation items based on RBAC (fully client-side)
@@ -57,6 +58,7 @@ export function useFilteredNavItems(items: NavItem[]) {
 
   // Filter items synchronously (all client-side)
   const filteredItems = useMemo(() => {
+    const devBypass = hasDevBypass();
     return items
       .filter((item) => {
         // No access restrictions
@@ -70,7 +72,7 @@ export function useFilteredNavItems(items: NavItem[]) {
         }
 
         // Check permission
-        if (item.access.permission) {
+        if (item.access.permission && !devBypass) {
           if (!accessContext.hasOrg) {
             return false;
           }
@@ -80,7 +82,7 @@ export function useFilteredNavItems(items: NavItem[]) {
         }
 
         // Check role
-        if (item.access.role) {
+        if (item.access.role && !devBypass) {
           if (!accessContext.hasOrg) {
             return false;
           }
@@ -123,7 +125,7 @@ export function useFilteredNavItems(items: NavItem[]) {
             }
 
             // Check permission
-            if (childItem.access.permission) {
+            if (childItem.access.permission && !devBypass) {
               if (!accessContext.hasOrg) {
                 return false;
               }
@@ -133,7 +135,7 @@ export function useFilteredNavItems(items: NavItem[]) {
             }
 
             // Check role
-            if (childItem.access.role) {
+            if (childItem.access.role && !devBypass) {
               if (!accessContext.hasOrg) {
                 return false;
               }
