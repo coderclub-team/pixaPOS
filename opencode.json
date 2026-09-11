@@ -8,7 +8,7 @@
     "docs/workflows.md"
   ],
 
-  "lsp": true,
+  "lsp": false,
 
   "agent": {
     "planner": {
