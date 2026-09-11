@@ -3,7 +3,7 @@ import { recordEvent } from "@/features/events/api/service";
 import { entityMutex } from "@/lib/mutex";
 import { toPaise } from "@/lib/money";
 import { getMenuItemById, getModifiers } from "@/features/menu/api/service";
-import { getTableById } from "@/features/table/api/service";
+import { attachOrder, getTableById, seatOccupancy } from "@/features/table/api/service";
 import type {
   AddItemInput,
   CreateOrderInput,
@@ -414,6 +414,71 @@ export async function cancelOrder(
     });
     saveOrders();
     return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
+/**
+ * Terminal capture: return the table's live order, or auto-create a DRAFT
+ * dine-in order and attach it to the active occupancy group. Seats a default
+ * party (table capacity) when the table has no active group. Serialized under
+ * the order-write lock so double-taps can't create two drafts.
+ */
+export async function ensureTableOrder(
+  tableId: string,
+  params?: { by?: string },
+): Promise<OrderWithDerived> {
+  // Per-table lock held for the whole flow (composed commands take their own
+  // different keys, so no deadlock). Double-taps on one table serialize here.
+  const release = await entityMutex.acquire(`order-table-${tableId}`);
+  try {
+    await delay(200);
+    const findLive = () =>
+      mockOrders
+        .filter(
+          (o) =>
+            !o.deleted_at &&
+            o.table_id === tableId &&
+            o.status !== "COMPLETED" &&
+            o.status !== "CANCELLED",
+        )
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+    const existing = findLive();
+    if (existing) return enrichOrder(existing);
+
+    const table = await getTableById(tableId);
+    if (!table) throw new Error("Table not found");
+    if (table.status === "out_of_service") throw new Error("Table is out of service");
+    if (table.status === "cleaning") throw new Error("Table is being cleaned. Mark it cleaned first.");
+
+    let groupId = table.active_groups[0]?.id;
+    if (!groupId) {
+      const free = table.capacity - table.seated_seats;
+      const seated = await seatOccupancy({
+        table_id: tableId,
+        seats: Math.max(1, free > 0 ? free : table.capacity),
+        created_by: params?.by ?? "staff",
+      });
+      groupId = seated.id;
+    }
+
+    const raced = findLive();
+    if (raced) return enrichOrder(raced);
+
+    const order = await createOrder({
+      outlet_id: table.outlet_id,
+      channel: "dine_in",
+      table_id: tableId,
+      occupancy_group_id: groupId,
+      created_by: params?.by ?? "staff",
+    });
+    try {
+      await attachOrder({ group_id: groupId, order_id: order.id });
+    } catch {
+      // Group may have transitioned (e.g. already ORDERING) — order stays linked by table_id.
+    }
+    return order;
   } finally {
     release();
   }

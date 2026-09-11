@@ -263,6 +263,15 @@ export const navGroups: NavGroup[] = [
         items: [],
         access: { requireOrg: true },
       },
+      {
+        title: "Order Terminal",
+        url: "/dashboard/order-terminal",
+        icon: "orders",
+        isActive: false,
+        shortcut: ["o", "t"],
+        items: [],
+        access: { requireOrg: true },
+      },
     ],
   },
   {

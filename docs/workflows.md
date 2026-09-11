@@ -75,6 +75,12 @@ with mandatory reason, never hard deletes. Dine-in orders attach to occupancy
 via `attachOrder`; release guards protect open orders. Detail pages fetch
 client-side (localStorage-backed mocks — server prefetch would 404 new rows).
 
+Reception capture (ADR-0006): `/dashboard/order-terminal` shows the operations
+floor; tapping a table runs `ensureTableOrder` (live order or auto-created
+DRAFT + seated + attached) and opens the product dialogue. Same-tab Clerk
+session carries to other tabs automatically. Firing uses the same `fireKOT`;
+voids stay in the order workspace.
+
 ## 6. Product workflow
 
 ```text
