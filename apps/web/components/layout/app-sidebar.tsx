@@ -59,7 +59,7 @@ export default function AppSidebar() {
             {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
             <SidebarMenu>
               {group.items.map((item) => {
-                const Icon = item.icon ? Icons[item.icon] : Icons.logo;
+                const Icon = (item.icon ? Icons[item.icon] : undefined) ?? Icons.logo;
                 return item?.items && item?.items?.length > 0 ? (
                   <Collapsible
                     key={item.title}
