@@ -29,8 +29,9 @@ import {
 import { Icons } from "@pixa/ui/icons";
 import { StatusDot } from "@pixa/ui/base-ui/status-dot";
 import { useMutation } from "@tanstack/react-query";
-import { deleteTable } from "../api/service";
+import { deleteTable, duplicateTable } from "../api/service";
 import { tableKeys } from "../api/queries";
+import { floorKeys } from "@/features/floor/api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import { useState } from "react";
@@ -121,6 +122,16 @@ function TableActions({ table }: { table: RestaurantTable }) {
     },
     onError: (error: Error) => toast.error(error.message || "Failed to delete table"),
   });
+  const duplicateMutation = useMutation({
+    mutationFn: (id: string) => duplicateTable(id),
+    onSuccess: (cloned) => {
+      const qc = getQueryClient();
+      qc.invalidateQueries({ queryKey: tableKeys.all });
+      qc.invalidateQueries({ queryKey: floorKeys.layout(cloned.floor_id) });
+      toast.success(`Duplicated to ${cloned.number} (${cloned.code})`);
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to duplicate table"),
+  });
 
   return (
     <>
@@ -161,11 +172,8 @@ function TableActions({ table }: { table: RestaurantTable }) {
               <Icons.edit className="mr-2 h-4 w-4" /> Update
             </DropdownMenuItem>
             <DropdownMenuItem
-              onClick={() =>
-                router.push(
-                  `/dashboard/settings/outlet/tables/new?duplicate_from=${table.id}`,
-                )
-              }
+              onClick={() => duplicateMutation.mutate(table.id)}
+              disabled={duplicateMutation.isPending}
             >
               <Icons.copy className="mr-2 h-4 w-4" /> Duplicate
             </DropdownMenuItem>
