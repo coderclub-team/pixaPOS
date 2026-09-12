@@ -24,14 +24,9 @@ import {
   paymentKeys,
   refundsByOrderQueryOptions,
 } from "@/features/payments/api/queries";
-import {
-  computeSplits,
-  removeDraftItem,
-  setDiscount,
-  updateDraftItemQty,
-} from "@/features/orders/api/service";
+import { computeSplits, setDiscount } from "@/features/orders/api/service";
 import { collectPayment } from "@/features/payments/api/service";
-import { fireKOT } from "@/features/kitchen/api/service";
+import { increaseKOTLineQty, voidKOTLine } from "@/features/kitchen/api/service";
 import type { PaymentMethod, Payment } from "@/features/payments/api/types";
 import type { KitchenTicketWithDerived } from "@/features/kitchen/api/types";
 import { toast } from "sonner";
@@ -59,16 +54,49 @@ const METHODS: { value: PaymentMethod; label: string }[] = [
   { value: "wallet", label: "Wallet" },
 ];
 
-/** Collapsed KOT list with per-line kitchen status. Read-only — voids live in the order workspace. */
-export function KOTAccordion({ kots }: { kots: KitchenTicketWithDerived[] }) {
+/**
+ * Collapsed KOT list with per-line kitchen status.
+ * Editable: + adds qty (kitchen makes more), −/trash reduce with a reason and
+ * the reduction is recorded as a cancellation on the KOT.
+ */
+export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketWithDerived[]; orderId: string; editable?: boolean }) {
+  const queryClient = useQueryClient();
   const [openId, setOpenId] = useState<string | null>(kots[0]?.id ?? null);
+  const [reduceTarget, setReduceTarget] = useState<{ kotId: string; lineId: string; max: number; name: string } | null>(null);
+  const [reason, setReason] = useState("");
+  const [reduceQty, setReduceQty] = useState(1);
+
+  const plusMut = useMutation({
+    mutationFn: ({ kotId, lineId }: { kotId: string; lineId: string }) =>
+      increaseKOTLineQty(kotId, lineId, { extra: 1 }),
+    onSuccess: () => invalidateBill(orderId, queryClient),
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const reduceMut = useMutation({
+    mutationFn: ({ kotId, lineId, qty, r }: { kotId: string; lineId: string; qty: number; r: string }) =>
+      voidKOTLine(kotId, lineId, { qty, reason: r }),
+    onSuccess: () => {
+      invalidateBill(orderId, queryClient);
+      toast.success("Reduction recorded as cancellation");
+      setReduceTarget(null);
+      setReason("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   if (kots.length === 0) {
     return (
       <p className="py-2 text-center text-xs text-muted-foreground">
-        No kitchen tickets yet — fire the draft to start one.
+        No kitchen tickets yet — added items fire straight to the kitchen.
       </p>
     );
   }
+  const lineEditable = (kot: KitchenTicketWithDerived, l: { status: string }) =>
+    !!editable &&
+    kot.status !== "SERVED" &&
+    kot.status !== "CANCELLED" &&
+    (l.status === "PENDING" || l.status === "PREPARING");
+
   return (
     <div className="space-y-2">
       {kots.map((kot) => {
@@ -104,9 +132,49 @@ export function KOTAccordion({ kots }: { kots: KitchenTicketWithDerived[] }) {
                       {l.item_name_snapshot}
                       {l.variant_name_snapshot ? ` (${l.variant_name_snapshot})` : ""}
                     </span>
-                    <span className="text-[10px] capitalize text-muted-foreground">
-                      {l.status.toLowerCase()}
-                    </span>
+                    {lineEditable(kot, l) ? (
+                      <span className="flex shrink-0 items-center gap-0.5">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          title="Reduce (records cancellation)"
+                          disabled={reduceMut.isPending}
+                          onClick={() => {
+                            setReason("");
+                            setReduceQty(l.qty - l.voided_qty);
+                            setReduceTarget({ kotId: kot.id, lineId: l.id, max: l.qty - l.voided_qty, name: l.item_name_snapshot });
+                          }}
+                        >
+                          <Icons.minus className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          title="Add one more"
+                          disabled={plusMut.isPending}
+                          onClick={() => plusMut.mutate({ kotId: kot.id, lineId: l.id })}
+                        >
+                          <Icons.add className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          title="Delete item (records cancellation)"
+                          disabled={reduceMut.isPending}
+                          onClick={() => {
+                            setReason("");
+                            setReduceQty(l.qty - l.voided_qty);
+                            setReduceTarget({ kotId: kot.id, lineId: l.id, max: l.qty - l.voided_qty, name: l.item_name_snapshot });
+                          }}
+                        >
+                          <Icons.trash className="size-3.5" />
+                        </Button>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] capitalize text-muted-foreground">
+                        {l.status.toLowerCase()}
+                      </span>
+                    )}
                   </div>
                 ))}
                 {kot.voids.length > 0 && (
@@ -123,6 +191,77 @@ export function KOTAccordion({ kots }: { kots: KitchenTicketWithDerived[] }) {
           </div>
         );
       })}
+
+      <Dialog open={reduceTarget != null} onOpenChange={(o) => !o && setReduceTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reduce {reduceTarget?.name}?</DialogTitle>
+            <DialogDescription>
+              The reduction is recorded as a cancellation on the KOT with your reason.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Qty (max {reduceTarget?.max})</Label>
+              <Input
+                type="number"
+                min={1}
+                max={reduceTarget?.max ?? 1}
+                value={reduceQty}
+                onChange={(e) => setReduceQty(Number(e.target.value))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Reason *</Label>
+              <Input placeholder="Customer changed mind…" value={reason} onChange={(e) => setReason(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setReduceTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={reduceMut.isPending || !reason.trim() || !reduceTarget || reduceQty < 1 || reduceQty > reduceTarget.max}
+              onClick={() =>
+                reduceTarget &&
+                reduceMut.mutate({ kotId: reduceTarget.kotId, lineId: reduceTarget.lineId, qty: reduceQty, r: reason.trim() })
+              }
+            >
+              Record cancellation
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+/** Consolidated cancelled-items list across all KOTs of the order. */
+export function CancelledItemsList({ kots }: { kots: KitchenTicketWithDerived[] }) {
+  const entries = kots.flatMap((kot) =>
+    kot.voids.map((v) => {
+      const line = kot.lines.find((l) => l.id === v.kot_line_id);
+      return {
+        id: v.id,
+        kotNumber: kot.kot_number,
+        name: line?.item_name_snapshot ?? "Whole KOT",
+        qty: v.qty,
+        reason: v.reason,
+      };
+    }),
+  );
+  if (entries.length === 0) return null;
+  return (
+    <div className="space-y-1 rounded-lg border border-destructive/30 p-2">
+      <p className="text-xs font-medium uppercase text-destructive">
+        Cancelled items ({entries.length})
+      </p>
+      {entries.map((e) => (
+        <p key={e.id} className="text-xs text-destructive">
+          KOT #{e.kotNumber} · {e.qty}× {e.name} — {e.reason}
+        </p>
+      ))}
     </div>
   );
 }
@@ -140,7 +279,7 @@ function invalidateBill(orderId: string, qc: ReturnType<typeof useQueryClient>) 
 }
 
 /**
- * Terminal bill panel: draft lines, KOT status, discount, splits, tender pad.
+ * Terminal bill panel: KOTs, cancellations, discount, splits, tender pad.
  * Never says "cart" — this is the Bill.
  */
 export default function OrderBillPanel({
@@ -162,26 +301,6 @@ export default function OrderBillPanel({
   const [splitMode, setSplitMode] = useState<"none" | "equal" | "itemwise" | "custom">("none");
   const [activePartition, setActivePartition] = useState<string | null>(null);
 
-  const fireMut = useMutation({
-    mutationFn: () => fireKOT(orderId),
-    onSuccess: (kot) => {
-      invalidateBill(orderId, queryClient);
-      toast.success(`KOT #${kot.kot_number} fired to kitchen`);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-  const qtyMut = useMutation({
-    mutationFn: ({ lineId, qty }: { lineId: string; qty: number }) =>
-      updateDraftItemQty(orderId, lineId, qty),
-    onSuccess: () => invalidateBill(orderId, queryClient),
-    onError: (e: Error) => toast.error(e.message),
-  });
-  const removeMut = useMutation({
-    mutationFn: (lineId: string) => removeDraftItem(orderId, lineId),
-    onSuccess: () => invalidateBill(orderId, queryClient),
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   if (!order) {
     return (
       <Card className="h-full">
@@ -196,7 +315,6 @@ export default function OrderBillPanel({
   const refundedTotal = (refunds ?? []).reduce((s, r) => s + r.amount_paise, 0);
   const paidTotal = paidList.reduce((s, p) => s + p.amount_paise, 0) - refundedTotal;
   const balance = Math.max(0, order.grand_total_paise - paidTotal);
-  const draft = order.items.filter((i) => !i.kot_id);
   const stamp = PAYMENT_STAMP[order.payment_status];
   const partitions = order.split?.partitions ?? [];
   const partitionDue = (label: string) => {
@@ -208,7 +326,7 @@ export default function OrderBillPanel({
   const dueAmount = activePartition ? partitionDue(activePartition) : balance;
 
   return (
-    <Card className="flex h-full flex-col">
+    <Card className="flex h-full min-h-0 flex-col">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center justify-between text-lg">
           <span>Bill — {tableLabel}</span>
@@ -228,40 +346,13 @@ export default function OrderBillPanel({
           {order.order_number} · {order.items.length} item{order.items.length === 1 ? "" : "s"}
         </p>
       </CardHeader>
-      <CardContent className="flex-1 space-y-3 overflow-y-auto">
-        {draft.length > 0 && (
-          <div className="space-y-1">
-            <p className="text-xs font-medium uppercase text-muted-foreground">New items (draft)</p>
-            {draft.map((l) => (
-              <div key={l.id} className="flex items-center justify-between gap-2 rounded-lg border p-1.5 text-sm">
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{l.item_name_snapshot}</p>
-                  <p className="text-xs text-muted-foreground">{formatINR(l.line_total_paise)}</p>
-                </div>
-                <div className="flex shrink-0 items-center gap-0.5">
-                  <Button variant="ghost" size="icon-sm" disabled={l.qty <= 1 || qtyMut.isPending} onClick={() => qtyMut.mutate({ lineId: l.id, qty: l.qty - 1 })}>
-                    <Icons.minus className="size-4" />
-                  </Button>
-                  <span className="w-6 text-center">{l.qty}</span>
-                  <Button variant="ghost" size="icon-sm" disabled={qtyMut.isPending} onClick={() => qtyMut.mutate({ lineId: l.id, qty: l.qty + 1 })}>
-                    <Icons.add className="size-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon-sm" disabled={removeMut.isPending} onClick={() => removeMut.mutate(l.id)}>
-                    <Icons.trash className="size-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-            <Button size="sm" className="w-full" disabled={fireMut.isPending} onClick={() => fireMut.mutate()}>
-              {fireMut.isPending ? "Firing…" : `Fire ${draft.length} item${draft.length === 1 ? "" : "s"} to kitchen`}
-            </Button>
-          </div>
-        )}
-
+      <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto">
         <div className="space-y-1">
           <p className="text-xs font-medium uppercase text-muted-foreground">Kitchen tickets</p>
-          <KOTAccordion kots={kots ?? []} />
+          <KOTAccordion kots={kots ?? []} orderId={orderId} editable />
         </div>
+
+        <CancelledItemsList kots={kots ?? []} />
 
         <div className="space-y-1 text-sm">
           <div className="flex justify-between">
@@ -559,11 +650,23 @@ function SplitSection({
   );
 }
 
+type TenderRow = { method: PaymentMethod; amount: string; tendered: string };
+
+/**
+ * Tender pad with single + combined modes. Combined collects 2+ methods in
+ * one go (e.g. part cash + part UPI) — each lands as its own payment record
+ * so the ledger stays exact.
+ */
 function TenderPad({ orderId, duePaise, partitionLabel }: { orderId: string; duePaise: number; partitionLabel: string | null }) {
   const queryClient = useQueryClient();
+  const [combined, setCombined] = useState(false);
   const [method, setMethod] = useState<PaymentMethod>("cash");
   const [amount, setAmount] = useState("");
   const [tendered, setTendered] = useState("");
+  const [rows, setRows] = useState<TenderRow[]>([
+    { method: "cash", amount: "", tendered: "" },
+    { method: "upi", amount: "", tendered: "" },
+  ]);
 
   const collectMut = useMutation({
     mutationFn: () =>
@@ -585,41 +688,159 @@ function TenderPad({ orderId, duePaise, partitionLabel }: { orderId: string; due
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const collectCombinedMut = useMutation({
+    mutationFn: async (valid: { method: PaymentMethod; amount_paise: number; tendered_paise?: number }[]) => {
+      const done = [];
+      for (const r of valid) {
+        done.push(
+          await collectPayment({
+            order_id: orderId,
+            method: r.method,
+            amount_paise: r.amount_paise,
+            tendered_paise: r.tendered_paise,
+            partition_label: partitionLabel ?? undefined,
+          }),
+        );
+      }
+      return done;
+    },
+    onSuccess: (done) => {
+      invalidateBill(orderId, queryClient);
+      const total = done.reduce((s, p) => s + p.amount_paise, 0);
+      toast.success(`Collected ${formatINR(total)} across ${done.length} methods`);
+      setRows([
+        { method: "cash", amount: "", tendered: "" },
+        { method: "upi", amount: "", tendered: "" },
+      ]);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const change = method === "cash" && tendered && amount ? Math.max(0, toPaise(Number(tendered)) - toPaise(Number(amount))) : 0;
+
+  const parsedRows = rows.map((r) => ({
+    method: r.method,
+    amount_paise: r.amount ? toPaise(Number(r.amount)) : 0,
+    tendered_paise: r.method === "cash" && r.tendered ? toPaise(Number(r.tendered)) : undefined,
+  }));
+  const rowsTotal = parsedRows.reduce((s, r) => s + r.amount_paise, 0);
+  const rowsValid =
+    parsedRows.length >= 2 &&
+    parsedRows.every((r) => r.amount_paise > 0) &&
+    rowsTotal > 0 &&
+    rowsTotal <= duePaise &&
+    parsedRows.every((r) => r.method !== "cash" || !r.tendered_paise || r.tendered_paise >= r.amount_paise);
+
+  const updateRow = (i: number, patch: Partial<TenderRow>) =>
+    setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
 
   return (
     <div className="space-y-2 rounded-lg border p-2">
-      <p className="text-xs font-medium uppercase text-muted-foreground">
-        Collect{partitionLabel ? ` — ${partitionLabel}` : ""} · due {formatINR(duePaise)}
-      </p>
-      <div className="flex flex-wrap gap-1.5">
-        {METHODS.map((m) => (
-          <Button key={m.value} type="button" variant={method === m.value ? "default" : "outline"} size="sm" onClick={() => setMethod(m.value)}>
-            {m.label}
-          </Button>
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Amount ₹</Label>
-          <Input type="number" min={0} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={(duePaise / 100).toFixed(2)} />
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium uppercase text-muted-foreground">
+          Collect{partitionLabel ? ` — ${partitionLabel}` : ""} · due {formatINR(duePaise)}
+        </p>
+        <div className="flex gap-1">
+          {([false, true] as const).map((c) => (
+            <Button key={String(c)} type="button" variant={combined === c ? "default" : "outline"} size="sm" onClick={() => setCombined(c)}>
+              {c ? "Combined" : "Single"}
+            </Button>
+          ))}
         </div>
-        {method === "cash" && (
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Tendered ₹</Label>
-            <Input type="number" min={0} value={tendered} onChange={(e) => setTendered(e.target.value)} placeholder="Cash received" />
+      </div>
+
+      {!combined ? (
+        <>
+          <div className="flex flex-wrap gap-1.5">
+            {METHODS.map((m) => (
+              <Button key={m.value} type="button" variant={method === m.value ? "default" : "outline"} size="sm" onClick={() => setMethod(m.value)}>
+                {m.label}
+              </Button>
+            ))}
           </div>
-        )}
-      </div>
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={() => setAmount((duePaise / 100).toFixed(2))}>
-          Exact
-        </Button>
-        {change > 0 && <span className="text-xs text-muted-foreground">Change {formatINR(change)}</span>}
-        <Button size="sm" className="ml-auto" disabled={collectMut.isPending || !amount || duePaise <= 0} onClick={() => collectMut.mutate()}>
-          {collectMut.isPending ? "Collecting…" : "Collect"}
-        </Button>
-      </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Amount ₹</Label>
+              <Input type="number" min={0} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={(duePaise / 100).toFixed(2)} />
+            </div>
+            {method === "cash" && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Tendered ₹</Label>
+                <Input type="number" min={0} value={tendered} onChange={(e) => setTendered(e.target.value)} placeholder="Cash received" />
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setAmount((duePaise / 100).toFixed(2))}>
+              Exact
+            </Button>
+            {change > 0 && <span className="text-xs text-muted-foreground">Change {formatINR(change)}</span>}
+            <Button size="sm" className="ml-auto" disabled={collectMut.isPending || !amount || duePaise <= 0} onClick={() => collectMut.mutate()}>
+              {collectMut.isPending ? "Collecting…" : "Collect"}
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="text-[11px] text-muted-foreground">
+            Split one collection across methods — e.g. part cash, part UPI. Rows must add up to at most the due.
+          </p>
+          {rows.map((r, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <select
+                className="rounded-md border bg-background px-1.5 py-1.5 text-xs"
+                value={r.method}
+                onChange={(e) => updateRow(i, { method: e.target.value as PaymentMethod })}
+              >
+                {METHODS.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+              <Input
+                type="number"
+                min={0}
+                value={r.amount}
+                onChange={(e) => updateRow(i, { amount: e.target.value })}
+                className="h-8"
+                placeholder="₹ amount"
+              />
+              {r.method === "cash" && (
+                <Input
+                  type="number"
+                  min={0}
+                  value={r.tendered}
+                  onChange={(e) => updateRow(i, { tendered: e.target.value })}
+                  className="h-8 w-24"
+                  placeholder="Tendered"
+                />
+              )}
+              {rows.length > 2 && (
+                <Button variant="ghost" size="icon-sm" onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}>
+                  <Icons.close className="size-3.5" />
+                </Button>
+              )}
+            </div>
+          ))}
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setRows((rs) => [...rs, { method: "upi", amount: "", tendered: "" }])}>
+              <Icons.add className="mr-1 size-3.5" /> Method
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Total {formatINR(rowsTotal)} of {formatINR(duePaise)}
+            </span>
+            <Button
+              size="sm"
+              className="ml-auto"
+              disabled={collectCombinedMut.isPending || !rowsValid || duePaise <= 0}
+              onClick={() => collectCombinedMut.mutate(parsedRows)}
+            >
+              {collectCombinedMut.isPending ? "Collecting…" : `Collect ${formatINR(rowsTotal)}`}
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

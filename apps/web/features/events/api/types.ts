@@ -48,6 +48,7 @@ export type BusinessEventType =
   | "ORDER_SERVED"
   | "KOT_VOIDED"
   | "KOT_LINE_VOIDED"
+  | "KOT_LINE_QTY_ADDED"
   | "PAYMENT_STARTED"
   | "PAYMENT_COMPLETED"
   | "PAYMENT_FAILED"

@@ -2,7 +2,14 @@ import { delay } from "@/constants/mock-api";
 import { recordEvent } from "@/features/events/api/service";
 import { recordWasteForCancelledOrder } from "@/features/inventory/api/service";
 import { entityMutex } from "@/lib/mutex";
-import { getOrderById, markLinesFired } from "@/features/orders/api/service";
+import {
+  addOrderItem,
+  confirmOrder,
+  getOrderById,
+  markLinesFired,
+  setOrderLineQty,
+} from "@/features/orders/api/service";
+import type { AddItemInput } from "@/features/orders/api/types";
 import type {
   KitchenTicket,
   KitchenTicketWithDerived,
@@ -371,6 +378,68 @@ export async function voidKOTLine(
       actor_id: params.by ?? "staff",
       reason_text: params.reason,
       metadata: { kot_id: id, kot_line_id: lineId, qty },
+    });
+  });
+}
+
+/**
+ * Terminal fast path: confirm-if-DRAFT, add the item, fire immediately.
+ * No draft step — the item lands straight on a new KOT.
+ */
+export async function addAndFireItem(
+  orderId: string,
+  input: AddItemInput,
+  by?: string,
+): Promise<KitchenTicketWithDerived> {
+  const order = await getOrderById(orderId);
+  if (!order) throw new Error("Order not found");
+  if (order.status === "DRAFT") {
+    await confirmOrder(orderId, by);
+  }
+  await addOrderItem(orderId, input);
+  return fireKOT(orderId, by);
+}
+
+/**
+ * Increase a fired KOT line qty (kitchen makes more). Bumps both the KOT
+ * line and the order line so the bill stays in sync. Decreases go through
+ * voidKOTLine with a reason so cancellations are always recorded.
+ */
+export async function increaseKOTLineQty(
+  id: string,
+  lineId: string,
+  params: { extra: number; by?: string },
+): Promise<KitchenTicketWithDerived> {
+  return mutateTicket(id, async (idx) => {
+    const t = mockTickets[idx];
+    if (t.status === "SERVED" || t.status === "CANCELLED") {
+      throw new Error(`Cannot change a line on a ${t.status.toLowerCase()} KOT`);
+    }
+    const li = t.lines.findIndex((l) => l.id === lineId);
+    if (li === -1) throw new Error("KOT line not found");
+    const line = t.lines[li];
+    if (line.status === "VOIDED" || line.status === "SERVED" || line.status === "READY") {
+      throw new Error(`Cannot add qty to a ${line.status.toLowerCase()} line`);
+    }
+    if (!Number.isInteger(params.extra) || params.extra < 1 || params.extra > 50) {
+      throw new Error("Extra qty must be between 1 and 50");
+    }
+    await setOrderLineQty(t.order_id, line.order_line_id, line.qty + params.extra);
+    const lines = [...t.lines];
+    lines[li] = { ...line, qty: line.qty + params.extra };
+    mockTickets[idx] = {
+      ...t,
+      lines,
+      updated_at: new Date().toISOString(),
+      version: t.version + 1,
+    };
+    await recordEvent({
+      outlet_id: t.outlet_id,
+      entity_type: "ORDER",
+      entity_id: t.order_id,
+      event_type: "KOT_LINE_QTY_ADDED",
+      actor_id: params.by ?? "staff",
+      metadata: { kot_id: id, kot_line_id: lineId, extra: params.extra },
     });
   });
 }
