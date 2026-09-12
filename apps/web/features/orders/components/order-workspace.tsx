@@ -28,7 +28,7 @@ import {
   removeDraftItem,
   updateDraftItemQty,
 } from "@/features/orders/api/service";
-import { findCustomerByPhone } from "@/features/customers/api/service";
+import CustomerLinkBlock from "@/features/customers/components/customer-link-block";
 import { fireKOT, voidKOT, voidKOTLine } from "@/features/kitchen/api/service";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
@@ -365,90 +365,6 @@ function FiredKOTsCard({ orderId, kots }: { orderId: string; kots: any[] }) {
   );
 }
 
-function CustomerBlock({ orderId }: { orderId: string }) {
-  const { data: order } = useQuery(orderQueryOptions(orderId));
-  const [phone, setPhone] = useState("");
-  const [looking, setLooking] = useState(false);
-
-  const linkMut = useMutation({
-    mutationFn: (customerId: string) => linkCustomer(orderId, customerId),
-    onSuccess: (o) => {
-      getQueryClient().invalidateQueries({ queryKey: orderKeys.detail(orderId) });
-      getQueryClient().invalidateQueries({ queryKey: orderKeys.all });
-      toast.success(`Linked ${o.customer_name}`);
-      setPhone("");
-      setLooking(false);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const lookup = async () => {
-    if (!phone.trim()) return;
-    setLooking(true);
-    try {
-      const found = await findCustomerByPhone(phone.trim(), order?.outlet_id ?? "out_001");
-      if (found) {
-        linkMut.mutate(found.id);
-      } else {
-        toast.error("No customer with that phone — create the record first");
-        setLooking(false);
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Lookup failed");
-      setLooking(false);
-    }
-  };
-
-  if (!order) return null;
-
-  if (order.customer_id) {
-    return (
-      <div className="flex items-center justify-between">
-        <span className="text-muted-foreground">Customer</span>
-        <Link
-          href={`/dashboard/customers/${order.customer_id}`}
-          className="font-medium underline-offset-4 hover:underline"
-        >
-          {order.customer_name}
-          {order.customer_phone ? ` · ${order.customer_phone}` : ""}
-        </Link>
-      </div>
-    );
-  }
-
-  if (order.customer_name || order.customer_phone) {
-    return (
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-muted-foreground">Customer</span>
-        <span className="text-xs">
-          {order.customer_name}
-          {order.customer_phone ? ` · ${order.customer_phone}` : ""} (unlinked)
-        </span>
-      </div>
-    );
-  }
-
-  const terminal = order.status === "COMPLETED" || order.status === "CANCELLED";
-  if (terminal) return null;
-
-  return (
-    <div className="space-y-1.5">
-      <Label className="text-xs text-muted-foreground">Link customer by phone</Label>
-      <div className="flex gap-1.5">
-        <Input
-          placeholder="Phone number"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          className="h-8 text-sm"
-        />
-        <Button size="sm" disabled={looking || linkMut.isPending || !phone.trim()} onClick={lookup}>
-          Link
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 function SummaryCard({ orderId }: { orderId: string }) {
   const { data: order } = useQuery(orderQueryOptions(orderId));
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -491,7 +407,7 @@ function SummaryCard({ orderId }: { orderId: string }) {
             <span>{order.table_number_snapshot}</span>
           </div>
         )}
-        <CustomerBlock orderId={order.id} />
+        <CustomerLinkBlock orderId={order.id} />
         {order.external_ref && (
           <div className="flex justify-between">
             <span className="text-muted-foreground">Aggregator ref</span>

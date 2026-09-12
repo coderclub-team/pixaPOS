@@ -709,6 +709,19 @@ export async function releaseOccupancy(params: {
           event_type: "TABLE_CLEANING_STARTED",
         });
       }
+      // Last group gone with an order attached → the order locks for edits
+      // (payments/refunds stay open). Emitted once per release.
+      if (group.order_id) {
+        await recordEvent({
+          outlet_id: group.outlet_id,
+          entity_type: "ORDER",
+          entity_id: group.order_id,
+          event_type: "ORDER_LOCKED",
+          actor_id: ctx.actor_id,
+          reason_text: params.reason,
+          metadata: { table_id: group.table_id },
+        });
+      }
     }
 
     saveTables();
