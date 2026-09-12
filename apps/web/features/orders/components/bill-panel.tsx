@@ -64,6 +64,7 @@ const METHODS: { value: PaymentMethod; label: string }[] = [
  */
 export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketWithDerived[]; orderId: string; editable?: boolean }) {
   const queryClient = useQueryClient();
+  const { data: order } = useQuery(orderQueryOptions(orderId));
   const [openId, setOpenId] = useState<string | null>(kots[0]?.id ?? null);
   // Arrival flash: when a new KOT lands, auto-expand it and pulse once.
   const [flashId, setFlashId] = useState<string | null>(null);
@@ -113,6 +114,30 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
     kot.status !== "CANCELLED" &&
     (l.status === "PENDING" || l.status === "PREPARING");
 
+  // Pricing joins the order snapshot via order_line_id; missing joins fall
+  // back to today's unpriced rendering rather than crashing.
+  const priced = (kotLine: { order_line_id: string; qty: number; voided_qty: number }) => {
+    const ol = order?.items.find((i) => i.id === kotLine.order_line_id);
+    if (!ol || ol.qty <= 0) return null;
+    const liveQty = kotLine.qty - kotLine.voided_qty;
+    if (liveQty <= 0) return { liveQty, unit: ol.unit_price_paise, pct: ol.tax_percent_snapshot, total: 0, extra: "" };
+    const unit = ol.unit_price_paise;
+    const pct = ol.tax_percent_snapshot;
+    const total =
+      Math.round((ol.line_total_paise * liveQty) / ol.qty) +
+      Math.round((ol.line_tax_paise * liveQty) / ol.qty);
+    const mods = ol.modifiers.map((m) => m.name_snapshot).join(", ");
+    const extra = [
+      mods ? `+${mods}` : "",
+      ol.instructions ? `“${ol.instructions}”` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    return { liveQty, unit, pct, total, extra };
+  };
+  const kotTotal = (kot: KitchenTicketWithDerived) =>
+    kot.lines.reduce((s, l) => s + (priced(l)?.total ?? 0), 0);
+
   return (
     <div className="space-y-2">
       {kots.map((kot) => {
@@ -136,11 +161,16 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
                   {kot.status.toLowerCase()} · {kot.lines.length} item{ KotLinesPlural(kot)}
                 </span>
               </span>
-              <Icons.chevronRight className={cn("size-4 transition-transform", open && "rotate-90")} />
+              <span className="flex items-center gap-1">
+                <span className="text-sm font-semibold">{formatINR(kotTotal(kot))}</span>
+                <Icons.chevronRight className={cn("size-4 transition-transform", open && "rotate-90")} />
+              </span>
             </button>
             {open && (
               <div className="space-y-0.5 border-t px-2 py-1.5">
-                {kot.lines.map((l) => (
+                {kot.lines.map((l) => {
+                  const p = priced(l);
+                  return (
                   <div
                     key={l.id}
                     className={cn(
@@ -149,11 +179,22 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
                     )}
                   >
                     <span className={cn("size-2 shrink-0 rounded-full", LINE_STATUS_DOT[l.status])} />
-                    <span className="min-w-0 flex-1 truncate">
-                      {l.qty - l.voided_qty > 0 ? `${l.qty - l.voided_qty}× ` : ""}
-                      {l.item_name_snapshot}
-                      {l.variant_name_snapshot ? ` (${l.variant_name_snapshot})` : ""}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium">
+                        {l.qty - l.voided_qty > 0 ? `${l.qty - l.voided_qty}× ` : ""}
+                        {l.item_name_snapshot}
+                        {l.variant_name_snapshot ? ` (${l.variant_name_snapshot})` : ""}
+                      </span>
+                      {p && (
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {formatINR(p.unit)} × {p.liveQty} + GST {p.pct}%
+                          {p.extra ? ` · ${p.extra}` : ""}
+                        </span>
+                      )}
                     </span>
+                    {p && (
+                      <span className="shrink-0 text-sm font-semibold">{formatINR(p.total)}</span>
+                    )}
                     {lineEditable(kot, l) ? (
                       <span className="flex shrink-0 items-center gap-0.5">
                         <Button
@@ -201,7 +242,8 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
                       </span>
                     )}
                   </div>
-                ))}
+                  );
+                })}
                 {kot.voids.length > 0 && (
                   <div className="pt-1">
                     {kot.voids.map((v) => (
