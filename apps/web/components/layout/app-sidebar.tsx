@@ -63,7 +63,14 @@ export default function AppSidebar() {
                 return item?.items && item?.items?.length > 0 ? (
                   <Collapsible
                     key={item.title}
-                    defaultOpen={item.isActive}
+                    // Uncontrolled: read once at mount (open only the group holding the
+                    // current page), then the user owns it — open stays open across
+                    // navigation until collapsed or reloaded.
+                    defaultOpen={
+                      item.items?.some(
+                        (sub) => sub.url !== "#" && pathname.startsWith(sub.url),
+                      ) ?? false
+                    }
                     render={<SidebarMenuItem />}
                   >
                     <CollapsibleTrigger
