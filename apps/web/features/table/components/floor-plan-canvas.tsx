@@ -126,7 +126,8 @@ const TableNode = memo(function TableNode({
   const fillClass = blocked
     ? "fill-zinc-200 stroke-zinc-500 dark:fill-zinc-800"
     : statusColors[table.status] || "fill-white stroke-zinc-300";
-  const shapeClass = cn(fillClass, "stroke-2", selected && "stroke-primary");
+  // Selected table: thick primary ring + tinted halo, status fill preserved.
+  const shapeClass = cn(fillClass, "stroke-2", selected && "stroke-primary stroke-[10px]");
   const rot = pose.rotation;
   return (
     <g
@@ -140,6 +141,11 @@ const TableNode = memo(function TableNode({
       aria-label={`Table ${table.number}, ${blocked ? "blocked" : table.status}, ${table.seated_seats} of ${table.capacity} seats`}
       onKeyDown={onKeyDown}
     >
+      {selected && (
+        <g transform="translate(-120,-120)" className="pointer-events-none">
+          {renderTableShape(table.shape, pose.w + 240, pose.h + 240, "fill-primary/15 stroke-none")}
+        </g>
+      )}
       {renderTableShape(table.shape, pose.w, pose.h, shapeClass)}
       {blocked && (
         <rect width={pose.w} height={pose.h} rx={40} fill="url(#blocked-hatch)" opacity={0.5} />

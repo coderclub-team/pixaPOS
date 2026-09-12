@@ -53,6 +53,13 @@ export type RestaurantOrder = {
   subtotal_paise: number;
   tax_paise: number;
   total_paise: number;
+  /** Bill-level discount (pre-tax). total_paise stays pre-discount for history. */
+  discount_percent?: number;
+  discount_paise?: number;
+  discount_reason?: string;
+  grand_total_paise: number;
+  payment_status: PaymentState;
+  split?: BillSplit;
   cancelled_reason?: string;
   cancelled_by?: string;
   created_by?: string;
@@ -60,6 +67,29 @@ export type RestaurantOrder = {
   updated_at: string;
   version: number;
   deleted_at?: string | null;
+};
+
+export type PaymentState = "UNPAID" | "PARTIAL" | "PAID";
+
+export type SplitMode = "equal" | "itemwise" | "custom";
+
+export type BillPartition = {
+  label: string;
+  /** itemwise: covered line ids. custom: fixed amount. equal: share count. */
+  line_ids?: string[];
+  amount_paise: number;
+};
+
+export type BillSplit = {
+  mode: SplitMode;
+  partitions: BillPartition[];
+  created_at: string;
+};
+
+export type BillingView = {
+  order: RestaurantOrder;
+  paid_paise: number;
+  balance_paise: number;
 };
 
 export type OrderWithDerived = RestaurantOrder & {

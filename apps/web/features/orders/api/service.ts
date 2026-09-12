@@ -7,12 +7,15 @@ import { attachOrder, detachOrder, getTableById, seatOccupancy } from "@/feature
 import { getCustomerById } from "@/features/customers/api/service";
 import type {
   AddItemInput,
+  BillPartition,
+  BillingView,
   CreateOrderInput,
   OrderFilters,
   OrderItemSnapshot,
   OrderStatus,
   OrderWithDerived,
   RestaurantOrder,
+  SplitMode,
 } from "./types";
 
 const ORDER_STORAGE_KEY = "pixaOrders";
@@ -27,13 +30,21 @@ function saveOrders() {
   }
 }
 
+/** Backfill billing fields for orders stored before discounts/payments. */
+function normalizeOrder(o: RestaurantOrder): RestaurantOrder {
+  if (o.grand_total_paise === undefined || o.payment_status === undefined) {
+    return recomputeTotals({ ...o, payment_status: o.payment_status ?? "UNPAID" });
+  }
+  return o;
+}
+
 function loadOrders(): void {
   if (typeof window !== "undefined") {
     try {
       const raw = localStorage.getItem(ORDER_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed?.orders)) mockOrders = parsed.orders;
+        if (Array.isArray(parsed?.orders)) mockOrders = parsed.orders.map(normalizeOrder);
       }
     } catch {}
   }
@@ -81,10 +92,28 @@ async function transitionOrder(
   });
 }
 
+function discountFor(subtotal: number, order: RestaurantOrder): number {
+  if (order.discount_paise !== undefined) return Math.min(order.discount_paise, subtotal);
+  if (order.discount_percent !== undefined) {
+    return Math.round((subtotal * Math.min(order.discount_percent, 100)) / 100);
+  }
+  return 0;
+}
+
 function recomputeTotals(order: RestaurantOrder): RestaurantOrder {
   const subtotal = order.items.reduce((s, i) => s + i.line_total_paise, 0);
-  const tax = order.items.reduce((s, i) => s + i.line_tax_paise, 0);
-  return { ...order, subtotal_paise: subtotal, tax_paise: tax, total_paise: subtotal + tax };
+  const rawTax = order.items.reduce((s, i) => s + i.line_tax_paise, 0);
+  const discount = discountFor(subtotal, order);
+  // Discount pre-tax: scale tax pro-rata on the discounted base.
+  const tax = subtotal > 0 ? Math.round((rawTax * (subtotal - discount)) / subtotal) : 0;
+  const grand = subtotal - discount + tax;
+  return {
+    ...order,
+    subtotal_paise: subtotal,
+    tax_paise: tax,
+    total_paise: subtotal + rawTax,
+    grand_total_paise: grand,
+  };
 }
 
 function enrichOrder(order: RestaurantOrder): OrderWithDerived {
@@ -164,6 +193,8 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
       subtotal_paise: 0,
       tax_paise: 0,
       total_paise: 0,
+      grand_total_paise: 0,
+      payment_status: "UNPAID",
       created_by: input.created_by ?? "staff",
       created_at: now,
       updated_at: now,
@@ -577,6 +608,180 @@ export async function linkCustomer(
       metadata: { customer_id: customer.id },
     });
     return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
+/**
+ * Bill-level discount (percent or flat paise, pre-tax). DRAFT/CONFIRMED only —
+ * once fired, the bill is locked except via voids/refunds.
+ */
+export async function setDiscount(
+  orderId: string,
+  params: { percent?: number; amount_paise?: number; reason: string; by?: string },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(300);
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (order.status !== "DRAFT" && order.status !== "CONFIRMED") {
+      throw new Error("Discount can only change before firing to the kitchen");
+    }
+    if (!params.reason?.trim()) throw new Error("A reason is required for a discount");
+    if (params.percent !== undefined && (params.percent <= 0 || params.percent > 100)) {
+      throw new Error("Discount percent must be between 0 and 100");
+    }
+    if (params.amount_paise !== undefined && (!Number.isInteger(params.amount_paise) || params.amount_paise < 1)) {
+      throw new Error("Discount amount must be a positive paise integer");
+    }
+    if (params.percent === undefined && params.amount_paise === undefined) {
+      throw new Error("Give a percent or a flat amount");
+    }
+    mockOrders[idx] = recomputeTotals({
+      ...order,
+      discount_percent: params.percent,
+      discount_paise: params.amount_paise,
+      discount_reason: params.reason.trim(),
+      split: undefined,
+      updated_at: new Date().toISOString(),
+      version: order.version + 1,
+    });
+    saveOrders();
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: order.id,
+      event_type: "ORDER_DISCOUNTED",
+      actor_id: params.by ?? "staff",
+      reason_text: params.reason.trim(),
+      metadata: { percent: params.percent, amount_paise: params.amount_paise },
+    });
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
+/**
+ * Partition the grand total for group sharing. Rounding residue (paise) goes
+ * to the last partition — explicit rule. Splits are independent of firing.
+ */
+export async function computeSplits(
+  orderId: string,
+  params:
+    | { mode: "equal"; count: number }
+    | { mode: "itemwise"; assignments: { label: string; line_ids: string[] }[] }
+    | { mode: "custom"; amounts: { label: string; amount_paise: number }[] },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(300);
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    const grand = order.grand_total_paise;
+    if (grand < 1) throw new Error("Nothing to split on an empty bill");
+
+    let partitions: BillPartition[];
+    if (params.mode === "equal") {
+      if (!Number.isInteger(params.count) || params.count < 2) {
+        throw new Error("Equal split needs at least 2 shares");
+      }
+      const base = Math.floor(grand / params.count);
+      partitions = Array.from({ length: params.count }, (_, i) => ({
+        label: `Guest ${i + 1}`,
+        amount_paise: i === params.count - 1 ? grand - base * (params.count - 1) : base,
+      }));
+    } else if (params.mode === "itemwise") {
+      if (params.assignments.length < 1) throw new Error("Assign at least one share");
+      const seen = new Set<string>();
+      partitions = params.assignments.map((a) => {
+        if (!a.label.trim()) throw new Error("Every share needs a label");
+        let amount = 0;
+        for (const lid of a.line_ids) {
+          if (seen.has(lid)) throw new Error("A line can only belong to one share");
+          seen.add(lid);
+          const line = order.items.find((i) => i.id === lid);
+          if (!line) throw new Error("Unknown order line in split");
+          amount += line.line_total_paise + line.line_tax_paise;
+        }
+        return { label: a.label.trim(), line_ids: a.line_ids, amount_paise: amount };
+      });
+      const covered = partitions.reduce((s, p) => s + p.amount_paise, 0);
+      if (covered !== order.subtotal_paise + order.tax_paise) {
+        throw new Error("Item-wise shares must cover every line exactly");
+      }
+      // Fold the bill discount into the last share pro-rata (discount is pre-tax).
+      const discount = order.subtotal_paise + order.tax_paise - grand;
+      if (discount > 0 && partitions.length > 0) {
+        partitions[partitions.length - 1].amount_paise -= discount;
+      }
+    } else {
+      if (params.amounts.length < 2) throw new Error("Custom split needs at least 2 shares");
+      const sum = params.amounts.reduce((s, a) => s + a.amount_paise, 0);
+      if (sum !== grand) throw new Error(`Custom shares must add up to the bill (${grand} paise)`);
+      partitions = params.amounts.map((a) => {
+        if (!a.label.trim()) throw new Error("Every share needs a label");
+        if (!Number.isInteger(a.amount_paise) || a.amount_paise < 1) {
+          throw new Error("Share amounts must be positive paise integers");
+        }
+        return { label: a.label.trim(), amount_paise: a.amount_paise };
+      });
+    }
+
+    mockOrders[idx] = {
+      ...order,
+      split: { mode: params.mode as SplitMode, partitions, created_at: new Date().toISOString() },
+      updated_at: new Date().toISOString(),
+      version: order.version + 1,
+    };
+    saveOrders();
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: order.id,
+      event_type: "ORDER_SPLIT_BUILT",
+      metadata: { mode: params.mode, partitions: partitions.length },
+    });
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
+/** Billing read-model for the terminal: paid/balance via the payments ledger. */
+export async function getOrderWithBilling(orderId: string): Promise<BillingView | null> {
+  const order = mockOrders.find((o) => o.id === orderId && !o.deleted_at);
+  if (!order) return null;
+  const { paidTotalForOrder } = await import("@/features/payments/api/service");
+  const paid = await paidTotalForOrder(orderId);
+  return { order: normalizeOrder(order), paid_paise: paid, balance_paise: Math.max(0, order.grand_total_paise - paid) };
+}
+
+/** Re-derive payment_status after each payment/refund (called by payments). */
+export async function refreshOrderPaymentState(orderId: string): Promise<void> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) return;
+    const { paidTotalForOrder } = await import("@/features/payments/api/service");
+    const paid = await paidTotalForOrder(orderId);
+    const grand = mockOrders[idx].grand_total_paise;
+    const status = paid >= grand && grand > 0 ? "PAID" : paid > 0 ? "PARTIAL" : "UNPAID";
+    const prev = mockOrders[idx].payment_status;
+    mockOrders[idx] = { ...mockOrders[idx], payment_status: status };
+    saveOrders();
+    if (status === "PAID" && prev !== "PAID") {
+      await recordEvent({
+        outlet_id: mockOrders[idx].outlet_id,
+        entity_type: "ORDER",
+        entity_id: orderId,
+        event_type: "ORDER_PAID",
+      });
+    }
   } finally {
     release();
   }
