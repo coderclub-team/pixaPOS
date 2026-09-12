@@ -70,8 +70,10 @@ occupancy.
 ## Order ↔ KOT linkage (ADR-0005)
 
 Every add fires a new KOT (`addAndFireItem`: 1 order → N KOTs, each ticket
-immutable once fired); voids are deletion records on the ticket with mandatory
-reason, never hard deletes. Dine-in orders attach to occupancy via
+immutable once fired) — adds are allowed in any non-terminal order state, so
+an order with fired KOTs simply grows another ticket; voids are deletion
+records on the ticket with mandatory reason, never hard deletes. Bill
+discounts are editable until COMPLETED/CANCELLED (paid/balance re-derive). Dine-in orders attach to occupancy via
 `attachOrder`; release guards protect open orders. Detail pages fetch
 client-side (localStorage-backed mocks — server prefetch would 404 new rows).
 

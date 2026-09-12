@@ -27,7 +27,7 @@ import {
   paymentKeys,
   refundsByOrderQueryOptions,
 } from "@/features/payments/api/queries";
-import { computeSplits, setDiscount } from "@/features/orders/api/service";
+import { cancelOrder, computeSplits, setDiscount } from "@/features/orders/api/service";
 import { collectPayment } from "@/features/payments/api/service";
 import { increaseKOTLineQty, voidKOTLine } from "@/features/kitchen/api/service";
 import type { PaymentMethod, Payment } from "@/features/payments/api/types";
@@ -304,17 +304,22 @@ function invalidateBill(orderId: string, qc: ReturnType<typeof useQueryClient>) 
 }
 
 /**
- * Terminal bill panel: KOTs, cancellations, discount, splits, tender pad.
- * Never says "cart" — this is the Bill.
+ * Shared bill panel (terminal + order detail): KOTs, cancellations,
+ * discount, splits, tender pad. Seating, add-items trigger and cancel are
+ * opt-in per surface. Never says "cart" — this is the Bill.
  */
 export default function OrderBillPanel({
   orderId,
-  tableLabel,
+  title,
+  showSeating,
   onAddItems,
+  showCancel,
 }: {
   orderId: string;
-  tableLabel: string;
-  onAddItems: () => void;
+  title?: string;
+  showSeating?: boolean;
+  onAddItems?: () => void;
+  showCancel?: boolean;
 }) {
   const queryClient = useQueryClient();
   const { data: order } = useQuery(orderQueryOptions(orderId));
@@ -358,7 +363,7 @@ export default function OrderBillPanel({
     <Card className="flex h-full min-h-0 flex-col">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center justify-between text-lg">
-          <span>Bill — {tableLabel}</span>
+          <span>{title ?? "Bill"}</span>
           <Badge variant="outline" className={cn("gap-1", stamp.className)}>
             <div
               className={cn(
@@ -382,7 +387,7 @@ export default function OrderBillPanel({
         </p>
       </CardHeader>
       <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto">
-        {table && <SeatingSection table={table} floorId={table.floor_id} />}
+        {showSeating && table && <SeatingSection table={table} floorId={table.floor_id} />}
 
         <CustomerLinkBlock orderId={orderId} />
 
@@ -454,13 +459,79 @@ export default function OrderBillPanel({
           </div>
         )}
 
-        <Button variant="outline" className="w-full" onClick={onAddItems}>
-          <Icons.add className="mr-2 size-4" /> Add items
-        </Button>
+        {onAddItems && (
+          <Button variant="outline" className="w-full" onClick={onAddItems}>
+            <Icons.add className="mr-2 size-4" /> Add items
+          </Button>
+        )}
+
+        {showCancel && <CancelOrderBlock orderId={orderId} />}
       </CardContent>
 
       <DiscountDialog orderId={orderId} open={discountOpen} onOpenChange={setDiscountOpen} />
     </Card>
+  );
+}
+
+function CancelOrderBlock({ orderId }: { orderId: string }) {
+  const queryClient = useQueryClient();
+  const { data: order } = useQuery(orderQueryOptions(orderId));
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+
+  const cancelMut = useMutation({
+    mutationFn: (r: string) => cancelOrder(orderId, { reason: r }),
+    onSuccess: () => {
+      invalidateBill(orderId, queryClient);
+      toast.success("Order cancelled");
+      setCancelOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  if (!order || order.status === "COMPLETED" || order.status === "CANCELLED") return null;
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        className="w-full"
+        onClick={() => {
+          setCancelReason("");
+          setCancelOpen(true);
+        }}
+      >
+        Cancel order
+      </Button>
+      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel order {order.order_number}?</DialogTitle>
+            <DialogDescription>
+              {["PREPARING", "READY", "SERVED"].includes(order.status)
+                ? "This order has fired KOTs — cancellation is authorized and audited."
+                : "The order and its unfired lines are removed."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Reason *</Label>
+            <Input placeholder="Customer walked out…" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setCancelOpen(false)}>
+              Keep order
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={cancelMut.isPending || !cancelReason.trim()}
+              onClick={() => cancelMut.mutate(cancelReason.trim())}
+            >
+              Cancel order
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -491,7 +562,7 @@ function DiscountDialog({ orderId, open, onOpenChange }: { orderId: string; open
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Bill discount</DialogTitle>
-          <DialogDescription>Pre-tax. Only before firing — fired bills change via voids.</DialogDescription>
+          <DialogDescription>Pre-tax. Editable until the order completes — paid and balance re-derive.</DialogDescription>
         </DialogHeader>
         <div className="flex gap-2">
           {(["percent", "flat"] as const).map((k) => (
