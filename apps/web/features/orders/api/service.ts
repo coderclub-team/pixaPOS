@@ -346,6 +346,54 @@ export async function updateDraftItemQty(
   }
 }
 
+/**
+ * Set an order line qty regardless of fired state. Only called from the KOT
+ * flow (quantity increases on fired lines); draft edits keep using
+ * updateDraftItemQty. Emits ITEM_MODIFIED for the audit trail.
+ */
+export async function setOrderLineQty(
+  orderId: string,
+  lineId: string,
+  qty: number,
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(200);
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    const lineIdx = order.items.findIndex((i) => i.id === lineId);
+    if (lineIdx === -1) throw new Error("Item not found");
+    const line = order.items[lineIdx];
+    if (!Number.isInteger(qty) || qty < 1) throw new Error("Quantity must be a positive integer");
+    const lineTotal = line.unit_price_paise * qty;
+    const items = [...order.items];
+    items[lineIdx] = {
+      ...line,
+      qty,
+      line_total_paise: lineTotal,
+      line_tax_paise: Math.round((lineTotal * line.tax_percent_snapshot) / 100),
+    };
+    mockOrders[idx] = recomputeTotals({
+      ...order,
+      items,
+      updated_at: new Date().toISOString(),
+      version: order.version + 1,
+    });
+    saveOrders();
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: order.id,
+      event_type: "ITEM_MODIFIED",
+      metadata: { line_id: lineId, qty },
+    });
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
 export async function removeDraftItem(orderId: string, lineId: string): Promise<OrderWithDerived> {
   const release = await entityMutex.acquire(`order-${orderId}`);
   try {

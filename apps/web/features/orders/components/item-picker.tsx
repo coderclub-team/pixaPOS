@@ -18,6 +18,8 @@ import { cn } from "@pixa/ui/lib/utils";
 import { formatINR, toPaise } from "@/lib/money";
 import { orderKeys } from "@/features/orders/api/queries";
 import { addOrderItem } from "@/features/orders/api/service";
+import { addAndFireItem } from "@/features/kitchen/api/service";
+import { kitchenKeys } from "@/features/kitchen/api/queries";
 import { menuCategoriesQueryOptions, menuItemsQueryOptions } from "@/features/menu/api/queries";
 import { getModifiers } from "@/features/menu/api/service";
 import { getQueryClient } from "@/lib/query-client";
@@ -27,8 +29,17 @@ import type { MenuItem } from "@/features/menu/api/types";
 /**
  * Reusable menu picker: search + category rail + grid + variant/add-on dialog.
  * Used by the full add-items page and embedded in the order-terminal dialog.
+ * With autoFire (terminal), items skip the draft and land straight on a KOT.
  */
-export default function ItemPicker({ orderId, onAdded }: { orderId: string; onAdded?: () => void }) {
+export default function ItemPicker({
+  orderId,
+  onAdded,
+  autoFire,
+}: {
+  orderId: string;
+  onAdded?: () => void;
+  autoFire?: boolean;
+}) {
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [picked, setPicked] = useState<MenuItem | null>(null);
@@ -43,14 +54,19 @@ export default function ItemPicker({ orderId, onAdded }: { orderId: string; onAd
   );
 
   const addMut = useMutation({
-    mutationFn: (v: { menu_item_id: string; variant_id?: string; modifier_ids?: string[]; qty: number; instructions?: string }) =>
-      addOrderItem(orderId, v),
-    onSuccess: () => {
+    mutationFn: (v: { menu_item_id: string; variant_id?: string; modifier_ids?: string[]; qty: number; instructions?: string }): Promise<unknown> =>
+      autoFire ? addAndFireItem(orderId, v) : addOrderItem(orderId, v),
+    onSuccess: (res: unknown) => {
       const qc = getQueryClient();
       qc.invalidateQueries({ queryKey: orderKeys.detail(orderId) });
       qc.invalidateQueries({ queryKey: orderKeys.all });
+      if (autoFire) qc.invalidateQueries({ queryKey: kitchenKeys.byOrder(orderId) });
       setPicked(null);
-      toast.success("Added to draft KOT");
+      toast.success(
+        autoFire && typeof res === "object" && res !== null && "kot_number" in res
+          ? `Sent to kitchen — KOT #${(res as { kot_number: number }).kot_number}`
+          : "Added to draft KOT",
+      );
       onAdded?.();
     },
     onError: (e: Error) => toast.error(e.message),

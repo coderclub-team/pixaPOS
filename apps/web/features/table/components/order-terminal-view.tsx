@@ -69,7 +69,7 @@ export default function OrderTerminalPage() {
       pageDescription="Tap a table to capture the customer order. Works in a separate tab — sign-in carries over."
     >
       <div className="grid h-[calc(100vh-200px)] grid-cols-1 gap-6 lg:grid-cols-12">
-        <div className="lg:col-span-7">
+        <div className="min-h-0 lg:col-span-7">
           <Tabs
             value={currentFloorId}
             onValueChange={(v) => {
@@ -113,7 +113,7 @@ export default function OrderTerminalPage() {
           </Tabs>
         </div>
 
-        <div className="lg:col-span-5">
+        <div className="min-h-0 lg:col-span-5">
           {activeOrderId && activeTable ? (
             <OrderBillPanel
               orderId={activeOrderId}
@@ -144,10 +144,10 @@ export default function OrderTerminalPage() {
                 Add items{activeTable ? ` — Table ${activeTable.number}` : ""}
               </DialogTitle>
               <DialogDescription>
-                Pick products below. New items build the draft ticket — fire sends it to the kitchen.
+                Pick products below. Each item fires straight to the kitchen as its own ticket.
               </DialogDescription>
             </DialogHeader>
-            <ItemPicker orderId={activeOrderId} onAdded={() => setPickerOpen(false)} />
+            <ItemPicker orderId={activeOrderId} autoFire onAdded={() => setPickerOpen(false)} />
           </DialogContent>
         </Dialog>
       )}
