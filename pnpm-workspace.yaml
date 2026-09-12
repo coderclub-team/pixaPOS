@@ -10,5 +10,5 @@ overrides:
   postcss: 8.5.25
 allowBuilds:
   '@sentry/cli': true
-  esbuild: set this to true or false
+  esbuild: true
   sharp: true
