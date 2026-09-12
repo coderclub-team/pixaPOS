@@ -27,12 +27,7 @@ interface FloorPlanCanvasProps {
   isEditable?: boolean;
   selectedTableId?: string;
   onSelectTable?: (tableId: string | null) => void;
-  /** Terminal: long-press a table to jump straight to item picking. */
-  onTableLongPress?: (tableId: string) => void;
-  longPressMs?: number;
 }
-
-const DEFAULT_LONG_PRESS_MS = 500;
 
 type Pose = { x: number; y: number; w: number; h: number; rotation?: number };
 type DragTarget =
@@ -115,8 +110,6 @@ const TableNode = memo(function TableNode({
   onPointerDown,
   onPointerUp,
   onSelect,
-  onLongPress,
-  longPressMs,
   onKeyDown,
 }: {
   table: TableWithDerived;
@@ -126,23 +119,10 @@ const TableNode = memo(function TableNode({
   onPointerDown: (e: React.PointerEvent, mode: "move" | "resize" | "rotate", handle?: string) => void;
   onPointerUp: (e: React.PointerEvent) => void;
   onSelect: () => void;
-  onLongPress?: () => void;
-  longPressMs?: number;
   onKeyDown: (e: React.KeyboardEvent) => void;
 }) {
   const blocked = !!table.active_block || table.status === "out_of_service";
   const held = !!table.active_hold;
-  // Long-press detection (operations mode only): timer starts on pointer
-  // down, cancelled by pointer-up / leaving the node; the follow-up click
-  // is swallowed so a hold never also triggers select.
-  const pressTimer = useRef<number | null>(null);
-  const longFired = useRef(false);
-  const clearPressTimer = () => {
-    if (pressTimer.current != null) {
-      window.clearTimeout(pressTimer.current);
-      pressTimer.current = null;
-    }
-  };
   const fillClass = blocked
     ? "fill-zinc-200 stroke-zinc-500 dark:fill-zinc-800"
     : statusColors[table.status] || "fill-white stroke-zinc-300";
@@ -153,37 +133,12 @@ const TableNode = memo(function TableNode({
     <g
       transform={`translate(${pose.x},${pose.y}) rotate(${rot},${pose.w / 2},${pose.h / 2})`}
       className={cn("group transition-opacity", editable ? "cursor-move" : "cursor-pointer")}
-      onPointerDown={(e) => {
-        onPointerDown(e, "move");
-        if (!editable && onLongPress) {
-          clearPressTimer();
-          longFired.current = false;
-          pressTimer.current = window.setTimeout(() => {
-            pressTimer.current = null;
-            longFired.current = true;
-            onLongPress();
-          }, longPressMs ?? DEFAULT_LONG_PRESS_MS);
-        }
-      }}
-      onPointerUp={(e) => {
-        clearPressTimer();
-        onPointerUp(e);
-      }}
-      onPointerLeave={clearPressTimer}
-      onClick={
-        editable
-          ? undefined
-          : () => {
-              if (longFired.current) {
-                longFired.current = false;
-                return;
-              }
-              onSelect();
-            }
-      }
+      onPointerDown={(e) => onPointerDown(e, "move")}
+      onPointerUp={onPointerUp}
+      onClick={editable ? undefined : onSelect}
       role="button"
       tabIndex={0}
-      aria-label={`Table ${table.number}, ${blocked ? "blocked" : table.status}, ${table.seated_seats} of ${table.capacity} seats${onLongPress ? ". Tap for bill, hold to add items" : ""}`}
+      aria-label={`Table ${table.number}, ${blocked ? "blocked" : table.status}, ${table.seated_seats} of ${table.capacity} seats`}
       onKeyDown={onKeyDown}
     >
       {selected && (
@@ -468,8 +423,6 @@ export default function FloorPlanCanvas({
   isEditable,
   selectedTableId,
   onSelectTable,
-  onTableLongPress,
-  longPressMs,
 }: FloorPlanCanvasProps) {
   const queryClient = useQueryClient();
   const { data: layout } = useSuspenseQuery(floorLayoutQueryOptions(floorId));
@@ -1442,8 +1395,6 @@ export default function FloorPlanCanvas({
             }
             onPointerUp={endTableDrag}
             onSelect={() => onSelectTable?.(table.id)}
-            onLongPress={onTableLongPress ? () => onTableLongPress(table.id) : undefined}
-            longPressMs={longPressMs}
             onKeyDown={(e) => onTableKeyDown(e, table)}
           />
         ))}

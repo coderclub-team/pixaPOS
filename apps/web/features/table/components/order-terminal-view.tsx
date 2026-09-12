@@ -37,7 +37,6 @@ export default function OrderTerminalPage() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const exitTimer = useRef<number | null>(null);
-  const openPickerAfterEnsure = useRef(false);
 
   const { data: activeTable } = useQuery({
     ...tableQueryOptions(activeTableId ?? ""),
@@ -64,10 +63,6 @@ export default function OrderTerminalPage() {
       setActiveTableId(tableId);
       setActiveOrderId(order.id);
       setPanelOpen(true);
-      if (openPickerAfterEnsure.current) {
-        openPickerAfterEnsure.current = false;
-        setPickerOpen(true);
-      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -89,17 +84,6 @@ export default function OrderTerminalPage() {
     ensureMut.mutate(id);
   };
 
-  /** Long-press: ensure the order and jump straight to item picking. */
-  const handleHold = (id: string) => {
-    if (ensureMut.isPending) return;
-    if (id === activeTableId && activeOrderId) {
-      setPickerOpen(true);
-      return;
-    }
-    openPickerAfterEnsure.current = true;
-    ensureMut.mutate(id);
-  };
-
   if (isLoading) {
     return (
       <PageContainer pageTitle="Order Terminal" isLoading>
@@ -115,7 +99,7 @@ export default function OrderTerminalPage() {
   return (
     <PageContainer
       pageTitle="Order Terminal"
-      pageDescription="Tap a table for its bill · hold to add items. Works in a separate tab — sign-in carries over."
+      pageDescription="Tap a table for its bill. Works in a separate tab — sign-in carries over."
     >
       <div className="flex flex-col gap-4 lg:h-[calc(100dvh-200px)] lg:flex-row lg:gap-6">
         <div className="h-[52dvh] min-h-[320px] min-w-0 lg:h-auto lg:min-h-0 lg:flex-1">
@@ -143,9 +127,9 @@ export default function OrderTerminalPage() {
                 <Badge
                   variant="outline"
                   className="gap-1 border-green-500 text-green-600"
-                  title="Single tap opens the bill panel · long-press opens item picking · tap the selected table again to deselect"
+                  title="Tap a table to open its bill · tap the selected table again to deselect"
                 >
-                  <div className="h-2 w-2 rounded-full bg-green-500" /> Tap = bill · Hold = add items
+                  <div className="h-2 w-2 rounded-full bg-green-500" /> Tap a table for its bill
                 </Badge>
               )}
             </div>
@@ -157,7 +141,6 @@ export default function OrderTerminalPage() {
                     mode="operations"
                     selectedTableId={activeTableId ?? undefined}
                     onSelectTable={handleTap}
-                    onTableLongPress={handleHold}
                   />
                 </Suspense>
               </TabsContent>
