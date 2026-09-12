@@ -1345,11 +1345,11 @@ export default function FloorPlanCanvas({
             </Button>
           </>
         )}
-        <Button variant="secondary" size="icon-sm" onClick={() => zoomCenter(1.2)} title="Zoom in">
-          <Icons.add className="size-4" />
+        <Button variant="secondary" size="icon-sm" className="max-lg:h-11 max-lg:w-11" onClick={() => zoomCenter(1.2)} title="Zoom in" aria-label="Zoom in">
+          <Icons.add className="size-4 max-lg:size-5" />
         </Button>
-        <Button variant="secondary" size="icon-sm" onClick={() => zoomCenter(1 / 1.2)} title="Zoom out">
-          <Icons.chevronDown className="size-4 rotate-180" />
+        <Button variant="secondary" size="icon-sm" className="max-lg:h-11 max-lg:w-11" onClick={() => zoomCenter(1 / 1.2)} title="Zoom out" aria-label="Zoom out">
+          <Icons.chevronDown className="size-4 rotate-180 max-lg:size-5" />
         </Button>
       </div>
       {saving && (

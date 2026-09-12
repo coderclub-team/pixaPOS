@@ -308,11 +308,11 @@ function PickItemDialog({
         </div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
-            <Button variant="outline" size="icon-sm" disabled={qty <= 1} onClick={() => setQty(qty - 1)}>
+            <Button variant="outline" size="icon-sm" className="max-lg:h-10 max-lg:w-10" disabled={qty <= 1} onClick={() => setQty(qty - 1)} aria-label="Decrease quantity">
               <Icons.minus className="size-4" />
             </Button>
             <span className="w-8 text-center font-medium">{qty}</span>
-            <Button variant="outline" size="icon-sm" disabled={qty >= 50} onClick={() => setQty(qty + 1)}>
+            <Button variant="outline" size="icon-sm" className="max-lg:h-10 max-lg:w-10" disabled={qty >= 50} onClick={() => setQty(qty + 1)} aria-label="Increase quantity">
               <Icons.add className="size-4" />
             </Button>
           </div>
