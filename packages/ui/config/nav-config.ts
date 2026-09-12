@@ -109,7 +109,7 @@ export const navGroups: NavGroup[] = [
         title: "Profile",
         url: "#",
         icon: "user",
-        isActive: true,
+        isActive: false,
         items: [
           {
             title: "Outlet Profile",
@@ -124,7 +124,7 @@ export const navGroups: NavGroup[] = [
         title: "Setup",
         url: "#",
         icon: "settings",
-        isActive: true,
+        isActive: false,
         items: [
           {
             title: "Business Hours",
@@ -156,7 +156,7 @@ export const navGroups: NavGroup[] = [
         title: "Floors & Tables",
         url: "#",
         icon: "layers",
-        isActive: true,
+        isActive: false,
         items: [
           {
             title: "Floors",
@@ -190,7 +190,7 @@ export const navGroups: NavGroup[] = [
         title: "Menu",
         url: "#",
         icon: "pizza",
-        isActive: true,
+        isActive: false,
         items: [
           {
             title: "Categories",
@@ -217,7 +217,7 @@ export const navGroups: NavGroup[] = [
         title: "Masters",
         url: "#",
         icon: "warehouse",
-        isActive: true,
+        isActive: false,
         items: [
           {
             title: "Raw Materials",
@@ -246,7 +246,7 @@ export const navGroups: NavGroup[] = [
         title: "Buying",
         url: "#",
         icon: "cart",
-        isActive: true,
+        isActive: false,
         items: [
           {
             title: "Purchase Orders",
@@ -289,7 +289,7 @@ export const navGroups: NavGroup[] = [
         title: "Reports",
         url: "#",
         icon: "warehouse",
-        isActive: true,
+        isActive: false,
         items: [
           {
             title: "Stock History",
@@ -360,7 +360,7 @@ export const navGroups: NavGroup[] = [
         title: "Forms",
         url: "#",
         icon: "forms",
-        isActive: true,
+        isActive: false,
         items: [
           {
             title: "Basic Form",
@@ -446,7 +446,7 @@ export const navGroups: NavGroup[] = [
         title: "Account",
         url: "#",
         icon: "account",
-        isActive: true,
+        isActive: false,
         items: [
           {
             title: "Profile",
