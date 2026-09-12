@@ -115,14 +115,14 @@ export default function KotItemDialog({
       const variant = item.variants.find((v) => v.is_default) ?? item.variants[0];
       return {
         ...prev,
-        [item.id]: cur ?? {
+        [item.id]: {
           key: item.id,
           menu_item_id: item.id,
           name: item.name,
-          variant_id: variant?.id,
-          variant_name: item.product_type === "variant" ? variant?.name : undefined,
-          modifier_ids: [],
-          modifier_names: [],
+          variant_id: cur?.variant_id ?? variant?.id,
+          variant_name: cur?.variant_name ?? (item.product_type === "variant" ? variant?.name : undefined),
+          modifier_ids: cur?.modifier_ids ?? [],
+          modifier_names: cur?.modifier_names ?? [],
           qty,
         },
       };
