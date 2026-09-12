@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
@@ -16,10 +16,11 @@ import { Label } from "@pixa/ui/base-ui/label";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { formatINR, toPaise } from "@/lib/money";
-import { orderKeys } from "@/features/orders/api/queries";
+import { orderKeys, orderQueryOptions } from "@/features/orders/api/queries";
 import { addOrderItem } from "@/features/orders/api/service";
-import { addAndFireItem } from "@/features/kitchen/api/service";
+import { addAndFireItem, fireKOT } from "@/features/kitchen/api/service";
 import { kitchenKeys } from "@/features/kitchen/api/queries";
+import { useFlyToKot } from "./use-fly-to-kot";
 import { menuCategoriesQueryOptions, menuItemsQueryOptions } from "@/features/menu/api/queries";
 import { getModifiers } from "@/features/menu/api/service";
 import { getQueryClient } from "@/lib/query-client";
@@ -30,19 +31,29 @@ import type { MenuItem } from "@/features/menu/api/types";
  * Reusable menu picker: search + category rail + grid + variant/add-on dialog.
  * Used by the full add-items page and embedded in the order-terminal dialog.
  * With autoFire (terminal), items skip the draft and land straight on a KOT.
+ * With stayOpen, the picker remains for rapid multi-add and shows a fire
+ * footer (draft count + Fire to kitchen + Done) instead of closing per add.
  */
 export default function ItemPicker({
   orderId,
   onAdded,
   autoFire,
+  stayOpen,
+  onClose,
 }: {
   orderId: string;
   onAdded?: () => void;
   autoFire?: boolean;
+  stayOpen?: boolean;
+  onClose?: () => void;
 }) {
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [picked, setPicked] = useState<MenuItem | null>(null);
+  const { fly, ghostNode } = useFlyToKot();
+  // Source rect + label captured at tap time for the fly-to-KOT ghost.
+  const pendingFly = useRef<{ rect: { x: number; y: number; width: number }; label: string } | null>(null);
+  const { data: order } = useQuery({ ...orderQueryOptions(orderId), enabled: !!stayOpen });
 
   const { data: categories } = useQuery(menuCategoriesQueryOptions({}));
   const { data: items, isPending } = useQuery(
@@ -62,15 +73,32 @@ export default function ItemPicker({
       qc.invalidateQueries({ queryKey: orderKeys.all });
       if (autoFire) qc.invalidateQueries({ queryKey: kitchenKeys.byOrder(orderId) });
       setPicked(null);
+      const flyFrom = pendingFly.current;
+      pendingFly.current = null;
+      if (flyFrom) fly(flyFrom.rect, flyFrom.label);
       toast.success(
         autoFire && typeof res === "object" && res !== null && "kot_number" in res
           ? `Sent to kitchen — KOT #${(res as { kot_number: number }).kot_number}`
           : "Added to draft KOT",
       );
-      onAdded?.();
+      if (!stayOpen) onAdded?.();
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const fireMut = useMutation({
+    mutationFn: () => fireKOT(orderId),
+    onSuccess: (kot) => {
+      const qc = getQueryClient();
+      qc.invalidateQueries({ queryKey: orderKeys.detail(orderId) });
+      qc.invalidateQueries({ queryKey: orderKeys.all });
+      qc.invalidateQueries({ queryKey: kitchenKeys.byOrder(orderId) });
+      toast.success(`KOT #${kot.kot_number} fired to kitchen`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const draftCount = order?.items.filter((i) => !i.kot_id).length ?? 0;
 
   const activeCategories = useMemo(
     () => (categories ?? []).filter((c) => c.is_active),
@@ -124,7 +152,13 @@ export default function ItemPicker({
             <button
               key={item.id}
               type="button"
-              onClick={() => setPicked(item)}
+              onClick={(e) => {
+                pendingFly.current = {
+                  rect: e.currentTarget.getBoundingClientRect(),
+                  label: item.name,
+                };
+                setPicked(item);
+              }}
               className="rounded-xl border bg-card p-3 text-left transition-colors hover:border-primary"
             >
               <p className="truncate text-sm font-medium">{item.name}</p>
@@ -158,6 +192,30 @@ export default function ItemPicker({
           onAdd={(v) => addMut.mutate({ menu_item_id: picked.id, ...v })}
         />
       )}
+
+      {stayOpen && (
+        <div className="sticky bottom-0 mt-4 flex items-center gap-2 border-t bg-background/95 pt-3 backdrop-blur-sm">
+          <p className="text-sm text-muted-foreground">
+            {draftCount > 0
+              ? `${draftCount} item${draftCount === 1 ? "" : "s"} in draft`
+              : "No draft items"}
+          </p>
+          <div className="ml-auto flex gap-2">
+            {onClose && (
+              <Button variant="outline" onClick={onClose}>
+                Done
+              </Button>
+            )}
+            <Button
+              disabled={fireMut.isPending || draftCount === 0}
+              onClick={() => fireMut.mutate()}
+            >
+              {fireMut.isPending ? "Firing…" : "Fire to kitchen"}
+            </Button>
+          </div>
+        </div>
+      )}
+      {ghostNode}
     </div>
   );
 }

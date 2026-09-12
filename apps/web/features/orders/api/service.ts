@@ -67,6 +67,21 @@ function canTransitionOrder(from: OrderStatus, to: OrderStatus): boolean {
   return ORDER_TRANSITIONS[from].includes(to);
 }
 
+/**
+ * Release-locks-order rule: a dine-in order is editable only while its table
+ * has active occupancy. Takeaway/delivery/online orders are unaffected.
+ * Payments and refunds always stay open (separate axis).
+ */
+export async function assertTableOccupied(order: RestaurantOrder): Promise<void> {
+  if (order.channel !== "dine_in" || !order.table_id) return;
+  if (order.status === "COMPLETED" || order.status === "CANCELLED") return;
+  const table = await getTableById(order.table_id);
+  if (!table) throw new Error("Table not found");
+  if (table.active_groups.length === 0) {
+    throw new Error("Table is unoccupied — the order is locked. Payments and refunds still work.");
+  }
+}
+
 async function transitionOrder(
   idx: number,
   to: OrderStatus,
@@ -230,6 +245,7 @@ export async function addOrderItem(
     if (order.status !== "DRAFT" && order.status !== "CONFIRMED") {
       throw new Error(`Cannot add items to an order in ${order.status}. Fire a new KOT from the kitchen flow.`);
     }
+    await assertTableOccupied(order);
 
     const menuItem = await getMenuItemById(input.menu_item_id);
     if (!menuItem || !menuItem.is_active) throw new Error("Menu item is not available");
@@ -317,6 +333,7 @@ export async function updateDraftItemQty(
       throw new Error("Item is already fired to the kitchen. Void it from the KOT instead.");
     }
     if (!Number.isInteger(qty) || qty < 1) throw new Error("Quantity must be a positive integer");
+    await assertTableOccupied(order);
     const lineTotal = line.unit_price_paise * qty;
     const updated: OrderItemSnapshot = {
       ...line,
@@ -366,6 +383,7 @@ export async function setOrderLineQty(
     if (lineIdx === -1) throw new Error("Item not found");
     const line = order.items[lineIdx];
     if (!Number.isInteger(qty) || qty < 1) throw new Error("Quantity must be a positive integer");
+    await assertTableOccupied(order);
     const lineTotal = line.unit_price_paise * qty;
     const items = [...order.items];
     items[lineIdx] = {
@@ -406,6 +424,7 @@ export async function removeDraftItem(orderId: string, lineId: string): Promise<
     if (line.kot_id) {
       throw new Error("Item is already fired to the kitchen. Void it from the KOT instead.");
     }
+    await assertTableOccupied(order);
     mockOrders[idx] = recomputeTotals({
       ...order,
       items: order.items.filter((i) => i.id !== lineId),
@@ -678,6 +697,7 @@ export async function setDiscount(
     if (order.status !== "DRAFT" && order.status !== "CONFIRMED") {
       throw new Error("Discount can only change before firing to the kitchen");
     }
+    await assertTableOccupied(order);
     if (!params.reason?.trim()) throw new Error("A reason is required for a discount");
     if (params.percent !== undefined && (params.percent <= 0 || params.percent > 100)) {
       throw new Error("Discount percent must be between 0 and 100");

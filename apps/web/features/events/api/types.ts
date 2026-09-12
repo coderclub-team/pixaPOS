@@ -57,6 +57,7 @@ export type BusinessEventType =
   | "ORDER_DISCOUNTED"
   | "ORDER_SPLIT_BUILT"
   | "ORDER_PAID"
+  | "ORDER_LOCKED"
   | "CUSTOMER_CREATED"
   | "CUSTOMER_UPDATED"
   | "CUSTOMER_DELETED"

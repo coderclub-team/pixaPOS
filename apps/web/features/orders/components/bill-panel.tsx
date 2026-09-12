@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
@@ -19,6 +19,8 @@ import { cn } from "@pixa/ui/lib/utils";
 import { formatINR, toPaise } from "@/lib/money";
 import { orderKeys, orderQueryOptions } from "@/features/orders/api/queries";
 import { kotsByOrderQueryOptions, kitchenKeys } from "@/features/kitchen/api/queries";
+import { tableQueryOptions } from "@/features/table/api/queries";
+import CustomerLinkBlock from "@/features/customers/components/customer-link-block";
 import {
   paymentsByOrderQueryOptions,
   paymentKeys,
@@ -62,6 +64,19 @@ const METHODS: { value: PaymentMethod; label: string }[] = [
 export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketWithDerived[]; orderId: string; editable?: boolean }) {
   const queryClient = useQueryClient();
   const [openId, setOpenId] = useState<string | null>(kots[0]?.id ?? null);
+  // Arrival flash: when a new KOT lands, auto-expand it and pulse once.
+  const [flashId, setFlashId] = useState<string | null>(null);
+  const seenIds = useRef(new Set(kots.map((k) => k.id)));
+  useEffect(() => {
+    const fresh = kots.find((k) => !seenIds.current.has(k.id));
+    seenIds.current = new Set(kots.map((k) => k.id));
+    if (fresh) {
+      setOpenId(fresh.id);
+      setFlashId(fresh.id);
+      const t = window.setTimeout(() => setFlashId((f) => (f === fresh.id ? null : f)), 1600);
+      return () => window.clearTimeout(t);
+    }
+  }, [kots]);
   const [reduceTarget, setReduceTarget] = useState<{ kotId: string; lineId: string; max: number; name: string } | null>(null);
   const [reason, setReason] = useState("");
   const [reduceQty, setReduceQty] = useState(1);
@@ -102,7 +117,13 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
       {kots.map((kot) => {
         const open = openId === kot.id;
         return (
-          <div key={kot.id} className="rounded-lg border">
+          <div
+            key={kot.id}
+            className={cn(
+              "rounded-lg border",
+              flashId === kot.id && "animate-pulse border-primary ring-2 ring-primary/40",
+            )}
+          >
             <button
               type="button"
               onClick={() => setOpenId(open ? null : kot.id)}
@@ -296,6 +317,10 @@ export default function OrderBillPanel({
   const { data: kots } = useQuery(kotsByOrderQueryOptions(orderId));
   const { data: payments } = useQuery(paymentsByOrderQueryOptions(orderId));
   const { data: refunds } = useQuery(refundsByOrderQueryOptions(orderId));
+  const { data: table } = useQuery({
+    ...tableQueryOptions(order?.table_id ?? ""),
+    enabled: !!order?.table_id,
+  });
 
   const [discountOpen, setDiscountOpen] = useState(false);
   const [splitMode, setSplitMode] = useState<"none" | "equal" | "itemwise" | "custom">("none");
@@ -344,12 +369,21 @@ export default function OrderBillPanel({
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           {order.order_number} · {order.items.length} item{order.items.length === 1 ? "" : "s"}
+          {table && (
+            <span className="ml-2">
+              · {table.seated_seats}/{table.capacity} seated
+              {table.occupancy_fill !== "EMPTY" ? ` · ${table.occupancy_fill.toLowerCase()}` : ""}
+            </span>
+          )}
         </p>
       </CardHeader>
       <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+        <CustomerLinkBlock orderId={orderId} />
+
         <div className="space-y-1">
           <p className="text-xs font-medium uppercase text-muted-foreground">Kitchen tickets</p>
           <KOTAccordion kots={kots ?? []} orderId={orderId} editable />
+          <div data-kot-list-bottom />
         </div>
 
         <CancelledItemsList kots={kots ?? []} />
@@ -784,6 +818,11 @@ function TenderPad({ orderId, duePaise, partitionLabel }: { orderId: string; due
         <>
           <p className="text-[11px] text-muted-foreground">
             Split one collection across methods — e.g. part cash, part UPI. Rows must add up to at most the due.
+            {duePaise - rowsTotal > 0 && (
+              <span className="ml-1 font-medium text-amber-600">
+                {formatINR(duePaise - rowsTotal)} unpaid
+              </span>
+            )}
           </p>
           {rows.map((r, i) => (
             <div key={i} className="flex items-center gap-1.5">
@@ -816,6 +855,17 @@ function TenderPad({ orderId, duePaise, partitionLabel }: { orderId: string; due
                   placeholder="Tendered"
                 />
               )}
+              <Button
+                variant="ghost"
+                size="sm"
+                title="Fill with remaining due"
+                onClick={() => {
+                  const others = rowsTotal - (r.amount ? toPaise(Number(r.amount)) : 0);
+                  updateRow(i, { amount: (Math.max(0, duePaise - others) / 100).toFixed(2) });
+                }}
+              >
+                Fill
+              </Button>
               {rows.length > 2 && (
                 <Button variant="ghost" size="icon-sm" onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}>
                   <Icons.close className="size-3.5" />
