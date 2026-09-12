@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card"
 import { Icons } from "@pixa/ui/icons";
 import { formatINR } from "@/lib/money";
 import { orderQueryOptions } from "@/features/orders/api/queries";
-import { kotsByOrderQueryOptions } from "@/features/kitchen/api/queries";
 import CustomerLinkBlock from "@/features/customers/components/customer-link-block";
 import OrderBillPanel from "./bill-panel";
 import OrderStatusText from "./order-status";
@@ -55,14 +54,9 @@ export default function OrderWorkspacePage({ orderId }: { orderId: string }) {
         </Button>
       }
     >
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <div className="space-y-6 lg:col-span-7">
-          <OrderInfoCard orderId={order.id} />
-          <OrderBillPanel orderId={order.id} title="Bill" showCancel />
-        </div>
-        <div className="space-y-6 lg:col-span-5">
-          <KotSummaryCard orderId={order.id} />
-        </div>
+      <div className="mx-auto w-full max-w-4xl space-y-6">
+        <OrderInfoCard orderId={order.id} />
+        <OrderBillPanel orderId={order.id} title="Bill" showCancel />
       </div>
 
       <KotItemDialog orderId={order.id} open={addOpen} onOpenChange={setAddOpen} />
@@ -126,37 +120,4 @@ function OrderInfoCard({ orderId }: { orderId: string }) {
   );
 }
 
-function KotSummaryCard({ orderId }: { orderId: string }) {
-  const { data: kots } = useQuery(kotsByOrderQueryOptions(orderId));
-  const list = kots ?? [];
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Kitchen tickets ({list.length})</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-1.5">
-        {list.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            Nothing fired yet. Use Add Items — each add creates a new KOT.
-          </p>
-        ) : (
-          list.map((kot) => (
-            <div key={kot.id} className="flex items-center justify-between rounded-lg border px-2 py-1.5 text-sm">
-              <span className="font-medium">
-                KOT #{kot.kot_number}
-                <span className="ml-2 text-xs font-normal capitalize text-muted-foreground">
-                  {kot.status.toLowerCase()} · {kot.lines.length} item{ KotPlural(kot)}
-                </span>
-              </span>
-              <span className="text-xs text-muted-foreground">{kot.age_minutes}m old</span>
-            </div>
-          ))
-        )}
-      </CardContent>
-    </Card>
-  );
-}
 
-function KotPlural(kot: { lines: unknown[] }) {
-  return kot.lines.length === 1 ? "" : "s";
-}
