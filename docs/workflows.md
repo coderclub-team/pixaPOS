@@ -10,8 +10,8 @@ DRAFT → CONFIRMED → IN_KITCHEN → PREPARING → READY → SERVED → COMPLE
 
 Cancellation: `DRAFT → CANCELLED`, `CONFIRMED → CANCELLED`, `IN_KITCHEN → CANCELLED`. Past `PREPARING`, cancellation needs authorization and records who/when/reason/previous-state/financial + inventory impact.
 
-- **DRAFT**: building — add/remove items, variants, modifiers, table, customer, instructions, permitted discounts. No kitchen ticket.
-- **CONFIRMED**: cashier/server confirmed — print receipt, send to kitchen, accept payment, policy-bound modify/cancel.
+- **DRAFT**: retired from order-taking — orders are created CONFIRMED (the state remains in the union for stored history only). No draft UI exists.
+- **CONFIRMED**: order accepted — add items (each add fires a new KOT), send to kitchen, accept payment, policy-bound modify/cancel.
 - **IN_KITCHEN**: ticket created; kitchen may begin. **PREPARING**: kitchen started (item-ready marks allowed; cancel needs auth). **READY**: awaiting pickup/serve/delivery. **SERVED** (dine-in). **COMPLETED**: normally `payment = PAID` + fulfillment done.
 
 ## 2. Order-item workflow
@@ -69,15 +69,15 @@ occupancy.
 
 ## Order ↔ KOT linkage (ADR-0005)
 
-Unfired order lines are the virtual draft KOT. `fireKOT` freezes them into an
-immutable ticket (1 order → N KOTs); voids are deletion records on the ticket
-with mandatory reason, never hard deletes. Dine-in orders attach to occupancy
-via `attachOrder`; release guards protect open orders. Detail pages fetch
+Every add fires a new KOT (`addAndFireItem`: 1 order → N KOTs, each ticket
+immutable once fired); voids are deletion records on the ticket with mandatory
+reason, never hard deletes. Dine-in orders attach to occupancy via
+`attachOrder`; release guards protect open orders. Detail pages fetch
 client-side (localStorage-backed mocks — server prefetch would 404 new rows).
 
 Reception capture (ADR-0006): `/dashboard/order-terminal` shows the operations
 floor; tapping a table runs `ensureTableOrder` (live order or auto-created
-DRAFT + seated + attached) and opens the product dialogue. Same-tab Clerk
+CONFIRMED + seated + attached) and opens the product dialogue. Same-tab Clerk
 session carries to other tabs automatically. Firing uses the same `fireKOT`;
 voids stay in the order workspace.
 
