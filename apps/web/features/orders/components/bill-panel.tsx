@@ -21,6 +21,7 @@ import { orderKeys, orderQueryOptions } from "@/features/orders/api/queries";
 import { kotsByOrderQueryOptions, kitchenKeys } from "@/features/kitchen/api/queries";
 import { tableQueryOptions } from "@/features/table/api/queries";
 import CustomerLinkBlock from "@/features/customers/components/customer-link-block";
+import SeatingSection from "@/features/table/components/seating-section";
 import {
   paymentsByOrderQueryOptions,
   paymentKeys,
@@ -381,6 +382,8 @@ export default function OrderBillPanel({
         </p>
       </CardHeader>
       <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+        {table && <SeatingSection table={table} floorId={table.floor_id} />}
+
         <CustomerLinkBlock orderId={orderId} />
 
         <div className="space-y-1">

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import PageContainer from "@/components/layout/page-container";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { floorsQueryOptions } from "@/features/floor/api/queries";
 import { tableKeys, tableQueryOptions, tablesQueryOptions } from "@/features/table/api/queries";
 import { floorKeys } from "@/features/floor/api/queries";
@@ -73,6 +74,7 @@ function TableDetailPanel({
   floorId: string | undefined;
 }) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [seatOpen, setSeatOpen] = useState(false);
   const [partySize, setPartySize] = useState(2);
 
@@ -266,8 +268,9 @@ function TableDetailPanel({
           className="w-full justify-start gap-2"
           disabled={!orderId}
           title={orderId ? `Open order ${orderId}` : "No active order — seat guests first"}
+          onClick={() => orderId && router.push(`/dashboard/orders/${table.active_groups.find((g) => g.order_id)?.order_id}`)}
         >
-          <Icons.edit className="size-4" /> View Order
+          <Icons.edit className="mr-2 h-4 w-4" /> View Order
         </Button>
         {table.status === "cleaning" && (
           <Button

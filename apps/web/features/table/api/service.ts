@@ -1068,6 +1068,43 @@ export async function markCleaned(params: {
   }
 }
 
+/**
+ * Direct, reason-audited status write through the transition map.
+ * Illegal jumps (e.g. occupied → available) are rejected with guidance —
+ * use release → cleaning → mark-cleaned for the normal path.
+ */
+export async function setTableStatus(params: {
+  table_id: string;
+  to: TableStatus;
+  reason: string;
+  by?: string;
+  ctx?: Partial<CommandContext>;
+}): Promise<TableWithDerived> {
+  const release = await entityMutex.acquire(`table-${params.table_id}`);
+  try {
+    await delay(300);
+    const idx = mockTables.findIndex((t) => t.id === params.table_id && !t.deleted_at);
+    if (idx === -1) throw new Error("Table not found");
+    const ctx = ctxOf({ ...params.ctx, actor_id: params.by ?? params.ctx?.actor_id });
+    assertOutlet(mockTables[idx].outlet_id, ctx, "Table");
+    if (!params.reason?.trim()) throw new Error("A reason is required to change table status");
+    const from = mockTables[idx].status;
+    if (from === params.to) return enrichTable(mockTables[idx]);
+    if (from === "occupied" && params.to === "available") {
+      throw new Error("Release guests first — occupied tables clear via release → cleaning → mark cleaned");
+    }
+    await transitionTable(idx, params.to, {
+      actor_id: ctx.actor_id,
+      reason_text: params.reason.trim(),
+      event_type: "TABLE_STATUS_SET",
+    });
+    saveTables();
+    return enrichTable(mockTables[idx]);
+  } finally {
+    release();
+  }
+}
+
 export async function blockTable(params: {
   table_id: string;
   reason: string;

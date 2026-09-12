@@ -89,20 +89,6 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Tables",
-    items: [
-      {
-        title: "Tables",
-        url: "/dashboard/tables",
-        icon: "table",
-        isActive: false,
-        shortcut: ["t", "t"],
-        items: [],
-        access: { requireOrg: true },
-      },
-    ],
-  },
-  {
     label: "Outlet",
     items: [
       {
