@@ -40,7 +40,7 @@ import {
 import { Icons } from "@pixa/ui/icons";
 import { formatINR } from "@/lib/money";
 import { orderKeys, ordersQueryOptions } from "@/features/orders/api/queries";
-import { confirmOrder, deleteOrder } from "@/features/orders/api/service";
+import { deleteOrder } from "@/features/orders/api/service";
 import type { OrderChannel, OrderStatus, OrderWithDerived } from "@/features/orders/api/types";
 import OrderStatusText from "@/features/orders/components/order-status";
 import { getQueryClient } from "@/lib/query-client";
@@ -195,16 +195,8 @@ export default function OrdersPage() {
                     </TableCell>
                     <TableCell className="text-sm">
                       {o.items.length} item{o.items.length === 1 ? "" : "s"}
-                      {o.draft_items > 0 && (
-                        <span className="ml-1 text-xs text-amber-600">({o.draft_items} draft)</span>
-                      )}
                     </TableCell>
-                    <TableCell className="text-sm">
-                      {o.kot_count}
-                      {o.draft_items > 0 && (
-                        <span className="ml-1 text-xs text-amber-600">+{o.draft_items} draft</span>
-                      )}
-                    </TableCell>
+                    <TableCell className="text-sm">{o.kot_count}</TableCell>
                     <TableCell className="font-medium">{formatINR(o.total_paise)}</TableCell>
                     <TableCell>
                       <OrderStatusText status={o.status} />
@@ -227,19 +219,11 @@ function OrderActions({ order }: { order: OrderWithDerived }) {
   const router = useRouter();
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  const confirmMut = useMutation({
-    mutationFn: (id: string) => confirmOrder(id),
-    onSuccess: (o) => {
-      getQueryClient().invalidateQueries({ queryKey: orderKeys.all });
-      toast.success(`Order ${o.order_number} confirmed`);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
   const deleteMut = useMutation({
     mutationFn: (id: string) => deleteOrder(id),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: orderKeys.all });
-      toast.success("Draft order deleted");
+      toast.success("Order deleted");
       setDeleteOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -252,7 +236,7 @@ function OrderActions({ order }: { order: OrderWithDerived }) {
           <DialogHeader>
             <DialogTitle>Delete {order.order_number}?</DialogTitle>
             <DialogDescription>
-              Only draft orders can be deleted. Orders with fired items must be cancelled instead.
+              Only orders with no fired items can be deleted. Fired orders must be cancelled instead.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2">
@@ -281,14 +265,6 @@ function OrderActions({ order }: { order: OrderWithDerived }) {
             <DropdownMenuItem onClick={() => router.push(`/dashboard/orders/${order.id}`)}>
               <Icons.edit className="mr-2 h-4 w-4" /> Update
             </DropdownMenuItem>
-            {order.status === "DRAFT" && (
-              <DropdownMenuItem
-                onClick={() => confirmMut.mutate(order.id)}
-                disabled={confirmMut.isPending}
-              >
-                <Icons.check className="mr-2 h-4 w-4" /> Confirm
-              </DropdownMenuItem>
-            )}
             <DropdownMenuItem onClick={() => setDeleteOpen(true)}>
               <Icons.trash className="mr-2 h-4 w-4" /> Delete
             </DropdownMenuItem>

@@ -203,7 +203,7 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
       customer_name: input.customer_name?.trim() || undefined,
       customer_phone: input.customer_phone?.trim() || undefined,
       external_ref: input.external_ref?.trim() || undefined,
-      status: "DRAFT",
+      status: "CONFIRMED",
       items: [],
       subtotal_paise: 0,
       tax_paise: 0,
@@ -222,9 +222,17 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
       entity_type: "ORDER",
       entity_id: order.id,
       event_type: "ORDER_CREATED",
-      to_state: "DRAFT",
+      to_state: "CONFIRMED",
       actor_id: order.created_by,
       metadata: { channel: order.channel, order_number: order.order_number },
+    });
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: order.id,
+      event_type: "ORDER_CONFIRMED",
+      to_state: "CONFIRMED",
+      actor_id: order.created_by,
     });
     return enrichOrder(order);
   } finally {
@@ -242,8 +250,8 @@ export async function addOrderItem(
     const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
     if (idx === -1) throw new Error("Order not found");
     const order = mockOrders[idx];
-    if (order.status !== "DRAFT" && order.status !== "CONFIRMED") {
-      throw new Error(`Cannot add items to an order in ${order.status}. Fire a new KOT from the kitchen flow.`);
+    if (order.status !== "CONFIRMED") {
+      throw new Error(`Cannot add items to an order in ${order.status}.`);
     }
     await assertTableOccupied(order);
 
@@ -445,15 +453,22 @@ export async function removeDraftItem(orderId: string, lineId: string): Promise<
   }
 }
 
+/**
+ * Idempotent no-op for CONFIRMED orders (orders are created confirmed since
+ * drafts were retired). Kept so existing callers don't break.
+ */
 export async function confirmOrder(orderId: string, by?: string): Promise<OrderWithDerived> {
   const release = await entityMutex.acquire(`order-${orderId}`);
   try {
     await delay(300);
     const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
     if (idx === -1) throw new Error("Order not found");
-    if (mockOrders[idx].items.length === 0) throw new Error("Cannot confirm an empty order");
-    await transitionOrder(idx, "CONFIRMED", { actor_id: by ?? "staff", event_type: "ORDER_CONFIRMED" });
-    saveOrders();
+    if (mockOrders[idx].status === "CONFIRMED") return enrichOrder(mockOrders[idx]);
+    if (mockOrders[idx].status === "DRAFT") {
+      if (mockOrders[idx].items.length === 0) throw new Error("Cannot confirm an empty order");
+      await transitionOrder(idx, "CONFIRMED", { actor_id: by ?? "staff", event_type: "ORDER_CONFIRMED" });
+      saveOrders();
+    }
     return enrichOrder(mockOrders[idx]);
   } finally {
     release();
@@ -520,7 +535,7 @@ export async function cancelOrder(
 }
 
 /**
- * Terminal capture: return the table's live order, or auto-create a DRAFT
+ * Terminal capture: return the table's live order, or auto-create a CONFIRMED
  * dine-in order and attach it to the active occupancy group. Seats a default
  * party (table capacity) when the table has no active group. Serialized under
  * the order-write lock so double-taps can't create two drafts.
@@ -585,9 +600,9 @@ export async function ensureTableOrder(
 }
 
 /**
- * Delete a draft order (soft-delete). Only DRAFT orders without fired lines
- * can be deleted — anything fired must go through cancelOrder. Unlinks the
- * occupancy group so release guards don't demand a force-release later.
+ * Delete an unfired order (soft-delete). Allowed iff no line has fired to a
+ * KOT, regardless of status — anything fired must go through cancelOrder.
+ * Unlinks the occupancy group so release guards don't demand a force-release.
  */
 export async function deleteOrder(orderId: string, by?: string): Promise<void> {
   const release = await entityMutex.acquire(`order-${orderId}`);
@@ -597,9 +612,6 @@ export async function deleteOrder(orderId: string, by?: string): Promise<void> {
     const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
     if (idx === -1) throw new Error("Order not found");
     const order = mockOrders[idx];
-    if (order.status !== "DRAFT") {
-      throw new Error("Only draft orders can be deleted — cancel it instead");
-    }
     if (order.items.some((i) => i.kot_id)) {
       throw new Error("Order has fired items — cancel it instead");
     }
@@ -608,7 +620,7 @@ export async function deleteOrder(orderId: string, by?: string): Promise<void> {
     mockOrders[idx] = {
       ...order,
       deleted_at: now,
-      cancelled_reason: "Draft deleted",
+      cancelled_reason: "Order deleted before firing",
       cancelled_by: by ?? "staff",
       updated_at: now,
       version: order.version + 1,
@@ -619,9 +631,9 @@ export async function deleteOrder(orderId: string, by?: string): Promise<void> {
       entity_type: "ORDER",
       entity_id: order.id,
       event_type: "ORDER_CANCELLED",
-      from_state: "DRAFT",
+      from_state: order.status,
       actor_id: by ?? "staff",
-      reason_text: "Draft deleted",
+      reason_text: "Order deleted before firing",
     });
   } finally {
     release();
@@ -681,7 +693,7 @@ export async function linkCustomer(
 }
 
 /**
- * Bill-level discount (percent or flat paise, pre-tax). DRAFT/CONFIRMED only —
+ * Bill-level discount (percent or flat paise, pre-tax). CONFIRMED only —
  * once fired, the bill is locked except via voids/refunds.
  */
 export async function setDiscount(
@@ -694,7 +706,7 @@ export async function setDiscount(
     const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
     if (idx === -1) throw new Error("Order not found");
     const order = mockOrders[idx];
-    if (order.status !== "DRAFT" && order.status !== "CONFIRMED") {
+    if (order.status !== "CONFIRMED") {
       throw new Error("Discount can only change before firing to the kitchen");
     }
     await assertTableOccupied(order);
