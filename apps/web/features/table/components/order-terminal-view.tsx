@@ -176,7 +176,8 @@ export default function OrderTerminalPage() {
               {activeOrderId && activeTable ? (
                 <OrderBillPanel
                   orderId={activeOrderId}
-                  tableLabel={`Table ${activeTable.number}`}
+                  title={`Bill — Table ${activeTable.number}`}
+                  showSeating
                   onAddItems={() => setPickerOpen(true)}
                 />
               ) : (

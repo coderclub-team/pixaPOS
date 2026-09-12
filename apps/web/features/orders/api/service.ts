@@ -250,8 +250,8 @@ export async function addOrderItem(
     const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
     if (idx === -1) throw new Error("Order not found");
     const order = mockOrders[idx];
-    if (order.status !== "CONFIRMED") {
-      throw new Error(`Cannot add items to an order in ${order.status}.`);
+    if (order.status === "COMPLETED" || order.status === "CANCELLED") {
+      throw new Error(`Cannot add items to a ${order.status.toLowerCase()} order.`);
     }
     await assertTableOccupied(order);
 
@@ -693,8 +693,10 @@ export async function linkCustomer(
 }
 
 /**
- * Bill-level discount (percent or flat paise, pre-tax). CONFIRMED only —
- * once fired, the bill is locked except via voids/refunds.
+ * Bill-level discount (percent or flat paise, pre-tax). Editable in any
+ * non-terminal state — paid/balance re-derive from the ledger. If a discount
+ * drops the grand below paid, the balance clamps at 0 and the difference is
+ * an overpayment to refund explicitly (no auto-refund).
  */
 export async function setDiscount(
   orderId: string,
@@ -706,8 +708,8 @@ export async function setDiscount(
     const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
     if (idx === -1) throw new Error("Order not found");
     const order = mockOrders[idx];
-    if (order.status !== "CONFIRMED") {
-      throw new Error("Discount can only change before firing to the kitchen");
+    if (order.status === "COMPLETED" || order.status === "CANCELLED") {
+      throw new Error("Discount cannot change on a completed or cancelled order");
     }
     await assertTableOccupied(order);
     if (!params.reason?.trim()) throw new Error("A reason is required for a discount");
@@ -868,3 +870,137 @@ export async function refreshOrderPaymentState(orderId: string): Promise<void> {
 }
 
 export { canTransitionOrder };
+
+/**
+ * @dev-only Demo seed: builds 10 orders across statuses using real commands.
+ * Expects a fresh module state — the dev-seed page clears the order/KOT/
+ * payment localStorage keys and reloads before calling this. Never link from
+ * nav; the temporary route is deleted before merge.
+ */
+export async function seedDemoOrders(log: (msg: string) => void = () => {}): Promise<string[]> {
+  const kitchen = await import("@/features/kitchen/api/service");
+  const payments = await import("@/features/payments/api/service");
+  const created: string[] = [];
+  const step = async (label: string, fn: () => Promise<unknown>) => {
+    await fn();
+    log(label);
+  };
+
+  // Seat one group so dine-in seeds pass the occupancy guard.
+  const group = await seatOccupancy({ table_id: "tbl_001", seats: 2, created_by: "seed" });
+  log(`Seated demo group on TBL 101`);
+
+  // 1. CONFIRMED dine-in, unfired lines.
+  const o1 = await createOrder({ channel: "dine_in", table_id: "tbl_001", occupancy_group_id: group.id });
+  await addOrderItem(o1.id, { menu_item_id: "mi_001", variant_id: "mv_002", qty: 1 });
+  await addOrderItem(o1.id, { menu_item_id: "mi_002", qty: 2 });
+  created.push(o1.id);
+  log(`1 CONFIRMED dine-in, 2 unfired lines`);
+
+  // 2. IN_KITCHEN dine-in, 1 KOT.
+  const o2 = await createOrder({ channel: "dine_in", table_id: "tbl_001", occupancy_group_id: group.id });
+  await kitchen.addAndFireItem(o2.id, { menu_item_id: "mi_001", variant_id: "mv_001", qty: 2 });
+  created.push(o2.id);
+  log(`2 IN_KITCHEN dine-in, 1 KOT`);
+
+  // 3. PREPARING delivery.
+  const o3 = await createOrder({ channel: "delivery", customer_name: "Seed Meera", customer_phone: "9000000003" });
+  await kitchen.addAndFireItem(o3.id, { menu_item_id: "mi_003", qty: 3 });
+  const k3 = (await kitchen.getKOTsByOrder(o3.id))[0];
+  await kitchen.acceptKOT(k3.id, "seed");
+  await kitchen.startPreparingKOT(k3.id, "seed");
+  await walkOrderTo(o3.id, "PREPARING");
+  created.push(o3.id);
+  log(`3 PREPARING delivery`);
+
+  // 4. READY takeaway.
+  const o4 = await createOrder({ channel: "takeaway", customer_name: "Seed Arjun", customer_phone: "9000000004" });
+  await kitchen.addAndFireItem(o4.id, { menu_item_id: "mi_003", qty: 2 });
+  const k4 = (await kitchen.getKOTsByOrder(o4.id))[0];
+  await kitchen.acceptKOT(k4.id, "seed");
+  await kitchen.startPreparingKOT(k4.id, "seed");
+  await kitchen.markLineReady(k4.id, k4.lines[0].id, "seed");
+  await walkOrderTo(o4.id, "READY");
+  created.push(o4.id);
+  log(`4 READY takeaway`);
+
+  // 5. SERVED zomato.
+  const o5 = await createOrder({ channel: "zomato", customer_name: "Seed Zoya", customer_phone: "9000000005", external_ref: "ZOM-SEED-5" });
+  await kitchen.addAndFireItem(o5.id, { menu_item_id: "mi_002", qty: 2 });
+  const k5 = (await kitchen.getKOTsByOrder(o5.id))[0];
+  await kitchen.acceptKOT(k5.id, "seed");
+  await kitchen.startPreparingKOT(k5.id, "seed");
+  await kitchen.markLineReady(k5.id, k5.lines[0].id, "seed");
+  await kitchen.serveKOT(k5.id, "seed");
+  await walkOrderTo(o5.id, "SERVED");
+  created.push(o5.id);
+  log(`5 SERVED zomato`);
+
+  // 6. COMPLETED delivery, paid in full (cash + UPI combined).
+  const o6 = await createOrder({ channel: "delivery", customer_name: "Seed Kabir", customer_phone: "9000000006" });
+  await kitchen.addAndFireItem(o6.id, { menu_item_id: "mi_003", qty: 2 });
+  const b6 = (await getOrderWithBilling(o6.id))!;
+  const half = Math.floor(b6.balance_paise / 2);
+  await payments.collectPayment({ order_id: o6.id, method: "cash", amount_paise: half, tendered_paise: half });
+  await payments.collectPayment({ order_id: o6.id, method: "upi", amount_paise: b6.balance_paise - half });
+  await walkOrderTo(o6.id, "COMPLETED");
+  created.push(o6.id);
+  log(`6 COMPLETED delivery, paid cash+UPI`);
+
+  // 7. PARTIAL dine-in.
+  const o7 = await createOrder({ channel: "dine_in", table_id: "tbl_001", occupancy_group_id: group.id });
+  await kitchen.addAndFireItem(o7.id, { menu_item_id: "mi_001", variant_id: "mv_002", qty: 2 });
+  const b7 = (await getOrderWithBilling(o7.id))!;
+  await payments.collectPayment({ order_id: o7.id, method: "upi", amount_paise: Math.floor(b7.balance_paise / 2) });
+  created.push(o7.id);
+  log(`7 PARTIAL dine-in, half paid by UPI`);
+
+  // 8. CANCELLED takeaway.
+  const o8 = await createOrder({ channel: "takeaway", customer_name: "Seed Tara", customer_phone: "9000000008" });
+  await addOrderItem(o8.id, { menu_item_id: "mi_001", variant_id: "mv_001", qty: 1 });
+  await cancelOrder(o8.id, { reason: "Seed: customer walked out", by: "seed" });
+  created.push(o8.id);
+  log(`8 CANCELLED takeaway`);
+
+  // 9. IN_KITCHEN swiggy with a partial line void.
+  const o9 = await createOrder({ channel: "swiggy", customer_name: "Seed Vihaan", customer_phone: "9000000009", external_ref: "SWG-SEED-9" });
+  await kitchen.addAndFireItem(o9.id, { menu_item_id: "mi_003", qty: 3 });
+  const k9 = (await kitchen.getKOTsByOrder(o9.id))[0];
+  await kitchen.voidKOTLine(k9.id, k9.lines[0].id, { qty: 1, reason: "Seed: one portion dropped", by: "seed" });
+  created.push(o9.id);
+  log(`9 IN_KITCHEN swiggy, 1 of 3 voided`);
+
+  // 10. IN_KITCHEN dine-in, 10% discount + equal split, one share paid.
+  const o10 = await createOrder({ channel: "dine_in", table_id: "tbl_001", occupancy_group_id: group.id });
+  await kitchen.addAndFireItem(o10.id, { menu_item_id: "mi_001", variant_id: "mv_002", qty: 2 });
+  await kitchen.addAndFireItem(o10.id, { menu_item_id: "mi_002", qty: 2 });
+  await setDiscount(o10.id, { percent: 10, reason: "Seed: festival offer", by: "seed" });
+  const withSplit = await computeSplits(o10.id, { mode: "equal", count: 2 });
+  const first = withSplit.split!.partitions[0];
+  await payments.collectPayment({ order_id: o10.id, method: "cash", amount_paise: first.amount_paise, partition_label: first.label });
+  created.push(o10.id);
+  log(`10 IN_KITCHEN dine-in, discounted + split, one share paid`);
+
+  return created;
+}
+
+/** Walk an order along the legal transition chain (dev seed only). */
+async function walkOrderTo(orderId: string, to: OrderStatus): Promise<void> {
+  const chain: OrderStatus[] = ["CONFIRMED", "IN_KITCHEN", "PREPARING", "READY", "SERVED", "COMPLETED"];
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const fromIdx = chain.indexOf(mockOrders[idx].status);
+    const toIdx = chain.indexOf(to);
+    if (fromIdx === -1 || toIdx === -1 || toIdx < fromIdx) {
+      throw new Error(`Cannot walk order to ${to}`);
+    }
+    for (let i = fromIdx; i < toIdx; i++) {
+      await transitionOrder(idx, chain[i + 1], { actor_id: "seed" });
+    }
+    saveOrders();
+  } finally {
+    release();
+  }
+}
