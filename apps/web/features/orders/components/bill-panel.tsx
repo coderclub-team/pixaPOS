@@ -158,6 +158,7 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
                         <Button
                           variant="ghost"
                           size="icon-sm"
+                          className="max-lg:h-9 max-lg:w-9"
                           title="Reduce (records cancellation)"
                           disabled={reduceMut.isPending}
                           onClick={() => {
@@ -171,6 +172,7 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
                         <Button
                           variant="ghost"
                           size="icon-sm"
+                          className="max-lg:h-9 max-lg:w-9"
                           title="Add one more"
                           disabled={plusMut.isPending}
                           onClick={() => plusMut.mutate({ kotId: kot.id, lineId: l.id })}
@@ -180,6 +182,7 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
                         <Button
                           variant="ghost"
                           size="icon-sm"
+                          className="max-lg:h-9 max-lg:w-9"
                           title="Delete item (records cancellation)"
                           disabled={reduceMut.isPending}
                           onClick={() => {

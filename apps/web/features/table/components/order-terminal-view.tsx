@@ -117,8 +117,8 @@ export default function OrderTerminalPage() {
       pageTitle="Order Terminal"
       pageDescription="Tap a table for its bill · hold to add items. Works in a separate tab — sign-in carries over."
     >
-      <div className="flex h-[calc(100vh-200px)] flex-col gap-6 lg:flex-row">
-        <div className="min-h-0 min-w-0 flex-1">
+      <div className="flex flex-col gap-4 lg:h-[calc(100dvh-200px)] lg:flex-row lg:gap-6">
+        <div className="h-[52dvh] min-h-[320px] min-w-0 lg:h-auto lg:min-h-0 lg:flex-1">
           <Tabs
             value={currentFloorId}
             onValueChange={(v) => {
@@ -127,10 +127,10 @@ export default function OrderTerminalPage() {
             }}
             className="h-full"
           >
-            <div className="mb-4 flex items-center justify-between">
-              <TabsList>
+            <div className="mb-3 flex flex-wrap items-center gap-2 lg:mb-4 lg:flex-nowrap lg:justify-between">
+              <TabsList className="max-w-full overflow-x-auto">
                 {activeFloors.map((f) => (
-                  <TabsTrigger key={f.id} value={f.id}>
+                  <TabsTrigger key={f.id} value={f.id} className="shrink-0">
                     {f.name}
                   </TabsTrigger>
                 ))}
@@ -168,13 +168,29 @@ export default function OrderTerminalPage() {
         {panelMounted && (
           <div
             className={cn(
-              "min-h-0 shrink-0 overflow-hidden transition-all duration-300 ease-out lg:w-[420px]",
+              "shrink-0 overflow-hidden transition-all duration-300 ease-out",
+              // Mobile: bottom sheet sliding up from the screen edge.
+              "fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] rounded-t-2xl border-t bg-background shadow-2xl",
+              // Desktop: docked side panel sliding in from the right.
+              "lg:static lg:z-auto lg:max-h-none lg:min-h-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:shadow-none lg:w-[420px]",
               panelOpen
-                ? "translate-x-0 opacity-100"
-                : "pointer-events-none translate-x-8 opacity-0 max-lg:hidden lg:w-0",
+                ? "translate-y-0 opacity-100 lg:translate-x-0"
+                : "pointer-events-none translate-y-full opacity-0 lg:translate-x-8 lg:translate-y-0 lg:w-0",
             )}
           >
-            <div className="h-full lg:w-[420px]">
+            <div className="max-h-[85dvh] overflow-y-auto lg:h-full lg:max-h-none lg:w-[420px] lg:overflow-visible">
+              {/* Mobile sheet grab handle + close */}
+              <div className="sticky top-0 z-10 flex items-center justify-center bg-background/95 pt-2 pb-1 backdrop-blur-sm lg:hidden">
+                <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
+                <button
+                  type="button"
+                  aria-label="Close bill panel"
+                  onClick={() => handleTap(null)}
+                  className="absolute right-2 top-1 rounded-md p-2 text-muted-foreground"
+                >
+                  <Icons.close className="size-5" />
+                </button>
+              </div>
               {activeOrderId && activeTable ? (
                 <OrderBillPanel
                   orderId={activeOrderId}
@@ -201,7 +217,7 @@ export default function OrderTerminalPage() {
 
       {activeOrderId && (
         <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
-          <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+          <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-4xl">
             <DialogHeader>
               <DialogTitle>
                 Add items{activeTable ? ` — Table ${activeTable.number}` : ""}
