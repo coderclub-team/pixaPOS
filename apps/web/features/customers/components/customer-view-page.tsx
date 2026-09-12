@@ -15,7 +15,11 @@ type CustomerViewPageProps = {
 
 export default function CustomerViewPage({ customerId }: CustomerViewPageProps) {
   if (customerId === "new") {
-    return <CustomerForm initialData={null} pageTitle="Create New Customer" />;
+    return (
+      <div className="mx-auto w-full max-w-3xl">
+        <CustomerForm initialData={null} pageTitle="Create New Customer" />
+      </div>
+    );
   }
 
   return <EditCustomerView customerId={customerId} />;
@@ -29,7 +33,7 @@ function EditCustomerView({ customerId }: { customerId: string }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-3xl space-y-6">
       <CustomerForm initialData={data} pageTitle="Edit Customer" />
       <CustomerOrderHistory customerId={customerId} />
     </div>
@@ -42,7 +46,7 @@ function CustomerOrderHistory({ customerId }: { customerId: string }) {
   if (!orders.length) return null;
 
   return (
-    <Card className="mx-auto w-full max-w-3xl">
+    <Card className="w-full">
       <CardHeader>
         <CardTitle className="text-left text-lg font-bold">
           Order history ({orders.length})

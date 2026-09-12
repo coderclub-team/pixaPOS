@@ -1,25 +1,20 @@
+import { Suspense } from "react";
 import PageContainer from "@/components/layout/page-container";
-import MenuForm from "@/features/menu/components/menu-form";
-import { menuItemQueryOptions } from "@/features/menu/api/queries";
-import { getQueryClient } from "@/lib/query-client";
-import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
+import MenuViewPage from "@/features/menu/components/menu-view-page";
 
 type Props = { params: Promise<{ itemId: string }> };
+
 export default async function Page(props: Props) {
   const params = await props.params;
-  const qc = getQueryClient();
-  await qc.prefetchQuery(menuItemQueryOptions(params.itemId));
-  const data = qc.getQueryData(["menu", "item", params.itemId]) as any;
+  // NOTE: client fetches from the store (uniform with tables/orders/
+  // customers detail pages — no server prefetch staleness).
   return (
     <PageContainer>
-      <HydrationBoundary state={dehydrate(qc)}>
-        <div className="flex-1 space-y-4">
-          <MenuForm
-            initialData={data ?? null}
-            pageTitle={data ? `Update ${data.name}` : "Menu Item"}
-          />
-        </div>
-      </HydrationBoundary>
+      <div className="flex-1 space-y-4">
+        <Suspense fallback={<div className="text-sm text-muted-foreground">Loading item…</div>}>
+          <MenuViewPage itemId={params.itemId} />
+        </Suspense>
+      </div>
     </PageContainer>
   );
 }

@@ -2,6 +2,13 @@
 
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@pixa/ui/base-ui/select";
 import { FieldGroup } from "@pixa/ui/base-ui/field";
 import { useAppForm } from "@/lib/form";
 import { customerSchema, type CustomerValues } from "../schemas/customer";
@@ -72,7 +79,7 @@ export default function CustomerForm({
   });
 
   return (
-    <Card className="mx-auto w-full max-w-3xl">
+    <Card className="w-full">
       <CardHeader>
         <CardTitle className="text-left text-2xl font-bold">{pageTitle}</CardTitle>
       </CardHeader>
@@ -215,18 +222,22 @@ function AddressArrayField({ field }: { field: any }) {
               </div>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <label className="space-y-1.5 text-sm">
+              <div className="space-y-1.5 text-sm">
                 <span className="font-medium">Label</span>
-                <select
-                  className="w-full rounded-md border bg-background px-3 py-2"
+                <Select
                   value={a.label}
-                  onChange={(e) => updateAt(i, { label: e.target.value })}
+                  onValueChange={(v) => updateAt(i, { label: v })}
                 >
-                  <option value="home">Home</option>
-                  <option value="work">Work</option>
-                  <option value="other">Other</option>
-                </select>
-              </label>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="home">Home</SelectItem>
+                    <SelectItem value="work">Work</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <label className="space-y-1.5 text-sm md:col-span-2">
                 <span className="font-medium">Address line 1 *</span>
                 <input
