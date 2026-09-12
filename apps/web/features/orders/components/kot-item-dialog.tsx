@@ -16,7 +16,7 @@ import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { formatINR, toPaise } from "@/lib/money";
 import { orderKeys } from "@/features/orders/api/queries";
-import { addAndFireItem } from "@/features/kitchen/api/service";
+import { addManyAndFire } from "@/features/kitchen/api/service";
 import { kitchenKeys } from "@/features/kitchen/api/queries";
 import { menuCategoriesQueryOptions, menuItemsQueryOptions } from "@/features/menu/api/queries";
 import { getModifiers } from "@/features/menu/api/service";
@@ -39,7 +39,7 @@ type Pick = {
 /**
  * Searchable row-list item picker. Every row carries a qty counter; tapping
  * a row expands variant / add-on / instruction config. Footer fires the
- * batch — each pick creates a new KOT via addAndFireItem.
+ * batch — the whole batch fires as ONE KOT via addManyAndFire.
  */
 export default function KotItemDialog({
   orderId,
@@ -71,37 +71,26 @@ export default function KotItemDialog({
   );
 
   const fireMut = useMutation({
-    mutationFn: async (list: Pick[]) => {
-      const fired = [];
-      for (const p of list) {
-        fired.push(
-          await addAndFireItem(
-            orderId,
-            {
-              menu_item_id: p.menu_item_id,
-              variant_id: p.variant_id,
-              modifier_ids: p.modifier_ids,
-              qty: p.qty,
-              instructions: p.instructions,
-            },
-            undefined,
-          ),
-        );
-      }
-      return fired;
-    },
-    onSuccess: (fired) => {
+    mutationFn: (list: Pick[]) =>
+      addManyAndFire(
+        orderId,
+        list.map((p) => ({
+          menu_item_id: p.menu_item_id,
+          variant_id: p.variant_id,
+          modifier_ids: p.modifier_ids,
+          qty: p.qty,
+          instructions: p.instructions,
+        })),
+        undefined,
+      ),
+    onSuccess: (kot) => {
       const qc = getQueryClient();
       qc.invalidateQueries({ queryKey: orderKeys.detail(orderId) });
       qc.invalidateQueries({ queryKey: orderKeys.all });
       qc.invalidateQueries({ queryKey: kitchenKeys.byOrder(orderId) });
       setPicks({});
       setExpandedId(null);
-      toast.success(
-        fired.length === 1
-          ? `Sent to kitchen — KOT #${fired[0].kot_number}`
-          : `${fired.length} KOTs fired to kitchen`,
-      );
+      toast.success(`Sent to kitchen — KOT #${kot.kot_number}`);
       onOpenChange(false);
     },
     onError: (e: Error) => toast.error(e.message),

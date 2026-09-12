@@ -406,6 +406,27 @@ export async function addAndFireItem(
 }
 
 /**
+ * Batch variant: add N lines, then fire ONE KOT containing all of them.
+ * Used by the add-items dialog — one dialog batch = one KOT with N items.
+ */
+export async function addManyAndFire(
+  orderId: string,
+  inputs: AddItemInput[],
+  by?: string,
+): Promise<KitchenTicketWithDerived> {
+  if (inputs.length === 0) throw new Error("Nothing to fire");
+  const order = await getOrderById(orderId);
+  if (!order) throw new Error("Order not found");
+  if (order.status === "DRAFT") {
+    await confirmOrder(orderId, by);
+  }
+  for (const input of inputs) {
+    await addOrderItem(orderId, input);
+  }
+  return fireKOT(orderId, by);
+}
+
+/**
  * Increase a fired KOT line qty (kitchen makes more). Bumps both the KOT
  * line and the order line so the bill stays in sync. Decreases go through
  * voidKOTLine with a reason so cancellations are always recorded.
