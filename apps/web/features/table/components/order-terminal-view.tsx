@@ -178,6 +178,7 @@ export default function OrderTerminalPage() {
                   orderId={activeOrderId}
                   title={`Bill — Table ${activeTable.number}`}
                   showSeating
+                  showCustomer
                   onAddItems={() => setPickerOpen(true)}
                 />
               ) : (

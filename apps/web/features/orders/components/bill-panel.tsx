@@ -14,6 +14,13 @@ import {
 } from "@pixa/ui/base-ui/dialog";
 import { Input } from "@pixa/ui/base-ui/input";
 import { Label } from "@pixa/ui/base-ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@pixa/ui/base-ui/select";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { formatINR, toPaise } from "@/lib/money";
@@ -27,9 +34,9 @@ import {
   paymentKeys,
   refundsByOrderQueryOptions,
 } from "@/features/payments/api/queries";
-import { cancelOrder, computeSplits, setDiscount } from "@/features/orders/api/service";
+import { addOrderItem, cancelOrder, computeSplits, setDiscount } from "@/features/orders/api/service";
 import { collectPayment } from "@/features/payments/api/service";
-import { increaseKOTLineQty, voidKOTLine } from "@/features/kitchen/api/service";
+import { fireKOT, voidKOTLine } from "@/features/kitchen/api/service";
 import type { PaymentMethod, Payment } from "@/features/payments/api/types";
 import type { KitchenTicketWithDerived } from "@/features/kitchen/api/types";
 import { toast } from "sonner";
@@ -83,10 +90,32 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
   const [reason, setReason] = useState("");
   const [reduceQty, setReduceQty] = useState(1);
 
+  // Plus on a fired line adds the same item as a NEW unfired line — it will
+  // fire as a fresh KOT, never mutate the fired ticket.
   const plusMut = useMutation({
-    mutationFn: ({ kotId, lineId }: { kotId: string; lineId: string }) =>
-      increaseKOTLineQty(kotId, lineId, { extra: 1 }),
-    onSuccess: () => invalidateBill(orderId, queryClient),
+    mutationFn: (orderLineId: string) => {
+      const ol = order?.items.find((i) => i.id === orderLineId);
+      if (!ol) throw new Error("Order line not found");
+      return addOrderItem(orderId, {
+        menu_item_id: ol.menu_item_id,
+        variant_id: ol.variant_id,
+        modifier_ids: ol.modifiers.map((m) => m.modifier_id),
+        qty: 1,
+        instructions: ol.instructions,
+      });
+    },
+    onSuccess: () => {
+      invalidateBill(orderId, queryClient);
+      toast.success("Added — fire to kitchen for a new KOT");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const fireMut = useMutation({
+    mutationFn: () => fireKOT(orderId),
+    onSuccess: (kot) => {
+      invalidateBill(orderId, queryClient);
+      toast.success(`KOT #${kot.kot_number} fired to kitchen`);
+    },
     onError: (e: Error) => toast.error(e.message),
   });
   const reduceMut = useMutation({
@@ -101,7 +130,9 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
     onError: (e: Error) => toast.error(e.message),
   });
 
-  if (kots.length === 0) {
+  const draft = order?.items.filter((i) => !i.kot_id) ?? [];
+
+  if (kots.length === 0 && draft.length === 0) {
     return (
       <p className="py-2 text-center text-xs text-muted-foreground">
         No kitchen tickets yet — added items fire straight to the kitchen.
@@ -140,6 +171,32 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
 
   return (
     <div className="space-y-2">
+      {draft.length > 0 && (
+        <div className="rounded-lg border border-primary/40 p-2">
+          <p className="px-1 pb-1 text-xs font-medium uppercase text-muted-foreground">
+            New items — not yet in kitchen
+          </p>
+          {draft.map((d) => (
+            <div key={d.id} className="flex items-center justify-between px-1 py-0.5 text-sm">
+              <span className="truncate font-medium">
+                {d.qty}× {d.item_name_snapshot}
+                {d.variant_name_snapshot ? ` (${d.variant_name_snapshot})` : ""}
+              </span>
+              <span className="shrink-0 text-sm font-semibold">
+                {formatINR(d.line_total_paise + d.line_tax_paise)}
+              </span>
+            </div>
+          ))}
+          <Button
+            size="sm"
+            className="mt-1.5 w-full"
+            disabled={fireMut.isPending}
+            onClick={() => fireMut.mutate()}
+          >
+            {fireMut.isPending ? "Firing…" : `Fire to kitchen (${draft.length} item${draft.length === 1 ? "" : "s"})`}
+          </Button>
+        </div>
+      )}
       {kots.map((kot) => {
         const open = openId === kot.id;
         return (
@@ -158,7 +215,7 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
               <span className="font-medium">
                 KOT #{kot.kot_number}
                 <span className="ml-1 text-xs font-normal capitalize text-muted-foreground">
-                  {kot.status.toLowerCase()} · {kot.lines.length} item{ KotLinesPlural(kot)}
+                  {kot.status.toLowerCase()} · {kot.lines.length} item{ KotLinesPlural(kot)} · {kot.age_minutes}m old
                 </span>
               </span>
               <span className="flex items-center gap-1">
@@ -215,9 +272,9 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
                           variant="ghost"
                           size="icon-sm"
                           className="max-lg:h-9 max-lg:w-9"
-                          title="Add one more"
+                          title="Add one more as a new KOT"
                           disabled={plusMut.isPending}
-                          onClick={() => plusMut.mutate({ kotId: kot.id, lineId: l.id })}
+                          onClick={() => plusMut.mutate(l.order_line_id)}
                         >
                           <Icons.add className="size-3.5" />
                         </Button>
@@ -354,12 +411,14 @@ export default function OrderBillPanel({
   orderId,
   title,
   showSeating,
+  showCustomer,
   onAddItems,
   showCancel,
 }: {
   orderId: string;
   title?: string;
   showSeating?: boolean;
+  showCustomer?: boolean;
   onAddItems?: () => void;
   showCancel?: boolean;
 }) {
@@ -400,6 +459,7 @@ export default function OrderBillPanel({
     return Math.max(0, p.amount_paise - got);
   };
   const dueAmount = activePartition ? partitionDue(activePartition) : balance;
+  const isTerminal = order.status === "COMPLETED" || order.status === "CANCELLED";
 
   return (
     <Card className="flex h-full min-h-0 flex-col">
@@ -431,7 +491,7 @@ export default function OrderBillPanel({
       <CardContent className="min-h-0 flex-1 space-y-3 overflow-y-auto">
         {showSeating && table && <SeatingSection table={table} floorId={table.floor_id} />}
 
-        <CustomerLinkBlock orderId={orderId} />
+        {showCustomer && <CustomerLinkBlock orderId={orderId} />}
 
         <div className="space-y-1">
           <p className="text-xs font-medium uppercase text-muted-foreground">Kitchen tickets</p>
@@ -472,18 +532,22 @@ export default function OrderBillPanel({
           </div>
         </div>
 
-        <SplitSection
-          orderId={orderId}
-          mode={splitMode}
-          onModeChange={(m) => {
-            setSplitMode(m);
-            setActivePartition(null);
-          }}
-          activePartition={activePartition}
-          onSelectPartition={setActivePartition}
-        />
+        {(!isTerminal || order.split) && (
+          <SplitSection
+            orderId={orderId}
+            mode={splitMode}
+            onModeChange={(m) => {
+              setSplitMode(m);
+              setActivePartition(null);
+            }}
+            activePartition={activePartition}
+            onSelectPartition={setActivePartition}
+          />
+        )}
 
-        <TenderPad orderId={orderId} duePaise={dueAmount} partitionLabel={activePartition} />
+        {dueAmount > 0 && (
+          <TenderPad orderId={orderId} duePaise={dueAmount} partitionLabel={activePartition} />
+        )}
 
         {paidList.length > 0 && (
           <div className="space-y-1">
@@ -704,18 +768,24 @@ function SplitSection({
               <span className="truncate">
                 {l.qty}× {l.item_name_snapshot}
               </span>
-              <select
-                className="rounded-md border bg-background px-1.5 py-1"
-                value={assign[l.id] ?? ""}
-                onChange={(e) => setAssign((a) => ({ ...a, [l.id]: e.target.value }))}
+              <Select
+                value={assign[l.id] ?? "__none"}
+                onValueChange={(v) =>
+                  setAssign((a) => ({ ...a, [l.id]: v === "__none" ? "" : v }))
+                }
               >
-                <option value="">Unassigned</option>
-                {Array.from({ length: count }, (_, i) => `Guest ${i + 1}`).map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="h-7 w-32 text-xs">
+                  <SelectValue placeholder="Unassigned" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">Unassigned</SelectItem>
+                  {Array.from({ length: count }, (_, i) => `Guest ${i + 1}`).map((g) => (
+                    <SelectItem key={g} value={g}>
+                      {g}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           ))}
           <Button
@@ -945,17 +1015,21 @@ function TenderPad({ orderId, duePaise, partitionLabel }: { orderId: string; due
           </p>
           {rows.map((r, i) => (
             <div key={i} className="flex items-center gap-1.5">
-              <select
-                className="rounded-md border bg-background px-1.5 py-1.5 text-xs"
+              <Select
                 value={r.method}
-                onChange={(e) => updateRow(i, { method: e.target.value as PaymentMethod })}
+                onValueChange={(v) => updateRow(i, { method: v as PaymentMethod })}
               >
-                {METHODS.map((m) => (
-                  <option key={m.value} value={m.value}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="h-8 w-24 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {METHODS.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Input
                 type="number"
                 min={0}
