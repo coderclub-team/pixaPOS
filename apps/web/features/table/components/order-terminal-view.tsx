@@ -25,7 +25,6 @@ import ItemPicker from "@/features/orders/components/item-picker";
 import OrderBillPanel from "@/features/orders/components/bill-panel";
 import { toast } from "sonner";
 
-const BLOCKED_STATES = ["out_of_service", "cleaning"] as const;
 const PANEL_EXIT_MS = 300;
 
 export default function OrderTerminalPage() {
@@ -129,7 +128,7 @@ export default function OrderTerminalPage() {
                   className="gap-1 border-green-500 text-green-600"
                   title="Tap a table to open its bill · tap the selected table again to deselect"
                 >
-                  <div className="h-2 w-2 rounded-full bg-green-500" /> Tap a table for its bill
+                  <div className="h-2 w-2 rounded-full bg-green-500" /> Tap a table for bill & seating
                 </Badge>
               )}
             </div>
@@ -219,16 +218,6 @@ export default function OrderTerminalPage() {
         </Dialog>
       )}
     </PageContainer>
-  );
-}
-
-export function BlockedTableNote({ tableId }: { tableId: string }) {
-  const { data: table } = useQuery(tableQueryOptions(tableId));
-  if (!table || !(BLOCKED_STATES as readonly string[]).includes(table.status)) return null;
-  return (
-    <p className="text-xs text-muted-foreground">
-      Table is {table.status.replace("_", " ")} — resolve it from the Tables view first.
-    </p>
   );
 }
 
