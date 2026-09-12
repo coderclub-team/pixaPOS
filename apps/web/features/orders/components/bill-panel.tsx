@@ -717,6 +717,7 @@ function SplitSection({
   const { data: order } = useQuery(orderQueryOptions(orderId));
   const { data: payments } = useQuery(paymentsByOrderQueryOptions(orderId));
   const [count, setCount] = useState(2);
+  const [expanded, setExpanded] = useState(false);
   const [assign, setAssign] = useState<Record<string, string>>({});
   const [customRows, setCustomRows] = useState<{ label: string; amount: string }[]>([
     { label: "Guest 1", amount: "" },
@@ -738,11 +739,28 @@ function SplitSection({
       .filter((p) => p.status === "PAID" && p.partition_label === label)
       .reduce((s, p) => s + p.amount_paise, 0);
 
+  if (!order.split && !expanded) {
+    return (
+      <Button variant="outline" className="w-full" onClick={() => setExpanded(true)}>
+        <Icons.add className="mr-2 size-4" /> Split bill
+      </Button>
+    );
+  }
+
   return (
     <div className="space-y-2 rounded-lg border p-2">
       <div className="flex flex-wrap gap-1.5">
         {(["none", "equal", "itemwise", "custom"] as const).map((m) => (
-          <Button key={m} type="button" variant={mode === m ? "default" : "outline"} size="sm" onClick={() => onModeChange(m)}>
+          <Button
+            key={m}
+            type="button"
+            variant={mode === m ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              if (m === "none") setExpanded(false);
+              onModeChange(m);
+            }}
+          >
             {m === "none" ? "No split" : m === "itemwise" ? "Item-wise" : m[0].toUpperCase() + m.slice(1)}
           </Button>
         ))}
