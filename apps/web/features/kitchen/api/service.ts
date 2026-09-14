@@ -5,9 +5,9 @@ import { entityMutex } from "@/lib/mutex";
 import {
   addOrderItem,
   assertTableOccupied,
-  confirmOrder,
   getOrderById,
   markLinesFired,
+  refreshOrderKitchenState,
   setOrderLineQty,
 } from "@/features/orders/api/service";
 import type { AddItemInput } from "@/features/orders/api/types";
@@ -15,6 +15,7 @@ import type {
   KitchenTicket,
   KitchenTicketWithDerived,
   KOTFilters,
+  KOTLineStatus,
   KOTStatus,
 } from "./types";
 
@@ -43,6 +44,25 @@ function loadTickets(): void {
 }
 loadTickets();
 
+/**
+ * Synchronous shared-source snapshot for cross-domain aggregation (order
+ * status backfill). Reloads from localStorage first — no delay, no lock;
+ * callers hold their own locks.
+ */
+export function readTicketsSnapshot(): KitchenTicketWithDerived[] {
+  loadTickets();
+  return [...mockTickets].map(enrichTicket);
+}
+
+/**
+ * In-memory read WITHOUT reload — for use inside mutations that already
+ * hold fresh state. Reloading mid-mutation (before save) would revert the
+ * in-flight change and the subsequent save would persist the revert.
+ */
+export function peekTickets(): KitchenTicketWithDerived[] {
+  return [...mockTickets].map(enrichTicket);
+}
+
 /** Explicit KOT machine (docs/workflows.md §3). Kitchen ≠ order state. */
 const KOT_TRANSITIONS: Record<KOTStatus, KOTStatus[]> = {
   NEW: ["ACCEPTED", "CANCELLED"],
@@ -53,10 +73,36 @@ const KOT_TRANSITIONS: Record<KOTStatus, KOTStatus[]> = {
   CANCELLED: [],
 };
 
+/**
+ * Per-line machine (docs/workflows.md §3). Items walk
+ * PENDING → ACCEPTED → PREPARING → READY → SERVED — READY is reachable only
+ * from PREPARING, so an order is never marked ready without preparation.
+ * ACCEPTED is acknowledgment, not a tollbooth: PENDING → PREPARING stays
+ * legal (bulk start, fast path). VOIDED is the audited exit from any
+ * non-terminal line state.
+ */
+const KOT_LINE_TRANSITIONS: Record<KOTLineStatus, KOTLineStatus[]> = {
+  PENDING: ["ACCEPTED", "PREPARING", "VOIDED"],
+  ACCEPTED: ["PREPARING", "VOIDED"],
+  PREPARING: ["READY", "VOIDED"],
+  READY: ["SERVED", "VOIDED"],
+  SERVED: [],
+  VOIDED: [],
+};
+
+function assertLineTransition(from: KOTLineStatus, to: KOTLineStatus, what: string): void {
+  if (from === to) return;
+  if (!KOT_LINE_TRANSITIONS[from].includes(to)) {
+    throw new Error(`Illegal KOT line transition ${from} → ${to} (${what})`);
+  }
+}
+
 function enrichTicket(t: KitchenTicket): KitchenTicketWithDerived {
   return {
     ...t,
-    pending_lines: t.lines.filter((l) => l.status === "PENDING" || l.status === "PREPARING").length,
+    pending_lines: t.lines.filter(
+      (l) => l.status === "PENDING" || l.status === "ACCEPTED" || l.status === "PREPARING",
+    ).length,
     ready_lines: t.lines.filter((l) => l.status === "READY").length,
     age_minutes: Math.max(0, Math.round((Date.now() - new Date(t.fired_at).getTime()) / 60000)),
   };
@@ -94,6 +140,7 @@ async function transitionTicket(
 
 export async function getKitchenTickets(filters?: KOTFilters): Promise<KitchenTicketWithDerived[]> {
   await delay(300);
+  loadTickets(); // localStorage is the shared source — reload so tabs/displays agree
   let r = [...mockTickets];
   if (filters?.outlet_id) r = r.filter((t) => t.outlet_id === filters.outlet_id);
   if (filters?.status) r = r.filter((t) => t.status === filters.status);
@@ -102,6 +149,7 @@ export async function getKitchenTickets(filters?: KOTFilters): Promise<KitchenTi
 
 export async function getKOTsByOrder(orderId: string): Promise<KitchenTicketWithDerived[]> {
   await delay(200);
+  loadTickets();
   return mockTickets
     .filter((t) => t.order_id === orderId)
     .sort((a, b) => a.kot_number - b.kot_number)
@@ -110,6 +158,7 @@ export async function getKOTsByOrder(orderId: string): Promise<KitchenTicketWith
 
 export async function getTicketById(id: string): Promise<KitchenTicketWithDerived | null> {
   await delay(200);
+  loadTickets();
   const t = mockTickets.find((t) => t.id === id);
   return t ? enrichTicket(t) : null;
 }
@@ -123,9 +172,11 @@ export async function fireKOT(orderId: string, by?: string): Promise<KitchenTick
   const release = await entityMutex.acquire(`kot-order-${orderId}`);
   try {
     await delay(400);
+    loadTickets(); // fresh base for numbering — no writes held yet this frame
     const order = await getOrderById(orderId);
     if (!order) throw new Error("Order not found");
-    if (order.status === "DRAFT") throw new Error("Confirm the order before firing to the kitchen");
+    // DRAFT carts fire directly (first fire walks DRAFT → IN_KITCHEN via
+    // markLinesFired) — no CONFIRMED step in new flows.
     if (order.status === "CANCELLED" || order.status === "COMPLETED") {
       throw new Error(`Cannot fire KOT for a ${order.status.toLowerCase()} order`);
     }
@@ -188,19 +239,128 @@ export async function fireKOT(orderId: string, by?: string): Promise<KitchenTick
 
 export async function acceptKOT(id: string, by?: string): Promise<KitchenTicketWithDerived> {
   return mutateTicket(id, async (idx) => {
+    const t = mockTickets[idx];
+    if (t.status === "ACCEPTED") return;
+    if (t.status !== "NEW") {
+      throw new Error(`Only NEW tickets can be accepted (KOT is ${t.status.toLowerCase()})`);
+    }
     await transitionTicket(idx, "ACCEPTED", { actor_id: by ?? "kitchen", event_type: "KITCHEN_STARTED" });
+    await refreshOrderKitchenState(t.order_id);
   });
 }
 
 export async function startPreparingKOT(id: string, by?: string): Promise<KitchenTicketWithDerived> {
   return mutateTicket(id, async (idx) => {
+    const t = mockTickets[idx];
+    if (t.status === "PREPARING") return;
+    if (t.status !== "ACCEPTED") {
+      throw new Error(
+        t.status === "NEW"
+          ? "Accept the KOT before preparing"
+          : `Cannot prepare a ${t.status.toLowerCase()} KOT`,
+      );
+    }
     await transitionTicket(idx, "PREPARING", { actor_id: by ?? "kitchen" });
     mockTickets[idx] = {
       ...mockTickets[idx],
       lines: mockTickets[idx].lines.map((l) =>
-        l.status === "PENDING" ? { ...l, status: "PREPARING" as const } : l,
+        l.status === "PENDING" || l.status === "ACCEPTED" ? { ...l, status: "PREPARING" as const } : l,
       ),
     };
+    await refreshOrderKitchenState(t.order_id);
+  });
+}
+
+/**
+ * Accept one item (multi-item KOTs acknowledge line by line). The ticket
+ * follows its items: the first accepted line moves a NEW ticket to ACCEPTED
+ * through the legal transition — never a skip.
+ */
+export async function acceptKOTLine(
+  id: string,
+  lineId: string,
+  by?: string,
+): Promise<KitchenTicketWithDerived> {
+  return mutateTicket(id, async (idx) => {
+    const t = mockTickets[idx];
+    if (t.status === "SERVED" || t.status === "CANCELLED") {
+      throw new Error(`Cannot accept an item on a ${t.status.toLowerCase()} KOT`);
+    }
+    const li = t.lines.findIndex((l) => l.id === lineId);
+    if (li === -1) throw new Error("KOT line not found");
+    const line = t.lines[li];
+    if (line.status === "ACCEPTED") return;
+    if (line.status !== "PENDING") {
+      throw new Error(`Only pending items can be accepted (item is ${line.status.toLowerCase()})`);
+    }
+    assertLineTransition(line.status, "ACCEPTED", line.item_name_snapshot);
+    const lines = [...t.lines];
+    lines[li] = { ...line, status: "ACCEPTED" as const };
+    mockTickets[idx] = { ...t, lines, updated_at: new Date().toISOString(), version: t.version + 1 };
+    await recordEvent({
+      outlet_id: t.outlet_id,
+      entity_type: "ORDER",
+      entity_id: t.order_id,
+      event_type: "KITCHEN_TICKET_UPDATED",
+      from_state: "PENDING",
+      to_state: "ACCEPTED",
+      actor_id: by ?? "kitchen",
+      metadata: { kot_id: id, kot_line_id: lineId },
+    });
+    if (mockTickets[idx].status === "NEW") {
+      await transitionTicket(idx, "ACCEPTED", {
+        actor_id: by ?? "kitchen",
+        event_type: "KITCHEN_STARTED",
+      });
+    }
+    await refreshOrderKitchenState(t.order_id);
+  });
+}
+
+/**
+ * Start one item (multi-item KOTs prepare line by line after accept). The
+ * ticket follows its items: the first started line moves an ACCEPTED ticket
+ * to PREPARING through the legal transition — never a skip.
+ */
+export async function startPreparingKOTLine(
+  id: string,
+  lineId: string,
+  by?: string,
+): Promise<KitchenTicketWithDerived> {
+  return mutateTicket(id, async (idx) => {
+    const t = mockTickets[idx];
+    if (t.status === "NEW") throw new Error("Accept the KOT before starting items");
+    if (t.status === "READY" || t.status === "SERVED" || t.status === "CANCELLED") {
+      throw new Error(`Cannot start an item on a ${t.status.toLowerCase()} KOT`);
+    }
+    const li = t.lines.findIndex((l) => l.id === lineId);
+    if (li === -1) throw new Error("KOT line not found");
+    const line = t.lines[li];
+    if (line.status === "PREPARING") return;
+    if (line.status === "VOIDED" || line.status === "SERVED" || line.status === "READY") {
+      throw new Error(`Cannot start a ${line.status.toLowerCase()} item`);
+    }
+    assertLineTransition(line.status, "PREPARING", line.item_name_snapshot);
+    const lines = [...t.lines];
+    lines[li] = { ...line, status: "PREPARING" as const };
+    mockTickets[idx] = { ...t, lines, updated_at: new Date().toISOString(), version: t.version + 1 };
+    await recordEvent({
+      outlet_id: t.outlet_id,
+      entity_type: "ORDER",
+      entity_id: t.order_id,
+      event_type: "KITCHEN_TICKET_UPDATED",
+      from_state: line.status,
+      to_state: "PREPARING",
+      actor_id: by ?? "kitchen",
+      metadata: { kot_id: id, kot_line_id: lineId },
+    });
+    if (mockTickets[idx].status === "ACCEPTED") {
+      await transitionTicket(idx, "PREPARING", {
+        actor_id: by ?? "kitchen",
+        event_type: "KITCHEN_TICKET_UPDATED",
+      });
+    }
+    await refreshOrderKitchenState(t.order_id);
   });
 }
 
@@ -209,7 +369,15 @@ export async function markLineReady(id: string, lineId: string, by?: string): Pr
     const t = mockTickets[idx];
     const li = t.lines.findIndex((l) => l.id === lineId);
     if (li === -1) throw new Error("KOT line not found");
-    if (t.lines[li].status === "VOIDED") throw new Error("Line is voided");
+    const line = t.lines[li];
+    if (line.status === "READY") return enrichTicket(mockTickets[idx]);
+    if (line.status === "VOIDED" || line.status === "SERVED") {
+      throw new Error(`A ${line.status.toLowerCase()} line cannot be marked ready`);
+    }
+    if (line.status !== "PREPARING") {
+      throw new Error(`Start preparing "${line.item_name_snapshot}" before marking it ready`);
+    }
+    assertLineTransition(line.status, "READY", line.item_name_snapshot);
     const lines = [...t.lines];
     lines[li] = { ...lines[li], status: "READY" as const };
     mockTickets[idx] = { ...t, lines, updated_at: new Date().toISOString(), version: t.version + 1 };
@@ -222,8 +390,25 @@ export async function markLineReady(id: string, lineId: string, by?: string): Pr
       metadata: { kot_id: id, kot_line_id: lineId },
     });
     if (lines.every((l) => l.status === "READY" || l.status === "VOIDED" || l.status === "SERVED")) {
-      await transitionTicket(idx, "READY", { actor_id: by ?? "kitchen", event_type: "ORDER_READY" });
+      // Walk the legal path — an ACCEPTED ticket passes through PREPARING
+      // first, never jumps straight to READY.
+      if (mockTickets[idx].status === "ACCEPTED") {
+        await transitionTicket(idx, "PREPARING", {
+          actor_id: by ?? "kitchen",
+          event_type: "KITCHEN_TICKET_UPDATED",
+        });
+      }
+      if (mockTickets[idx].status === "PREPARING") {
+        await transitionTicket(idx, "READY", {
+          actor_id: by ?? "kitchen",
+          event_type: "KITCHEN_TICKET_UPDATED",
+        });
+      } else if (mockTickets[idx].status !== "READY") {
+        throw new Error(`Cannot ready a ${mockTickets[idx].status.toLowerCase()} KOT`);
+      }
     }
+    // Order-level ORDER_READY is owned by refreshOrderKitchenState (no double emit).
+    await refreshOrderKitchenState(t.order_id);
   });
 }
 
@@ -231,11 +416,22 @@ export async function serveKOT(id: string, by?: string): Promise<KitchenTicketWi
   return mutateTicket(id, async (idx) => {
     const t = mockTickets[idx];
     if (t.status !== "READY") throw new Error("Only READY tickets can be served");
+    const notReady = t.lines.filter(
+      (l) => l.status === "PENDING" || l.status === "ACCEPTED" || l.status === "PREPARING",
+    );
+    if (notReady.length > 0) {
+      throw new Error(
+        `${notReady.length} item${notReady.length === 1 ? " is" : "s are"} not ready yet — ${notReady.map((l) => l.item_name_snapshot).join(", ")}`,
+      );
+    }
     mockTickets[idx] = {
       ...t,
       lines: t.lines.map((l) => (l.status === "READY" ? { ...l, status: "SERVED" as const } : l)),
     };
-    await transitionTicket(idx, "SERVED", { actor_id: by ?? "staff", event_type: "ORDER_SERVED" });
+    // Ticket leg stays KITCHEN_TICKET_UPDATED; ORDER_SERVED is owned by
+    // refreshOrderKitchenState when the whole order is served (no double emit).
+    await transitionTicket(idx, "SERVED", { actor_id: by ?? "staff" });
+    await refreshOrderKitchenState(t.order_id);
   });
 }
 
@@ -246,6 +442,7 @@ async function mutateTicket(
   const release = await entityMutex.acquire(`kot-${id}`);
   try {
     await delay(300);
+    loadTickets(); // re-read under lock so a concurrent tab's write isn't clobbered
     const idx = mockTickets.findIndex((t) => t.id === id);
     if (idx === -1) throw new Error("KOT not found");
     await fn(idx);
@@ -388,7 +585,7 @@ export async function voidKOTLine(
 }
 
 /**
- * Terminal fast path: confirm-if-DRAFT, add the item, fire immediately.
+ * Terminal fast path: add the item, fire immediately.
  * No draft step — the item lands straight on a new KOT.
  */
 export async function addAndFireItem(
@@ -398,9 +595,6 @@ export async function addAndFireItem(
 ): Promise<KitchenTicketWithDerived> {
   const order = await getOrderById(orderId);
   if (!order) throw new Error("Order not found");
-  if (order.status === "DRAFT") {
-    await confirmOrder(orderId, by);
-  }
   await addOrderItem(orderId, input);
   return fireKOT(orderId, by);
 }
@@ -417,9 +611,6 @@ export async function addManyAndFire(
   if (inputs.length === 0) throw new Error("Nothing to fire");
   const order = await getOrderById(orderId);
   if (!order) throw new Error("Order not found");
-  if (order.status === "DRAFT") {
-    await confirmOrder(orderId, by);
-  }
   for (const input of inputs) {
     await addOrderItem(orderId, input);
   }

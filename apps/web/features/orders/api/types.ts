@@ -96,6 +96,10 @@ export type OrderWithDerived = RestaurantOrder & {
   fired_items: number;
   draft_items: number;
   kot_count: number;
+  /** Kitchen item progress (READY/SERVED over live lines). Computed in
+   * getters from a single tickets snapshot — zero per-row queries. */
+  kitchen_done: number;
+  kitchen_total: number;
 };
 
 export type CreateOrderInput = {
@@ -107,6 +111,8 @@ export type CreateOrderInput = {
   customer_phone?: string;
   external_ref?: string;
   created_by?: string;
+  /** /new cart flow passes DRAFT; terminal/seed keep the CONFIRMED default. */
+  initial_status?: "DRAFT" | "CONFIRMED";
 };
 
 export type AddItemInput = {

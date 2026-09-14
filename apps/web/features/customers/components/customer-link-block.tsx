@@ -7,6 +7,7 @@ import { Button } from "@pixa/ui/base-ui/button";
 import { Input } from "@pixa/ui/base-ui/input";
 import { Label } from "@pixa/ui/base-ui/label";
 import { orderKeys, orderQueryOptions } from "@/features/orders/api/queries";
+import { eventKeys } from "@/features/events/api/queries";
 import { linkCustomer } from "@/features/orders/api/service";
 import {
   createCustomer,
@@ -30,6 +31,7 @@ export default function CustomerLinkBlock({ orderId }: { orderId: string }) {
   const invalidate = () => {
     getQueryClient().invalidateQueries({ queryKey: orderKeys.detail(orderId) });
     getQueryClient().invalidateQueries({ queryKey: orderKeys.all });
+    getQueryClient().invalidateQueries({ queryKey: eventKeys.byOrder(orderId) });
   };
 
   const linkMut = useMutation({

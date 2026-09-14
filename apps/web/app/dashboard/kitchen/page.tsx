@@ -19,30 +19,83 @@ import { cn } from "@pixa/ui/lib/utils";
 import { kitchenKeys, kitchenTicketsQueryOptions } from "@/features/kitchen/api/queries";
 import {
   acceptKOT,
+  acceptKOTLine,
   markLineReady,
   serveKOT,
   startPreparingKOT,
+  startPreparingKOTLine,
   voidKOT,
+  voidKOTLine,
 } from "@/features/kitchen/api/service";
 import type { KitchenTicketWithDerived, KOTStatus } from "@/features/kitchen/api/types";
 import { getQueryClient } from "@/lib/query-client";
+import { useCrossTabSync } from "@/lib/use-cross-tab-sync";
 import { toast } from "sonner";
 
 type BoardFilter = KOTStatus | "ALL";
-const COLUMNS: { status: BoardFilter; label: string }[] = [
-  { status: "ALL", label: "All live" },
+type BoardView = "kanban" | "cards";
+
+const VIEW_STORAGE_KEY = "pixa-kitchen-view";
+
+const TABS: { status: BoardFilter; label: string }[] = [
+  { status: "ALL", label: "Live" },
   { status: "NEW", label: "New" },
+  { status: "ACCEPTED", label: "Accepted" },
   { status: "PREPARING", label: "Preparing" },
   { status: "READY", label: "Ready" },
 ];
 
+/** Lifecycle order for kanban columns (terminal states last). */
+const STATUS_ORDER: KOTStatus[] = ["NEW", "ACCEPTED", "PREPARING", "READY", "SERVED", "CANCELLED"];
+const LIVE_STATUSES: KOTStatus[] = ["NEW", "ACCEPTED", "PREPARING", "READY"];
+
+const COLUMN_LABEL: Record<KOTStatus, string> = {
+  NEW: "New",
+  ACCEPTED: "Accepted",
+  PREPARING: "Preparing",
+  READY: "Ready",
+  SERVED: "Served",
+  CANCELLED: "Voided",
+};
+
 export default function KitchenBoardPage() {
+  useCrossTabSync();
   const [filter, setFilter] = useState<BoardFilter>("ALL");
-  const { data: tickets, isPending } = useQuery(
-    kitchenTicketsQueryOptions(filter === "ALL" ? {} : { status: filter as KOTStatus }),
-  );
+  const [view, setViewState] = useState<BoardView>(() => {
+    if (typeof window === "undefined") return "kanban";
+    try {
+      return window.localStorage.getItem(VIEW_STORAGE_KEY) === "cards" ? "cards" : "kanban";
+    } catch {
+      return "kanban";
+    }
+  });
+  const setView = (v: BoardView) => {
+    setViewState(v);
+    try {
+      window.localStorage.setItem(VIEW_STORAGE_KEY, v);
+    } catch {}
+  };
+
+  // Fetch all tickets; tabs filter client-side so counts and
+  // tab switches are instant. The board is live across dates — an open
+  // ticket stays visible until served, whenever it was fired. Polled like a
+  // real KDS wallboard (pauses automatically when the tab is hidden).
+  const { data: tickets, isPending } = useQuery({
+    ...kitchenTicketsQueryOptions({}),
+    refetchInterval: 5000,
+  });
 
   const live = (tickets ?? []).filter((t) => t.status !== "SERVED" && t.status !== "CANCELLED");
+  const scoped = live.filter((t) => filter === "ALL" || t.status === filter);
+  const countFor = (s: BoardFilter) =>
+    s === "ALL" ? live.length : live.filter((t) => t.status === s).length;
+
+  // Kanban columns: the selected statuses; always hold all four live
+  // columns (empty ones keep a placeholder for spatial stability).
+  const wanted: KOTStatus[] = filter === "ALL" ? STATUS_ORDER : [filter as KOTStatus];
+  const columnStatuses = wanted.filter(
+    (s) => scoped.some((t) => t.status === s) || LIVE_STATUSES.includes(s),
+  );
 
   if (isPending) {
     return (
@@ -57,24 +110,46 @@ export default function KitchenBoardPage() {
       pageTitle="Kitchen"
       pageDescription="Live kitchen tickets — accept, prepare, mark ready, serve."
       pageHeaderAction={
-        <Button variant="outline" size="sm" onClick={() => getQueryClient().invalidateQueries({ queryKey: kitchenKeys.all })}>
-          Refresh board
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <div className="flex gap-1" role="group" aria-label="Board view">
+            <Button
+              variant={view === "kanban" ? "default" : "outline"}
+              size="sm"
+              aria-pressed={view === "kanban"}
+              title="Kanban view"
+              onClick={() => setView("kanban")}
+            >
+              <Icons.kanban className="size-4" />
+            </Button>
+            <Button
+              variant={view === "cards" ? "default" : "outline"}
+              size="sm"
+              aria-pressed={view === "cards"}
+              title="Card view"
+              onClick={() => setView("cards")}
+            >
+              <Icons.cards className="size-4" />
+            </Button>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => getQueryClient().invalidateQueries({ queryKey: kitchenKeys.all })}>
+            Refresh board
+          </Button>
+        </div>
       }
     >
-      <div className="mb-4 flex flex-wrap gap-1.5">
-        {COLUMNS.map((c) => (
+      <div className="mb-4 flex flex-wrap items-center gap-1.5">
+        {TABS.map((c) => (
           <Button
-            key={c.label}
+            key={c.status}
             variant={filter === c.status ? "default" : "outline"}
             size="sm"
             onClick={() => setFilter(c.status)}
           >
-            {c.label}
+            {c.label} · {countFor(c.status)}
           </Button>
         ))}
       </div>
-      {live.length === 0 ? (
+      {scoped.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <div className="mx-auto flex max-w-md flex-col items-center gap-3">
@@ -88,9 +163,29 @@ export default function KitchenBoardPage() {
             </div>
           </CardContent>
         </Card>
+      ) : view === "kanban" ? (
+        <div className="flex items-start gap-3 overflow-x-auto pb-2">
+          {columnStatuses.map((s) => {
+            const col = scoped.filter((t) => t.status === s);
+            return (
+              <div key={s} className="w-[300px] shrink-0 space-y-2">
+                <p className="px-1 text-xs font-medium uppercase text-muted-foreground">
+                  {COLUMN_LABEL[s]} · {col.length}
+                </p>
+                {col.length === 0 ? (
+                  <div className="rounded-lg border border-dashed px-2 py-6 text-center text-xs text-muted-foreground">
+                    No tickets
+                  </div>
+                ) : (
+                  col.map((t) => <TicketCard key={t.id} ticket={t} />)
+                )}
+              </div>
+            );
+          })}
+        </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {live.map((t) => (
+          {scoped.map((t) => (
             <TicketCard key={t.id} ticket={t} />
           ))}
         </div>
@@ -108,6 +203,9 @@ function invalidateBoard() {
 function TicketCard({ ticket: t }: { ticket: KitchenTicketWithDerived }) {
   const [voidOpen, setVoidOpen] = useState(false);
   const [reason, setReason] = useState("");
+  const [lineVoid, setLineVoid] = useState<{ lineId: string; name: string; max: number } | null>(null);
+  const [lineVoidQty, setLineVoidQty] = useState(1);
+  const [lineVoidReason, setLineVoidReason] = useState("");
 
   const onOk = (msg: string) => () => {
     invalidateBoard();
@@ -132,6 +230,27 @@ function TicketCard({ ticket: t }: { ticket: KitchenTicketWithDerived }) {
   const lineMut = useMutation({
     mutationFn: (lineId: string) => markLineReady(t.id, lineId),
     onSuccess: onOk("Item marked ready"),
+    onError: onErr,
+  });
+  const startLineMut = useMutation({
+    mutationFn: (lineId: string) => startPreparingKOTLine(t.id, lineId),
+    onSuccess: onOk("Item preparing"),
+    onError: onErr,
+  });
+  const acceptLineMut = useMutation({
+    mutationFn: (lineId: string) => acceptKOTLine(t.id, lineId),
+    onSuccess: onOk("Item accepted"),
+    onError: onErr,
+  });
+  const voidLineMut = useMutation({
+    mutationFn: ({ lineId, qty, r }: { lineId: string; qty: number; r: string }) =>
+      voidKOTLine(t.id, lineId, { qty, reason: r }),
+    onSuccess: () => {
+      invalidateBoard();
+      toast.success("Item void recorded");
+      setLineVoid(null);
+      setLineVoidReason("");
+    },
     onError: onErr,
   });
   const voidMut = useMutation({
@@ -162,6 +281,8 @@ function TicketCard({ ticket: t }: { ticket: KitchenTicketWithDerived }) {
             className={cn(
               "flex items-center justify-between rounded-md px-2 py-1.5 text-sm",
               l.status === "VOIDED" && "bg-destructive/10 text-destructive line-through",
+              l.status === "ACCEPTED" && "bg-sky-500/10",
+              l.status === "PREPARING" && "bg-amber-500/10",
               l.status === "READY" && "bg-green-500/10",
             )}
           >
@@ -173,7 +294,7 @@ function TicketCard({ ticket: t }: { ticket: KitchenTicketWithDerived }) {
               )}
               {l.instructions && <span className="block text-xs italic">“{l.instructions}”</span>}
             </span>
-            {(l.status === "PENDING" || l.status === "PREPARING") && (
+            {l.status === "PREPARING" && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -183,6 +304,46 @@ function TicketCard({ ticket: t }: { ticket: KitchenTicketWithDerived }) {
                 <Icons.check className="mr-1 h-4 w-4" /> Ready
               </Button>
             )}
+            {l.status === "ACCEPTED" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={startLineMut.isPending}
+                onClick={() => startLineMut.mutate(l.id)}
+                title="Start preparing this item"
+              >
+                <Icons.kitchen className="mr-1 h-4 w-4" /> Start
+              </Button>
+            )}
+            {l.status === "PENDING" && t.status !== "SERVED" && t.status !== "CANCELLED" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={acceptLineMut.isPending}
+                onClick={() => acceptLineMut.mutate(l.id)}
+                title="Accept this item"
+              >
+                <Icons.check className="mr-1 h-4 w-4" /> Accept
+              </Button>
+            )}
+            {(l.status === "PENDING" || l.status === "ACCEPTED" || l.status === "PREPARING" || l.status === "READY") &&
+              t.status !== "SERVED" &&
+              t.status !== "CANCELLED" && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive"
+                  disabled={voidLineMut.isPending}
+                  onClick={() => {
+                    setLineVoidReason("");
+                    setLineVoidQty(l.qty - l.voided_qty);
+                    setLineVoid({ lineId: l.id, name: l.item_name_snapshot, max: l.qty - l.voided_qty });
+                  }}
+                  title="Void this item with a reason"
+                >
+                  <Icons.trash className="size-4" />
+                </Button>
+              )}
           </div>
         ))}
         {t.voids.length > 0 && (
@@ -250,6 +411,58 @@ function TicketCard({ ticket: t }: { ticket: KitchenTicketWithDerived }) {
                 }}
               >
                 Void KOT
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={lineVoid != null} onOpenChange={(o) => !o && setLineVoid(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Void {lineVoid?.name}?</DialogTitle>
+              <DialogDescription>
+                Recorded on the ticket with your reason; only started items flow to waste.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Qty (max {lineVoid?.max})</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={lineVoid?.max ?? 1}
+                  value={lineVoidQty}
+                  onChange={(e) => setLineVoidQty(Number(e.target.value))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Reason *</Label>
+                <Input
+                  placeholder="Out of stock, burnt…"
+                  value={lineVoidReason}
+                  onChange={(e) => setLineVoidReason(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setLineVoid(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={
+                  voidLineMut.isPending ||
+                  !lineVoidReason.trim() ||
+                  !lineVoid ||
+                  lineVoidQty < 1 ||
+                  lineVoidQty > lineVoid.max
+                }
+                onClick={() =>
+                  lineVoid &&
+                  voidLineMut.mutate({ lineId: lineVoid.lineId, qty: lineVoidQty, r: lineVoidReason.trim() })
+                }
+              >
+                Void item
               </Button>
             </div>
           </DialogContent>

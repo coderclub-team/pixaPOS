@@ -49,6 +49,7 @@ import {
   IconInfoCircle,
   IconItalic,
   IconLayoutDashboard,
+  IconLayoutGrid,
   IconLayoutKanban,
   IconLayoutSidebar,
   IconLoader2,
@@ -70,6 +71,7 @@ import {
   IconRosetteDiscountCheck,
   IconSearch,
   IconReceipt,
+  IconRefresh,
   IconChefHat,
   IconSelector,
   IconSend,
@@ -137,6 +139,7 @@ export const Icons = {
 
   // Layout
   dashboard: IconLayoutDashboard,
+  cards: IconLayoutGrid,
   kanban: IconLayoutKanban,
   panelLeft: IconLayoutSidebar,
 
@@ -227,6 +230,7 @@ export const Icons = {
 
   // Misc
   orders: IconReceipt,
+  refresh: IconRefresh,
   kitchen: IconChefHat,
   pizza: IconPizza,
   workspace: IconFolder,

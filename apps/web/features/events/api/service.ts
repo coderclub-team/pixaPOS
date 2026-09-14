@@ -1,7 +1,30 @@
 import { delay } from "@/constants/mock-api";
 import type { BusinessEvent, BusinessEventType, EntityType, EventFilters } from "./types";
 
+const EVENT_STORAGE_KEY = "pixaEvents";
+
 let mockEvents: BusinessEvent[] = [];
+
+function saveEvents() {
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(EVENT_STORAGE_KEY, JSON.stringify({ events: mockEvents }));
+    } catch {}
+  }
+}
+
+function loadEvents(): void {
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(EVENT_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed?.events)) mockEvents = parsed.events;
+      }
+    } catch {}
+  }
+}
+loadEvents();
 
 export async function recordEvent(params: {
   outlet_id: string;
@@ -22,11 +45,13 @@ export async function recordEvent(params: {
   };
 
   mockEvents.push(event);
+  saveEvents();
   return { ...event };
 }
 
 export async function getEvents(filters?: EventFilters): Promise<BusinessEvent[]> {
   await delay(200);
+  loadEvents(); // localStorage is the shared source — reload so tabs/displays agree
   let result = [...mockEvents].sort((a, b) => b.created_at.localeCompare(a.created_at));
 
   if (filters?.outlet_id) {

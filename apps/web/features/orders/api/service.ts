@@ -5,6 +5,8 @@ import { toPaise } from "@/lib/money";
 import { getMenuItemById, getModifiers } from "@/features/menu/api/service";
 import { attachOrder, detachOrder, getTableById, seatOccupancy } from "@/features/table/api/service";
 import { getCustomerById } from "@/features/customers/api/service";
+// Type-only: erased at runtime, so no module edge to the kitchen domain.
+import type { KOTLineStatus, KOTStatus } from "@/features/kitchen/api/types";
 import type {
   AddItemInput,
   BillPartition,
@@ -51,9 +53,11 @@ function loadOrders(): void {
 }
 loadOrders();
 
-/** Explicit order transition map (docs/workflows.md §1). */
+/** Explicit order transition map (docs/workflows.md §1). DRAFT is the
+ * internal pre-fire cart (never shown — see OrderStatusText): first fire
+ * walks it straight to IN_KITCHEN. CONFIRMED stays for stored history. */
 const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  DRAFT: ["CONFIRMED", "CANCELLED"],
+  DRAFT: ["CONFIRMED", "IN_KITCHEN", "CANCELLED"],
   CONFIRMED: ["IN_KITCHEN", "CANCELLED"],
   IN_KITCHEN: ["PREPARING", "CANCELLED"],
   PREPARING: ["READY", "CANCELLED"],
@@ -74,6 +78,8 @@ function canTransitionOrder(from: OrderStatus, to: OrderStatus): boolean {
  */
 export async function assertTableOccupied(order: RestaurantOrder): Promise<void> {
   if (order.channel !== "dine_in" || !order.table_id) return;
+  // DRAFT is an editable cart — the occupancy lock applies once fired.
+  if (order.status === "DRAFT") return;
   if (order.status === "COMPLETED" || order.status === "CANCELLED") return;
   const table = await getTableById(order.table_id);
   if (!table) throw new Error("Table not found");
@@ -131,17 +137,51 @@ function recomputeTotals(order: RestaurantOrder): RestaurantOrder {
   };
 }
 
-function enrichOrder(order: RestaurantOrder): OrderWithDerived {
+function enrichOrder(
+  order: RestaurantOrder,
+  kitchen?: { done: number; total: number },
+): OrderWithDerived {
   return {
     ...order,
     fired_items: order.items.filter((i) => i.kot_id).length,
     draft_items: order.items.filter((i) => !i.kot_id).length,
     kot_count: new Set(order.items.map((i) => i.kot_id).filter(Boolean)).size,
+    kitchen_done: kitchen?.done ?? 0,
+    kitchen_total: kitchen?.total ?? 0,
   };
+}
+
+/**
+ * Item progress per order from one tickets snapshot (single pass, no
+ * per-order queries): READY/SERVED live lines over all live lines,
+ * voided tickets excluded. Same derivation as useOrderKitchenProgress.
+ */
+function kitchenProgressMap(
+  tickets: { order_id: string; status: KOTStatus; lines: { status: KOTLineStatus; qty: number; voided_qty: number }[] }[],
+): Map<string, { done: number; total: number }> {
+  const map = new Map<string, { done: number; total: number }>();
+  for (const t of tickets) {
+    if (t.status === "CANCELLED") continue;
+    let entry = map.get(t.order_id);
+    if (!entry) {
+      entry = { done: 0, total: 0 };
+      map.set(t.order_id, entry);
+    }
+    for (const l of t.lines) {
+      if (l.qty - l.voided_qty <= 0) continue;
+      entry.total++;
+      if (l.status === "READY" || l.status === "SERVED") entry.done++;
+    }
+  }
+  return map;
 }
 
 export async function getOrders(filters?: OrderFilters): Promise<OrderWithDerived[]> {
   await delay(300);
+  loadOrders(); // localStorage is the shared source — reload so tabs/displays agree
+  await backfillOrderKitchenStates(); // self-heal statuses frozen before propagation
+  const { readTicketsSnapshot } = await import("@/features/kitchen/api/service");
+  const progress = kitchenProgressMap(readTicketsSnapshot());
   let r = [...mockOrders].filter((o) => !o.deleted_at);
   if (filters?.outlet_id) r = r.filter((o) => o.outlet_id === filters.outlet_id);
   if (filters?.channel) r = r.filter((o) => o.channel === filters.channel);
@@ -160,13 +200,17 @@ export async function getOrders(filters?: OrderFilters): Promise<OrderWithDerive
   }
   return r
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
-    .map(enrichOrder);
+    .map((o) => enrichOrder(o, progress.get(o.id)));
 }
 
 export async function getOrderById(id: string): Promise<OrderWithDerived | null> {
   await delay(200);
+  loadOrders();
+  await backfillOrderKitchenStates();
   const o = mockOrders.find((o) => o.id === id && !o.deleted_at);
-  return o ? enrichOrder(o) : null;
+  if (!o) return null;
+  const { readTicketsSnapshot } = await import("@/features/kitchen/api/service");
+  return enrichOrder(o, kitchenProgressMap(readTicketsSnapshot()).get(o.id));
 }
 
 export async function createOrder(input: CreateOrderInput): Promise<OrderWithDerived> {
@@ -203,7 +247,7 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
       customer_name: input.customer_name?.trim() || undefined,
       customer_phone: input.customer_phone?.trim() || undefined,
       external_ref: input.external_ref?.trim() || undefined,
-      status: "CONFIRMED",
+      status: input.initial_status ?? "CONFIRMED",
       items: [],
       subtotal_paise: 0,
       tax_paise: 0,
@@ -222,18 +266,20 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
       entity_type: "ORDER",
       entity_id: order.id,
       event_type: "ORDER_CREATED",
-      to_state: "CONFIRMED",
+      to_state: order.status,
       actor_id: order.created_by,
       metadata: { channel: order.channel, order_number: order.order_number },
     });
-    await recordEvent({
-      outlet_id: order.outlet_id,
-      entity_type: "ORDER",
-      entity_id: order.id,
-      event_type: "ORDER_CONFIRMED",
-      to_state: "CONFIRMED",
-      actor_id: order.created_by,
-    });
+    if (order.status === "CONFIRMED") {
+      await recordEvent({
+        outlet_id: order.outlet_id,
+        entity_type: "ORDER",
+        entity_id: order.id,
+        event_type: "ORDER_CONFIRMED",
+        to_state: "CONFIRMED",
+        actor_id: order.created_by,
+      });
+    }
     return enrichOrder(order);
   } finally {
     release();
@@ -454,8 +500,9 @@ export async function removeDraftItem(orderId: string, lineId: string): Promise<
 }
 
 /**
- * Idempotent no-op for CONFIRMED orders (orders are created confirmed since
- * drafts were retired). Kept so existing callers don't break.
+ * Idempotent no-op for CONFIRMED orders. Terminal fast paths create DRAFT
+ * carts (first fire walks DRAFT → IN_KITCHEN directly), so this is kept for
+ * legacy callers only — no new flow should confirm.
  */
 export async function confirmOrder(orderId: string, by?: string): Promise<OrderWithDerived> {
   const release = await entityMutex.acquire(`order-${orderId}`);
@@ -482,23 +529,68 @@ export async function markLinesFired(
 ): Promise<OrderWithDerived> {
   const release = await entityMutex.acquire(`order-${orderId}`);
   try {
+    loadOrders(); // re-read under lock so a concurrent tab's write isn't clobbered
     const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
     if (idx === -1) throw new Error("Order not found");
-    const order = mockOrders[idx];
     const ids = new Set(marks.map((m) => m.line_id));
-    const items = order.items.map((i) => {
+    // Fresh base: getters (with backfill) may have advanced this order while
+    // we awaited — never branch or write from a stale snapshot.
+    const base = mockOrders[idx];
+    const items = base.items.map((i) => {
       const m = marks.find((x) => x.line_id === i.id);
       return m ? { ...i, kot_id: m.kot_id, kot_line_id: m.kot_line_id } : i;
     });
     if (items.some((i) => ids.has(i.id) && !i.kot_id)) throw new Error("Line not found");
     mockOrders[idx] = {
-      ...order,
+      ...base,
       items,
       updated_at: new Date().toISOString(),
-      version: order.version + 1,
+      version: base.version + 1,
     };
-    if (order.status === "CONFIRMED") {
+    const order = mockOrders[idx];
+    if (order.status === "DRAFT" || order.status === "CONFIRMED") {
+      if (order.status === "DRAFT" && order.channel === "dine_in" && order.table_id) {
+        // First-fire auto-seat: the cart never required occupancy, but a
+        // fired dine-in order must sit on an active group (terminal parity).
+        const table = await getTableById(order.table_id);
+        if (table && table.active_groups.length === 0) {
+          const free = table.capacity - table.seated_seats;
+          const seated = await seatOccupancy({
+            table_id: table.id,
+            seats: Math.max(1, free > 0 ? free : table.capacity),
+            created_by: order.created_by ?? "staff",
+          });
+          try {
+            await attachOrder({ group_id: seated.id, order_id: order.id });
+          } catch {
+            // Group transitioned mid-flight — table_id linkage stands.
+          }
+          mockOrders[idx] = { ...mockOrders[idx], occupancy_group_id: seated.id };
+        }
+      }
       await transitionOrder(idx, "IN_KITCHEN", { event_type: "ORDER_SENT_TO_KITCHEN" });
+    } else if (order.status === "READY" || order.status === "SERVED") {
+      // Add-on fire (Aloha rule): new food on a settled order re-opens it —
+      // the kitchen is cooking again, so READY/SERVED would lie. Backward
+      // edges don't exist in the machine; this explicit, audited step-back is
+      // the only regression path. COMPLETED/CANCELLED never reach here
+      // (addOrderItem blocks them).
+      const now = new Date().toISOString();
+      mockOrders[idx] = {
+        ...mockOrders[idx],
+        status: "IN_KITCHEN",
+        updated_at: now,
+        version: mockOrders[idx].version + 1,
+      };
+      await recordEvent({
+        outlet_id: order.outlet_id,
+        entity_type: "ORDER",
+        entity_id: order.id,
+        event_type: "ORDER_SENT_TO_KITCHEN",
+        from_state: order.status,
+        to_state: "IN_KITCHEN",
+        metadata: { reopened_by_fire: true, kot_ids: marks.map((m) => m.kot_id) },
+      });
     }
     saveOrders();
     return enrichOrder(mockOrders[idx]);
@@ -750,6 +842,14 @@ export async function setDiscount(
 /**
  * Partition the grand total for group sharing. Rounding residue (paise) goes
  * to the last partition — explicit rule. Splits are independent of firing.
+ *
+ * Guarded edit: rebuilding over an existing split is allowed in any
+ * non-terminal state, but a share can never shrink below its already-paid
+ * amount (payments are immutable) and a label carrying payments can never be
+ * renamed or dropped (partition_label has no FK — orphaned labels would
+ * strand the ledger join). Emits ORDER_SPLIT_EDITED on rebuild, else
+ * ORDER_SPLIT_BUILT. No occupancy guard — splits partition payment, and
+ * payments stay open when release-locked.
  */
 export async function computeSplits(
   orderId: string,
@@ -764,6 +864,9 @@ export async function computeSplits(
     const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
     if (idx === -1) throw new Error("Order not found");
     const order = mockOrders[idx];
+    if (order.status === "COMPLETED" || order.status === "CANCELLED") {
+      throw new Error(`Cannot split a ${order.status.toLowerCase()} order`);
+    }
     const grand = order.grand_total_paise;
     if (grand < 1) throw new Error("Nothing to split on an empty bill");
 
@@ -814,6 +917,29 @@ export async function computeSplits(
       });
     }
 
+    // Guarded edit: validate against immutable payment rows BEFORE writing.
+    const { getPayments } = await import("@/features/payments/api/service");
+    const paidByLabel = new Map<string, number>();
+    for (const p of await getPayments({ order_id: orderId, status: "PAID" })) {
+      if (p.partition_label)
+        paidByLabel.set(p.partition_label, (paidByLabel.get(p.partition_label) ?? 0) + p.amount_paise);
+    }
+    if (paidByLabel.size > 0) {
+      const nextLabels = new Set(partitions.map((p) => p.label));
+      for (const [label, paid] of paidByLabel) {
+        if (!nextLabels.has(label)) {
+          throw new Error(`Cannot drop or rename "${label}" — ₹${(paid / 100).toFixed(2)} already paid against it`);
+        }
+      }
+      for (const p of partitions) {
+        const paid = paidByLabel.get(p.label) ?? 0;
+        if (p.amount_paise < paid) {
+          throw new Error(`"${p.label}" already paid ₹${(paid / 100).toFixed(2)} — share cannot shrink below paid`);
+        }
+      }
+    }
+
+    const isEdit = !!order.split;
     mockOrders[idx] = {
       ...order,
       split: { mode: params.mode as SplitMode, partitions, created_at: new Date().toISOString() },
@@ -825,8 +951,59 @@ export async function computeSplits(
       outlet_id: order.outlet_id,
       entity_type: "ORDER",
       entity_id: order.id,
-      event_type: "ORDER_SPLIT_BUILT",
+      event_type: isEdit ? "ORDER_SPLIT_EDITED" : "ORDER_SPLIT_BUILT",
       metadata: { mode: params.mode, partitions: partitions.length },
+    });
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
+/**
+ * Remove the active split. Blocked on terminal orders and whenever any PAID
+ * payment carries a share label — deleting would orphan the ledger join
+ * (partition_label has no FK). Discounts still wipe label-less splits via
+ * setDiscount; this is the explicit, audited removal path.
+ */
+export async function clearSplit(
+  orderId: string,
+  params: { reason: string; by?: string },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(300);
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (!order.split) throw new Error("Order has no split to remove");
+    if (order.status === "COMPLETED" || order.status === "CANCELLED") {
+      throw new Error(`Cannot change the split on a ${order.status.toLowerCase()} order`);
+    }
+    if (!params.reason?.trim()) throw new Error("A reason is required to remove the split");
+    const { getPayments } = await import("@/features/payments/api/service");
+    const labelled = (await getPayments({ order_id: orderId, status: "PAID" })).filter(
+      (p) => p.partition_label,
+    );
+    if (labelled.length > 0) {
+      throw new Error("Cannot remove the split — share payments already exist");
+    }
+    const prev = order.split;
+    mockOrders[idx] = {
+      ...order,
+      split: undefined,
+      updated_at: new Date().toISOString(),
+      version: order.version + 1,
+    };
+    saveOrders();
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: order.id,
+      event_type: "ORDER_SPLIT_CLEARED",
+      actor_id: params.by ?? "staff",
+      reason_text: params.reason.trim(),
+      metadata: { mode: prev.mode, partitions: prev.partitions.length },
     });
     return enrichOrder(mockOrders[idx]);
   } finally {
@@ -836,6 +1013,7 @@ export async function computeSplits(
 
 /** Billing read-model for the terminal: paid/balance via the payments ledger. */
 export async function getOrderWithBilling(orderId: string): Promise<BillingView | null> {
+  loadOrders();
   const order = mockOrders.find((o) => o.id === orderId && !o.deleted_at);
   if (!order) return null;
   const { paidTotalForOrder } = await import("@/features/payments/api/service");
@@ -847,10 +1025,19 @@ export async function getOrderWithBilling(orderId: string): Promise<BillingView 
 export async function refreshOrderPaymentState(orderId: string): Promise<void> {
   const release = await entityMutex.acquire(`order-${orderId}`);
   try {
+    loadOrders(); // caller holds payment writes, never order writes — safe
     const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
     if (idx === -1) return;
-    const { paidTotalForOrder } = await import("@/features/payments/api/service");
-    const paid = await paidTotalForOrder(orderId);
+    // peek (memory, no reload): the just-recorded payment/refund is still
+    // un-persisted in the caller's frame — reloading would drop it.
+    const { peekPayments, peekRefunds } = await import("@/features/payments/api/service");
+    const paid =
+      peekPayments()
+        .filter((p) => p.order_id === orderId && p.status === "PAID")
+        .reduce((s, p) => s + p.amount_paise, 0) -
+      peekRefunds()
+        .filter((r) => r.order_id === orderId && r.status === "REFUNDED")
+        .reduce((s, r) => s + r.amount_paise, 0);
     const grand = mockOrders[idx].grand_total_paise;
     const status = paid >= grand && grand > 0 ? "PAID" : paid > 0 ? "PARTIAL" : "UNPAID";
     const prev = mockOrders[idx].payment_status;
@@ -870,6 +1057,145 @@ export async function refreshOrderPaymentState(orderId: string): Promise<void> {
 }
 
 export { canTransitionOrder };
+
+/**
+ * Single shared rule deriving an order's kitchen step from ALL non-voided
+ * tickets (Toast/Lightspeed/Odoo aggregation): an order is ready only when
+ * every item is ready. Used by live sync AND load backfill alike, so the
+ * list, detail, terminal and board can never disagree.
+ */
+export function deriveKitchenTarget(tickets: { status: KOTStatus }[]): OrderStatus | null {
+  const active = tickets.filter((k) => k.status !== "CANCELLED");
+  if (active.length === 0) return null;
+  if (active.every((k) => k.status === "SERVED")) return "SERVED";
+  if (active.every((k) => k.status === "READY" || k.status === "SERVED")) return "READY";
+  if (active.some((k) => k.status === "PREPARING" || k.status === "READY")) return "PREPARING";
+  return "IN_KITCHEN";
+}
+
+const KITCHEN_CHAIN: OrderStatus[] = ["CONFIRMED", "IN_KITCHEN", "PREPARING", "READY", "SERVED"];
+
+const STEP_EVENT_FOR: Record<OrderStatus, any> = {
+  DRAFT: "KITCHEN_TICKET_UPDATED",
+  CONFIRMED: "KITCHEN_TICKET_UPDATED",
+  IN_KITCHEN: "KITCHEN_TICKET_UPDATED",
+  PREPARING: "KITCHEN_STARTED",
+  READY: "ORDER_READY",
+  SERVED: "ORDER_SERVED",
+  COMPLETED: "ORDER_COMPLETED",
+  CANCELLED: "ORDER_CANCELLED",
+};
+
+/**
+ * Walk idx forward along KITCHEN_CHAIN; returns true when anything moved.
+ * Silent mode writes status without events — used only by load backfill:
+ * reconciliation narrates nothing, so a catch-up never fabricates audit
+ * history with fresh timestamps.
+ */
+async function walkForward(
+  idx: number,
+  target: OrderStatus,
+  opts?: { silent?: boolean },
+): Promise<boolean> {
+  let cur = KITCHEN_CHAIN.indexOf(mockOrders[idx].status);
+  const goal = KITCHEN_CHAIN.indexOf(target);
+  if (cur === -1 || goal === -1 || cur >= goal) return false;
+  while (cur < goal) {
+    const next = KITCHEN_CHAIN[cur + 1];
+    if (opts?.silent) {
+      const now = new Date().toISOString();
+      mockOrders[idx] = {
+        ...mockOrders[idx],
+        status: next,
+        updated_at: now,
+        version: mockOrders[idx].version + 1,
+      };
+    } else {
+      await transitionOrder(idx, next, { event_type: STEP_EVENT_FOR[next] });
+    }
+    cur++;
+  }
+  return true;
+}
+
+/**
+ * Self-heal on load: orders frozen mid-lifecycle (e.g. served before the
+ * propagation fix) walk forward to their derived step, change-only and
+ * SILENT — steady state writes nothing and emits nothing, so reloads never
+ * fabricate audit history.
+ */
+async function backfillOrderKitchenStates(): Promise<void> {
+  loadOrders();
+  const { readTicketsSnapshot } = await import("@/features/kitchen/api/service");
+  const tickets = readTicketsSnapshot();
+  let dirty = false;
+  for (let idx = 0; idx < mockOrders.length; idx++) {
+    const o = mockOrders[idx];
+    if (o.deleted_at) continue;
+    if (!["CONFIRMED", "IN_KITCHEN", "PREPARING", "READY", "SERVED"].includes(o.status)) continue;
+    const target = deriveKitchenTarget(tickets.filter((t) => t.order_id === o.id));
+    if (!target) continue;
+    if (await walkForward(idx, target, { silent: true })) dirty = true;
+  }
+  if (dirty) saveOrders();
+}
+
+/**
+ * Advance ORDER.status from kitchen progress (advance-only, never regresses).
+ * Called by the kitchen commands after accept / prepare / line-ready / serve.
+ * Each step walked emits its order-level event (ORDER_READY / ORDER_SERVED),
+ * so the kitchen ticket transitions stay ticket-scoped and never double-emit.
+ */
+export async function refreshOrderKitchenState(orderId: string): Promise<void> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    loadOrders();
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) return;
+    const order = mockOrders[idx];
+    if (!["CONFIRMED", "IN_KITCHEN", "PREPARING", "READY", "SERVED"].includes(order.status)) return;
+    // peek (memory, no reload): this runs inside kitchen mutations with
+    // un-persisted ticket writes — reloading here would revert them and the
+    // later save would persist the revert. Sibling-tab staleness is bounded
+    // (advance-only; backfill heals on read).
+    const { peekTickets } = await import("@/features/kitchen/api/service");
+    const target = deriveKitchenTarget(
+      peekTickets().filter((t) => t.order_id === orderId),
+    );
+    if (!target) return;
+    if (await walkForward(idx, target)) saveOrders();
+  } finally {
+    release();
+  }
+}
+
+/**
+ * Explicit completion: SERVED + zero balance → COMPLETED (ORDER_COMPLETED).
+ * Fulfillment alone never completes — the bill must be settled first.
+ */
+export async function completeOrder(orderId: string, by?: string): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(300);
+    loadOrders();
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (order.status !== "SERVED") {
+      throw new Error(`Only served orders can be completed (order is ${order.status.toLowerCase()})`);
+    }
+    const { paidTotalForOrder } = await import("@/features/payments/api/service");
+    const balance = Math.max(0, order.grand_total_paise - (await paidTotalForOrder(orderId)));
+    if (balance > 0) {
+      throw new Error(`Collect the remaining ₹${(balance / 100).toFixed(2)} before completing`);
+    }
+    await transitionOrder(idx, "COMPLETED", { actor_id: by ?? "staff", event_type: "ORDER_COMPLETED" });
+    saveOrders();
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
 
 /**
  * @dev-only Demo seed: builds 10 orders across statuses using real commands.

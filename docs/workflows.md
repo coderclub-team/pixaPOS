@@ -1,6 +1,16 @@
 # Restaurant Workflows
 
-Source of truth for lifecycle state machines. Code and these docs must stay consistent (guide §16). Transitions run only through domain-service commands that validate, side-effect, and emit business events.
+Source of truth for lifecycle state machines. Code and these docs must stay consistent. Transitions run only through domain-service commands that validate, side-effect, and emit business events.
+
+## Local-first delivery rule
+
+The current services are mock-backed. When durable local-first operation is
+introduced, each transition below must be represented as an idempotent command
+with a durable outbox record and visible `synced`, `retrying`, `blocked`, or
+`conflicted` status. A transition is operationally complete only when its
+canonical result is reconciled; the local event remains an audit record. See
+`offline-and-sync.md` and ADR-0011. This rule does not alter the state
+machines defined below.
 
 ## 1. Order lifecycle
 
@@ -10,9 +20,13 @@ DRAFT → CONFIRMED → IN_KITCHEN → PREPARING → READY → SERVED → COMPLE
 
 Cancellation: `DRAFT → CANCELLED`, `CONFIRMED → CANCELLED`, `IN_KITCHEN → CANCELLED`. Past `PREPARING`, cancellation needs authorization and records who/when/reason/previous-state/financial + inventory impact.
 
-- **DRAFT**: retired from order-taking — orders are created CONFIRMED (the state remains in the union for stored history only). No draft UI exists.
+- **DRAFT**: internal pre-fire cart — created by `/new`, never shown (list hides drafts, every surface labels it "New order"). No CONFIRMED step in new flows: the first fire walks `DRAFT → IN_KITCHEN` (auto-seating dine-in tables); exiting with zero fired KOTs discards the cart. CONFIRMED remains in the union for stored history only.
 - **CONFIRMED**: order accepted — add items (each add fires a new KOT), send to kitchen, accept payment, policy-bound modify/cancel.
 - **IN_KITCHEN**: ticket created; kitchen may begin. **PREPARING**: kitchen started (item-ready marks allowed; cancel needs auth). **READY**: awaiting pickup/serve/delivery. **SERVED** (dine-in). **COMPLETED**: normally `payment = PAID` + fulfillment done.
+- **Kitchen → order propagation** (advance-only, never regresses): KOT accept/prepare/ready/serve walks the order `CONFIRMED → IN_KITCHEN → PREPARING → READY → SERVED` via `refreshOrderKitchenState` (voided tickets ignored). Loads also self-heal: `getOrders`/`getOrderById` backfill non-terminal orders forward to the same derived step (change-only, so steady state writes nothing). Backfill reconciles silently — it writes status without emitting events, so reloads never fabricate audit history; live transitions remain the sole event source. Completion is explicit via `completeOrder` — `SERVED` + zero balance → `COMPLETED` (`ORDER_COMPLETED`).
+- **Multi-KOT aggregation** (Toast/Lightspeed/Odoo rule): one order may hold N tickets; the order step is derived from *all* non-voided tickets — all `SERVED` → `SERVED`, all `READY`/`SERVED` → `READY`, any `PREPARING` work → `PREPARING`. An order is ready only when every item is ready; the shared `OrderKitchenProgress` readout (`done/total ready`) renders on the list, detail and terminal from the same derivation so every surface agrees.
+- **Add-on reopen** (Aloha rule): firing new items onto a `READY`/`SERVED` order walks it back to `IN_KITCHEN` (audited, the only regression path) — settled status must never claim food that is still cooking.
+- **Shared source**: the localStorage-backed mocks reload on every read and broadcast `storage` events (`useCrossTabSync`), so the KDS wallboard (5 s poll), terminal, list and detail converge on one truth across tabs.
 
 ## 2. Order-item workflow
 
@@ -29,6 +43,21 @@ Post-kitchen modifications create explicit adjustment events (record `-1 Burger 
 ```text
 NEW → ACCEPTED → PREPARING → READY → SERVED
 ```
+
+Strict step-by-step: neither tickets nor lines may skip a step. Every item
+walks its own line machine alongside the ticket:
+
+```text
+PENDING → ACCEPTED → PREPARING → READY → SERVED (or VOIDED from any non-terminal step)
+```
+
+ACCEPTED is acknowledgment, not a tollbooth: chefs accept items line by line
+(`acceptKOTLine`; the first accept moves the ticket `NEW → ACCEPTED`), but
+`PENDING → PREPARING` stays legal for bulk starts and fast paths. After
+accept, multi-item tickets prepare line by line (`startPreparingKOTLine`);
+the first started line moves the ticket `ACCEPTED → PREPARING`. A line becomes
+`READY` only from `PREPARING`, the ticket becomes `READY` only when every line
+is `READY`/`VOIDED`/`SERVED`, and only `READY` tickets serve.
 
 `ORDER.status` and `KITCHEN_TICKET.status` are different fields on different entities.
 
@@ -105,7 +134,7 @@ Inactive products stay out of new orders; history keeps referencing them (snapsh
 
 ## 8. Business events (audit trail)
 
-`ORDER_CREATED, ORDER_CONFIRMED, ORDER_SENT_TO_KITCHEN, ITEM_ADDED, ITEM_MODIFIED, ITEM_REMOVED, KITCHEN_TICKET_UPDATED, KITCHEN_STARTED, KITCHEN_ITEM_READY, ORDER_READY, ORDER_SERVED, KOT_VOIDED, KOT_LINE_VOIDED, PAYMENT_STARTED, PAYMENT_COMPLETED, PAYMENT_FAILED, REFUND_CREATED, ORDER_CANCELLED, ORDER_COMPLETED, WASTE_LOGGED, WASTE_FROM_ORDER_CANCELLED, FLOOR_CREATED, FLOOR_UPDATED, FLOOR_DELETED, FLOOR_REORDERED, TABLE_CREATED, TABLE_UPDATED, TABLE_MOVED, TABLE_RESIZED, TABLE_DELETED, TABLE_CLEANING_STARTED, OCCUPANCY_SEATED, OCCUPANCY_TRANSFERRED, OCCUPANCY_RELEASED, OCCUPANCY_CANCELLED, OCCUPANCY_ORDER_DETACHED, ORDER_CUSTOMER_LINKED, CUSTOMER_CREATED, CUSTOMER_UPDATED, CUSTOMER_DELETED, ORDER_DISCOUNTED, ORDER_SPLIT_BUILT, ORDER_PAID, ORDER_LOCKED, KOT_LINE_QTY_ADDED, TABLE_STATUS_SET` — append-only, feeding audit, KDS, reports, integrations.
+`ORDER_CREATED, ORDER_CONFIRMED, ORDER_SENT_TO_KITCHEN, ORDER_UPDATED, ITEM_ADDED, ITEM_MODIFIED, ITEM_REMOVED, KITCHEN_TICKET_UPDATED, KITCHEN_STARTED, KITCHEN_ITEM_READY, ORDER_READY, ORDER_SERVED, KOT_VOIDED, KOT_LINE_VOIDED, PAYMENT_STARTED, PAYMENT_COMPLETED, PAYMENT_FAILED, REFUND_CREATED, ORDER_CANCELLED, ORDER_COMPLETED, WASTE_LOGGED, WASTE_FROM_ORDER_CANCELLED, FLOOR_CREATED, FLOOR_UPDATED, FLOOR_DELETED, FLOOR_REORDERED, TABLE_CREATED, TABLE_UPDATED, TABLE_MOVED, TABLE_RESIZED, TABLE_DELETED, TABLE_CLEANING_STARTED, OCCUPANCY_SEATED, OCCUPANCY_TRANSFERRED, OCCUPANCY_RELEASED, OCCUPANCY_CANCELLED, OCCUPANCY_ORDER_DETACHED, ORDER_CUSTOMER_LINKED, CUSTOMER_CREATED, CUSTOMER_UPDATED, CUSTOMER_DELETED, ORDER_DISCOUNTED, ORDER_SPLIT_BUILT, ORDER_SPLIT_EDITED, ORDER_SPLIT_CLEARED, ORDER_PAID, ORDER_LOCKED, KOT_LINE_QTY_ADDED, TABLE_STATUS_SET` — append-only, feeding audit, KDS, reports, integrations.
 
 ## 9. Wastage
 

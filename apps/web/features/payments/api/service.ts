@@ -41,6 +41,7 @@ loadPayments();
 
 export async function getPayments(filters?: PaymentFilters): Promise<Payment[]> {
   await delay(200);
+  loadPayments(); // localStorage is the shared source — reload so tabs/displays agree
   let r = [...mockPayments];
   if (filters?.outlet_id) r = r.filter((p) => p.outlet_id === filters.outlet_id);
   if (filters?.order_id) r = r.filter((p) => p.order_id === filters.order_id);
@@ -51,7 +52,21 @@ export async function getPayments(filters?: PaymentFilters): Promise<Payment[]> 
 
 export async function getRefundsByOrder(orderId: string): Promise<Refund[]> {
   await delay(200);
+  loadPayments();
   return mockRefunds.filter((r) => r.order_id === orderId);
+}
+
+/**
+ * In-memory reads WITHOUT reload — for use inside mutations that already
+ * hold fresh state (a reload before save would revert the in-flight
+ * payment/refund and persist the revert).
+ */
+export function peekPayments(): Payment[] {
+  return [...mockPayments];
+}
+
+export function peekRefunds(): Refund[] {
+  return [...mockRefunds];
 }
 
 /**
@@ -70,6 +85,7 @@ export async function collectPayment(params: {
   const release = await entityMutex.acquire(`pay-order-${params.order_id}`);
   try {
     await delay(400);
+    loadPayments(); // re-read under lock so a concurrent tab's write isn't clobbered
     const { getOrderWithBilling } = await import("@/features/orders/api/service");
     const billing = await getOrderWithBilling(params.order_id);
     if (!billing) throw new Error("Order not found");
@@ -140,6 +156,7 @@ export async function recordRefund(params: {
   reason: string;
   by?: string;
 }): Promise<Refund> {
+  loadPayments(); // shared source may have moved in another tab
   const payment = mockPayments.find((p) => p.id === params.payment_id);
   if (!payment) throw new Error("Payment not found");
   const release = await entityMutex.acquire(`pay-${params.payment_id}`);

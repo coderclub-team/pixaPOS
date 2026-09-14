@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import PageContainer from "@/components/layout/page-container";
-import { Button } from "@pixa/ui/base-ui/button";
+import { Button, buttonVariants } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
 import {
   DropdownMenu,
@@ -38,12 +39,15 @@ import {
   TableRow,
 } from "@pixa/ui/base-ui/table";
 import { Icons } from "@pixa/ui/icons";
+import { cn } from "@pixa/ui/lib/utils";
 import { formatINR } from "@/lib/money";
 import { orderKeys, ordersQueryOptions } from "@/features/orders/api/queries";
+import { kitchenKeys } from "@/features/kitchen/api/queries";
 import { deleteOrder } from "@/features/orders/api/service";
 import type { OrderChannel, OrderStatus, OrderWithDerived } from "@/features/orders/api/types";
-import OrderStatusText from "@/features/orders/components/order-status";
+import { OrderStatusPill } from "@/features/orders/components/order-kitchen-progress";
 import { getQueryClient } from "@/lib/query-client";
+import { useCrossTabSync } from "@/lib/use-cross-tab-sync";
 import { toast } from "sonner";
 
 const CHANNELS: { value: OrderChannel | "all"; label: string }[] = [
@@ -58,8 +62,6 @@ const CHANNELS: { value: OrderChannel | "all"; label: string }[] = [
 
 const STATUSES: { value: OrderStatus | "all"; label: string }[] = [
   { value: "all", label: "All statuses" },
-  { value: "DRAFT", label: "Draft" },
-  { value: "CONFIRMED", label: "Confirmed" },
   { value: "IN_KITCHEN", label: "In kitchen" },
   { value: "PREPARING", label: "Preparing" },
   { value: "READY", label: "Ready" },
@@ -69,18 +71,25 @@ const STATUSES: { value: OrderStatus | "all"; label: string }[] = [
 ];
 
 export default function OrdersPage() {
+  useCrossTabSync();
   const [search, setSearch] = useState("");
   const [inputValue, setInputValue] = useState("");
   const [channel, setChannel] = useState<OrderChannel | "all">("all");
   const [status, setStatus] = useState<OrderStatus | "all">("all");
 
-  const { data: orders, isPending } = useQuery(
-    ordersQueryOptions({
+  const { data: orders, isPending, dataUpdatedAt } = useQuery({
+    ...ordersQueryOptions({
       search: search || undefined,
       channel: channel === "all" ? undefined : channel,
       status: status === "all" ? undefined : status,
     }),
-  );
+    // Reception glance-screen: cheap poll (progress rides on the orders
+    // payload, zero per-row queries). Pauses when the tab is hidden.
+    refetchInterval: 10000,
+  });
+
+  // DRAFT carts never reach the list — an order appears only once fired.
+  const visibleOrders = (orders ?? []).filter((o) => o.status !== "DRAFT");
 
   if (isPending) {
     return (
@@ -94,6 +103,29 @@ export default function OrdersPage() {
     <PageContainer
       pageTitle="Orders"
       pageDescription="Orders across dine-in, takeaway, delivery and online channels. Create them from the Order Terminal."
+      pageHeaderAction={
+        <div className="flex items-center gap-1.5">
+          {dataUpdatedAt > 0 && (
+            <span className="hidden text-[11px] text-muted-foreground sm:inline">
+              Updated {new Date(dataUpdatedAt).toLocaleTimeString()}
+            </span>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            title="Refresh orders"
+            onClick={() => {
+              getQueryClient().invalidateQueries({ queryKey: orderKeys.all });
+              getQueryClient().invalidateQueries({ queryKey: kitchenKeys.all });
+            }}
+          >
+            <Icons.refresh className="size-4" />
+          </Button>
+          <Link href="/dashboard/orders/new" className={cn(buttonVariants(), "text-xs md:text-sm")}>
+            <Icons.add className="mr-2 h-4 w-4" /> New Order
+          </Link>
+        </div>
+      }
     >
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="relative max-w-sm flex-1">
@@ -104,7 +136,10 @@ export default function OrdersPage() {
             onChange={(e) => {
               setInputValue(e.target.value);
               window.clearTimeout((window as any).__orderSearchT);
-              (window as any).__orderSearchT = window.setTimeout(() => setSearch(e.target.value), 300);
+              (window as any).__orderSearchT = window.setTimeout(
+                () => setSearch(e.target.value),
+                300,
+              );
             }}
             className="pl-8"
           />
@@ -135,7 +170,7 @@ export default function OrdersPage() {
         </Select>
       </div>
 
-      {!orders?.length ? (
+      {!visibleOrders.length ? (
         <Card>
           <CardContent className="py-12 text-center">
             <div className="mx-auto flex max-w-md flex-col items-center gap-3">
@@ -166,12 +201,14 @@ export default function OrdersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {orders.map((o) => (
+                {visibleOrders.map((o) => (
                   <TableRow key={o.id}>
                     <TableCell>
                       <span className="font-medium">{o.order_number}</span>
                       {o.external_ref && (
-                        <div className="font-mono text-[10px] text-muted-foreground">{o.external_ref}</div>
+                        <div className="font-mono text-[10px] text-muted-foreground">
+                          {o.external_ref}
+                        </div>
                       )}
                     </TableCell>
                     <TableCell className="text-sm capitalize text-muted-foreground">
@@ -199,7 +236,7 @@ export default function OrdersPage() {
                     <TableCell className="text-sm">{o.kot_count}</TableCell>
                     <TableCell className="font-medium">{formatINR(o.total_paise)}</TableCell>
                     <TableCell>
-                      <OrderStatusText status={o.status} />
+                      <OrderStatusPill order={o} />
                     </TableCell>
                     <TableCell className="text-right">
                       <OrderActions order={o} />
@@ -236,7 +273,8 @@ function OrderActions({ order }: { order: OrderWithDerived }) {
           <DialogHeader>
             <DialogTitle>Delete {order.order_number}?</DialogTitle>
             <DialogDescription>
-              Only orders with no fired items can be deleted. Fired orders must be cancelled instead.
+              Only orders with no fired items can be deleted. Fired orders must be cancelled
+              instead.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2">
