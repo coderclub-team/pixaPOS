@@ -1,25 +1,55 @@
-# Plan — pixaPOS Restaurant Reference Rule
+# pixaPOS Feature Discovery Template
 
-**Always inspect before implementing:** Muse Spark must cross-check **Odoo (Inventory + POS Restaurant), Zoho (Inventory + Books), Petpooja, TMBill** for every feature plan.
+Use this document before planning a product, workflow, data-model, navigation,
+or operational UI change. It prevents feature parity from becoming feature copy.
 
-## When
-- Any new `features/menu`, `features/inventory`, `features/outlet`, `features/orders`, `features/payments`, `nav-config`, or `suppliers/ledger` change.
-- Even for small UI: table columns, form fields, nav grouping, status flows.
+## Required discovery
 
-## How
-1. **Delegate `explore` agents** to read current `types.ts/service.ts/queries.ts/components/page.tsx/nav-config.ts` (verify `apps/web/...` line numbers).
-2. **`websearch` (live crawl preferred)** for Odoo docs (`odoo.com/documentation/.../products_prices`, `point-of-sale-restaurant`), Zoho docs (`zoho.com/inventory/help/items`, `zoho.com/books/help/settings/organization-profile`), Petpooja help (`petpooja.com` menu/inventory docs), TMBill docs/help.
-3. **Synthesize comparison table** Odoo | Zoho | Petpooja | TMBill | pixaPOS Gap.
-4. **Draft plan** with `Current debt`, `Odoo/Zoho/Petpooja/TMBill parity gaps`, `Proposed entities/types/pages/nav`, `File map (6-8 files)`, `Questions before build`.
+1. Inspect the current domain's `types.ts`, `service.ts`, `queries.ts`, routes,
+   components, workflow entries, and related ADRs.
+2. Compare the flow with Odoo, Zoho, Petpooja, TMBill, and Rista. Prefer primary
+   documentation; record links and the access date.
+3. Create a short parity table: competitor capability, pixaPOS status, user value,
+   and deliberate deferment or gap.
+4. Identify state transitions, audit events, snapshots, paise boundaries,
+   authorization, accessibility, touch operation, offline/outbox behavior, and
+   recovery messaging affected by the change.
+5. Ask only decisions that change user-facing policy, workflow rules, or a public
+   contract. Record accepted defaults in the plan or ADR.
 
-## Reference Models to Reuse
-- Odoo: `Product Template → Attributes → Variants` + `POS Category` visibility + `Pricelist` per channel + `Branches` for Outlet + `Stock Moves` balance.
-- Zoho: `Item Groups` (auto SKU) + `Modifier Groups min/max` + `Organization Profile` single page tabs + `Vendor Credits / Payments Made`.
-- Petpooja: Menu `Category → Dish → Variants (Half/Full, 250ml)` + `Addons` + `Kitchen Station` + `Outlet floors/tables`.
-- TMBill: Simple restaurant `Menu → Price → Variant (Small/Large)`, `Dine-in/Pickup/Delivery` channel flags, `Daily Reports`.
+## Minimum feature plan
 
-## Non-Negotiable
-- Never skip reference check — even if user says "proceed with your suggestion", still verify 4 apps.
-- Keep plan concise, `file_path:line` cited, tradeoffs asked (e.g., `Variant per-recipe link?` / `Channel single menu vs duplicate?`).
-- Store plan here (`plan.md`) so user never repeats instruction.
-- Table actions uniform: 3dots vertical + Dialog (see `AGENTS.md` Rule 14) — applies to Menu, Categories, Stock, etc.
+```md
+## Goal and users
+## Current behavior and parity comparison
+| Capability | Odoo | Zoho | Petpooja | TMBill | Rista | pixaPOS decision |
+## Proposed workflow and safeguards
+## UI states: loading, empty, error, offline, permission denied
+## Contract and data impact
+## Validation and acceptance criteria
+## Open decisions / accepted assumptions
+```
+
+## Product benchmark
+
+The initial operational baseline includes table/floor operations, fast order
+capture, KOT/KDS status handling, split and multi-tender payments, modifiers,
+inventory movement, customer records, and audit trails. Odoo additionally
+documents restaurant floor plans, order transfer/merge, preparation displays,
+course firing, and self-ordering; treat these as benchmark capabilities, not a
+directive to copy its UI.
+
+- [Odoo restaurant POS](https://www.odoo.com/documentation/19.0/applications/sales/point_of_sale/restaurant.html)
+- [Odoo preparation display](https://www.odoo.com/documentation/18.0/applications/sales/point_of_sale/preparation.html)
+- [Odoo self-ordering](https://www.odoo.com/documentation/18.0/applications/sales/point_of_sale/self_order.html)
+- [Zoho Inventory](https://www.zoho.com/inventory/help/)
+- [Petpooja restaurant POS](https://www.petpooja.com/)
+- [TMBill restaurant POS](https://tmbill.com/)
+- [Rista restaurant POS](https://www.ristaapps.com/)
+
+## pixaPOS differentiators
+
+Prioritise fewer, faster operational workflows over broad but shallow parity:
+local-first POS/KDS, clear sync/recovery status, auditable commands, role-aware
+exceptions, accessible touch-first screens, and a consistent design system across
+web and mobile. Do not place competitor names or copied terminology in product UI.

@@ -37,6 +37,8 @@ import { OrgSwitcher } from "../org-switcher";
 
 export default function AppSidebar() {
   const pathname = usePathname();
+  const initialPathnameRef = React.useRef(pathname);
+  const [expandedGroups, setExpandedGroups] = React.useState<Record<string, boolean>>({});
   const { isOpen } = useMediaQuery();
   const { user } = useUser();
   const { organization } = useOrganization();
@@ -60,16 +62,21 @@ export default function AppSidebar() {
             <SidebarMenu>
               {group.items.map((item) => {
                 const Icon = (item.icon ? Icons[item.icon] : undefined) ?? Icons.logo;
+                const groupKey = `${group.label || "ungrouped"}:${item.title}`;
+                const initiallyOpen =
+                  item.items?.some(
+                    (sub) =>
+                      sub.url !== "#" && initialPathnameRef.current.startsWith(sub.url),
+                  ) ?? false;
                 return item?.items && item?.items?.length > 0 ? (
                   <Collapsible
                     key={item.title}
-                    // Uncontrolled: read once at mount (open only the group holding the
-                    // current page), then the user owns it — open stays open across
-                    // navigation until collapsed or reloaded.
-                    defaultOpen={
-                      item.items?.some(
-                        (sub) => sub.url !== "#" && pathname.startsWith(sub.url),
-                      ) ?? false
+                    // Base UI requires pathname-derived state to be controlled. The
+                    // initial route opens its group once; user toggles own the state
+                    // for the remainder of this client session.
+                    open={expandedGroups[groupKey] ?? initiallyOpen}
+                    onOpenChange={(open) =>
+                      setExpandedGroups((current) => ({ ...current, [groupKey]: open }))
                     }
                     render={<SidebarMenuItem />}
                   >
