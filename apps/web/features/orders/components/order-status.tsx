@@ -12,10 +12,32 @@ const STATUS_STYLES: Record<OrderStatus, string> = {
   CANCELLED: "text-red-600",
 };
 
-export default function OrderStatusText({ status }: { status: OrderStatus }) {
+export default function OrderStatusText({
+  status,
+  progress,
+}: {
+  status: OrderStatus;
+  /**
+   * Kitchen progress readout ({ done, total } live item counts) — appended
+   * as "· d/t" so the pill reads like the board ("Preparing · 3/5").
+   * Hidden for carts (total 0) and terminal history. Omitted by default,
+   * so existing callers render exactly as before.
+   */
+  progress?: { done: number; total: number } | null;
+}) {
+  // DRAFT is an internal pre-fire cart, never a shown state — every surface
+  // agrees on the "New order" label (orders reach the list only after firing).
+  const label = status === "DRAFT" ? "New order" : status.toLowerCase().replace("_", " ");
+  const showProgress =
+    progress && progress.total > 0 && status !== "COMPLETED" && status !== "CANCELLED";
   return (
     <span className={cn("text-xs font-medium capitalize", STATUS_STYLES[status])}>
-      {status.toLowerCase().replace("_", " ")}
+      {label}
+      {showProgress && (
+        <span className="ml-1 font-normal normal-case text-muted-foreground">
+          · {progress.done}/{progress.total}
+        </span>
+      )}
     </span>
   );
 }

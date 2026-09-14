@@ -6,7 +6,7 @@ export type KOTStatus =
   | "SERVED"
   | "CANCELLED";
 
-export type KOTLineStatus = "PENDING" | "PREPARING" | "READY" | "SERVED" | "VOIDED";
+export type KOTLineStatus = "PENDING" | "ACCEPTED" | "PREPARING" | "READY" | "SERVED" | "VOIDED";
 
 export type KOTLine = {
   id: string;

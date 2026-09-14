@@ -18,6 +18,7 @@ import { formatINR, toPaise } from "@/lib/money";
 import { orderKeys } from "@/features/orders/api/queries";
 import { addManyAndFire } from "@/features/kitchen/api/service";
 import { kitchenKeys } from "@/features/kitchen/api/queries";
+import { eventKeys } from "@/features/events/api/queries";
 import { menuCategoriesQueryOptions, menuItemsQueryOptions } from "@/features/menu/api/queries";
 import { getModifiers } from "@/features/menu/api/service";
 import { getQueryClient } from "@/lib/query-client";
@@ -88,6 +89,7 @@ export default function KotItemDialog({
       qc.invalidateQueries({ queryKey: orderKeys.detail(orderId) });
       qc.invalidateQueries({ queryKey: orderKeys.all });
       qc.invalidateQueries({ queryKey: kitchenKeys.byOrder(orderId) });
+      qc.invalidateQueries({ queryKey: eventKeys.byOrder(orderId) });
       setPicks({});
       setExpandedId(null);
       toast.success(`Sent to kitchen — KOT #${kot.kot_number}`);

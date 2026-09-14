@@ -23,11 +23,13 @@ import { orderKeys, ordersQueryOptions } from "@/features/orders/api/queries";
 import { ensureTableOrder } from "@/features/orders/api/service";
 import ItemPicker from "@/features/orders/components/item-picker";
 import OrderBillPanel from "@/features/orders/components/bill-panel";
+import { useCrossTabSync } from "@/lib/use-cross-tab-sync";
 import { toast } from "sonner";
 
 const PANEL_EXIT_MS = 300;
 
 export default function OrderTerminalPage() {
+  useCrossTabSync();
   const queryClient = useQueryClient();
   const { data: floors, isLoading } = useQuery(floorsQueryOptions());
   const [selectedFloorId, setSelectedFloorId] = useState<string | null>(null);
@@ -180,6 +182,7 @@ export default function OrderTerminalPage() {
                   showSeating
                   showCustomer
                   onAddItems={() => setPickerOpen(true)}
+                  fit="fill"
                 />
               ) : (
                 <Card className="flex h-full items-center justify-center">

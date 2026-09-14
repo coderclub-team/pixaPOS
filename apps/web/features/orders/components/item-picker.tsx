@@ -20,6 +20,7 @@ import { orderKeys, orderQueryOptions } from "@/features/orders/api/queries";
 import { addOrderItem } from "@/features/orders/api/service";
 import { addAndFireItem, fireKOT } from "@/features/kitchen/api/service";
 import { kitchenKeys } from "@/features/kitchen/api/queries";
+import { eventKeys } from "@/features/events/api/queries";
 import { useFlyToKot } from "./use-fly-to-kot";
 import { menuCategoriesQueryOptions, menuItemsQueryOptions } from "@/features/menu/api/queries";
 import { getModifiers } from "@/features/menu/api/service";
@@ -71,6 +72,7 @@ export default function ItemPicker({
       const qc = getQueryClient();
       qc.invalidateQueries({ queryKey: orderKeys.detail(orderId) });
       qc.invalidateQueries({ queryKey: orderKeys.all });
+      qc.invalidateQueries({ queryKey: eventKeys.byOrder(orderId) });
       if (autoFire) qc.invalidateQueries({ queryKey: kitchenKeys.byOrder(orderId) });
       setPicked(null);
       const flyFrom = pendingFly.current;
@@ -93,6 +95,7 @@ export default function ItemPicker({
       qc.invalidateQueries({ queryKey: orderKeys.detail(orderId) });
       qc.invalidateQueries({ queryKey: orderKeys.all });
       qc.invalidateQueries({ queryKey: kitchenKeys.byOrder(orderId) });
+      qc.invalidateQueries({ queryKey: eventKeys.byOrder(orderId) });
       toast.success(`KOT #${kot.kot_number} fired to kitchen`);
     },
     onError: (e: Error) => toast.error(e.message),
