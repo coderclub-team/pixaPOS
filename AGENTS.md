@@ -1,40 +1,55 @@
-# AGENTS.md — pixaPOS Agent Reference
+# pixaPOS Engineering Guide
 
-Restaurant POS: menu catalog, variants, modifiers, orders, kitchen, payments, inventory, outlet, tables, customers, reports. Workflows: dine-in, takeaway, delivery, counter, split payments, modification, cancellation, refunds.
+pixaPOS is a local-first restaurant operations platform: POS, KOT/KDS, payments,
+inventory, tables, customers, reporting, and multi-outlet administration.
 
-This file is auto-loaded (see `opencode.json` → `instructions`). Sub-agents: `planner` (plans + ADRs, read-only), `debater` (critiques architecture), `security_analyst` (privacy/vuln/auth review).
+## Workspace ownership
 
-## 1. Project map
+- `apps/web` is the current POS and back-office reference implementation.
+- `apps/admin` will own organisation and multi-outlet administration.
+- `apps/mobile` will serve staff workflows; do not copy web components into it.
+- `apps/template` is a reusable starter/reference, not a production source of truth.
+- `packages/ui` owns reusable design tokens and platform primitives. Web uses
+  Base UI/shadcn-style components; native uses matching native adapters.
+- Future packages: `@pixa/contracts` owns domain command/query contracts and
+  `@pixa/api-client` owns transport and query adapters. Apps own routes and
+  screen composition, never another app's feature code.
 
-- `apps/web` — Next.js 16 App Router, React 19, TS strict, Tailwind v4, Base UI + shadcn-style `Card Input Select Switch Popover Command Table Dialog DropdownMenu`.
-- `apps/web/features/<domain>/api/{types.ts,service.ts,queries.ts}` — **the** data layer. Components import types from `types.ts`, functions from `service.ts`, query options from `queries.ts`. `service.ts` is the only file swapped for a real backend (mock by default). Never import mock constants directly in components.
-- `apps/web/features/<domain>/{components,schemas}` + `apps/web/app/dashboard/<domain>/**` routes + `packages/ui/config/nav-config.ts` (RBAC groups).
-- `packages/ui` — shared primitives (`base-ui/*`, `Icons` registry, `cn()`). Never import tabler icons directly; use `Icons.key`.
-- Forms: `useAppForm` + `form.AppField` shared fields; `PageContainer` props for headers (never manual `<Heading>`); `Button isLoading` for pending.
-- Tables: `DropdownMenu modal=false`, ghost `h-8 w-8 p-0` vertical-ellipsis trigger, `Actions` group (Update/Edit + Delete), `Dialog` confirm — never inline `confirm()`.
-- Money today: float rupees + `Math.round(x*100)/100`. **New order/payment code stores integer paise**; convert at inventory/menu boundaries (`toPaise/fromPaise`, see ADR-0001).
+## Domain boundaries
 
-## 2. Reference apps (non-negotiable)
+Each domain owns its rules in `features/<domain>/api/service.ts`; UI calls
+commands and never mutates stores directly. Keep public types in `types.ts` and
+React Query options in `queries.ts`. Products are `SIMPLE | VARIANT | COMBO`;
+modifiers are separate from variants. Use stable `*_id` values, soft-delete
+history-referenced records, and sale-time snapshots.
 
-Before planning any feature, inspect **Odoo, Zoho, Petpooja, TMBill**: compare flows/models/UI, list gaps vs pixaPOS, base `plan.md` on the parity analysis (see root `plan.md`).
+Order, kitchen, payment, and table status are separate state machines. Only
+service commands may transition them, validate guards, perform side effects, and
+append business events. New order/payment amounts use integer paise; convert at
+legacy menu/inventory boundaries. `docs/workflows.md` is the source of truth.
 
-## 3. Domain rules
+## UI and accessibility
 
-- **Modules** (`catalog, orders, kitchen, payments, inventory, tables, customers, reporting`) own their rules in `service.ts`. No business logic in UI, no direct DB/state mutation from components, no duplicate abstractions.
-- **Products**: `SIMPLE | VARIANT | COMBO`. Modifiers/add-ons are separate from variants — never model modifier combinations as variants.
-- **States are explicit enums + transition maps** (`docs/workflows.md`). Never `order.status = "IN_KITCHEN"` from arbitrary code; use `OrderService.sendToKitchen(orderId)`-style commands that validate, transition, side-effect, and audit.
-- **Snapshots**: order items store sale-time snapshots (`product/variant_name_snapshot`, paise amounts). Catalog changes must never mutate history.
-- **IDs**: stable `*_id` strings everywhere; soft-delete (`deleted_at`) for entities referenced by history; never display names as identifiers.
-- **Kitchen ≠ order state; payment ≠ order state.** Separate entities, separate machines.
-- **Inventory moves only via transactions** (`SALE PURCHASE ADJUSTMENT WASTE RETURN TRANSFER`), wrapped in `InventoryService.recordX` owning mutation + ledger + events.
-- **Audit**: every important transition emits a business event (`ORDER_CREATED … REFUND_CREATED`, full list in `docs/workflows.md`).
+Use existing `@pixa/ui` primitives before custom markup. Prefer semantic tokens,
+component variants, `gap-*`, `cn()`, and the `Icons` registry. Dialogs, Sheets,
+and Drawers require titles; destructive actions require a confirmation dialog.
+Forms use `useAppForm` and shared fields. Tables use the shared three-dot action
+pattern. Design for keyboard, screen reader, touch, loading, empty, error, and
+offline states.
 
-## 4. Safety
+## Local-first operations
 
-No prod-data deletes, no gratuitous schema changes, no silent financial/behavioral changes, no public-API renames without checking consumers. When unsure, inspect workflow docs first. Document new workflows (states, transitions, side effects) and test important transitions.
+POS and KDS commands must remain auditable while disconnected. Future work uses
+durable local state, an idempotent outbox, explicit sync status, and visible
+conflict/recovery handling. Never silently discard a financial or kitchen action.
+See `docs/offline-and-sync.md`.
 
-## 5. Docs
+## Planning and validation
 
-- `docs/workflows.md` — lifecycle state machines (source of truth for transitions).
-- `docs/adr/` — Architecture Decision Records; planner writes one per significant decision.
-- `plan.md` — persistent reference-apps rule.
+Before a feature, compare Odoo, Zoho, Petpooja, TMBill, and Rista using
+`plan.md`; capture the pixaPOS gap and workflow impact. Write an ADR for a
+significant cross-app, persistence, workflow, or public-contract decision.
+
+Run `pnpm format:check`, `pnpm lint`, and `pnpm typecheck` before handoff. Do
+not modify copied vendor skills under `apps/template/.agents` or `.claude`;
+their upstream guidance is not pixaPOS policy.
