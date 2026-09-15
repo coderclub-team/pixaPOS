@@ -136,6 +136,18 @@ function describe(
         title: `+${m.extra}× ${ctx.lineName(m.kot_id, m.kot_line_id)} (kitchen makes more)`,
         tone: "info",
       };
+    case "KOT_LINE_RETURNED":
+      return {
+        title: `Returned ${m.qty ?? ""}× ${ctx.lineName(m.kot_id, m.kot_line_id)}`.trim(),
+        detail: e.reason_text,
+        tone: "muted",
+      };
+    case "ITEM_RETURNED":
+      return {
+        title: `Items returned (${formatINR(m.total_paise ?? 0)})`,
+        detail: e.reason_text,
+        tone: "muted",
+      };
     case "ORDER_CUSTOMER_LINKED":
       return { title: "Customer linked", tone: "info" };
     case "ORDER_CUSTOMER_UNLINKED":

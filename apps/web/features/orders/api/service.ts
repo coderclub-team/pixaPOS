@@ -20,6 +20,8 @@ import type {
   CreateOrderInput,
   OrderFilters,
   OrderItemSnapshot,
+  OrderReturn,
+  OrderReturnLine,
   OrderStatus,
   OrderWithDerived,
   RestaurantOrder,
@@ -27,8 +29,31 @@ import type {
 } from "./types";
 
 const ORDER_STORAGE_KEY = "pixaOrders";
+const RETURN_STORAGE_KEY = "pixaReturns";
 
 let mockOrders: RestaurantOrder[] = [];
+let mockReturns: OrderReturn[] = [];
+
+function saveReturns() {
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(RETURN_STORAGE_KEY, JSON.stringify({ returns: mockReturns }));
+    } catch {}
+  }
+}
+
+function loadReturns(): void {
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(RETURN_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed?.returns)) mockReturns = parsed.returns;
+      }
+    } catch {}
+  }
+}
+loadReturns();
 
 function saveOrders() {
   if (typeof window !== "undefined") {
@@ -127,8 +152,16 @@ function discountFor(subtotal: number, order: RestaurantOrder): number {
 }
 
 function recomputeTotals(order: RestaurantOrder): RestaurantOrder {
-  const subtotal = order.items.reduce((s, i) => s + i.line_total_paise, 0);
-  const rawTax = order.items.reduce((s, i) => s + i.line_tax_paise, 0);
+  // Returned qty is excluded pro-rata: the torn-off value leaves the bill.
+  const live = (i: { qty: number; returned_qty?: number }) => i.qty - (i.returned_qty ?? 0);
+  const subtotal = order.items.reduce(
+    (s, i) => s + Math.round((i.line_total_paise * Math.max(0, live(i))) / Math.max(1, i.qty)),
+    0,
+  );
+  const rawTax = order.items.reduce(
+    (s, i) => s + Math.round((i.line_tax_paise * Math.max(0, live(i))) / Math.max(1, i.qty)),
+    0,
+  );
   const discount = discountFor(subtotal, order);
   // Discount pre-tax: scale tax pro-rata on the discounted base.
   const tax = subtotal > 0 ? Math.round((rawTax * (subtotal - discount)) / subtotal) : 0;
@@ -165,7 +198,7 @@ function kitchenProgressMap(
   tickets: {
     order_id: string;
     status: KOTStatus;
-    lines: { status: KOTLineStatus; qty: number; voided_qty: number }[];
+    lines: { status: KOTLineStatus; qty: number; voided_qty: number; returned_qty?: number }[];
   }[],
 ): Map<string, { done: number; total: number }> {
   const map = new Map<string, { done: number; total: number }>();
@@ -177,7 +210,7 @@ function kitchenProgressMap(
       map.set(t.order_id, entry);
     }
     for (const l of t.lines) {
-      if (l.qty - l.voided_qty <= 0) continue;
+      if (l.qty - l.voided_qty - (l.returned_qty ?? 0) <= 0) continue;
       entry.total++;
       if (l.status === "READY" || l.status === "SERVED") entry.done++;
     }
@@ -825,6 +858,130 @@ export async function deleteOrder(orderId: string, by?: string): Promise<void> {
     } catch {
       // Group already released/transferred — pointer is harmless.
     }
+  }
+}
+
+export async function getReturnsByOrder(orderId: string): Promise<OrderReturn[]> {
+  loadReturns();
+  return mockReturns
+    .filter((r) => r.order_id === orderId)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .map((r) => ({ ...r }));
+}
+
+/**
+ * Item-wise post-sale return. Returns own kitchen truth (returnKOTLine works
+ * on served lines, routes waste), shrink the bill (returned qty excluded from
+ * totals), and refund to the original payment methods (refundForReturn).
+ * Allowed on SERVED and COMPLETED orders — the bill must exist to be reduced.
+ * Terminal CANCELLED orders go through cancel semantics, not returns.
+ */
+export async function createReturn(
+  orderId: string,
+  params: { lines: { order_line_id: string; qty: number }[]; reason: string; by?: string },
+): Promise<{ order: OrderWithDerived; ret: OrderReturn }> {
+  if (!params.reason?.trim()) throw new Error("A reason is required for a return");
+  if (!params.lines?.length) throw new Error("Select at least one item to return");
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(300);
+    loadOrders();
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (order.status !== "SERVED" && order.status !== "COMPLETED") {
+      throw new Error(
+        `Returns need a served bill (order is ${order.status.toLowerCase()}) — edit or void unfired items instead`,
+      );
+    }
+    const by = params.by ?? "staff";
+    const kitchen = await import("@/features/kitchen/api/service");
+    const tickets = kitchen.peekTickets().filter((t) => t.order_id === orderId);
+    const returnLines: OrderReturnLine[] = [];
+
+    for (const req of params.lines) {
+      const ol = order.items.find((i) => i.id === req.order_line_id);
+      if (!ol) throw new Error("Order line not found");
+      if (!ol.kot_id || !ol.kot_line_id) {
+        throw new Error(`"${ol.item_name_snapshot}" never fired — edit or void it instead`);
+      }
+      if (!Number.isInteger(req.qty) || req.qty < 1) {
+        throw new Error("Return qty must be a positive integer");
+      }
+      const voidedOnKots = tickets
+        .flatMap((t) => t.lines)
+        .filter((l) => l.order_line_id === ol.id)
+        .reduce((s, l) => s + l.voided_qty, 0);
+      const returnable = ol.qty - (ol.returned_qty ?? 0) - voidedOnKots;
+      if (req.qty > returnable) {
+        throw new Error(
+          `"${ol.item_name_snapshot}" has only ${returnable} returnable (of ${ol.qty})`,
+        );
+      }
+      const amount = Math.round((ol.line_total_paise * req.qty) / ol.qty);
+      const tax = Math.round((ol.line_tax_paise * req.qty) / ol.qty);
+      const ticket = tickets.find((t) => t.id === ol.kot_id);
+      const kotLine = ticket?.lines.find((l) => l.id === ol.kot_line_id);
+      if (!ticket || !kotLine) throw new Error("Fired ticket not found for this line");
+      await kitchen.returnKOTLine(ticket.id, kotLine.id, {
+        qty: req.qty,
+        amount_paise: amount + tax,
+        reason: params.reason.trim(),
+        by,
+      });
+      const itemIdx = mockOrders[idx].items.findIndex((i) => i.id === ol.id);
+      mockOrders[idx].items[itemIdx] = {
+        ...mockOrders[idx].items[itemIdx],
+        returned_qty: (mockOrders[idx].items[itemIdx].returned_qty ?? 0) + req.qty,
+      };
+      returnLines.push({ order_line_id: ol.id, qty: req.qty, amount_paise: amount + tax });
+    }
+
+    const now = new Date().toISOString();
+    const total = returnLines.reduce((s, l) => s + l.amount_paise, 0);
+    const ret: OrderReturn = {
+      id: `ordret_${Date.now().toString(36)}`,
+      order_id: orderId,
+      outlet_id: order.outlet_id,
+      lines: returnLines,
+      total_paise: total,
+      reason: params.reason.trim(),
+      created_by: by,
+      created_at: now,
+    };
+    loadReturns();
+    mockReturns.push(ret);
+    saveReturns();
+    mockOrders[idx] = recomputeTotals({
+      ...mockOrders[idx],
+      updated_at: now,
+      version: mockOrders[idx].version + 1,
+    });
+    saveOrders();
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: orderId,
+      event_type: "ITEM_RETURNED",
+      actor_id: by,
+      reason_text: params.reason.trim(),
+      metadata: {
+        return_id: ret.id,
+        lines: returnLines.map((l) => ({ order_line_id: l.order_line_id, qty: l.qty })),
+        total_paise: total,
+      },
+    });
+    const { refundForReturn } = await import("@/features/payments/api/service");
+    await refundForReturn(orderId, {
+      return_id: ret.id,
+      total_paise: total,
+      reason: params.reason.trim(),
+      by,
+    });
+    await refreshOrderPaymentState(orderId);
+    return { order: enrichOrder(mockOrders[idx]), ret };
+  } finally {
+    release();
   }
 }
 
