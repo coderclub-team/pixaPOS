@@ -340,42 +340,6 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Playground",
-    items: [
-      {
-        title: "Icons",
-        url: "/dashboard/elements/icons",
-        icon: "palette",
-        isActive: false,
-        items: [],
-      },
-      {
-        title: "Kanban",
-        url: "/dashboard/kanban",
-        icon: "kanban",
-        shortcut: ["k", "k"],
-        isActive: false,
-        items: [],
-      },
-      {
-        title: "Chat",
-        url: "/dashboard/chat",
-        icon: "chat",
-        shortcut: ["c", "h"],
-        isActive: false,
-        items: [],
-      },
-      {
-        title: "AI Chat",
-        url: "/dashboard/ai-chat",
-        icon: "sparkles",
-        shortcut: ["a", "i"],
-        isActive: false,
-        items: [],
-      },
-    ],
-  },
-  {
     label: "",
     items: [
       {
