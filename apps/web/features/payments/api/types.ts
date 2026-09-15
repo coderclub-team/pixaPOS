@@ -57,3 +57,15 @@ export type PaymentFilters = {
   status?: PaymentStatus;
   outlet_id?: string;
 };
+
+export type RefundFilters = {
+  outlet_id?: string;
+  status?: Refund["status"];
+  search?: string;
+};
+
+/** Refund with its source payment method resolved for list display. */
+export type RefundWithMethod = Refund & {
+  method?: PaymentMethod;
+  order_number?: string;
+};

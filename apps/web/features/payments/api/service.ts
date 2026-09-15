@@ -1,8 +1,15 @@
 import { delay } from "@/constants/mock-api";
 import { recordEvent } from "@/features/events/api/service";
 import { entityMutex } from "@/lib/mutex";
-import { getOrderById } from "@/features/orders/api/service";
-import type { Payment, PaymentFilters, PaymentMethod, Refund } from "./types";
+import { getOrders } from "@/features/orders/api/service";
+import type {
+  Payment,
+  PaymentFilters,
+  PaymentMethod,
+  Refund,
+  RefundFilters,
+  RefundWithMethod,
+} from "./types";
 
 const PAYMENT_STORAGE_KEY = "pixaPayments";
 
@@ -49,6 +56,34 @@ export async function getRefundsByOrder(orderId: string): Promise<Refund[]> {
   await delay(200);
   loadPayments();
   return mockRefunds.filter((r) => r.order_id === orderId);
+}
+
+/** Global refunds ledger, newest first, with source method resolved. */
+export async function getRefunds(filters?: RefundFilters): Promise<RefundWithMethod[]> {
+  await delay(200);
+  loadPayments();
+  let r = [...mockRefunds].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  if (filters?.outlet_id) r = r.filter((x) => x.outlet_id === filters.outlet_id);
+  if (filters?.status) r = r.filter((x) => x.status === filters.status);
+  if (filters?.search) {
+    const q = filters.search.toLowerCase();
+    r = r.filter(
+      (x) =>
+        x.id.toLowerCase().includes(q) ||
+        x.order_id.toLowerCase().includes(q) ||
+        x.reason.toLowerCase().includes(q),
+    );
+  }
+  const methodByPayment = new Map(mockPayments.map((p) => [p.id, p.method]));
+  const numberByOrder = new Map<string, string>();
+  for (const o of await getOrders().catch(() => [] as { id: string; order_number: string }[])) {
+    numberByOrder.set(o.id, o.order_number);
+  }
+  return r.map((x) => ({
+    ...x,
+    method: methodByPayment.get(x.payment_id),
+    order_number: numberByOrder.get(x.order_id),
+  }));
 }
 
 /**
