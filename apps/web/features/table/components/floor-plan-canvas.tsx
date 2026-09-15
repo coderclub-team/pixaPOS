@@ -15,6 +15,7 @@ import { Icons } from "@pixa/ui/icons";
 import { Button } from "@pixa/ui/base-ui/button";
 import { toast } from "sonner";
 import type { TableWithDerived } from "../api/types";
+import { partyColor } from "../api/utils";
 import type { FloorLayout, FloorObject } from "@/features/floor/api/types";
 
 export type CanvasMode = "edit" | "operations";
@@ -27,6 +28,12 @@ interface FloorPlanCanvasProps {
   isEditable?: boolean;
   selectedTableId?: string;
   onSelectTable?: (tableId: string | null) => void;
+  /** Party (occupancy group) currently in focus — highlights its chip. */
+  activeGroupId?: string;
+  /** Tap a party chip: focus that party without creating an order. */
+  onSelectParty?: (tableId: string, groupId: string) => void;
+  /** Press-and-hold a party chip (500ms): open ordering for that party. */
+  onHoldParty?: (tableId: string, groupId: string) => void;
 }
 
 type Pose = { x: number; y: number; w: number; h: number; rotation?: number };
@@ -67,9 +74,7 @@ function renderTableShape(shape: string, w: number, h: number, className?: strin
     case "square":
     case "rectangle":
     default:
-      return (
-        <rect width={w} height={h} rx={shape === "square" ? 40 : 80} className={className} />
-      );
+      return <rect width={w} height={h} rx={shape === "square" ? 40 : 80} className={className} />;
   }
 }
 
@@ -101,268 +106,456 @@ const statusColors: Record<string, string> = {
   out_of_service: "fill-slate-100 stroke-slate-500",
 };
 
+// Press-and-hold delay that turns a party-chip touch into "take this party's order".
+const PARTY_HOLD_MS = 500;
+const PARTY_HOLD_MOVE_PX = 12;
+const MAX_PARTY_CHIPS = 4;
+
 // H1: memoized nodes — drag pointer events update only the dragged node's pose
-const TableNode = memo(function TableNode({
-  table,
-  pose,
-  selected,
-  editable,
-  onPointerDown,
-  onPointerUp,
-  onSelect,
-  onKeyDown,
-}: {
-  table: TableWithDerived;
-  pose: Pose & { rotation: number };
-  selected: boolean;
-  editable: boolean;
-  onPointerDown: (e: React.PointerEvent, mode: "move" | "resize" | "rotate", handle?: string) => void;
-  onPointerUp: (e: React.PointerEvent) => void;
-  onSelect: () => void;
-  onKeyDown: (e: React.KeyboardEvent) => void;
-}) {
-  const blocked = !!table.active_block || table.status === "out_of_service";
-  const held = !!table.active_hold;
-  const fillClass = blocked
-    ? "fill-zinc-200 stroke-zinc-500 dark:fill-zinc-800"
-    : statusColors[table.status] || "fill-white stroke-zinc-300";
-  // Selected table: thick primary ring + tinted halo, status fill preserved.
-  const shapeClass = cn(fillClass, "stroke-2", selected && "stroke-primary stroke-[10px]");
-  const rot = pose.rotation;
-  return (
-    <g
-      transform={`translate(${pose.x},${pose.y}) rotate(${rot},${pose.w / 2},${pose.h / 2})`}
-      className={cn("group transition-opacity", editable ? "cursor-move" : "cursor-pointer")}
-      onPointerDown={(e) => onPointerDown(e, "move")}
-      onPointerUp={onPointerUp}
-      onClick={editable ? undefined : onSelect}
-      role="button"
-      tabIndex={0}
-      aria-label={`Table ${table.number}, ${blocked ? "blocked" : table.status}, ${table.seated_seats} of ${table.capacity} seats`}
-      onKeyDown={onKeyDown}
-    >
-      {selected && (
-        <g transform="translate(-120,-120)" className="pointer-events-none">
-          {renderTableShape(table.shape, pose.w + 240, pose.h + 240, "fill-primary/15 stroke-none")}
-        </g>
-      )}
-      {renderTableShape(table.shape, pose.w, pose.h, shapeClass)}
-      {blocked && (
-        <rect width={pose.w} height={pose.h} rx={40} fill="url(#blocked-hatch)" opacity={0.5} />
-      )}
-      <g transform={`rotate(${-rot},${pose.w / 2},${pose.h / 2})`}>
-        <text
-          x={pose.w / 2}
-          y={pose.h / 2}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          className="select-none fill-zinc-900 text-[200px] font-bold dark:fill-zinc-100"
-        >
-          {table.number}
-        </text>
-        <text
-          x={pose.w / 2}
-          y={pose.h / 2 + 250}
-          textAnchor="middle"
-          className="select-none fill-zinc-500 text-[120px] font-medium"
-        >
-          {table.seated_seats}/{table.capacity}
-        </text>
-        {table.seated_seats > 0 && (
-          <g>
-            {Array.from({ length: Math.min(table.seated_seats, 10) }).map((_, i) => {
-              const shown = Math.min(table.seated_seats, 10);
-              const gap = 170;
-              const startX = pose.w / 2 - ((shown - 1) * gap) / 2;
-              return (
-                <circle
-                  key={i}
-                  cx={startX + i * gap}
-                  cy={pose.h / 2 + 480}
-                  r={65}
-                  className="fill-emerald-500 stroke-emerald-700"
-                />
-              );
-            })}
-            {table.seated_seats > 10 && (
-              <text
-                x={pose.w / 2}
-                y={pose.h / 2 + 700}
-                textAnchor="middle"
-                className="select-none fill-zinc-500 text-[110px] font-medium"
-              >
-                +{table.seated_seats - 10} more
-              </text>
+const TableNode = memo(
+  function TableNode({
+    table,
+    pose,
+    selected,
+    editable,
+    activeGroupId,
+    onPointerDown,
+    onPointerUp,
+    onSelect,
+    onSelectParty,
+    onHoldParty,
+    onKeyDown,
+  }: {
+    table: TableWithDerived;
+    pose: Pose & { rotation: number };
+    selected: boolean;
+    editable: boolean;
+    activeGroupId?: string;
+    onPointerDown: (
+      e: React.PointerEvent,
+      mode: "move" | "resize" | "rotate",
+      handle?: string,
+    ) => void;
+    onPointerUp: (e: React.PointerEvent) => void;
+    onSelect: () => void;
+    onSelectParty?: (groupId: string) => void;
+    onHoldParty?: (groupId: string) => void;
+    onKeyDown: (e: React.KeyboardEvent) => void;
+  }) {
+    const blocked = !!table.active_block || table.status === "out_of_service";
+    const held = !!table.active_hold;
+    // Party chips are interactive only on the operations floor — the layout
+    // editor keeps full pointer control for drag/resize/rotate.
+    const partiesInteractive = !editable && (!!onSelectParty || !!onHoldParty);
+    const fillClass = blocked
+      ? "fill-zinc-200 stroke-zinc-500 dark:fill-zinc-800"
+      : statusColors[table.status] || "fill-white stroke-zinc-300";
+    // Selected table: thick primary ring + tinted halo, status fill preserved.
+    const shapeClass = cn(fillClass, "stroke-2", selected && "stroke-primary stroke-[10px]");
+    const rot = pose.rotation;
+    // Single in-flight hold per node: press-and-hold a chip to order for it.
+    // Fires once on the timer; the trailing click is swallowed via heldRef.
+    const holdRef = useRef<{
+      timer: number | null;
+      groupId: string;
+      startX: number;
+      startY: number;
+    } | null>(null);
+    const heldRef = useRef(false);
+
+    const cancelHold = () => {
+      if (holdRef.current?.timer != null) window.clearTimeout(holdRef.current.timer);
+      holdRef.current = null;
+    };
+
+    const beginHold = (e: React.PointerEvent, groupId: string) => {
+      if (!partiesInteractive || !onHoldParty) return;
+      e.stopPropagation();
+      heldRef.current = false;
+      cancelHold();
+      holdRef.current = {
+        timer: window.setTimeout(() => {
+          heldRef.current = true;
+          holdRef.current = null;
+          onHoldParty(groupId);
+        }, PARTY_HOLD_MS),
+        groupId,
+        startX: e.clientX,
+        startY: e.clientY,
+      };
+    };
+
+    const moveHold = (e: React.PointerEvent) => {
+      const h = holdRef.current;
+      if (!h) return;
+      if (Math.hypot(e.clientX - h.startX, e.clientY - h.startY) > PARTY_HOLD_MOVE_PX) cancelHold();
+    };
+
+    const endHold = (e: React.PointerEvent) => {
+      e.stopPropagation();
+      cancelHold();
+    };
+
+    const clickParty = (e: React.MouseEvent, groupId: string) => {
+      e.stopPropagation();
+      if (heldRef.current) {
+        heldRef.current = false;
+        return;
+      }
+      if (onSelectParty) onSelectParty(groupId);
+      else onSelect();
+    };
+
+    const keyParty = (e: React.KeyboardEvent, groupId: string) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.shiftKey) {
+          if (onHoldParty) onHoldParty(groupId);
+        } else if (onSelectParty) {
+          onSelectParty(groupId);
+        } else {
+          onSelect();
+        }
+      }
+    };
+
+    const groups = table.active_groups;
+    const shownGroups = groups.slice(0, MAX_PARTY_CHIPS);
+    const hiddenGroups = groups.length - shownGroups.length;
+    const partyAria =
+      groups.length === 0
+        ? "no parties seated"
+        : groups
+            .map(
+              (g) =>
+                `party ${g.label ?? "?"}, ${g.seats} guest${g.seats === 1 ? "" : "s"}${g.order_id ? ", order open" : ", no order yet"}`,
+            )
+            .join("; ");
+    return (
+      <g
+        transform={`translate(${pose.x},${pose.y}) rotate(${rot},${pose.w / 2},${pose.h / 2})`}
+        className={cn("group transition-opacity", editable ? "cursor-move" : "cursor-pointer")}
+        onPointerDown={(e) => onPointerDown(e, "move")}
+        onPointerUp={onPointerUp}
+        onClick={editable ? undefined : onSelect}
+        role="button"
+        tabIndex={0}
+        aria-label={`Table ${table.number}, ${blocked ? "blocked" : table.status}, ${table.seated_seats} of ${table.capacity} seats, ${partyAria}`}
+        onKeyDown={onKeyDown}
+      >
+        {selected && (
+          <g transform="translate(-120,-120)" className="pointer-events-none">
+            {renderTableShape(
+              table.shape,
+              pose.w + 240,
+              pose.h + 240,
+              "fill-primary/15 stroke-none",
             )}
           </g>
         )}
-        {held && (
-          <g transform={`translate(${pose.w - 220},${-60})`}>
-            <circle r={110} className="fill-amber-400 stroke-amber-600" />
-            <text
-              textAnchor="middle"
-              dominantBaseline="middle"
-              className="select-none fill-white text-[140px] font-bold"
-            >
-              R
-            </text>
+        {renderTableShape(table.shape, pose.w, pose.h, shapeClass)}
+        {blocked && (
+          <rect width={pose.w} height={pose.h} rx={40} fill="url(#blocked-hatch)" opacity={0.5} />
+        )}
+        <g transform={`rotate(${-rot},${pose.w / 2},${pose.h / 2})`}>
+          <text
+            x={pose.w / 2}
+            y={pose.h / 2}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            className="select-none fill-zinc-900 text-[200px] font-bold dark:fill-zinc-100"
+          >
+            {table.number}
+          </text>
+          <text
+            x={pose.w / 2}
+            y={pose.h / 2 + 250}
+            textAnchor="middle"
+            className="select-none fill-zinc-500 text-[120px] font-medium"
+          >
+            {table.seated_seats}/{table.capacity}
+          </text>
+          {/* Party chips: one per occupancy group. Muted person glyph when empty;
+            coloured letter chips when seated. Tap focuses the party, press-and-hold
+            (or Shift+Enter) takes its order. */}
+          <g>
+            {groups.length === 0 ? (
+              <g
+                transform={`translate(${pose.w / 2},${pose.h / 2 + 560})`}
+                role={partiesInteractive ? "button" : undefined}
+                tabIndex={partiesInteractive ? 0 : undefined}
+                aria-label={
+                  partiesInteractive ? `Table ${table.number} is empty — tap to select` : undefined
+                }
+                className={partiesInteractive ? "cursor-pointer" : undefined}
+                onClick={partiesInteractive ? onSelect : undefined}
+                onKeyDown={
+                  partiesInteractive
+                    ? (e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onSelect();
+                        }
+                      }
+                    : undefined
+                }
+              >
+                <circle r={140} className="fill-zinc-200 stroke-zinc-400 dark:fill-zinc-800" />
+                <circle cx={0} cy={-45} r={42} className="fill-zinc-400 dark:fill-zinc-500" />
+                <path
+                  d="M -78 88 A 78 78 0 0 1 78 88 Z"
+                  className="fill-zinc-400 dark:fill-zinc-500"
+                />
+              </g>
+            ) : (
+              <>
+                {shownGroups.map((g, i) => {
+                  const shown = shownGroups.length;
+                  const gap = 400;
+                  const cx = pose.w / 2 - ((shown - 1) * gap) / 2 + i * gap;
+                  const cy = pose.h / 2 + 560;
+                  const color = partyColor(g.color_index ?? i);
+                  const isActive = activeGroupId === g.id;
+                  const hasOrder = !!g.order_id;
+                  return (
+                    <g
+                      key={g.id}
+                      transform={`translate(${cx},${cy})`}
+                      role={partiesInteractive ? "button" : undefined}
+                      tabIndex={partiesInteractive ? 0 : undefined}
+                      aria-label={`Party ${g.label ?? "?"}, ${g.seats} guest${g.seats === 1 ? "" : "s"}${hasOrder ? ", order open" : ", no order yet"} — tap to focus${onHoldParty ? ", press and hold to take order" : ""}`}
+                      className={partiesInteractive ? "cursor-pointer" : undefined}
+                      onPointerDown={partiesInteractive ? (e) => beginHold(e, g.id) : undefined}
+                      onPointerMove={partiesInteractive ? moveHold : undefined}
+                      onPointerUp={partiesInteractive ? endHold : undefined}
+                      onPointerLeave={partiesInteractive ? cancelHold : undefined}
+                      onClick={partiesInteractive ? (e) => clickParty(e, g.id) : undefined}
+                      onKeyDown={partiesInteractive ? (e) => keyParty(e, g.id) : undefined}
+                    >
+                      {isActive && (
+                        <circle r={195} fill="none" className="stroke-primary" strokeWidth={28} />
+                      )}
+                      <circle r={150} className={cn(color.chip, color.ring)} strokeWidth={10} />
+                      <text
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        className="select-none fill-white text-[170px] font-bold"
+                      >
+                        {g.label ?? "?"}
+                      </text>
+                      <g transform="translate(105,105)">
+                        <circle
+                          r={62}
+                          className={
+                            hasOrder
+                              ? "fill-zinc-900 stroke-white dark:fill-white"
+                              : "fill-white stroke-zinc-300"
+                          }
+                          strokeWidth={8}
+                        />
+                        <text
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                          className={
+                            hasOrder
+                              ? "select-none fill-white text-[72px] font-bold dark:fill-zinc-900"
+                              : "select-none fill-zinc-700 text-[72px] font-bold"
+                          }
+                        >
+                          {g.seats}
+                        </text>
+                      </g>
+                    </g>
+                  );
+                })}
+                {hiddenGroups > 0 && (
+                  <text
+                    x={pose.w / 2}
+                    y={pose.h / 2 + 800}
+                    textAnchor="middle"
+                    className="select-none fill-zinc-500 text-[110px] font-medium"
+                  >
+                    +{hiddenGroups} more {hiddenGroups === 1 ? "party" : "parties"}
+                  </text>
+                )}
+              </>
+            )}
           </g>
+          {held && (
+            <g transform={`translate(${pose.w - 220},${-60})`}>
+              <circle r={110} className="fill-amber-400 stroke-amber-600" />
+              <text
+                textAnchor="middle"
+                dominantBaseline="middle"
+                className="select-none fill-white text-[140px] font-bold"
+              >
+                R
+              </text>
+            </g>
+          )}
+        </g>
+        {editable && selected && (
+          <>
+            {RESIZE_HANDLES.map((h) => {
+              const hp = handlePosition(h, pose.w, pose.h);
+              return (
+                <rect
+                  key={h}
+                  x={hp.x - 90}
+                  y={hp.y - 90}
+                  width={180}
+                  height={180}
+                  rx={40}
+                  className={cn("fill-background stroke-primary stroke-2", handleCursor(h))}
+                  onPointerDown={(e) => onPointerDown(e, "resize", h)}
+                  onPointerUp={onPointerUp}
+                />
+              );
+            })}
+            <g
+              transform={`translate(${pose.w / 2},${-420})`}
+              className="cursor-grab"
+              onPointerDown={(e) => onPointerDown(e, "rotate")}
+              onPointerUp={onPointerUp}
+            >
+              <circle r={130} className="fill-background stroke-primary stroke-2" />
+              <path
+                d="M -55 20 A 60 60 0 1 1 55 -20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={36}
+                className="text-primary"
+                strokeLinecap="round"
+              />
+              <polygon points="55,-70 95,-10 30,-25" className="fill-primary" />
+            </g>
+          </>
         )}
       </g>
-      {editable && selected && (
-        <>
-          {RESIZE_HANDLES.map((h) => {
-            const hp = handlePosition(h, pose.w, pose.h);
-            return (
-              <rect
-                key={h}
-                x={hp.x - 90}
-                y={hp.y - 90}
-                width={180}
-                height={180}
-                rx={40}
-                className={cn("fill-background stroke-primary stroke-2", handleCursor(h))}
-                onPointerDown={(e) => onPointerDown(e, "resize", h)}
-                onPointerUp={onPointerUp}
-              />
-            );
-          })}
-          <g
-            transform={`translate(${pose.w / 2},${-420})`}
-            className="cursor-grab"
-            onPointerDown={(e) => onPointerDown(e, "rotate")}
-            onPointerUp={onPointerUp}
-          >
-            <circle r={130} className="fill-background stroke-primary stroke-2" />
-            <path
-              d="M -55 20 A 60 60 0 1 1 55 -20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={36}
-              className="text-primary"
-              strokeLinecap="round"
-            />
-            <polygon points="55,-70 95,-10 30,-25" className="fill-primary" />
-          </g>
-        </>
-      )}
-    </g>
-  );
-},
-// Pose objects are rebuilt per render — compare by value so only the
-// dragged node re-renders during pointer moves.
-(prev, next) =>
-  prev.table === next.table &&
-  prev.selected === next.selected &&
-  prev.editable === next.editable &&
-  prev.pose.x === next.pose.x &&
-  prev.pose.y === next.pose.y &&
-  prev.pose.w === next.pose.w &&
-  prev.pose.h === next.pose.h &&
-  prev.pose.rotation === next.pose.rotation
+    );
+  },
+  // Pose objects are rebuilt per render — compare by value so only the
+  // dragged node re-renders during pointer moves.
+  (prev, next) =>
+    prev.table === next.table &&
+    prev.selected === next.selected &&
+    prev.editable === next.editable &&
+    prev.activeGroupId === next.activeGroupId &&
+    prev.pose.x === next.pose.x &&
+    prev.pose.y === next.pose.y &&
+    prev.pose.w === next.pose.w &&
+    prev.pose.h === next.pose.h &&
+    prev.pose.rotation === next.pose.rotation,
 );
 
-const ObjectNode = memo(function ObjectNode({
-  obj,
-  pose,
-  selected,
-  editable,
-  onPointerDown,
-  onPointerUp,
-  onSelect,
-  onKeyDown,
-}: {
-  obj: FloorObject;
-  pose: Pose & { rotation: number };
-  selected: boolean;
-  editable: boolean;
-  onPointerDown: (e: React.PointerEvent, mode: "move" | "resize" | "rotate", handle?: string) => void;
-  onPointerUp: (e: React.PointerEvent) => void;
-  onSelect: () => void;
-  onKeyDown: (e: React.KeyboardEvent) => void;
-}) {
-  const objClass = cn(objectFill(obj.kind), "stroke-2", selected && "stroke-primary");
-  return (
-    <g
-      transform={`translate(${pose.x},${pose.y}) rotate(${pose.rotation},${pose.w / 2},${pose.h / 2})`}
-      className={cn(editable ? "cursor-move" : "cursor-default")}
-      onPointerDown={(e) => onPointerDown(e, "move")}
-      onPointerUp={onPointerUp}
-      onClick={editable ? undefined : onSelect}
-      role="button"
-      tabIndex={0}
-      aria-label={`${obj.kind}${obj.label ? ` ${obj.label}` : ""}`}
-      onKeyDown={onKeyDown}
-    >
-      {obj.kind === "label" ? (
-        <text
-          x={pose.w / 2}
-          y={pose.h / 2}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          className="select-none fill-zinc-500 text-[160px] font-medium"
-        >
-          {obj.label ?? "Label"}
-        </text>
-      ) : (
-        renderObjectShape({ ...obj, w_mm: pose.w, h_mm: pose.h }, pose.w, pose.h, objClass)
-      )}
-      {obj.kind === "label" && selected && (
-        <rect
-          width={pose.w}
-          height={pose.h}
-          className="fill-transparent stroke-primary stroke-2 [stroke-dasharray:120_80]"
-        />
-      )}
-      {editable && selected && (
-        <>
-          {RESIZE_HANDLES.map((h) => {
-            const hp = handlePosition(h, pose.w, pose.h);
-            return (
-              <rect
-                key={h}
-                x={hp.x - 90}
-                y={hp.y - 90}
-                width={180}
-                height={180}
-                rx={40}
-                className={cn("fill-background stroke-primary stroke-2", handleCursor(h))}
-                onPointerDown={(e) => onPointerDown(e, "resize", h)}
-                onPointerUp={onPointerUp}
-              />
-            );
-          })}
-          <g
-            transform={`translate(${pose.w / 2},${-420})`}
-            className="cursor-grab"
-            onPointerDown={(e) => onPointerDown(e, "rotate")}
-            onPointerUp={onPointerUp}
+const ObjectNode = memo(
+  function ObjectNode({
+    obj,
+    pose,
+    selected,
+    editable,
+    onPointerDown,
+    onPointerUp,
+    onSelect,
+    onKeyDown,
+  }: {
+    obj: FloorObject;
+    pose: Pose & { rotation: number };
+    selected: boolean;
+    editable: boolean;
+    onPointerDown: (
+      e: React.PointerEvent,
+      mode: "move" | "resize" | "rotate",
+      handle?: string,
+    ) => void;
+    onPointerUp: (e: React.PointerEvent) => void;
+    onSelect: () => void;
+    onKeyDown: (e: React.KeyboardEvent) => void;
+  }) {
+    const objClass = cn(objectFill(obj.kind), "stroke-2", selected && "stroke-primary");
+    return (
+      <g
+        transform={`translate(${pose.x},${pose.y}) rotate(${pose.rotation},${pose.w / 2},${pose.h / 2})`}
+        className={cn(editable ? "cursor-move" : "cursor-default")}
+        onPointerDown={(e) => onPointerDown(e, "move")}
+        onPointerUp={onPointerUp}
+        onClick={editable ? undefined : onSelect}
+        role="button"
+        tabIndex={0}
+        aria-label={`${obj.kind}${obj.label ? ` ${obj.label}` : ""}`}
+        onKeyDown={onKeyDown}
+      >
+        {obj.kind === "label" ? (
+          <text
+            x={pose.w / 2}
+            y={pose.h / 2}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            className="select-none fill-zinc-500 text-[160px] font-medium"
           >
-            <circle r={130} className="fill-background stroke-primary stroke-2" />
-            <path
-              d="M -55 20 A 60 60 0 1 1 55 -20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={36}
-              className="text-primary"
-              strokeLinecap="round"
-            />
-            <polygon points="55,-70 95,-10 30,-25" className="fill-primary" />
-          </g>
-        </>
-      )}
-    </g>
-  );
-},
-(prev, next) =>
-  prev.obj === next.obj &&
-  prev.selected === next.selected &&
-  prev.editable === next.editable &&
-  prev.pose.x === next.pose.x &&
-  prev.pose.y === next.pose.y &&
-  prev.pose.w === next.pose.w &&
-  prev.pose.h === next.pose.h &&
-  prev.pose.rotation === next.pose.rotation
+            {obj.label ?? "Label"}
+          </text>
+        ) : (
+          renderObjectShape({ ...obj, w_mm: pose.w, h_mm: pose.h }, pose.w, pose.h, objClass)
+        )}
+        {obj.kind === "label" && selected && (
+          <rect
+            width={pose.w}
+            height={pose.h}
+            className="fill-transparent stroke-primary stroke-2 [stroke-dasharray:120_80]"
+          />
+        )}
+        {editable && selected && (
+          <>
+            {RESIZE_HANDLES.map((h) => {
+              const hp = handlePosition(h, pose.w, pose.h);
+              return (
+                <rect
+                  key={h}
+                  x={hp.x - 90}
+                  y={hp.y - 90}
+                  width={180}
+                  height={180}
+                  rx={40}
+                  className={cn("fill-background stroke-primary stroke-2", handleCursor(h))}
+                  onPointerDown={(e) => onPointerDown(e, "resize", h)}
+                  onPointerUp={onPointerUp}
+                />
+              );
+            })}
+            <g
+              transform={`translate(${pose.w / 2},${-420})`}
+              className="cursor-grab"
+              onPointerDown={(e) => onPointerDown(e, "rotate")}
+              onPointerUp={onPointerUp}
+            >
+              <circle r={130} className="fill-background stroke-primary stroke-2" />
+              <path
+                d="M -55 20 A 60 60 0 1 1 55 -20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={36}
+                className="text-primary"
+                strokeLinecap="round"
+              />
+              <polygon points="55,-70 95,-10 30,-25" className="fill-primary" />
+            </g>
+          </>
+        )}
+      </g>
+    );
+  },
+  (prev, next) =>
+    prev.obj === next.obj &&
+    prev.selected === next.selected &&
+    prev.editable === next.editable &&
+    prev.pose.x === next.pose.x &&
+    prev.pose.y === next.pose.y &&
+    prev.pose.w === next.pose.w &&
+    prev.pose.h === next.pose.h &&
+    prev.pose.rotation === next.pose.rotation,
 );
 
 function objectFill(kind: string): string {
@@ -380,19 +573,15 @@ function objectFill(kind: string): string {
   }
 }
 
-function renderObjectShape(
-  o: FloorObject,
-  w: number,
-  h: number,
-  className?: string
-) {
+function renderObjectShape(o: FloorObject, w: number, h: number, className?: string) {
   if (o.kind === "label") return null;
   const v = o.shapeVariant;
   if (v === "circle") {
     const d = Math.min(w, h);
     return <circle cx={w / 2} cy={h / 2} r={d / 2} className={className} />;
   }
-  if (v === "ellipse") return <ellipse cx={w / 2} cy={h / 2} rx={w / 2} ry={h / 2} className={className} />;
+  if (v === "ellipse")
+    return <ellipse cx={w / 2} cy={h / 2} rx={w / 2} ry={h / 2} className={className} />;
   if (v === "pill" || o.kind === "separator")
     return <rect width={w} height={h} rx={h / 2} className={className} />;
   return <rect width={w} height={h} rx={40} className={className} />;
@@ -423,6 +612,9 @@ export default function FloorPlanCanvas({
   isEditable,
   selectedTableId,
   onSelectTable,
+  activeGroupId,
+  onSelectParty,
+  onHoldParty,
 }: FloorPlanCanvasProps) {
   const queryClient = useQueryClient();
   const { data: layout } = useSuspenseQuery(floorLayoutQueryOptions(floorId));
@@ -435,9 +627,7 @@ export default function FloorPlanCanvas({
   const [isPanning, setIsPanning] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [overrides, setOverrides] = useState<Record<string, Pose>>({});
-  const [objOverrides, setObjOverrides] = useState<Record<string, Pose & { rotation: number }>>(
-    {}
-  );
+  const [objOverrides, setObjOverrides] = useState<Record<string, Pose & { rotation: number }>>({});
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [addingSpec, setAddingSpec] = useState<PaletteSpec | null>(null);
   const dragRef = useRef<DragSession>(null);
@@ -462,7 +652,7 @@ export default function FloorPlanCanvas({
   const pushUndo = (
     entry:
       | { kind: "table"; id: string; prev: Pose & { rotation: number } }
-      | { kind: "object"; id: string; prev: Pose & { rotation: number } }
+      | { kind: "object"; id: string; prev: Pose & { rotation: number } },
   ) => {
     undoRef.current.push(entry);
     if (undoRef.current.length > 50) undoRef.current.shift();
@@ -540,7 +730,7 @@ export default function FloorPlanCanvas({
                   ...(vars.h !== undefined ? { h_mm: vars.h } : {}),
                   ...(vars.rotation_deg !== undefined ? { rotation_deg: vars.rotation_deg } : {}),
                 }
-              : t
+              : t,
           ),
         });
       }
@@ -608,7 +798,7 @@ export default function FloorPlanCanvas({
                   ...(vars.h !== undefined ? { h_mm: vars.h } : {}),
                   ...(vars.rotation_deg !== undefined ? { rotation_deg: vars.rotation_deg } : {}),
                 }
-              : o
+              : o,
           ),
         });
       }
@@ -637,11 +827,7 @@ export default function FloorPlanCanvas({
   });
 
   const addObjMut = useMutation({
-    mutationFn: (vars: {
-      spec: PaletteSpec;
-      x_mm: number;
-      y_mm: number;
-    }) =>
+    mutationFn: (vars: { spec: PaletteSpec; x_mm: number; y_mm: number }) =>
       createFloorObject({
         floor_id: floorId,
         kind: vars.spec.kind,
@@ -713,11 +899,11 @@ export default function FloorPlanCanvas({
     const padY = Math.max(0, (boxH - h) / 2);
     const x = Math.min(
       Math.max(Math.round(p.x), -Math.floor(padX)),
-      Math.max(-Math.floor(padX), layout.floor.width_mm - w + Math.floor(padX))
+      Math.max(-Math.floor(padX), layout.floor.width_mm - w + Math.floor(padX)),
     );
     const y = Math.min(
       Math.max(Math.round(p.y), -Math.floor(padY)),
-      Math.max(-Math.floor(padY), layout.floor.height_mm - h + Math.floor(padY))
+      Math.max(-Math.floor(padY), layout.floor.height_mm - h + Math.floor(padY)),
     );
     return { x, y, w, h };
   };
@@ -726,7 +912,7 @@ export default function FloorPlanCanvas({
     e: React.PointerEvent,
     target: DragTarget,
     table?: TableWithDerived,
-    obj?: FloorObject
+    obj?: FloorObject,
   ) => {
     if (!editable || e.button !== 0) return;
     e.stopPropagation();
@@ -863,7 +1049,7 @@ export default function FloorPlanCanvas({
   const computeDragPose = (
     session: NonNullable<DragSession>,
     clientX: number,
-    clientY: number
+    clientY: number,
   ): ComputedDragPose | null => {
     const p = toMm(clientX, clientY);
     const dx = p.x - session.startMM.x;
@@ -902,10 +1088,7 @@ export default function FloorPlanCanvas({
           y = session.orig.y + ly;
           hh = session.orig.h - ly;
         }
-        const next = clampPose(
-          { x: snap(x), y: snap(y), w: snap(w), h: snap(hh) },
-          cur.rotation
-        );
+        const next = clampPose({ x: snap(x), y: snap(y), w: snap(w), h: snap(hh) }, cur.rotation);
         return { kind: "object", id: obj.id, pose: { ...next, rotation: cur.rotation } };
       }
       const next = clampPose(
@@ -915,7 +1098,7 @@ export default function FloorPlanCanvas({
           w: obj.w_mm,
           h: obj.h_mm,
         },
-        obj.rotation_deg
+        obj.rotation_deg,
       );
       next.w = obj.w_mm;
       next.h = obj.h_mm;
@@ -943,7 +1126,7 @@ export default function FloorPlanCanvas({
           x: snap(session.orig.x + dx),
           y: snap(session.orig.y + dy),
         },
-        table.rotation_deg
+        table.rotation_deg,
       );
       next.w = session.orig.w;
       next.h = session.orig.h;
@@ -975,18 +1158,11 @@ export default function FloorPlanCanvas({
       w = d;
       hh = d;
     }
-    const next = clampPose(
-      { x: snap(x), y: snap(y), w: snap(w), h: snap(hh) },
-      table.rotation_deg
-    );
+    const next = clampPose({ x: snap(x), y: snap(y), w: snap(w), h: snap(hh) }, table.rotation_deg);
     return { kind: "table", id: table.id, pose: { ...next, rotation: table.rotation_deg } };
   };
 
-  const applyDragFrame = (
-    session: NonNullable<DragSession>,
-    clientX: number,
-    clientY: number
-  ) => {
+  const applyDragFrame = (session: NonNullable<DragSession>, clientX: number, clientY: number) => {
     const computed = computeDragPose(session, clientX, clientY);
     if (!computed) return;
     if (computed.kind === "object") {
@@ -1099,10 +1275,7 @@ export default function FloorPlanCanvas({
       h: table.h_mm,
       rotation: table.rotation_deg,
     };
-    const finalPose = clampPose(
-      { x: pose.x, y: pose.y, w: pose.w, h: pose.h },
-      pose.rotation
-    );
+    const finalPose = clampPose({ x: pose.x, y: pose.y, w: pose.w, h: pose.h }, pose.rotation);
     const finalRot = pose.rotation ?? table.rotation_deg;
     const movedPos = finalPose.x !== table.x_mm || finalPose.y !== table.y_mm;
     const movedSize = finalPose.w !== table.w_mm || finalPose.h !== table.h_mm;
@@ -1242,13 +1415,25 @@ export default function FloorPlanCanvas({
       undoRef.current.push({
         kind: "table",
         id: table.id,
-        prev: { x: table.x_mm, y: table.y_mm, w: table.w_mm, h: table.h_mm, rotation: table.rotation_deg },
+        prev: {
+          x: table.x_mm,
+          y: table.y_mm,
+          w: table.w_mm,
+          h: table.h_mm,
+          rotation: table.rotation_deg,
+        },
       });
       poseMut.mutate({
         id: table.id,
         x: p.x,
         y: p.y,
-        prev: { x: table.x_mm, y: table.y_mm, w: table.w_mm, h: table.h_mm, rotation: table.rotation_deg },
+        prev: {
+          x: table.x_mm,
+          y: table.y_mm,
+          w: table.w_mm,
+          h: table.h_mm,
+          rotation: table.rotation_deg,
+        },
       });
     }
   };
@@ -1271,7 +1456,10 @@ export default function FloorPlanCanvas({
           ))}
         {!editable && (
           <span className="px-1 text-xs text-muted-foreground">
-            Operations — select a table to seat guests
+            Operations — tap a table to select
+            {onHoldParty
+              ? " · tap a party chip to focus it · press & hold a chip to take its order"
+              : " · tap a party chip to focus it"}
           </span>
         )}
       </div>
@@ -1298,10 +1486,24 @@ export default function FloorPlanCanvas({
             </Button>
           </>
         )}
-        <Button variant="secondary" size="icon-sm" className="max-lg:h-11 max-lg:w-11" onClick={() => zoomCenter(1.2)} title="Zoom in" aria-label="Zoom in">
+        <Button
+          variant="secondary"
+          size="icon-sm"
+          className="max-lg:h-11 max-lg:w-11"
+          onClick={() => zoomCenter(1.2)}
+          title="Zoom in"
+          aria-label="Zoom in"
+        >
           <Icons.add className="size-4 max-lg:size-5" />
         </Button>
-        <Button variant="secondary" size="icon-sm" className="max-lg:h-11 max-lg:w-11" onClick={() => zoomCenter(1 / 1.2)} title="Zoom out" aria-label="Zoom out">
+        <Button
+          variant="secondary"
+          size="icon-sm"
+          className="max-lg:h-11 max-lg:w-11"
+          onClick={() => zoomCenter(1 / 1.2)}
+          title="Zoom out"
+          aria-label="Zoom out"
+        >
           <Icons.chevronDown className="size-4 rotate-180 max-lg:size-5" />
         </Button>
       </div>
@@ -1355,7 +1557,15 @@ export default function FloorPlanCanvas({
             patternTransform="rotate(45)"
           >
             <rect width={240} height={240} fill="transparent" />
-            <line x1="0" y1="0" x2="0" y2="240" stroke="currentColor" strokeWidth={60} className="text-zinc-400" />
+            <line
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="240"
+              stroke="currentColor"
+              strokeWidth={60}
+              className="text-zinc-400"
+            />
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill="url(#grid)" />
@@ -1390,11 +1600,16 @@ export default function FloorPlanCanvas({
             pose={poseOf(table)}
             selected={selectedTableId === table.id}
             editable={editable}
+            activeGroupId={activeGroupId}
             onPointerDown={(e, m, h) =>
               beginDrag(e, { kind: "table", id: table.id, mode: m, handle: h }, table)
             }
             onPointerUp={endTableDrag}
             onSelect={() => onSelectTable?.(table.id)}
+            onSelectParty={
+              onSelectParty ? (groupId) => onSelectParty(table.id, groupId) : undefined
+            }
+            onHoldParty={onHoldParty ? (groupId) => onHoldParty(table.id, groupId) : undefined}
             onKeyDown={(e) => onTableKeyDown(e, table)}
           />
         ))}
@@ -1403,7 +1618,7 @@ export default function FloorPlanCanvas({
       <div className="absolute bottom-4 left-4 rounded-lg bg-background/80 p-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
         {editable
           ? "Drag to move • Resize from handles • Rotate from the top handle • Arrow keys move the selected table • Ctrl/Cmd+Z to undo"
-          : "Scroll to zoom • Middle Mouse / Alt+drag to pan • Click a table to select"}
+          : "Scroll to zoom • Middle Mouse / Alt+drag to pan • Click a table to select • Hold a party chip to take its order"}
       </div>
     </div>
   );

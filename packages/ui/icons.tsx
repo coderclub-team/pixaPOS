@@ -2,6 +2,7 @@ import {
   IconAdjustmentsHorizontal,
   IconAlertCircle,
   IconAlertTriangle,
+  IconArmchair,
   IconArrowRight,
   IconBell,
   IconBold,
