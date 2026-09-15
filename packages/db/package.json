@@ -1,0 +1,11 @@
+{
+  "name": "@pixa/db",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.ts",
+  "scripts": {
+    "seed": "tsx ./seed.ts",
+    "migrate": "drizzle-kit migrate",
+    "generate": "drizzle-kit generate"
+  }
+}

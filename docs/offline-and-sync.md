@@ -37,3 +37,16 @@ Introduce durable storage, session/device identity, an outbox processor,
 connectivity observation, contract-level idempotency, and operational telemetry
 before claiming offline support. Test reconnect, duplicate submission, stale
 version, authorization change, device restart, and partial sync scenarios.
+
+## Foundation status (ADR-0015, in progress)
+
+- Contracts: `@pixa/contracts` (ULIDs, command envelope, outbox lifecycle,
+  conflict policies).
+- Central DB: `@pixa/db` (Drizzle schema on Neon Postgres, idempotency ledger,
+  parity seeds).
+- Local engine: real SQLite via wa-sqlite on OPFS (`lib/db/`, worker-based);
+  localStorage is a read-only fallback. Outbox helper records `pending`
+  commands; service wiring lands per domain in pilot phases.
+- Sync skeleton: `app/api/sync/push` (idempotent batch ack) and
+  `app/api/sync/pull` (cursor protocol), gated by `PIXA_SYNC_ENABLED`.
+- Services still run on mocks — offline operation is NOT yet claimed.

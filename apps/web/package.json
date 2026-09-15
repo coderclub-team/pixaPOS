@@ -10,6 +10,8 @@
   "dependencies": {
     "@base-ui/react": "^1.6.0",
     "@clerk/nextjs": "^7.8.3",
+    "@pixa/contracts": "workspace:*",
+    "@pixa/db": "workspace:*",
     "@pixa/ui": "workspace:*",
     "@tabler/icons-react": "^3.40.0",
     "@tailwindcss/postcss": "^4.2.2",
@@ -19,6 +21,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "drizzle-orm": "^0.45.2",
     "kbar": "0.1.0-beta.48",
     "next": "16.2.12",
     "nextjs-toploader": "^3.9.17",
@@ -31,6 +34,7 @@
     "sonner": "^1.7.4",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.2",
+    "wa-sqlite": "^1.0.0",
     "zod": "^4.3.6",
     "zustand": "5.0.12"
   },
