@@ -343,42 +343,6 @@ export const navGroups: NavGroup[] = [
     label: "Playground",
     items: [
       {
-        title: "Forms",
-        url: "#",
-        icon: "forms",
-        isActive: false,
-        items: [
-          {
-            title: "Basic Form",
-            url: "/dashboard/forms/basic",
-            icon: "forms",
-            shortcut: ["f", "f"],
-          },
-          {
-            title: "Multi-Step Form",
-            url: "/dashboard/forms/multi-step",
-            icon: "forms",
-          },
-          {
-            title: "Sheet & Dialog",
-            url: "/dashboard/forms/sheet-form",
-            icon: "forms",
-          },
-          {
-            title: "Advanced Patterns",
-            url: "/dashboard/forms/advanced",
-            icon: "forms",
-          },
-        ],
-      },
-      {
-        title: "React Query",
-        url: "/dashboard/react-query",
-        icon: "code",
-        isActive: false,
-        items: [],
-      },
-      {
         title: "Icons",
         url: "/dashboard/elements/icons",
         icon: "palette",
@@ -415,31 +379,11 @@ export const navGroups: NavGroup[] = [
     label: "",
     items: [
       {
-        title: "Pro",
-        url: "#",
-        icon: "pro",
-        isActive: false,
-        items: [
-          {
-            title: "Exclusive",
-            url: "/dashboard/exclusive",
-            icon: "exclusive",
-            shortcut: ["e", "e"],
-          },
-        ],
-      },
-      {
         title: "Account",
         url: "#",
         icon: "account",
         isActive: false,
         items: [
-          {
-            title: "Profile",
-            url: "/dashboard/profile",
-            icon: "profile",
-            shortcut: ["m", "m"],
-          },
           {
             title: "Notifications",
             url: "/dashboard/notifications",
@@ -452,12 +396,6 @@ export const navGroups: NavGroup[] = [
             icon: "billing",
             shortcut: ["b", "b"],
             access: { requireOrg: true },
-          },
-          {
-            title: "Login",
-            shortcut: ["l", "l"],
-            url: "/",
-            icon: "login",
           },
         ],
       },

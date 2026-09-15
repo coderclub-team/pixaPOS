@@ -1,6 +1,24 @@
 import type { AnyFormApi } from '@tanstack/react-form';
 import { useCallback, useState } from 'react';
-import type { ZodTypeAny } from 'zod';
+
+/**
+ * Minimal structural schema surface the stepper needs. Deliberately NOT
+ * `ZodTypeAny` from a specific zod copy: consumers live on different zod
+ * majors (v3 vs v4 have incompatible class identities), and the hook only
+ * ever calls `safeParse` and reads `error.issues[].path/message`.
+ */
+export type StepParseIssue = {
+  path: ReadonlyArray<PropertyKey>;
+  message: string;
+};
+
+export type StepParseResult =
+  | { success: true; data: unknown }
+  | { success: false; error: { issues: ReadonlyArray<StepParseIssue> } };
+
+export type StepValidator = {
+  safeParse: (data: any) => StepParseResult;
+};
 
 /**
  * Options for handling cancel/back actions
@@ -68,7 +86,7 @@ type UseFormStepperOptions = {
   /** The complete form schema. When provided, the FINAL submit re-validates
    *  the whole form (not just the last step); on failure the wizard jumps to
    *  the first failing step and surfaces its errors. */
-  fullSchema?: ZodTypeAny;
+  fullSchema?: StepValidator;
 };
 
 /**
@@ -82,7 +100,7 @@ type UseFormStepperOptions = {
  * @param schemas - Array of Zod schemas, one per step
  * @param options - Optional fullSchema for final-submit re-validation
  */
-export function useFormStepper(schemas: ZodTypeAny[], options?: UseFormStepperOptions) {
+export function useFormStepper(schemas: StepValidator[], options?: UseFormStepperOptions) {
   const stepCount = schemas.length;
   const [currentStep, setCurrentStep] = useState(1); // Start from 1
 
