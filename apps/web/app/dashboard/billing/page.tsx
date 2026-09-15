@@ -54,12 +54,10 @@ export default function BillingPage() {
         <BillingView
           outletId={outlet.id}
           outletName={outlet.name}
-          orgCreatedAt={organization?.createdAt}
+          orgCreatedAt={organization?.createdAt?.getTime()}
         />
       ) : (
-        <div className="text-center text-sm text-muted-foreground">
-          Outlet not found.
-        </div>
+        <div className="text-center text-sm text-muted-foreground">Outlet not found.</div>
       )}
     </PageContainer>
   );

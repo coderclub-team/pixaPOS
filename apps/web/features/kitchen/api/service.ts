@@ -184,8 +184,7 @@ export async function fireKOT(orderId: string, by?: string): Promise<KitchenTick
     if (draftLines.length === 0) throw new Error("No new items to fire");
 
     const now = new Date().toISOString();
-    const kotNumber =
-      mockTickets.filter((t) => t.order_id === orderId).length + 1;
+    const kotNumber = mockTickets.filter((t) => t.order_id === orderId).length + 1;
     const ticket: KitchenTicket = {
       id: `kot_${Date.now().toString(36)}`,
       outlet_id: order.outlet_id,
@@ -244,12 +243,18 @@ export async function acceptKOT(id: string, by?: string): Promise<KitchenTicketW
     if (t.status !== "NEW") {
       throw new Error(`Only NEW tickets can be accepted (KOT is ${t.status.toLowerCase()})`);
     }
-    await transitionTicket(idx, "ACCEPTED", { actor_id: by ?? "kitchen", event_type: "KITCHEN_STARTED" });
+    await transitionTicket(idx, "ACCEPTED", {
+      actor_id: by ?? "kitchen",
+      event_type: "KITCHEN_STARTED",
+    });
     await refreshOrderKitchenState(t.order_id);
   });
 }
 
-export async function startPreparingKOT(id: string, by?: string): Promise<KitchenTicketWithDerived> {
+export async function startPreparingKOT(
+  id: string,
+  by?: string,
+): Promise<KitchenTicketWithDerived> {
   return mutateTicket(id, async (idx) => {
     const t = mockTickets[idx];
     if (t.status === "PREPARING") return;
@@ -264,7 +269,9 @@ export async function startPreparingKOT(id: string, by?: string): Promise<Kitche
     mockTickets[idx] = {
       ...mockTickets[idx],
       lines: mockTickets[idx].lines.map((l) =>
-        l.status === "PENDING" || l.status === "ACCEPTED" ? { ...l, status: "PREPARING" as const } : l,
+        l.status === "PENDING" || l.status === "ACCEPTED"
+          ? { ...l, status: "PREPARING" as const }
+          : l,
       ),
     };
     await refreshOrderKitchenState(t.order_id);
@@ -296,7 +303,12 @@ export async function acceptKOTLine(
     assertLineTransition(line.status, "ACCEPTED", line.item_name_snapshot);
     const lines = [...t.lines];
     lines[li] = { ...line, status: "ACCEPTED" as const };
-    mockTickets[idx] = { ...t, lines, updated_at: new Date().toISOString(), version: t.version + 1 };
+    mockTickets[idx] = {
+      ...t,
+      lines,
+      updated_at: new Date().toISOString(),
+      version: t.version + 1,
+    };
     await recordEvent({
       outlet_id: t.outlet_id,
       entity_type: "ORDER",
@@ -343,7 +355,12 @@ export async function startPreparingKOTLine(
     assertLineTransition(line.status, "PREPARING", line.item_name_snapshot);
     const lines = [...t.lines];
     lines[li] = { ...line, status: "PREPARING" as const };
-    mockTickets[idx] = { ...t, lines, updated_at: new Date().toISOString(), version: t.version + 1 };
+    mockTickets[idx] = {
+      ...t,
+      lines,
+      updated_at: new Date().toISOString(),
+      version: t.version + 1,
+    };
     await recordEvent({
       outlet_id: t.outlet_id,
       entity_type: "ORDER",
@@ -364,13 +381,17 @@ export async function startPreparingKOTLine(
   });
 }
 
-export async function markLineReady(id: string, lineId: string, by?: string): Promise<KitchenTicketWithDerived> {
+export async function markLineReady(
+  id: string,
+  lineId: string,
+  by?: string,
+): Promise<KitchenTicketWithDerived> {
   return mutateTicket(id, async (idx) => {
     const t = mockTickets[idx];
     const li = t.lines.findIndex((l) => l.id === lineId);
     if (li === -1) throw new Error("KOT line not found");
     const line = t.lines[li];
-    if (line.status === "READY") return enrichTicket(mockTickets[idx]);
+    if (line.status === "READY") return;
     if (line.status === "VOIDED" || line.status === "SERVED") {
       throw new Error(`A ${line.status.toLowerCase()} line cannot be marked ready`);
     }
@@ -380,7 +401,12 @@ export async function markLineReady(id: string, lineId: string, by?: string): Pr
     assertLineTransition(line.status, "READY", line.item_name_snapshot);
     const lines = [...t.lines];
     lines[li] = { ...lines[li], status: "READY" as const };
-    mockTickets[idx] = { ...t, lines, updated_at: new Date().toISOString(), version: t.version + 1 };
+    mockTickets[idx] = {
+      ...t,
+      lines,
+      updated_at: new Date().toISOString(),
+      version: t.version + 1,
+    };
     await recordEvent({
       outlet_id: t.outlet_id,
       entity_type: "ORDER",
@@ -389,7 +415,9 @@ export async function markLineReady(id: string, lineId: string, by?: string): Pr
       actor_id: by ?? "kitchen",
       metadata: { kot_id: id, kot_line_id: lineId },
     });
-    if (lines.every((l) => l.status === "READY" || l.status === "VOIDED" || l.status === "SERVED")) {
+    if (
+      lines.every((l) => l.status === "READY" || l.status === "VOIDED" || l.status === "SERVED")
+    ) {
       // Walk the legal path — an ACCEPTED ticket passes through PREPARING
       // first, never jumps straight to READY.
       if (mockTickets[idx].status === "ACCEPTED") {
@@ -494,14 +522,16 @@ export async function voidKOT(
         order_id: t.order_id,
         order_number: order?.order_number,
         created_by: params.by ?? "staff",
-        lines: consumed.map((l) => {
-          const ol = order?.items.find((i) => i.id === l.order_line_id);
-          return {
-            recipe_id: ol?.recipe_id_snapshot ?? "",
-            variant_id: ol?.variant_id,
-            servings: l.qty - l.voided_qty,
-          };
-        }).filter((l) => l.recipe_id),
+        lines: consumed
+          .map((l) => {
+            const ol = order?.items.find((i) => i.id === l.order_line_id);
+            return {
+              recipe_id: ol?.recipe_id_snapshot ?? "",
+              variant_id: ol?.variant_id,
+              servings: l.qty - l.voided_qty,
+            };
+          })
+          .filter((l) => l.recipe_id),
       });
     }
     await transitionTicket(idx, "CANCELLED", {
