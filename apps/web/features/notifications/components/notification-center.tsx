@@ -14,10 +14,10 @@ const MAX_VISIBLE = 5;
 
 const actionRoutes: Record<string, string> = {
   view: "/dashboard/workspaces",
-  "view-product": "/dashboard/product",
+  "view-product": "/dashboard/menu/items",
   billing: "/dashboard/billing",
-  open: "/dashboard/overview",
-  "open-chat": "/dashboard/overview",
+  "view-orders": "/dashboard/orders",
+  "view-stock": "/dashboard/inventory/stock",
 };
 
 export function NotificationCenter() {

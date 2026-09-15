@@ -38,14 +38,14 @@ const mockNotifications: Notification[] = [
   },
   {
     id: "2",
-    title: "New product added",
-    body: 'A new product "Dashboard Pro" has been added to the catalog.',
+    title: "New menu item added",
+    body: 'A new item "Margherita Pizza" has been added to the menu.',
     status: "unread",
     createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
     actions: [
       {
         id: "view-product",
-        label: "View products",
+        label: "View menu",
         type: "redirect",
         style: "primary",
       },
@@ -68,14 +68,14 @@ const mockNotifications: Notification[] = [
   },
   {
     id: "4",
-    title: "Task assigned to you",
-    body: 'You have been assigned "Update dashboard analytics" on the Kanban board.',
+    title: "KOT fired for Table T4",
+    body: "2× Margherita Pizza sent to the kitchen as KOT #12.",
     status: "read",
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
     actions: [
       {
-        id: "open",
-        label: "Open kanban",
+        id: "view-orders",
+        label: "View orders",
         type: "redirect",
         style: "primary",
       },
@@ -83,14 +83,14 @@ const mockNotifications: Notification[] = [
   },
   {
     id: "5",
-    title: "New message from Alex",
-    body: 'Alex sent you a message: "Hey, can we sync on the overview dashboard?"',
+    title: "Low stock alert",
+    body: "Mozzarella is below par level. Raise a purchase order before the dinner rush.",
     status: "read",
     createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
     actions: [
       {
-        id: "open-chat",
-        label: "Open chat",
+        id: "view-stock",
+        label: "View stock",
         type: "redirect",
         style: "primary",
       },
