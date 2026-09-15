@@ -28,9 +28,9 @@ import {
 } from "@pixa/ui/base-ui/table";
 import { Icons } from "@pixa/ui/icons";
 import { StatusDot } from "@pixa/ui/base-ui/status-dot";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import { deleteFloor } from "../api/service";
-import { floorKeys } from "../api/queries";
+import { floorKeys, floorLayoutQueryOptions } from "../api/queries";
 import { toast } from "sonner";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -42,6 +42,24 @@ interface FloorListProps {
 
 export function FloorList({ floors, onEdit }: FloorListProps) {
   const queryClient = useQueryClient();
+  // Live per-floor rollups (table count, seated covers). Floors are few, so
+  // one cached layout query each is cheaper than a new aggregate endpoint.
+  const layouts = useQueries({
+    queries: floors.map((f) => floorLayoutQueryOptions(f.id)),
+  });
+  const summaryByFloor = new Map(
+    floors.map((f, i) => {
+      const tables = layouts[i]?.data?.tables ?? [];
+      return [
+        f.id,
+        {
+          tables: tables.length,
+          seated: tables.reduce((s, t) => s + (t.seated_seats ?? 0), 0),
+          capacity: tables.reduce((s, t) => s + (t.capacity ?? 0), 0),
+        },
+      ];
+    }),
+  );
 
   if (floors.length === 0) {
     return (
@@ -71,6 +89,7 @@ export function FloorList({ floors, onEdit }: FloorListProps) {
               <TableHead>Code</TableHead>
               <TableHead>Level</TableHead>
               <TableHead>Capacity</TableHead>
+              <TableHead>Tables · Live</TableHead>
               <TableHead>Sort</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -78,7 +97,13 @@ export function FloorList({ floors, onEdit }: FloorListProps) {
           </TableHeader>
           <TableBody>
             {floors.map((floor) => (
-              <FloorRow key={floor.id} floor={floor} onEdit={onEdit} queryClient={queryClient} />
+              <FloorRow
+                key={floor.id}
+                floor={floor}
+                onEdit={onEdit}
+                queryClient={queryClient}
+                summary={summaryByFloor.get(floor.id)}
+              />
             ))}
           </TableBody>
         </Table>
@@ -91,10 +116,12 @@ function FloorRow({
   floor,
   onEdit,
   queryClient,
+  summary,
 }: {
   floor: Floor;
   onEdit?: (floor: Floor) => void;
   queryClient: ReturnType<typeof useQueryClient>;
+  summary?: { tables: number; seated: number; capacity: number };
 }) {
   const router = useRouter();
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -142,9 +169,26 @@ function FloorRow({
         </TableCell>
         <TableCell className="font-mono text-xs">{floor.code}</TableCell>
         <TableCell>
-          {floor.level === 0 ? "Ground" : floor.level > 0 ? `L${floor.level}` : `B${Math.abs(floor.level)}`}
+          {floor.level === 0
+            ? "Ground"
+            : floor.level > 0
+              ? `L${floor.level}`
+              : `B${Math.abs(floor.level)}`}
         </TableCell>
         <TableCell>{floor.capacity} covers</TableCell>
+        <TableCell>
+          {summary ? (
+            <span className="text-sm">
+              {summary.tables} table{summary.tables === 1 ? "" : "s"}
+              <span className="text-muted-foreground">
+                {" "}
+                · {summary.seated}/{summary.capacity} seated
+              </span>
+            </span>
+          ) : (
+            <span className="text-sm text-muted-foreground">—</span>
+          )}
+        </TableCell>
         <TableCell>{floor.sort_order}</TableCell>
         <TableCell>
           <StatusDot isActive={floor.is_active} />

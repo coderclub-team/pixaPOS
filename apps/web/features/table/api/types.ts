@@ -1,24 +1,8 @@
-export type TableStatus =
-  | "available"
-  | "occupied"
-  | "reserved"
-  | "cleaning"
-  | "out_of_service";
+export type TableStatus = "available" | "occupied" | "reserved" | "cleaning" | "out_of_service";
 
-export type TableShape =
-  | "square"
-  | "round"
-  | "rectangle"
-  | "triangle"
-  | "ellipse"
-  | "half_circle";
+export type TableShape = "square" | "round" | "rectangle" | "triangle" | "ellipse" | "half_circle";
 
-export type TableType =
-  | "standard"
-  | "bar_counter"
-  | "communal"
-  | "outdoor"
-  | "private";
+export type TableType = "standard" | "bar_counter" | "communal" | "outdoor" | "private";
 
 export type OccupancyStatus = "SEATED" | "ORDERING" | "RELEASED" | "CANCELLED";
 
@@ -35,6 +19,10 @@ export type OccupancyGroup = {
   outlet_id: string;
   floor_id: string;
   seats: number;
+  /** Short party tag shown on the floor canvas (A, B, C…). Auto-assigned at seating, renamable. */
+  label?: string;
+  /** Index into the party colour palette (see partyColor in utils). Auto-assigned at seating. */
+  color_index?: number;
   order_id: string | null;
   status: OccupancyStatus;
   seated_at: string;

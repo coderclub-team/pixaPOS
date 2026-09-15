@@ -3,7 +3,13 @@ import { recordEvent } from "@/features/events/api/service";
 import { entityMutex } from "@/lib/mutex";
 import { toPaise } from "@/lib/money";
 import { getMenuItemById, getModifiers } from "@/features/menu/api/service";
-import { attachOrder, detachOrder, getTableById, seatOccupancy } from "@/features/table/api/service";
+import {
+  attachOrder,
+  detachOrder,
+  getOccupancyGroup,
+  getTableById,
+  seatOccupancy,
+} from "@/features/table/api/service";
 import { getCustomerById } from "@/features/customers/api/service";
 // Type-only: erased at runtime, so no module edge to the kitchen domain.
 import type { KOTLineStatus, KOTStatus } from "@/features/kitchen/api/types";
@@ -157,7 +163,11 @@ function enrichOrder(
  * voided tickets excluded. Same derivation as useOrderKitchenProgress.
  */
 function kitchenProgressMap(
-  tickets: { order_id: string; status: KOTStatus; lines: { status: KOTLineStatus; qty: number; voided_qty: number }[] }[],
+  tickets: {
+    order_id: string;
+    status: KOTStatus;
+    lines: { status: KOTLineStatus; qty: number; voided_qty: number }[];
+  }[],
 ): Map<string, { done: number; total: number }> {
   const map = new Map<string, { done: number; total: number }>();
   for (const t of tickets) {
@@ -231,7 +241,9 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
     }
 
     const dayOrders = mockOrders.filter(
-      (o) => o.outlet_id === outletId && o.created_at.slice(0, 10) === new Date().toISOString().slice(0, 10),
+      (o) =>
+        o.outlet_id === outletId &&
+        o.created_at.slice(0, 10) === new Date().toISOString().slice(0, 10),
     );
     const now = new Date().toISOString();
     const order: RestaurantOrder = {
@@ -308,7 +320,9 @@ export async function addOrderItem(
       menuItem.variants[0];
     if (!variant || !variant.is_active) throw new Error("Variant is not available");
     if (!menuItem.available_channels.includes(orderChannelToMenuChannel(order.channel))) {
-      throw new Error(`${menuItem.name} is not available for ${order.channel.replace("_", " ")} orders`);
+      throw new Error(
+        `${menuItem.name} is not available for ${order.channel.replace("_", " ")} orders`,
+      );
     }
 
     const qty = input.qty ?? 1;
@@ -321,7 +335,8 @@ export async function addOrderItem(
       return { modifier_id: m.id, name_snapshot: m.name, price_paise: toPaise(m.price) };
     });
 
-    const unitPrice = toPaise(variant.selling_price) + modifiers.reduce((s, m) => s + m.price_paise, 0);
+    const unitPrice =
+      toPaise(variant.selling_price) + modifiers.reduce((s, m) => s + m.price_paise, 0);
     const taxPercent = menuItem.taxable ? (menuItem.tax_percent ?? 0) : 0;
     const lineTotal = unitPrice * qty;
     const lineTax = Math.round((lineTotal * taxPercent) / 100);
@@ -363,7 +378,9 @@ export async function addOrderItem(
   }
 }
 
-function orderChannelToMenuChannel(channel: CreateOrderInput["channel"]): "dine_in" | "pickup" | "delivery" | "zomato" | "swiggy" | "ondc" {
+function orderChannelToMenuChannel(
+  channel: CreateOrderInput["channel"],
+): "dine_in" | "pickup" | "delivery" | "zomato" | "swiggy" | "ondc" {
   if (channel === "takeaway") return "pickup";
   if (channel === "own_online") return "delivery";
   return channel;
@@ -513,7 +530,10 @@ export async function confirmOrder(orderId: string, by?: string): Promise<OrderW
     if (mockOrders[idx].status === "CONFIRMED") return enrichOrder(mockOrders[idx]);
     if (mockOrders[idx].status === "DRAFT") {
       if (mockOrders[idx].items.length === 0) throw new Error("Cannot confirm an empty order");
-      await transitionOrder(idx, "CONFIRMED", { actor_id: by ?? "staff", event_type: "ORDER_CONFIRMED" });
+      await transitionOrder(idx, "CONFIRMED", {
+        actor_id: by ?? "staff",
+        event_type: "ORDER_CONFIRMED",
+      });
       saveOrders();
     }
     return enrichOrder(mockOrders[idx]);
@@ -613,7 +633,11 @@ export async function cancelOrder(
     if (["PREPARING", "READY", "SERVED"].includes(order.status) && !params.by) {
       throw new Error("Cancelling a kitchen-fired order requires an authorized user");
     }
-    mockOrders[idx] = { ...order, cancelled_reason: params.reason, cancelled_by: params.by ?? "staff" };
+    mockOrders[idx] = {
+      ...order,
+      cancelled_reason: params.reason,
+      cancelled_by: params.by ?? "staff",
+    };
     await transitionOrder(idx, "CANCELLED", {
       actor_id: params.by ?? "staff",
       reason_text: params.reason,
@@ -657,7 +681,8 @@ export async function ensureTableOrder(
     const table = await getTableById(tableId);
     if (!table) throw new Error("Table not found");
     if (table.status === "out_of_service") throw new Error("Table is out of service");
-    if (table.status === "cleaning") throw new Error("Table is being cleaned. Mark it cleaned first.");
+    if (table.status === "cleaning")
+      throw new Error("Table is being cleaned. Mark it cleaned first.");
 
     let groupId = table.active_groups[0]?.id;
     if (!groupId) {
@@ -684,6 +709,72 @@ export async function ensureTableOrder(
       await attachOrder({ group_id: groupId, order_id: order.id });
     } catch {
       // Group may have transitioned (e.g. already ORDERING) — order stays linked by table_id.
+    }
+    return order;
+  } finally {
+    release();
+  }
+}
+
+/**
+ * Party-scoped twin of ensureTableOrder: return the occupancy group's live
+ * order, or create a CONFIRMED dine-in order and attach it to the group.
+ * This is how shared tables serve one order per party — the press-and-hold
+ * gesture on a party chip lands here. Serialized per group so double
+ * holds can't create two orders.
+ */
+export async function ensureGroupOrder(
+  groupId: string,
+  params?: { by?: string },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-group-${groupId}`);
+  try {
+    await delay(200);
+    const findLive = () =>
+      mockOrders
+        .filter(
+          (o) =>
+            !o.deleted_at &&
+            o.occupancy_group_id === groupId &&
+            o.status !== "COMPLETED" &&
+            o.status !== "CANCELLED",
+        )
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+    const existing = findLive();
+    if (existing) return enrichOrder(existing);
+
+    const group = getOccupancyGroup(groupId);
+    if (!group) throw new Error("Party not found");
+    if (group.status !== "SEATED" && group.status !== "ORDERING") {
+      throw new Error("Party is no longer seated");
+    }
+    if (group.order_id) {
+      const linked = mockOrders.find((o) => o.id === group.order_id && !o.deleted_at);
+      if (linked && linked.status !== "COMPLETED" && linked.status !== "CANCELLED") {
+        return enrichOrder(linked);
+      }
+    }
+
+    const table = await getTableById(group.table_id);
+    if (!table) throw new Error("Table not found");
+    if (table.status === "out_of_service") throw new Error("Table is out of service");
+    if (table.status === "cleaning")
+      throw new Error("Table is being cleaned. Mark it cleaned first.");
+
+    const raced = findLive();
+    if (raced) return enrichOrder(raced);
+
+    const order = await createOrder({
+      outlet_id: group.outlet_id,
+      channel: "dine_in",
+      table_id: group.table_id,
+      occupancy_group_id: groupId,
+      created_by: params?.by ?? "staff",
+    });
+    try {
+      await attachOrder({ group_id: groupId, order_id: order.id });
+    } catch {
+      // Group may have transitioned (e.g. already ORDERING) — order stays linked by group id.
     }
     return order;
   } finally {
@@ -743,10 +834,7 @@ export async function deleteOrder(orderId: string, by?: string): Promise<void> {
  * Link a customer record to an order. Snapshots name/phone onto the order so
  * later customer edits never rewrite history. Blocked on terminal states.
  */
-export async function linkCustomer(
-  orderId: string,
-  customerId: string,
-): Promise<OrderWithDerived> {
+export async function linkCustomer(orderId: string, customerId: string): Promise<OrderWithDerived> {
   const release = await entityMutex.acquire(`order-${orderId}`);
   try {
     await delay(300);
@@ -808,7 +896,10 @@ export async function setDiscount(
     if (params.percent !== undefined && (params.percent <= 0 || params.percent > 100)) {
       throw new Error("Discount percent must be between 0 and 100");
     }
-    if (params.amount_paise !== undefined && (!Number.isInteger(params.amount_paise) || params.amount_paise < 1)) {
+    if (
+      params.amount_paise !== undefined &&
+      (!Number.isInteger(params.amount_paise) || params.amount_paise < 1)
+    ) {
       throw new Error("Discount amount must be a positive paise integer");
     }
     if (params.percent === undefined && params.amount_paise === undefined) {
@@ -922,19 +1013,26 @@ export async function computeSplits(
     const paidByLabel = new Map<string, number>();
     for (const p of await getPayments({ order_id: orderId, status: "PAID" })) {
       if (p.partition_label)
-        paidByLabel.set(p.partition_label, (paidByLabel.get(p.partition_label) ?? 0) + p.amount_paise);
+        paidByLabel.set(
+          p.partition_label,
+          (paidByLabel.get(p.partition_label) ?? 0) + p.amount_paise,
+        );
     }
     if (paidByLabel.size > 0) {
       const nextLabels = new Set(partitions.map((p) => p.label));
       for (const [label, paid] of paidByLabel) {
         if (!nextLabels.has(label)) {
-          throw new Error(`Cannot drop or rename "${label}" — ₹${(paid / 100).toFixed(2)} already paid against it`);
+          throw new Error(
+            `Cannot drop or rename "${label}" — ₹${(paid / 100).toFixed(2)} already paid against it`,
+          );
         }
       }
       for (const p of partitions) {
         const paid = paidByLabel.get(p.label) ?? 0;
         if (p.amount_paise < paid) {
-          throw new Error(`"${p.label}" already paid ₹${(paid / 100).toFixed(2)} — share cannot shrink below paid`);
+          throw new Error(
+            `"${p.label}" already paid ₹${(paid / 100).toFixed(2)} — share cannot shrink below paid`,
+          );
         }
       }
     }
@@ -1018,7 +1116,11 @@ export async function getOrderWithBilling(orderId: string): Promise<BillingView 
   if (!order) return null;
   const { paidTotalForOrder } = await import("@/features/payments/api/service");
   const paid = await paidTotalForOrder(orderId);
-  return { order: normalizeOrder(order), paid_paise: paid, balance_paise: Math.max(0, order.grand_total_paise - paid) };
+  return {
+    order: normalizeOrder(order),
+    paid_paise: paid,
+    balance_paise: Math.max(0, order.grand_total_paise - paid),
+  };
 }
 
 /** Re-derive payment_status after each payment/refund (called by payments). */
@@ -1159,9 +1261,7 @@ export async function refreshOrderKitchenState(orderId: string): Promise<void> {
     // later save would persist the revert. Sibling-tab staleness is bounded
     // (advance-only; backfill heals on read).
     const { peekTickets } = await import("@/features/kitchen/api/service");
-    const target = deriveKitchenTarget(
-      peekTickets().filter((t) => t.order_id === orderId),
-    );
+    const target = deriveKitchenTarget(peekTickets().filter((t) => t.order_id === orderId));
     if (!target) return;
     if (await walkForward(idx, target)) saveOrders();
   } finally {
@@ -1182,14 +1282,19 @@ export async function completeOrder(orderId: string, by?: string): Promise<Order
     if (idx === -1) throw new Error("Order not found");
     const order = mockOrders[idx];
     if (order.status !== "SERVED") {
-      throw new Error(`Only served orders can be completed (order is ${order.status.toLowerCase()})`);
+      throw new Error(
+        `Only served orders can be completed (order is ${order.status.toLowerCase()})`,
+      );
     }
     const { paidTotalForOrder } = await import("@/features/payments/api/service");
     const balance = Math.max(0, order.grand_total_paise - (await paidTotalForOrder(orderId)));
     if (balance > 0) {
       throw new Error(`Collect the remaining ₹${(balance / 100).toFixed(2)} before completing`);
     }
-    await transitionOrder(idx, "COMPLETED", { actor_id: by ?? "staff", event_type: "ORDER_COMPLETED" });
+    await transitionOrder(idx, "COMPLETED", {
+      actor_id: by ?? "staff",
+      event_type: "ORDER_COMPLETED",
+    });
     saveOrders();
     return enrichOrder(mockOrders[idx]);
   } finally {
@@ -1217,20 +1322,32 @@ export async function seedDemoOrders(log: (msg: string) => void = () => {}): Pro
   log(`Seated demo group on TBL 101`);
 
   // 1. CONFIRMED dine-in, unfired lines.
-  const o1 = await createOrder({ channel: "dine_in", table_id: "tbl_001", occupancy_group_id: group.id });
+  const o1 = await createOrder({
+    channel: "dine_in",
+    table_id: "tbl_001",
+    occupancy_group_id: group.id,
+  });
   await addOrderItem(o1.id, { menu_item_id: "mi_001", variant_id: "mv_002", qty: 1 });
   await addOrderItem(o1.id, { menu_item_id: "mi_002", qty: 2 });
   created.push(o1.id);
   log(`1 CONFIRMED dine-in, 2 unfired lines`);
 
   // 2. IN_KITCHEN dine-in, 1 KOT.
-  const o2 = await createOrder({ channel: "dine_in", table_id: "tbl_001", occupancy_group_id: group.id });
+  const o2 = await createOrder({
+    channel: "dine_in",
+    table_id: "tbl_001",
+    occupancy_group_id: group.id,
+  });
   await kitchen.addAndFireItem(o2.id, { menu_item_id: "mi_001", variant_id: "mv_001", qty: 2 });
   created.push(o2.id);
   log(`2 IN_KITCHEN dine-in, 1 KOT`);
 
   // 3. PREPARING delivery.
-  const o3 = await createOrder({ channel: "delivery", customer_name: "Seed Meera", customer_phone: "9000000003" });
+  const o3 = await createOrder({
+    channel: "delivery",
+    customer_name: "Seed Meera",
+    customer_phone: "9000000003",
+  });
   await kitchen.addAndFireItem(o3.id, { menu_item_id: "mi_003", qty: 3 });
   const k3 = (await kitchen.getKOTsByOrder(o3.id))[0];
   await kitchen.acceptKOT(k3.id, "seed");
@@ -1240,7 +1357,11 @@ export async function seedDemoOrders(log: (msg: string) => void = () => {}): Pro
   log(`3 PREPARING delivery`);
 
   // 4. READY takeaway.
-  const o4 = await createOrder({ channel: "takeaway", customer_name: "Seed Arjun", customer_phone: "9000000004" });
+  const o4 = await createOrder({
+    channel: "takeaway",
+    customer_name: "Seed Arjun",
+    customer_phone: "9000000004",
+  });
   await kitchen.addAndFireItem(o4.id, { menu_item_id: "mi_003", qty: 2 });
   const k4 = (await kitchen.getKOTsByOrder(o4.id))[0];
   await kitchen.acceptKOT(k4.id, "seed");
@@ -1251,7 +1372,12 @@ export async function seedDemoOrders(log: (msg: string) => void = () => {}): Pro
   log(`4 READY takeaway`);
 
   // 5. SERVED zomato.
-  const o5 = await createOrder({ channel: "zomato", customer_name: "Seed Zoya", customer_phone: "9000000005", external_ref: "ZOM-SEED-5" });
+  const o5 = await createOrder({
+    channel: "zomato",
+    customer_name: "Seed Zoya",
+    customer_phone: "9000000005",
+    external_ref: "ZOM-SEED-5",
+  });
   await kitchen.addAndFireItem(o5.id, { menu_item_id: "mi_002", qty: 2 });
   const k5 = (await kitchen.getKOTsByOrder(o5.id))[0];
   await kitchen.acceptKOT(k5.id, "seed");
@@ -1263,47 +1389,90 @@ export async function seedDemoOrders(log: (msg: string) => void = () => {}): Pro
   log(`5 SERVED zomato`);
 
   // 6. COMPLETED delivery, paid in full (cash + UPI combined).
-  const o6 = await createOrder({ channel: "delivery", customer_name: "Seed Kabir", customer_phone: "9000000006" });
+  const o6 = await createOrder({
+    channel: "delivery",
+    customer_name: "Seed Kabir",
+    customer_phone: "9000000006",
+  });
   await kitchen.addAndFireItem(o6.id, { menu_item_id: "mi_003", qty: 2 });
   const b6 = (await getOrderWithBilling(o6.id))!;
   const half = Math.floor(b6.balance_paise / 2);
-  await payments.collectPayment({ order_id: o6.id, method: "cash", amount_paise: half, tendered_paise: half });
-  await payments.collectPayment({ order_id: o6.id, method: "upi", amount_paise: b6.balance_paise - half });
+  await payments.collectPayment({
+    order_id: o6.id,
+    method: "cash",
+    amount_paise: half,
+    tendered_paise: half,
+  });
+  await payments.collectPayment({
+    order_id: o6.id,
+    method: "upi",
+    amount_paise: b6.balance_paise - half,
+  });
   await walkOrderTo(o6.id, "COMPLETED");
   created.push(o6.id);
   log(`6 COMPLETED delivery, paid cash+UPI`);
 
   // 7. PARTIAL dine-in.
-  const o7 = await createOrder({ channel: "dine_in", table_id: "tbl_001", occupancy_group_id: group.id });
+  const o7 = await createOrder({
+    channel: "dine_in",
+    table_id: "tbl_001",
+    occupancy_group_id: group.id,
+  });
   await kitchen.addAndFireItem(o7.id, { menu_item_id: "mi_001", variant_id: "mv_002", qty: 2 });
   const b7 = (await getOrderWithBilling(o7.id))!;
-  await payments.collectPayment({ order_id: o7.id, method: "upi", amount_paise: Math.floor(b7.balance_paise / 2) });
+  await payments.collectPayment({
+    order_id: o7.id,
+    method: "upi",
+    amount_paise: Math.floor(b7.balance_paise / 2),
+  });
   created.push(o7.id);
   log(`7 PARTIAL dine-in, half paid by UPI`);
 
   // 8. CANCELLED takeaway.
-  const o8 = await createOrder({ channel: "takeaway", customer_name: "Seed Tara", customer_phone: "9000000008" });
+  const o8 = await createOrder({
+    channel: "takeaway",
+    customer_name: "Seed Tara",
+    customer_phone: "9000000008",
+  });
   await addOrderItem(o8.id, { menu_item_id: "mi_001", variant_id: "mv_001", qty: 1 });
   await cancelOrder(o8.id, { reason: "Seed: customer walked out", by: "seed" });
   created.push(o8.id);
   log(`8 CANCELLED takeaway`);
 
   // 9. IN_KITCHEN swiggy with a partial line void.
-  const o9 = await createOrder({ channel: "swiggy", customer_name: "Seed Vihaan", customer_phone: "9000000009", external_ref: "SWG-SEED-9" });
+  const o9 = await createOrder({
+    channel: "swiggy",
+    customer_name: "Seed Vihaan",
+    customer_phone: "9000000009",
+    external_ref: "SWG-SEED-9",
+  });
   await kitchen.addAndFireItem(o9.id, { menu_item_id: "mi_003", qty: 3 });
   const k9 = (await kitchen.getKOTsByOrder(o9.id))[0];
-  await kitchen.voidKOTLine(k9.id, k9.lines[0].id, { qty: 1, reason: "Seed: one portion dropped", by: "seed" });
+  await kitchen.voidKOTLine(k9.id, k9.lines[0].id, {
+    qty: 1,
+    reason: "Seed: one portion dropped",
+    by: "seed",
+  });
   created.push(o9.id);
   log(`9 IN_KITCHEN swiggy, 1 of 3 voided`);
 
   // 10. IN_KITCHEN dine-in, 10% discount + equal split, one share paid.
-  const o10 = await createOrder({ channel: "dine_in", table_id: "tbl_001", occupancy_group_id: group.id });
+  const o10 = await createOrder({
+    channel: "dine_in",
+    table_id: "tbl_001",
+    occupancy_group_id: group.id,
+  });
   await kitchen.addAndFireItem(o10.id, { menu_item_id: "mi_001", variant_id: "mv_002", qty: 2 });
   await kitchen.addAndFireItem(o10.id, { menu_item_id: "mi_002", qty: 2 });
   await setDiscount(o10.id, { percent: 10, reason: "Seed: festival offer", by: "seed" });
   const withSplit = await computeSplits(o10.id, { mode: "equal", count: 2 });
   const first = withSplit.split!.partitions[0];
-  await payments.collectPayment({ order_id: o10.id, method: "cash", amount_paise: first.amount_paise, partition_label: first.label });
+  await payments.collectPayment({
+    order_id: o10.id,
+    method: "cash",
+    amount_paise: first.amount_paise,
+    partition_label: first.label,
+  });
   created.push(o10.id);
   log(`10 IN_KITCHEN dine-in, discounted + split, one share paid`);
 
@@ -1312,7 +1481,14 @@ export async function seedDemoOrders(log: (msg: string) => void = () => {}): Pro
 
 /** Walk an order along the legal transition chain (dev seed only). */
 async function walkOrderTo(orderId: string, to: OrderStatus): Promise<void> {
-  const chain: OrderStatus[] = ["CONFIRMED", "IN_KITCHEN", "PREPARING", "READY", "SERVED", "COMPLETED"];
+  const chain: OrderStatus[] = [
+    "CONFIRMED",
+    "IN_KITCHEN",
+    "PREPARING",
+    "READY",
+    "SERVED",
+    "COMPLETED",
+  ];
   const release = await entityMutex.acquire(`order-${orderId}`);
   try {
     const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
