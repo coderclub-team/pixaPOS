@@ -462,6 +462,55 @@ export async function serveKOT(id: string, by?: string): Promise<KitchenTicketWi
   });
 }
 
+/**
+ * Completion serve: mark every open ticket of an order SERVED in one pass.
+ * Used by completeOrder (cash settlement) — a settled bill means the food is
+ * handed over, so lines must not linger as cooking on the KDS. Skips terminal
+ * tickets and VOIDED lines. One KITCHEN_TICKET_UPDATED per ticket (authorized
+ * step-skip, metadata records it); order-level derivation runs once at the end
+ * while the order is still non-terminal, so it lands on SERVED honestly.
+ */
+export async function serveOpenTickets(orderId: string, params?: { by?: string }): Promise<number> {
+  loadTickets();
+  const openIds = mockTickets
+    .filter((t) => t.order_id === orderId && t.status !== "SERVED" && t.status !== "CANCELLED")
+    .map((t) => t.id);
+  for (const id of openIds) {
+    await mutateTicket(id, async (idx) => {
+      const t = mockTickets[idx];
+      if (t.status === "SERVED" || t.status === "CANCELLED") return;
+      const from = t.status;
+      const liveLines = t.lines.filter((l) => l.status !== "VOIDED");
+      if (liveLines.length === 0) return;
+      const now = new Date().toISOString();
+      mockTickets[idx] = {
+        ...t,
+        status: "SERVED",
+        lines: t.lines.map((l) =>
+          l.status === "VOIDED" ? l : { ...l, status: "SERVED" as const },
+        ),
+        updated_at: now,
+        version: t.version + 1,
+      };
+      await recordEvent({
+        outlet_id: t.outlet_id,
+        entity_type: "ORDER",
+        entity_id: t.order_id,
+        event_type: "KITCHEN_TICKET_UPDATED",
+        from_state: from,
+        to_state: "SERVED",
+        actor_id: params?.by ?? "staff",
+        metadata: { completion_serve: true, kot_id: t.id, lines: liveLines.length },
+      });
+    });
+  }
+  if (openIds.length > 0) {
+    const { refreshOrderKitchenState } = await import("@/features/orders/api/service");
+    await refreshOrderKitchenState(orderId);
+  }
+  return openIds.length;
+}
+
 async function mutateTicket(
   id: string,
   fn: (idx: number) => Promise<void>,

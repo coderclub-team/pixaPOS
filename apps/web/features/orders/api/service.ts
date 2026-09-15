@@ -1319,16 +1319,33 @@ export async function refreshOrderKitchenState(orderId: string): Promise<void> {
 
 /**
  * Explicit completion: zero balance → COMPLETED (ORDER_COMPLETED).
- * Normal path needs SERVED (fulfillment done). Force path completes from any
- * non-terminal state with a mandatory reason — open KOTs stay live on the KDS
- * (kitchen truth preserved), the event records forced/from_state. Settle-first
- * always holds: a balance due blocks both paths.
+ * Cash settlement marks every open KOT served first (a settled bill means the
+ * food is handed over) — served outside the order lock, then derivation lands
+ * the order on SERVED honestly. Normal path needs SERVED; force path completes
+ * from any non-terminal state with a mandatory reason, the event recording
+ * forced/from_state. Settle-first always holds: a balance due blocks both paths.
  */
 export async function completeOrder(
   orderId: string,
   params?: { by?: string; reason?: string; force?: boolean },
   by?: string,
 ): Promise<OrderWithDerived> {
+  // Serve open tickets BEFORE the order lock: serveOpenTickets takes kot locks
+  // then the order lock via derivation — nesting it inside would deadlock.
+  // Read-only guards run first so a blocked completion serves nothing.
+  const { paidTotalForOrder } = await import("@/features/payments/api/service");
+  loadOrders();
+  const pre = mockOrders.find((o) => o.id === orderId && !o.deleted_at);
+  if (!pre) throw new Error("Order not found");
+  if (pre.status === "COMPLETED" || pre.status === "CANCELLED") {
+    throw new Error(`Order is already ${pre.status.toLowerCase()}`);
+  }
+  const preBalance = Math.max(0, pre.grand_total_paise - (await paidTotalForOrder(orderId)));
+  if (preBalance > 0) {
+    throw new Error(`Collect the remaining ₹${(preBalance / 100).toFixed(2)} before completing`);
+  }
+  const { serveOpenTickets } = await import("@/features/kitchen/api/service");
+  await serveOpenTickets(orderId, { by: params?.by ?? by });
   const release = await entityMutex.acquire(`order-${orderId}`);
   try {
     await delay(300);
