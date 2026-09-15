@@ -371,6 +371,18 @@ export default function OrderTerminalPage() {
                   showCustomer
                   onAddItems={() => setPickerOpen(true)}
                   fit="fill"
+                  onCompleted={() => {
+                    queryClient.invalidateQueries({ queryKey: tableKeys.all });
+                    queryClient.invalidateQueries({ queryKey: orderKeys.all });
+                    setPickerOpen(false);
+                    setPanelOpen(false);
+                    exitTimer.current = window.setTimeout(() => {
+                      setActiveTableId(null);
+                      setActiveOrderId(null);
+                      setActiveGroupId(null);
+                      exitTimer.current = null;
+                    }, PANEL_EXIT_MS);
+                  }}
                 />
               ) : activeTableId && activeTable && activeGroup ? (
                 <Card className="flex h-full items-center justify-center">
