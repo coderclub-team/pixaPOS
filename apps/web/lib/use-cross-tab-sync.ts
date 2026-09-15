@@ -9,7 +9,15 @@ import { getQueryClient } from "@/lib/query-client";
  * state the moment another tab (KDS, terminal, orders) writes — the orders
  * list, order detail, kitchen board and terminal never disagree.
  */
-const SHARED_KEYS = ["pixaOrders", "pixaKOTs", "pixaPayments", "pixaTables", "pixaEvents", "pixaBilling"];
+const SHARED_KEYS = [
+  "pixaOrders",
+  "pixaKOTs",
+  "pixaPayments",
+  "pixaTables",
+  "pixaEvents",
+  "pixaBilling",
+  "pixaLocalDbBump",
+];
 
 export function useCrossTabSync() {
   useEffect(() => {
