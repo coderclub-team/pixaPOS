@@ -10,12 +10,9 @@ export default function CtaGithub() {
       nativeButton={false}
       aria-label="View on GitHub"
       render={
-        <a
-          aria-label="View on GitHub"
-          href="https://github.com/Kiranism/next-shadcn-dashboard-starter"
-          rel="noopener noreferrer"
-          target="_blank"
-          className="text-muted-foreground hover:text-foreground transition-colors duration-300"
+        <span
+          aria-label="GitHub"
+          className="text-muted-foreground transition-colors duration-300"
         />
       }
     >
