@@ -29,7 +29,7 @@ import {
 import { Icons } from "@pixa/ui/icons";
 import { StatusDot } from "@pixa/ui/base-ui/status-dot";
 import { useMutation } from "@tanstack/react-query";
-import { deleteTable, duplicateTable } from "../api/service";
+import { deleteTable, duplicateTable, updateTable } from "../api/service";
 import { tableKeys } from "../api/queries";
 import { floorKeys } from "@/features/floor/api/queries";
 import { getQueryClient } from "@/lib/query-client";
@@ -71,6 +71,7 @@ export function TableList({ tables }: TableListProps) {
               <TableHead>Floor</TableHead>
               <TableHead>Capacity</TableHead>
               <TableHead>Shape</TableHead>
+              <TableHead>Sharing</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -89,6 +90,15 @@ export function TableList({ tables }: TableListProps) {
                 </TableCell>
                 <TableCell>{table.capacity} pax</TableCell>
                 <TableCell className="capitalize">{table.shape}</TableCell>
+                <TableCell>
+                  {table.allows_sharing ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                      <Icons.party className="size-3" /> Shared
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Exclusive</span>
+                  )}
+                </TableCell>
                 <TableCell>
                   {table.is_active ? (
                     <span className="text-xs capitalize text-muted-foreground">
@@ -132,6 +142,23 @@ function TableActions({ table }: { table: RestaurantTable }) {
     },
     onError: (error: Error) => toast.error(error.message || "Failed to duplicate table"),
   });
+  const sharingMutation = useMutation({
+    mutationFn: (table: RestaurantTable) =>
+      updateTable(table.id, {
+        floor_id: table.floor_id,
+        number: table.number,
+        code: table.code,
+        capacity: table.capacity,
+        allows_sharing: !table.allows_sharing,
+      }),
+    onSuccess: (updated) => {
+      getQueryClient().invalidateQueries({ queryKey: tableKeys.all });
+      toast.success(
+        updated.allows_sharing ? "Table now accepts shared parties" : "Sharing disabled",
+      );
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to update sharing"),
+  });
 
   return (
     <>
@@ -139,9 +166,7 @@ function TableActions({ table }: { table: RestaurantTable }) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete {table.code}?</DialogTitle>
-            <DialogDescription>
-              Tables with active guests cannot be deleted.
-            </DialogDescription>
+            <DialogDescription>Tables with active guests cannot be deleted.</DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setDeleteOpen(false)}>
@@ -176,6 +201,13 @@ function TableActions({ table }: { table: RestaurantTable }) {
               disabled={duplicateMutation.isPending}
             >
               <Icons.copy className="mr-2 h-4 w-4" /> Duplicate
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => sharingMutation.mutate(table)}
+              disabled={sharingMutation.isPending}
+            >
+              <Icons.party className="mr-2 h-4 w-4" />{" "}
+              {table.allows_sharing ? "Make exclusive" : "Allow sharing"}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setDeleteOpen(true)}>
               <Icons.trash className="mr-2 h-4 w-4" /> Delete
