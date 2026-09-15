@@ -9,7 +9,7 @@ import { getQueryClient } from "@/lib/query-client";
  * state the moment another tab (KDS, terminal, orders) writes — the orders
  * list, order detail, kitchen board and terminal never disagree.
  */
-const SHARED_KEYS = ["pixaOrders", "pixaKOTs", "pixaPayments", "pixaTables", "pixaEvents"];
+const SHARED_KEYS = ["pixaOrders", "pixaKOTs", "pixaPayments", "pixaTables", "pixaEvents", "pixaBilling"];
 
 export function useCrossTabSync() {
   useEffect(() => {
@@ -21,6 +21,7 @@ export function useCrossTabSync() {
       qc.invalidateQueries({ queryKey: ["payments"] });
       qc.invalidateQueries({ queryKey: ["tables"] });
       qc.invalidateQueries({ queryKey: ["events"] });
+      qc.invalidateQueries({ queryKey: ["billing"] });
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
