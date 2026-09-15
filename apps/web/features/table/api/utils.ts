@@ -38,6 +38,22 @@ export function partyColor(index: number): (typeof PARTY_PALETTE)[number] {
   ];
 }
 
+/** Hex twin of the palette for DOM surfaces (dots, chips) outside SVG. */
+const PARTY_HEX = [
+  "#10b981",
+  "#0ea5e9",
+  "#8b5cf6",
+  "#f59e0b",
+  "#f43f5e",
+  "#06b6d4",
+  "#84cc16",
+  "#d946ef",
+] as const;
+
+export function partyHex(index: number): string {
+  return PARTY_HEX[((index % PARTY_HEX.length) + PARTY_HEX.length) % PARTY_HEX.length];
+}
+
 export function nextPartyLabel(siblingLabels: (string | undefined)[]): string {
   const taken = new Set(siblingLabels.filter(Boolean) as string[]);
   const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";

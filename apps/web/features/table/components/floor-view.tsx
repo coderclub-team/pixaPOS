@@ -44,7 +44,10 @@ function ChairRow({ capacity, seated }: { capacity: number; seated: number }) {
   // L6: cap rendered chips, summarize the rest
   const shown = Math.min(Math.max(0, capacity), 24);
   return (
-    <div className="flex flex-wrap items-center gap-1.5" aria-label={`${seated} of ${capacity} seats occupied`}>
+    <div
+      className="flex flex-wrap items-center gap-1.5"
+      aria-label={`${seated} of ${capacity} seats occupied`}
+    >
       {Array.from({ length: shown }).map((_, i) => (
         <span
           key={i}
@@ -53,7 +56,7 @@ function ChairRow({ capacity, seated }: { capacity: number; seated: number }) {
             "flex size-7 items-center justify-center rounded-md border",
             i < seated
               ? "border-emerald-500 bg-emerald-500/15 text-emerald-600"
-              : "border-dashed text-muted-foreground/50"
+              : "border-dashed text-muted-foreground/50",
           )}
         >
           <Icons.user className="size-4" />
@@ -96,7 +99,15 @@ function TableDetailPanel({
   });
 
   const releaseMut = useMutation({
-    mutationFn: ({ groupId, reason, force }: { groupId: string; reason: string; force?: boolean }) =>
+    mutationFn: ({
+      groupId,
+      reason,
+      force,
+    }: {
+      groupId: string;
+      reason: string;
+      force?: boolean;
+    }) =>
       releaseOccupancy({
         group_id: groupId,
         released_by: "staff",
@@ -211,7 +222,10 @@ function TableDetailPanel({
         <div className="space-y-2">
           <p className="text-xs font-medium uppercase text-muted-foreground">Active groups</p>
           {table.active_groups.map((g) => (
-            <div key={g.id} className="flex items-center justify-between rounded-lg border p-2 text-sm">
+            <div
+              key={g.id}
+              className="flex items-center justify-between rounded-lg border p-2 text-sm"
+            >
               <span>
                 {g.seats} guest{g.seats === 1 ? "" : "s"}
                 {g.order_id ? (
@@ -268,7 +282,12 @@ function TableDetailPanel({
           className="w-full justify-start gap-2"
           disabled={!orderId}
           title={orderId ? `Open order ${orderId}` : "No active order — seat guests first"}
-          onClick={() => orderId && router.push(`/dashboard/orders/${table.active_groups.find((g) => g.order_id)?.order_id}`)}
+          onClick={() =>
+            orderId &&
+            router.push(
+              `/dashboard/orders/${table.active_groups.find((g) => g.order_id)?.order_id}`,
+            )
+          }
         >
           <Icons.edit className="mr-2 h-4 w-4" /> View Order
         </Button>
@@ -410,7 +429,10 @@ function TableDetailPanel({
               disabled={transferMut.isPending || !transferTo.trim()}
               onClick={() =>
                 transferTarget &&
-                transferMut.mutate({ groupId: transferTarget.groupId, toTableId: transferTo.trim() })
+                transferMut.mutate({
+                  groupId: transferTarget.groupId,
+                  toTableId: transferTo.trim(),
+                })
               }
             >
               Transfer
@@ -495,7 +517,12 @@ const LEGEND: { label: string; dot: string; border: string; text: string }[] = [
   { label: "Occupied", dot: "bg-red-500", border: "border-red-500", text: "text-red-600" },
   { label: "Reserved", dot: "bg-amber-500", border: "border-amber-500", text: "text-amber-600" },
   { label: "Cleaning", dot: "bg-blue-500", border: "border-blue-500", text: "text-blue-600" },
-  { label: "Out of service", dot: "bg-slate-500", border: "border-slate-500", text: "text-slate-600" },
+  {
+    label: "Out of service",
+    dot: "bg-slate-500",
+    border: "border-slate-500",
+    text: "text-slate-600",
+  },
   { label: "Blocked", dot: "bg-purple-500", border: "border-purple-500", text: "text-purple-600" },
 ];
 
@@ -643,6 +670,12 @@ export default function FloorViewPage({ mode = "operations" }: { mode?: FloorVie
                     mode={mode}
                     selectedTableId={selectedTableId ?? undefined}
                     onSelectTable={setSelectedTableId}
+                    // Ops floor: tapping a party chip focuses its table so the
+                    // detail panel shows that party's rows. Hold-to-order lives
+                    // in the order terminal, which passes onHoldParty.
+                    onSelectParty={
+                      mode === "operations" ? (tableId) => setSelectedTableId(tableId) : undefined
+                    }
                   />
                 </Suspense>
               </TabsContent>

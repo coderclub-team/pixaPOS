@@ -234,6 +234,7 @@ export const Icons = {
   refresh: IconRefresh,
   kitchen: IconChefHat,
   pizza: IconPizza,
+  party: IconArmchair,
   workspace: IconFolder,
   forms: IconClipboardText,
   slash: IconSlash,
