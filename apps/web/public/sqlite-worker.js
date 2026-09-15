@@ -26,23 +26,17 @@ async function init(ddl) {
   sqlite3.vfs_register(vfs, false);
   db = await sqlite3.open_v2("pixa.db", 0x00000006 /* READWRITE|CREATE */, "AccessHandlePool");
   for (const statement of ddl) {
-    await sqlite3.exec(db, statement);
+    await sqlite3.run(db, statement);
   }
   return { tables: ddl.length };
 }
 
 function exec(sql, params) {
-  return sqlite3.exec(db, sql, params ?? []);
+  return sqlite3.run(db, sql, params ?? []).then(() => sqlite3.changes(db));
 }
 
 function query(sql, params) {
-  const columns = [];
-  const rows = [];
-  sqlite3.exec(db, sql, params ?? [], (row, cols) => {
-    if (columns.length === 0) columns.push(...cols);
-    rows.push(row);
-  });
-  return { columns, rows };
+  return sqlite3.execWithParams(db, sql, params ?? []);
 }
 
 self.onmessage = async (event) => {

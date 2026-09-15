@@ -72,3 +72,51 @@ export async function pendingOutboxCount(): Promise<number> {
   );
   return Number(rows[0]?.[0] ?? 0);
 }
+
+/** Oldest pending commands first (causal order per device_seq). */
+export async function pendingOutboxBatch(limit = 100): Promise<CommandEnvelope[]> {
+  const { rows } = await localQuery(
+    `SELECT command_id, device_id, outlet_id, entity_type, entity_id, operation,
+            payload, actor_id, device_seq, created_at
+     FROM sync_outbox WHERE status = 'pending' ORDER BY created_at ASC LIMIT ?`,
+    [limit],
+  );
+  return rows.map((r) => {
+    const [
+      command_id,
+      device_id,
+      outlet_id,
+      entity_type,
+      entity_id,
+      operation,
+      payload,
+      actor_id,
+      device_seq,
+      created_at,
+    ] = r as (string | number)[];
+    return {
+      command_id: command_id as string,
+      device_id: device_id as string,
+      outlet_id: outlet_id as string,
+      entity_type: entity_type as string,
+      entity_id: entity_id as string,
+      operation: operation as OutboxOperation,
+      payload: JSON.parse(payload as string),
+      actor_id: actor_id as string,
+      device_seq: device_seq as number,
+      created_at: created_at as string,
+    };
+  });
+}
+
+/** Mark commands acknowledged by /api/sync/push as synced. */
+export async function markOutboxSynced(commandIds: string[]): Promise<void> {
+  if (commandIds.length === 0) return;
+  const now = new Date().toISOString();
+  for (const id of commandIds) {
+    await localExec(
+      "UPDATE sync_outbox SET status = 'synced', synced_at = ? WHERE command_id = ?",
+      [now, id],
+    );
+  }
+}
