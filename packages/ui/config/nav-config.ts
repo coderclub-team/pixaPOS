@@ -339,30 +339,4 @@ export const navGroups: NavGroup[] = [
       },
     ],
   },
-  {
-    label: "",
-    items: [
-      {
-        title: "Account",
-        url: "#",
-        icon: "account",
-        isActive: false,
-        items: [
-          {
-            title: "Notifications",
-            url: "/dashboard/notifications",
-            icon: "notification",
-            shortcut: ["n", "n"],
-          },
-          {
-            title: "Billing",
-            url: "/dashboard/billing",
-            icon: "billing",
-            shortcut: ["b", "b"],
-            access: { requireOrg: true },
-          },
-        ],
-      },
-    ],
-  },
 ];
