@@ -676,20 +676,7 @@ export default function OrderBillPanel({
         )}
 
         <section aria-label="Payment" className="space-y-2 rounded-xl border p-3">
-          <p className="flex items-center justify-between text-xs font-medium uppercase text-muted-foreground">
-            <span>Payment</span>
-            {!isTerminal && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs uppercase"
-                onClick={() => setCheckoutOpen(true)}
-                title="Review the bill, collect balance, or complete the order"
-              >
-                Checkout
-              </Button>
-            )}
-          </p>
+          <p className="text-xs font-medium uppercase text-muted-foreground">Payment</p>
           {showTender && dueAmount > 0 && (
             <div id={tenderAnchorId} className="scroll-mt-20">
               <TenderPad orderId={orderId} duePaise={dueAmount} partitionLabel={activePartition} />
@@ -712,6 +699,35 @@ export default function OrderBillPanel({
                 </div>
               ))}
             </div>
+          )}
+
+          {!isTerminal && (
+            <Button
+              className="h-11 w-full text-sm"
+              variant={balance > 0 ? "default" : "secondary"}
+              onClick={() => setCheckoutOpen(true)}
+              title={
+                balance > 0
+                  ? "Review the bill and collect the balance"
+                  : order.status === "SERVED"
+                    ? "Review the bill and complete the order"
+                    : "Review the bill — completion needs the kitchen to serve first"
+              }
+            >
+              {balance > 0 ? (
+                <>
+                  <Icons.billing className="mr-2 size-4" /> Settle · {formatINR(balance)}
+                </>
+              ) : order.status === "SERVED" ? (
+                <>
+                  <Icons.checks className="mr-2 size-4" /> Complete order
+                </>
+              ) : (
+                <>
+                  <Icons.clock className="mr-2 size-4" /> Paid — waiting on kitchen
+                </>
+              )}
+            </Button>
           )}
         </section>
 
