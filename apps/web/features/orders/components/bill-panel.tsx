@@ -554,33 +554,36 @@ export default function OrderBillPanel({
           {order.order_number} · {order.items.length} item{order.items.length === 1 ? "" : "s"}
         </p>
       </CardHeader>
-      <CardContent className={fill ? "min-h-0 flex-1 space-y-4 overflow-y-auto" : "space-y-4"}>
+      <CardContent className={fill ? "min-h-0 flex-1 space-y-4 overflow-y-auto pb-6" : "space-y-4"}>
         {onAddItems && !isTerminal && (
-          <div className="flex gap-2">
-            <Button
-              className="h-11 flex-1 text-sm"
-              onClick={onAddItems}
-              title="Add items — fires straight to kitchen"
-            >
-              <Icons.add className="mr-2 size-4" />
-              Add items
-              {drafts.length > 0 && (
-                <span className="ml-2 rounded-full bg-primary-foreground/20 px-2 py-0.5 text-xs">
-                  {drafts.length} to fire
-                </span>
-              )}
-            </Button>
-            {drafts.length > 0 && (
+          <div className="sticky top-0 z-[5] -mx-1 bg-background/95 px-1 py-2 backdrop-blur-sm">
+            <div className="flex gap-2">
               <Button
-                variant="secondary"
-                className="h-11 shrink-0"
-                disabled={fireMut.isPending}
-                onClick={() => fireMut.mutate()}
-                title="Fire pending items to kitchen without opening the picker"
+                className="h-11 flex-1 text-sm"
+                onClick={onAddItems}
+                title="Add items — fires straight to kitchen"
               >
-                {fireMut.isPending ? "Firing…" : `Fire (${drafts.length})`}
+                <Icons.add className="size-4" />
+                <Icons.pizza className="mr-1 size-4" />
+                Add items
+                {drafts.length > 0 && (
+                  <span className="ml-2 rounded-full bg-primary-foreground/20 px-2 py-0.5 text-xs">
+                    {drafts.length} to fire
+                  </span>
+                )}
               </Button>
-            )}
+              {drafts.length > 0 && (
+                <Button
+                  variant="secondary"
+                  className="h-11 shrink-0"
+                  disabled={fireMut.isPending}
+                  onClick={() => fireMut.mutate()}
+                  title="Fire pending items to kitchen without opening the picker"
+                >
+                  {fireMut.isPending ? "Firing…" : `Fire (${drafts.length})`}
+                </Button>
+              )}
+            </div>
           </div>
         )}
         {showSeating && table && (

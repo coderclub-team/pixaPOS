@@ -272,7 +272,7 @@ export default function OrderTerminalPage() {
                 : "pointer-events-none translate-y-full opacity-0 lg:translate-x-8 lg:translate-y-0 lg:w-0",
             )}
           >
-            <div className="max-h-[85dvh] overflow-y-auto lg:h-full lg:max-h-none lg:w-[480px] lg:overflow-visible">
+            <div className="max-h-[85dvh] scroll-pt-12 overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))] lg:h-full lg:max-h-none lg:w-[480px] lg:overflow-visible lg:pb-0">
               {/* Mobile sheet grab handle + close */}
               <div className="sticky top-0 z-10 flex items-center justify-center bg-background/95 pt-2 pb-1 backdrop-blur-sm lg:hidden">
                 <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
