@@ -29,13 +29,20 @@ import { kotsByOrderQueryOptions, kitchenKeys } from "@/features/kitchen/api/que
 import { eventKeys } from "@/features/events/api/queries";
 import { tableQueryOptions } from "@/features/table/api/queries";
 import CustomerLinkBlock from "@/features/customers/components/customer-link-block";
-import SeatingSection from "@/features/table/components/seating-section";
+import TableStrip from "@/features/table/components/table-strip";
+import TableOpsDialog from "@/features/table/components/table-ops-dialog";
 import {
   paymentsByOrderQueryOptions,
   paymentKeys,
   refundsByOrderQueryOptions,
 } from "@/features/payments/api/queries";
-import { addOrderItem, cancelOrder, computeSplits, clearSplit, setDiscount } from "@/features/orders/api/service";
+import {
+  addOrderItem,
+  cancelOrder,
+  computeSplits,
+  clearSplit,
+  setDiscount,
+} from "@/features/orders/api/service";
 import { collectPayment } from "@/features/payments/api/service";
 import { fireKOT, voidKOTLine } from "@/features/kitchen/api/service";
 import type { PaymentMethod, Payment } from "@/features/payments/api/types";
@@ -71,7 +78,15 @@ const METHODS: { value: PaymentMethod; label: string }[] = [
  * Editable: + adds qty (kitchen makes more), −/trash reduce with a reason and
  * the reduction is recorded as a cancellation on the KOT.
  */
-export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketWithDerived[]; orderId: string; editable?: boolean }) {
+export function KOTAccordion({
+  kots,
+  orderId,
+  editable,
+}: {
+  kots: KitchenTicketWithDerived[];
+  orderId: string;
+  editable?: boolean;
+}) {
   const queryClient = useQueryClient();
   const { data: order } = useQuery(orderQueryOptions(orderId));
   const [openId, setOpenId] = useState<string | null>(kots[0]?.id ?? null);
@@ -88,7 +103,12 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
       return () => window.clearTimeout(t);
     }
   }, [kots]);
-  const [reduceTarget, setReduceTarget] = useState<{ kotId: string; lineId: string; max: number; name: string } | null>(null);
+  const [reduceTarget, setReduceTarget] = useState<{
+    kotId: string;
+    lineId: string;
+    max: number;
+    name: string;
+  } | null>(null);
   const [reason, setReason] = useState("");
   const [reduceQty, setReduceQty] = useState(1);
 
@@ -121,8 +141,17 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
     onError: (e: Error) => toast.error(e.message),
   });
   const reduceMut = useMutation({
-    mutationFn: ({ kotId, lineId, qty, r }: { kotId: string; lineId: string; qty: number; r: string }) =>
-      voidKOTLine(kotId, lineId, { qty, reason: r }),
+    mutationFn: ({
+      kotId,
+      lineId,
+      qty,
+      r,
+    }: {
+      kotId: string;
+      lineId: string;
+      qty: number;
+      r: string;
+    }) => voidKOTLine(kotId, lineId, { qty, reason: r }),
     onSuccess: () => {
       invalidateBill(orderId, queryClient);
       toast.success("Reduction recorded as cancellation");
@@ -153,17 +182,21 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
     const ol = order?.items.find((i) => i.id === kotLine.order_line_id);
     if (!ol || ol.qty <= 0) return null;
     const liveQty = kotLine.qty - kotLine.voided_qty;
-    if (liveQty <= 0) return { liveQty, unit: ol.unit_price_paise, pct: ol.tax_percent_snapshot, total: 0, extra: "" };
+    if (liveQty <= 0)
+      return {
+        liveQty,
+        unit: ol.unit_price_paise,
+        pct: ol.tax_percent_snapshot,
+        total: 0,
+        extra: "",
+      };
     const unit = ol.unit_price_paise;
     const pct = ol.tax_percent_snapshot;
     const total =
       Math.round((ol.line_total_paise * liveQty) / ol.qty) +
       Math.round((ol.line_tax_paise * liveQty) / ol.qty);
     const mods = ol.modifiers.map((m) => m.name_snapshot).join(", ");
-    const extra = [
-      mods ? `+${mods}` : "",
-      ol.instructions ? `“${ol.instructions}”` : "",
-    ]
+    const extra = [mods ? `+${mods}` : "", ol.instructions ? `“${ol.instructions}”` : ""]
       .filter(Boolean)
       .join(" · ");
     return { liveQty, unit, pct, total, extra };
@@ -195,7 +228,9 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
             disabled={fireMut.isPending}
             onClick={() => fireMut.mutate()}
           >
-            {fireMut.isPending ? "Firing…" : `Fire to kitchen (${draft.length} item${draft.length === 1 ? "" : "s"})`}
+            {fireMut.isPending
+              ? "Firing…"
+              : `Fire to kitchen (${draft.length} item${draft.length === 1 ? "" : "s"})`}
           </Button>
         </div>
       )}
@@ -217,12 +252,15 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
               <span className="font-medium">
                 KOT #{kot.kot_number}
                 <span className="ml-1 text-xs font-normal capitalize text-muted-foreground">
-                  {kot.status.toLowerCase()} · {kot.lines.length} item{ KotLinesPlural(kot)} · {kot.age_minutes}m old
+                  {kot.status.toLowerCase()} · {kot.lines.length} item{KotLinesPlural(kot)} ·{" "}
+                  {kot.age_minutes}m old
                 </span>
               </span>
               <span className="flex items-center gap-1">
                 <span className="text-sm font-semibold">{formatINR(kotTotal(kot))}</span>
-                <Icons.chevronRight className={cn("size-4 transition-transform", open && "rotate-90")} />
+                <Icons.chevronRight
+                  className={cn("size-4 transition-transform", open && "rotate-90")}
+                />
               </span>
             </button>
             {open && (
@@ -230,78 +268,90 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
                 {kot.lines.map((l) => {
                   const p = priced(l);
                   return (
-                  <div
-                    key={l.id}
-                    className={cn(
-                      "flex items-center gap-2 rounded-md px-1 py-0.5 text-sm",
-                      l.status === "VOIDED" && "bg-destructive/10 text-destructive line-through",
-                      l.status === "ACCEPTED" && "bg-sky-500/10",
-                    )}
-                  >
-                    <span className={cn("size-2 shrink-0 rounded-full", LINE_STATUS_DOT[l.status])} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">
-                        {l.qty - l.voided_qty > 0 ? `${l.qty - l.voided_qty}× ` : ""}
-                        {l.item_name_snapshot}
-                        {l.variant_name_snapshot ? ` (${l.variant_name_snapshot})` : ""}
+                    <div
+                      key={l.id}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-1 py-0.5 text-sm",
+                        l.status === "VOIDED" && "bg-destructive/10 text-destructive line-through",
+                        l.status === "ACCEPTED" && "bg-sky-500/10",
+                      )}
+                    >
+                      <span
+                        className={cn("size-2 shrink-0 rounded-full", LINE_STATUS_DOT[l.status])}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">
+                          {l.qty - l.voided_qty > 0 ? `${l.qty - l.voided_qty}× ` : ""}
+                          {l.item_name_snapshot}
+                          {l.variant_name_snapshot ? ` (${l.variant_name_snapshot})` : ""}
+                        </span>
+                        {p && (
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {formatINR(p.unit)} × {p.liveQty} + GST {p.pct}%
+                            {p.extra ? ` · ${p.extra}` : ""}
+                          </span>
+                        )}
                       </span>
                       {p && (
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {formatINR(p.unit)} × {p.liveQty} + GST {p.pct}%
-                          {p.extra ? ` · ${p.extra}` : ""}
+                        <span className="shrink-0 text-sm font-semibold">{formatINR(p.total)}</span>
+                      )}
+                      {lineEditable(kot, l) ? (
+                        <span className="flex shrink-0 items-center gap-0.5">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="max-lg:h-9 max-lg:w-9"
+                            title="Reduce (records cancellation)"
+                            disabled={reduceMut.isPending}
+                            onClick={() => {
+                              setReason("");
+                              setReduceQty(l.qty - l.voided_qty);
+                              setReduceTarget({
+                                kotId: kot.id,
+                                lineId: l.id,
+                                max: l.qty - l.voided_qty,
+                                name: l.item_name_snapshot,
+                              });
+                            }}
+                          >
+                            <Icons.minus className="size-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="max-lg:h-9 max-lg:w-9"
+                            title="Add one more as a new KOT"
+                            disabled={plusMut.isPending}
+                            onClick={() => plusMut.mutate(l.order_line_id)}
+                          >
+                            <Icons.add className="size-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="max-lg:h-9 max-lg:w-9"
+                            title="Delete item (records cancellation)"
+                            disabled={reduceMut.isPending}
+                            onClick={() => {
+                              setReason("");
+                              setReduceQty(l.qty - l.voided_qty);
+                              setReduceTarget({
+                                kotId: kot.id,
+                                lineId: l.id,
+                                max: l.qty - l.voided_qty,
+                                name: l.item_name_snapshot,
+                              });
+                            }}
+                          >
+                            <Icons.trash className="size-3.5" />
+                          </Button>
+                        </span>
+                      ) : (
+                        <span className="text-[10px] capitalize text-muted-foreground">
+                          {l.status.toLowerCase()}
                         </span>
                       )}
-                    </span>
-                    {p && (
-                      <span className="shrink-0 text-sm font-semibold">{formatINR(p.total)}</span>
-                    )}
-                    {lineEditable(kot, l) ? (
-                      <span className="flex shrink-0 items-center gap-0.5">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="max-lg:h-9 max-lg:w-9"
-                          title="Reduce (records cancellation)"
-                          disabled={reduceMut.isPending}
-                          onClick={() => {
-                            setReason("");
-                            setReduceQty(l.qty - l.voided_qty);
-                            setReduceTarget({ kotId: kot.id, lineId: l.id, max: l.qty - l.voided_qty, name: l.item_name_snapshot });
-                          }}
-                        >
-                          <Icons.minus className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="max-lg:h-9 max-lg:w-9"
-                          title="Add one more as a new KOT"
-                          disabled={plusMut.isPending}
-                          onClick={() => plusMut.mutate(l.order_line_id)}
-                        >
-                          <Icons.add className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="max-lg:h-9 max-lg:w-9"
-                          title="Delete item (records cancellation)"
-                          disabled={reduceMut.isPending}
-                          onClick={() => {
-                            setReason("");
-                            setReduceQty(l.qty - l.voided_qty);
-                            setReduceTarget({ kotId: kot.id, lineId: l.id, max: l.qty - l.voided_qty, name: l.item_name_snapshot });
-                          }}
-                        >
-                          <Icons.trash className="size-3.5" />
-                        </Button>
-                      </span>
-                    ) : (
-                      <span className="text-[10px] capitalize text-muted-foreground">
-                        {l.status.toLowerCase()}
-                      </span>
-                    )}
-                  </div>
+                    </div>
                   );
                 })}
                 {kot.voids.length > 0 && (
@@ -340,7 +390,11 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Reason *</Label>
-              <Input placeholder="Customer changed mind…" value={reason} onChange={(e) => setReason(e.target.value)} />
+              <Input
+                placeholder="Customer changed mind…"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              />
             </div>
           </div>
           <div className="flex justify-end gap-2">
@@ -349,10 +403,21 @@ export function KOTAccordion({ kots, orderId, editable }: { kots: KitchenTicketW
             </Button>
             <Button
               variant="destructive"
-              disabled={reduceMut.isPending || !reason.trim() || !reduceTarget || reduceQty < 1 || reduceQty > reduceTarget.max}
+              disabled={
+                reduceMut.isPending ||
+                !reason.trim() ||
+                !reduceTarget ||
+                reduceQty < 1 ||
+                reduceQty > reduceTarget.max
+              }
               onClick={() =>
                 reduceTarget &&
-                reduceMut.mutate({ kotId: reduceTarget.kotId, lineId: reduceTarget.lineId, qty: reduceQty, r: reason.trim() })
+                reduceMut.mutate({
+                  kotId: reduceTarget.kotId,
+                  lineId: reduceTarget.lineId,
+                  qty: reduceQty,
+                  r: reason.trim(),
+                })
               }
             >
               Record cancellation
@@ -451,6 +516,7 @@ export default function OrderBillPanel({
   const [discountOpen, setDiscountOpen] = useState(false);
   const [splitMode, setSplitMode] = useState<"none" | "equal" | "itemwise" | "custom">("none");
   const [activePartition, setActivePartition] = useState<string | null>(null);
+  const [opsOpen, setOpsOpen] = useState(false);
 
   if (!order) {
     return (
@@ -471,7 +537,9 @@ export default function OrderBillPanel({
   const partitionDue = (label: string) => {
     const p = partitions.find((x) => x.label === label);
     if (!p) return balance;
-    const got = paidList.filter((x) => x.partition_label === label).reduce((s, x) => s + x.amount_paise, 0);
+    const got = paidList
+      .filter((x) => x.partition_label === label)
+      .reduce((s, x) => s + x.amount_paise, 0);
     return Math.max(0, p.amount_paise - got);
   };
   const dueAmount = activePartition ? partitionDue(activePartition) : balance;
@@ -497,16 +565,24 @@ export default function OrderBillPanel({
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           {order.order_number} · {order.items.length} item{order.items.length === 1 ? "" : "s"}
-          {table && (
-            <span className="ml-2">
-              · {table.seated_seats}/{table.capacity} seated
-              {table.occupancy_fill !== "EMPTY" ? ` · ${table.occupancy_fill.toLowerCase()}` : ""}
-            </span>
-          )}
         </p>
       </CardHeader>
       <CardContent className={fill ? "min-h-0 flex-1 space-y-3 overflow-y-auto" : "space-y-3"}>
-        {showSeating && table && <SeatingSection table={table} floorId={table.floor_id} />}
+        {showSeating && table && (
+          <>
+            <TableStrip
+              table={table}
+              activeGroupId={order.occupancy_group_id}
+              onOpenOps={() => setOpsOpen(true)}
+            />
+            <TableOpsDialog
+              tableId={table.id}
+              floorId={table.floor_id}
+              open={opsOpen}
+              onOpenChange={setOpsOpen}
+            />
+          </>
+        )}
 
         {showCustomer && <CustomerLinkBlock orderId={orderId} />}
 
@@ -530,7 +606,12 @@ export default function OrderBillPanel({
             </span>
             <span className="flex items-center gap-1">
               <span>−{formatINR(Math.max(0, order.total_paise - order.grand_total_paise))}</span>
-              <Button variant="ghost" size="icon-sm" title="Edit discount" onClick={() => setDiscountOpen(true)}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="Edit discount"
+                onClick={() => setDiscountOpen(true)}
+              >
                 <Icons.edit className="size-3.5" />
               </Button>
             </span>
@@ -638,7 +719,11 @@ export function CancelOrderBlock({ orderId }: { orderId: string }) {
           </DialogHeader>
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Reason *</Label>
-            <Input placeholder="Customer walked out…" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} />
+            <Input
+              placeholder="Customer walked out…"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+            />
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setCancelOpen(false)}>
@@ -658,7 +743,15 @@ export function CancelOrderBlock({ orderId }: { orderId: string }) {
   );
 }
 
-function DiscountDialog({ orderId, open, onOpenChange }: { orderId: string; open: boolean; onOpenChange: (o: boolean) => void }) {
+function DiscountDialog({
+  orderId,
+  open,
+  onOpenChange,
+}: {
+  orderId: string;
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
   const queryClient = useQueryClient();
   const { data: order } = useQuery(orderQueryOptions(orderId));
   const [kind, setKind] = useState<"percent" | "flat">("percent");
@@ -685,23 +778,43 @@ function DiscountDialog({ orderId, open, onOpenChange }: { orderId: string; open
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Bill discount</DialogTitle>
-          <DialogDescription>Pre-tax. Editable until the order completes — paid and balance re-derive.</DialogDescription>
+          <DialogDescription>
+            Pre-tax. Editable until the order completes — paid and balance re-derive.
+          </DialogDescription>
         </DialogHeader>
         <div className="flex gap-2">
           {(["percent", "flat"] as const).map((k) => (
-            <Button key={k} type="button" variant={kind === k ? "default" : "outline"} size="sm" onClick={() => setKind(k)}>
+            <Button
+              key={k}
+              type="button"
+              variant={kind === k ? "default" : "outline"}
+              size="sm"
+              onClick={() => setKind(k)}
+            >
               {k === "percent" ? "Percent %" : "Flat ₹"}
             </Button>
           ))}
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">{kind === "percent" ? "Percent (0–100)" : "Amount ₹"}</Label>
-            <Input type="number" min={0} value={value} onChange={(e) => setValue(e.target.value)} placeholder={kind === "percent" ? "10" : "50"} />
+            <Label className="text-xs text-muted-foreground">
+              {kind === "percent" ? "Percent (0–100)" : "Amount ₹"}
+            </Label>
+            <Input
+              type="number"
+              min={0}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder={kind === "percent" ? "10" : "50"}
+            />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Reason *</Label>
-            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Festival offer…" />
+            <Input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Festival offer…"
+            />
           </div>
         </div>
         <div className="flex justify-end gap-2">
@@ -873,7 +986,8 @@ export function SplitSection({
               <DialogTitle>Remove split?</DialogTitle>
               <DialogDescription>
                 The {order.split.mode} split ({order.split.partitions.length} shares) is deleted and
-                the full bill becomes due again. Blocked while share payments exist. This is audited.
+                the full bill becomes due again. Blocked while share payments exist. This is
+                audited.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-1.5">
@@ -916,7 +1030,11 @@ export function SplitSection({
               onModeChange(m);
             }}
           >
-            {m === "none" ? "No split" : m === "itemwise" ? "Item-wise" : m[0].toUpperCase() + m.slice(1)}
+            {m === "none"
+              ? "No split"
+              : m === "itemwise"
+                ? "Item-wise"
+                : m[0].toUpperCase() + m.slice(1)}
           </Button>
         ))}
       </div>
@@ -934,8 +1052,19 @@ export function SplitSection({
 
       {mode === "equal" && showBuilders && (
         <div className="flex items-center gap-2">
-          <Input type="number" min={2} max={24} value={count} onChange={(e) => setCount(Number(e.target.value))} className="h-8 w-20" />
-          <Button size="sm" disabled={buildMut.isPending} onClick={() => buildMut.mutate({ mode: "equal", count })}>
+          <Input
+            type="number"
+            min={2}
+            max={24}
+            value={count}
+            onChange={(e) => setCount(Number(e.target.value))}
+            className="h-8 w-20"
+          />
+          <Button
+            size="sm"
+            disabled={buildMut.isPending}
+            onClick={() => buildMut.mutate({ mode: "equal", count })}
+          >
             {editing ? "Save changes" : "Split equally"}
           </Button>
         </div>
@@ -945,7 +1074,14 @@ export function SplitSection({
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
             <Label className="text-xs text-muted-foreground">Shares</Label>
-            <Input type="number" min={2} max={24} value={count} onChange={(e) => setCount(Number(e.target.value))} className="h-8 w-20" />
+            <Input
+              type="number"
+              min={2}
+              max={24}
+              value={count}
+              onChange={(e) => setCount(Number(e.target.value))}
+              className="h-8 w-20"
+            />
           </div>
           {order.items.map((l) => (
             <div key={l.id} className="flex items-center justify-between gap-2 text-xs">
@@ -954,9 +1090,7 @@ export function SplitSection({
               </span>
               <Select
                 value={assign[l.id] ?? "__none"}
-                onValueChange={(v) =>
-                  setAssign((a) => ({ ...a, [l.id]: v === "__none" ? "" : v }))
-                }
+                onValueChange={(v) => setAssign((a) => ({ ...a, [l.id]: v === "__none" ? "" : v }))}
               >
                 <SelectTrigger className="h-7 w-32 text-xs">
                   <SelectValue placeholder="Unassigned" />
@@ -987,7 +1121,10 @@ export function SplitSection({
               }
               buildMut.mutate({
                 mode: "itemwise",
-                assignments: [...groups.entries()].map(([label, line_ids]) => ({ label, line_ids })),
+                assignments: [...groups.entries()].map(([label, line_ids]) => ({
+                  label,
+                  line_ids,
+                })),
               });
             }}
           >
@@ -1000,12 +1137,41 @@ export function SplitSection({
         <div className="space-y-1.5">
           {customRows.map((r, i) => (
             <div key={i} className="flex gap-1.5">
-              <Input value={r.label} onChange={(e) => setCustomRows((rows) => rows.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} className="h-8" placeholder={`Guest ${i + 1}`} />
-              <Input type="number" min={0} value={r.amount} onChange={(e) => setCustomRows((rows) => rows.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))} className="h-8 w-28" placeholder="₹" />
+              <Input
+                value={r.label}
+                onChange={(e) =>
+                  setCustomRows((rows) =>
+                    rows.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)),
+                  )
+                }
+                className="h-8"
+                placeholder={`Guest ${i + 1}`}
+              />
+              <Input
+                type="number"
+                min={0}
+                value={r.amount}
+                onChange={(e) =>
+                  setCustomRows((rows) =>
+                    rows.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)),
+                  )
+                }
+                className="h-8 w-28"
+                placeholder="₹"
+              />
             </div>
           ))}
           <div className="flex gap-1.5">
-            <Button variant="ghost" size="sm" onClick={() => setCustomRows((rows) => [...rows, { label: `Guest ${rows.length + 1}`, amount: "" }])}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                setCustomRows((rows) => [
+                  ...rows,
+                  { label: `Guest ${rows.length + 1}`, amount: "" },
+                ])
+              }
+            >
               <Icons.add className="mr-1 size-3.5" /> Share
             </Button>
             <Button
@@ -1014,14 +1180,19 @@ export function SplitSection({
               onClick={() =>
                 buildMut.mutate({
                   mode: "custom",
-                  amounts: customRows.map((r) => ({ label: r.label.trim() || "Guest", amount_paise: toPaise(Number(r.amount)) })),
+                  amounts: customRows.map((r) => ({
+                    label: r.label.trim() || "Guest",
+                    amount_paise: toPaise(Number(r.amount)),
+                  })),
                 })
               }
             >
               {editing ? "Save changes" : "Build custom split"}
             </Button>
           </div>
-          <p className="text-[11px] text-muted-foreground">Shares must add up to {formatINR(order.grand_total_paise)}.</p>
+          <p className="text-[11px] text-muted-foreground">
+            Shares must add up to {formatINR(order.grand_total_paise)}.
+          </p>
         </div>
       )}
 
@@ -1064,7 +1235,15 @@ type TenderRow = { method: PaymentMethod; amount: string; tendered: string };
  * one go (e.g. part cash + part UPI) — each lands as its own payment record
  * so the ledger stays exact.
  */
-export function TenderPad({ orderId, duePaise, partitionLabel }: { orderId: string; duePaise: number; partitionLabel: string | null }) {
+export function TenderPad({
+  orderId,
+  duePaise,
+  partitionLabel,
+}: {
+  orderId: string;
+  duePaise: number;
+  partitionLabel: string | null;
+}) {
   const queryClient = useQueryClient();
   const [combined, setCombined] = useState(false);
   const [method, setMethod] = useState<PaymentMethod>("cash");
@@ -1096,7 +1275,9 @@ export function TenderPad({ orderId, duePaise, partitionLabel }: { orderId: stri
   });
 
   const collectCombinedMut = useMutation({
-    mutationFn: async (valid: { method: PaymentMethod; amount_paise: number; tendered_paise?: number }[]) => {
+    mutationFn: async (
+      valid: { method: PaymentMethod; amount_paise: number; tendered_paise?: number }[],
+    ) => {
       const done = [];
       for (const r of valid) {
         done.push(
@@ -1123,7 +1304,10 @@ export function TenderPad({ orderId, duePaise, partitionLabel }: { orderId: stri
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const change = method === "cash" && tendered && amount ? Math.max(0, toPaise(Number(tendered)) - toPaise(Number(amount))) : 0;
+  const change =
+    method === "cash" && tendered && amount
+      ? Math.max(0, toPaise(Number(tendered)) - toPaise(Number(amount)))
+      : 0;
 
   const parsedRows = rows.map((r) => ({
     method: r.method,
@@ -1136,7 +1320,9 @@ export function TenderPad({ orderId, duePaise, partitionLabel }: { orderId: stri
     parsedRows.every((r) => r.amount_paise > 0) &&
     rowsTotal > 0 &&
     rowsTotal <= duePaise &&
-    parsedRows.every((r) => r.method !== "cash" || !r.tendered_paise || r.tendered_paise >= r.amount_paise);
+    parsedRows.every(
+      (r) => r.method !== "cash" || !r.tendered_paise || r.tendered_paise >= r.amount_paise,
+    );
 
   const updateRow = (i: number, patch: Partial<TenderRow>) =>
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
@@ -1149,7 +1335,13 @@ export function TenderPad({ orderId, duePaise, partitionLabel }: { orderId: stri
         </p>
         <div className="flex gap-1">
           {([false, true] as const).map((c) => (
-            <Button key={String(c)} type="button" variant={combined === c ? "default" : "outline"} size="sm" onClick={() => setCombined(c)}>
+            <Button
+              key={String(c)}
+              type="button"
+              variant={combined === c ? "default" : "outline"}
+              size="sm"
+              onClick={() => setCombined(c)}
+            >
               {c ? "Combined" : "Single"}
             </Button>
           ))}
@@ -1160,7 +1352,13 @@ export function TenderPad({ orderId, duePaise, partitionLabel }: { orderId: stri
         <>
           <div className="flex flex-wrap gap-1.5">
             {METHODS.map((m) => (
-              <Button key={m.value} type="button" variant={method === m.value ? "default" : "outline"} size="sm" onClick={() => setMethod(m.value)}>
+              <Button
+                key={m.value}
+                type="button"
+                variant={method === m.value ? "default" : "outline"}
+                size="sm"
+                onClick={() => setMethod(m.value)}
+              >
                 {m.label}
               </Button>
             ))}
@@ -1168,21 +1366,44 @@ export function TenderPad({ orderId, duePaise, partitionLabel }: { orderId: stri
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Amount ₹</Label>
-              <Input type="number" min={0} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={(duePaise / 100).toFixed(2)} />
+              <Input
+                type="number"
+                min={0}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder={(duePaise / 100).toFixed(2)}
+              />
             </div>
             {method === "cash" && (
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Tendered ₹</Label>
-                <Input type="number" min={0} value={tendered} onChange={(e) => setTendered(e.target.value)} placeholder="Cash received" />
+                <Input
+                  type="number"
+                  min={0}
+                  value={tendered}
+                  onChange={(e) => setTendered(e.target.value)}
+                  placeholder="Cash received"
+                />
               </div>
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setAmount((duePaise / 100).toFixed(2))}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setAmount((duePaise / 100).toFixed(2))}
+            >
               Exact
             </Button>
-            {change > 0 && <span className="text-xs text-muted-foreground">Change {formatINR(change)}</span>}
-            <Button size="sm" className="ml-auto" disabled={collectMut.isPending || !amount || duePaise <= 0} onClick={() => collectMut.mutate()}>
+            {change > 0 && (
+              <span className="text-xs text-muted-foreground">Change {formatINR(change)}</span>
+            )}
+            <Button
+              size="sm"
+              className="ml-auto"
+              disabled={collectMut.isPending || !amount || duePaise <= 0}
+              onClick={() => collectMut.mutate()}
+            >
               {collectMut.isPending ? "Collecting…" : "Collect"}
             </Button>
           </div>
@@ -1190,7 +1411,8 @@ export function TenderPad({ orderId, duePaise, partitionLabel }: { orderId: stri
       ) : (
         <>
           <p className="text-[11px] text-muted-foreground">
-            Split one collection across methods — e.g. part cash, part UPI. Rows must add up to at most the due.
+            Split one collection across methods — e.g. part cash, part UPI. Rows must add up to at
+            most the due.
             {duePaise - rowsTotal > 0 && (
               <span className="ml-1 font-medium text-amber-600">
                 {formatINR(duePaise - rowsTotal)} unpaid
@@ -1244,14 +1466,22 @@ export function TenderPad({ orderId, duePaise, partitionLabel }: { orderId: stri
                 Fill
               </Button>
               {rows.length > 2 && (
-                <Button variant="ghost" size="icon-sm" onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}
+                >
                   <Icons.close className="size-3.5" />
                 </Button>
               )}
             </div>
           ))}
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setRows((rs) => [...rs, { method: "upi", amount: "", tendered: "" }])}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRows((rs) => [...rs, { method: "upi", amount: "", tendered: "" }])}
+            >
               <Icons.add className="mr-1 size-3.5" /> Method
             </Button>
             <span className="text-xs text-muted-foreground">
