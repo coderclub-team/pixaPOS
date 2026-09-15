@@ -49,6 +49,17 @@ forced a `cleaning` detour on every release-with-open-order.
 No waiting on the kitchen: `completeOrder` accepts `{ force, reason }` and
 completes any settled order from any non-terminal state. Settle-first still
 holds (balance due blocks both paths); reason is mandatory on the force path
-and the event records `forced: true` + `from_state`. Open KOTs stay live on
-the KDS. The bill CTA is always "Complete order" at zero balance; the checkout
-dialog switches to the force copy + reason field when unserved.
+and the event records `forced: true` + `from_state`. The bill CTA is always
+"Complete order" at zero balance; the checkout dialog switches to the force
+copy + reason field when unserved.
+
+## Addendum 2 (2026-09-15): completion serves open KOTs
+
+A settled bill means the food is handed over: `completeOrder` runs the new
+`serveOpenTickets` first, marking every open ticket SERVED (one
+`KITCHEN_TICKET_UPDATED` per ticket, `completion_serve` in metadata, VOIDED
+lines untouched) and letting derivation land the order on SERVED honestly. The
+force path now only triggers when derivation genuinely can't reach SERVED.
+Runs outside the order lock (kot locks → order lock ordering avoids deadlock);
+read-only balance/terminal guards run before any write so a blocked completion
+serves nothing.

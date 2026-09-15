@@ -129,8 +129,8 @@ export default function CheckoutDialog({
             </div>
             {!served && (
               <p className="pt-1 text-[11px] text-muted-foreground">
-                Kitchen hasn't served everything — completing now is a force-complete: open KOTs
-                stay live on the KDS and your reason is audited.
+                Kitchen hasn't served everything — completing now force-completes: open KOTs are
+                marked served and your reason is audited.
               </p>
             )}
           </div>
@@ -165,7 +165,7 @@ export default function CheckoutDialog({
               balance > 0
                 ? "Collect the balance first"
                 : needsForce
-                  ? "Force-complete: kitchen hasn't served — reason required, open KOTs stay live"
+                  ? "Force-complete: kitchen hasn't served — reason required, open KOTs are marked served"
                   : "Fulfillment done and bill settled — complete the order"
             }
             onClick={() => {
