@@ -11,7 +11,7 @@ import type {
   TableWithDerived,
   CommandContext,
 } from "./types";
-import { deriveTableInfo, canTransition } from "./utils";
+import { deriveTableInfo, canTransition, nextPartyLabel } from "./utils";
 import type { TableStatus } from "./types";
 
 const DEFAULT_CTX: CommandContext = { outlet_id: "out_001", actor_id: "staff" };
@@ -184,9 +184,7 @@ export async function getTablesWithDerivedByFloor(floorId: string): Promise<{
   holds: ReservationHold[];
 }> {
   await delay(100);
-  const tables = mockTables
-    .filter((t) => t.floor_id === floorId && !t.deleted_at)
-    .map(enrichTable);
+  const tables = mockTables.filter((t) => t.floor_id === floorId && !t.deleted_at).map(enrichTable);
   const tableIds = new Set(tables.map((t) => t.id));
   return {
     tables,
@@ -234,9 +232,7 @@ export function suggestDuplicateIdentifiers(
   source: Pick<RestaurantTable, "outlet_id" | "number" | "code">,
   existing: Pick<RestaurantTable, "outlet_id" | "number" | "code" | "deleted_at">[],
 ): { number: string; code: string } {
-  const outletTables = existing.filter(
-    (t) => t.outlet_id === source.outlet_id && !t.deleted_at,
-  );
+  const outletTables = existing.filter((t) => t.outlet_id === source.outlet_id && !t.deleted_at);
   return {
     number: suggestUniqueTableValue(
       source.number,
@@ -267,14 +263,20 @@ export async function duplicateTable(
     if (!source) throw new Error("Table not found");
     const outletId = overrides?.outlet_id ?? source.outlet_id;
 
-    const outletTables = mockTables.filter(
-      (t) => !t.deleted_at && t.outlet_id === outletId,
-    );
+    const outletTables = mockTables.filter((t) => !t.deleted_at && t.outlet_id === outletId);
     const number = (
-      overrides?.number ?? suggestUniqueTableValue(source.number, outletTables.map((t) => t.number))
+      overrides?.number ??
+      suggestUniqueTableValue(
+        source.number,
+        outletTables.map((t) => t.number),
+      )
     ).toUpperCase();
     const code = (
-      overrides?.code ?? suggestUniqueTableValue(source.code, outletTables.map((t) => t.code))
+      overrides?.code ??
+      suggestUniqueTableValue(
+        source.code,
+        outletTables.map((t) => t.code),
+      )
     ).toUpperCase();
     if (
       mockTables.some(
@@ -403,7 +405,9 @@ export async function updateTable(id: string, payload: TablePayload): Promise<Ta
       payload.floor_id !== current.floor_id &&
       activeGroups.length > 0
     ) {
-      throw new Error("Cannot move table to another floor with active guests. Release or transfer groups first.");
+      throw new Error(
+        "Cannot move table to another floor with active guests. Release or transfer groups first.",
+      );
     }
 
     // Safety guard on structural changes (H5: presence-checked, not truthiness-checked)
@@ -429,7 +433,7 @@ export async function updateTable(id: string, payload: TablePayload): Promise<Ta
       updated_at: new Date().toISOString(),
       version: current.version + 1,
     } as any;
-    
+
     mockTables[idx] = updated;
     saveTables();
 
@@ -486,7 +490,7 @@ export async function setTablePose(
   const release = await entityMutex.acquire(`table-${id}`);
   try {
     await delay(200);
-    const idx = mockTables.findIndex(t => t.id === id && !t.deleted_at);
+    const idx = mockTables.findIndex((t) => t.id === id && !t.deleted_at);
     if (idx === -1) return;
     const moved =
       (params.x_mm !== undefined && params.x_mm !== mockTables[idx].x_mm) ||
@@ -524,7 +528,10 @@ export async function moveTable(id: string, params: { x_mm: number; y_mm: number
   return setTablePose(id, params);
 }
 
-export async function resizeTable(id: string, params: { w_mm: number; h_mm: number }): Promise<void> {
+export async function resizeTable(
+  id: string,
+  params: { w_mm: number; h_mm: number },
+): Promise<void> {
   return setTablePose(id, params);
 }
 
@@ -565,7 +572,9 @@ export async function seatOccupancy(params: {
     }
     const liveBlock = mockBlocks.find((b) => b.table_id === table.id && !b.released_at);
     if (liveBlock && !params.force) {
-      throw new Error(`Table is blocked (${liveBlock.reason}). Unblock it first or force with a reason.`);
+      throw new Error(
+        `Table is blocked (${liveBlock.reason}). Unblock it first or force with a reason.`,
+      );
     }
 
     const activeGroups = mockGroups.filter(
@@ -578,7 +587,9 @@ export async function seatOccupancy(params: {
 
     const currentSeated = activeGroups.reduce((s, g) => s + g.seats, 0);
     if (currentSeated + params.seats > table.capacity) {
-      throw new Error(`Insufficient capacity. Only ${table.capacity - currentSeated} seats available.`);
+      throw new Error(
+        `Insufficient capacity. Only ${table.capacity - currentSeated} seats available.`,
+      );
     }
 
     // Hold consume-by-identity: explicit hold_id wins; otherwise exactly one live
@@ -604,12 +615,15 @@ export async function seatOccupancy(params: {
     }
 
     const now = new Date().toISOString();
+    const siblingLabels = activeGroups.map((g) => g.label);
     const group: OccupancyGroup = {
       id: params.group_id ?? `occ_${Date.now().toString(36)}`,
       table_id: params.table_id,
       outlet_id: table.outlet_id,
       floor_id: table.floor_id,
       seats: params.seats,
+      label: nextPartyLabel(siblingLabels),
+      color_index: activeGroups.length % 8,
       order_id: null,
       status: "SEATED",
       seated_at: now,
@@ -650,6 +664,12 @@ export async function seatOccupancy(params: {
   } finally {
     release();
   }
+}
+
+/** Read-only group lookup for order-domain composition (no lock, no mutation). */
+export function getOccupancyGroup(groupId: string): OccupancyGroup | undefined {
+  const g = mockGroups.find((x) => x.id === groupId);
+  return g ? { ...g } : undefined;
 }
 
 export async function releaseOccupancy(params: {
@@ -695,14 +715,15 @@ export async function releaseOccupancy(params: {
     };
 
     // Side effect: Transition table to CLEANING if last group (Design Ruling C6)
-    const activeOnTable = mockGroups.filter(g =>
-      g.table_id === group.table_id &&
-      g.id !== group.id &&
-      (g.status === "SEATED" || g.status === "ORDERING")
+    const activeOnTable = mockGroups.filter(
+      (g) =>
+        g.table_id === group.table_id &&
+        g.id !== group.id &&
+        (g.status === "SEATED" || g.status === "ORDERING"),
     );
 
     if (activeOnTable.length === 0) {
-      const tableIdx = mockTables.findIndex(t => t.id === group.table_id);
+      const tableIdx = mockTables.findIndex((t) => t.id === group.table_id);
       if (tableIdx !== -1 && mockTables[tableIdx].status === "occupied") {
         await transitionTable(tableIdx, "cleaning", {
           actor_id: params.released_by,
@@ -775,7 +796,12 @@ export async function addGuests(params: {
     const table = mockTables.find((t) => t.id === group.table_id && !t.deleted_at);
     if (!table) throw new Error("Table not found");
     const seatedOthers = mockGroups
-      .filter((g) => g.table_id === group.table_id && g.id !== group.id && (g.status === "SEATED" || g.status === "ORDERING"))
+      .filter(
+        (g) =>
+          g.table_id === group.table_id &&
+          g.id !== group.id &&
+          (g.status === "SEATED" || g.status === "ORDERING"),
+      )
       .reduce((s, g) => s + g.seats, 0);
     if (seatedOthers + group.seats + params.extra_seats > table.capacity) {
       throw new Error(
@@ -982,9 +1008,7 @@ export async function transferOccupancy(params: {
       )
       .reduce((s, g) => s + g.seats, 0);
     if (destSeated + movingSeats > dest.capacity) {
-      throw new Error(
-        `Destination table has only ${dest.capacity - destSeated} seats available.`,
-      );
+      throw new Error(`Destination table has only ${dest.capacity - destSeated} seats available.`);
     }
     const destActiveCount = mockGroups.filter(
       (g) =>
@@ -1035,7 +1059,10 @@ export async function transferOccupancy(params: {
       }
     }
     const dIdx = mockTables.findIndex((t) => t.id === dest.id);
-    if (dIdx !== -1 && (mockTables[dIdx].status === "available" || mockTables[dIdx].status === "reserved")) {
+    if (
+      dIdx !== -1 &&
+      (mockTables[dIdx].status === "available" || mockTables[dIdx].status === "reserved")
+    ) {
       await transitionTable(dIdx, "occupied", { actor_id: ctx.actor_id });
     }
     saveTables();
@@ -1091,7 +1118,9 @@ export async function setTableStatus(params: {
     const from = mockTables[idx].status;
     if (from === params.to) return enrichTable(mockTables[idx]);
     if (from === "occupied" && params.to === "available") {
-      throw new Error("Release guests first — occupied tables clear via release → cleaning → mark cleaned");
+      throw new Error(
+        "Release guests first — occupied tables clear via release → cleaning → mark cleaned",
+      );
     }
     await transitionTable(idx, params.to, {
       actor_id: ctx.actor_id,
