@@ -8,16 +8,9 @@ import { useRouter } from "next/navigation";
 import { floorsQueryOptions } from "@/features/floor/api/queries";
 import { tableKeys, tableQueryOptions, tablesQueryOptions } from "@/features/table/api/queries";
 import { floorKeys } from "@/features/floor/api/queries";
-import {
-  blockTable,
-  cancelOccupancy,
-  createTable,
-  markCleaned,
-  releaseOccupancy,
-  seatOccupancy,
-  transferOccupancy,
-  unblockTable,
-} from "@/features/table/api/service";
+import { createTable } from "@/features/table/api/service";
+import TableStrip from "@/features/table/components/table-strip";
+import TableOpsDialog from "@/features/table/components/table-ops-dialog";
 
 import { toast } from "sonner";
 import { cn } from "@pixa/ui/lib/utils";
@@ -29,15 +22,6 @@ import { Icons } from "@pixa/ui/icons";
 import { Badge } from "@pixa/ui/base-ui/badge";
 import { Suspense } from "react";
 import { Skeleton } from "@pixa/ui/base-ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@pixa/ui/base-ui/dialog";
-import { Input } from "@pixa/ui/base-ui/input";
-import { Label } from "@pixa/ui/base-ui/label";
 import type { TableWithDerived } from "@/features/table/api/types";
 
 function ChairRow({ capacity, seated }: { capacity: number; seated: number }) {
@@ -76,121 +60,8 @@ function TableDetailPanel({
   table: TableWithDerived | undefined;
   floorId: string | undefined;
 }) {
-  const queryClient = useQueryClient();
   const router = useRouter();
-  const [seatOpen, setSeatOpen] = useState(false);
-  const [partySize, setPartySize] = useState(2);
-
-  const invalidate = () => {
-    if (floorId) queryClient.invalidateQueries({ queryKey: floorKeys.layout(floorId) });
-    queryClient.invalidateQueries({ queryKey: tableKeys.all });
-    if (table) queryClient.invalidateQueries({ queryKey: tableKeys.detail(table.id) });
-  };
-
-  const seatMut = useMutation({
-    mutationFn: (seats: number) =>
-      seatOccupancy({ table_id: table!.id, seats, created_by: "staff" }),
-    onSuccess: () => {
-      invalidate();
-      toast.success("Guests seated");
-      setSeatOpen(false);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const releaseMut = useMutation({
-    mutationFn: ({
-      groupId,
-      reason,
-      force,
-    }: {
-      groupId: string;
-      reason: string;
-      force?: boolean;
-    }) =>
-      releaseOccupancy({
-        group_id: groupId,
-        released_by: "staff",
-        reason,
-        force,
-      }),
-    onSuccess: (_d, vars) => {
-      invalidate();
-      toast.success(vars.force ? "Group force-released" : "Group released");
-      setReleaseTarget(null);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const [releaseTarget, setReleaseTarget] = useState<null | {
-    groupId: string;
-    needsForce: boolean;
-  }>(null);
-  const [releaseReason, setReleaseReason] = useState("");
-
-  const transferMut = useMutation({
-    mutationFn: ({ groupId, toTableId }: { groupId: string; toTableId: string }) =>
-      transferOccupancy({
-        group_ids: [groupId],
-        to_table_id: toTableId,
-        moved_by: "staff",
-        reason: "Transferred from floor view",
-      }),
-    onSuccess: () => {
-      invalidate();
-      toast.success("Group transferred");
-      setTransferTarget(null);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const [transferTarget, setTransferTarget] = useState<null | { groupId: string }>(null);
-  const [transferTo, setTransferTo] = useState("");
-  const { data: allTables } = useQuery(tablesQueryOptions({}));
-
-  const markCleanedMut = useMutation({
-    mutationFn: () => markCleaned({ table_id: table!.id, by: "staff" }),
-    onSuccess: () => {
-      invalidate();
-      toast.success("Table marked cleaned");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const blockMut = useMutation({
-    mutationFn: (reason: string) => blockTable({ table_id: table!.id, reason, by: "staff" }),
-    onSuccess: () => {
-      invalidate();
-      toast.success("Table blocked");
-      setBlockOpen(false);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const unblockMut = useMutation({
-    mutationFn: () => unblockTable({ table_id: table!.id, by: "staff" }),
-    onSuccess: () => {
-      invalidate();
-      toast.success("Table unblocked");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const [blockOpen, setBlockOpen] = useState(false);
-  const [blockReason, setBlockReason] = useState("");
-  const [cancelTarget, setCancelTarget] = useState<null | { groupId: string }>(null);
-  const [cancelReason, setCancelReason] = useState("");
-
-  const cancelMut = useMutation({
-    mutationFn: ({ groupId, reason }: { groupId: string; reason: string }) =>
-      cancelOccupancy({ group_id: groupId, by: "staff", reason }),
-    onSuccess: () => {
-      invalidate();
-      toast.success("Occupancy cancelled");
-      setCancelTarget(null);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+  const [opsOpen, setOpsOpen] = useState(false);
 
   if (!table) {
     return (
@@ -201,11 +72,10 @@ function TableDetailPanel({
     );
   }
 
-  const available = Math.max(0, table.capacity - table.seated_seats);
   const orderId = table.active_groups.find((g) => g.order_id)?.order_id ?? null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="rounded-lg border bg-muted/30 p-4">
         <p className="text-xs font-medium uppercase text-muted-foreground">Table Status</p>
         <p className="text-2xl font-bold">Table {table.number}</p>
@@ -218,294 +88,34 @@ function TableDetailPanel({
         </div>
       </div>
 
-      {table.active_groups.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-medium uppercase text-muted-foreground">Active groups</p>
-          {table.active_groups.map((g) => (
-            <div
-              key={g.id}
-              className="flex items-center justify-between rounded-lg border p-2 text-sm"
-            >
-              <span>
-                {g.seats} guest{g.seats === 1 ? "" : "s"}
-                {g.order_id ? (
-                  <span className="ml-2 font-mono text-xs text-muted-foreground">
-                    Order #{g.order_id.slice(-4)}
-                  </span>
-                ) : (
-                  <span className="ml-2 text-xs text-muted-foreground">No order yet</span>
-                )}
-              </span>
-              <span className="flex gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  title="Transfer group"
-                  onClick={() => {
-                    setTransferTo("");
-                    setTransferTarget({ groupId: g.id });
-                  }}
-                >
-                  <Icons.share className="size-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  title="Release group"
-                  onClick={() => {
-                    setReleaseReason("");
-                    setReleaseTarget({ groupId: g.id, needsForce: !!g.order_id });
-                  }}
-                  disabled={releaseMut.isPending}
-                >
-                  <Icons.close className="size-4" />
-                </Button>
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+      <TableStrip table={table} onOpenOps={() => setOpsOpen(true)} />
 
       <div className="space-y-2">
-        <Button
-          className="w-full justify-start gap-2"
-          disabled={available <= 0 || seatMut.isPending}
-          onClick={() => {
-            setPartySize(Math.min(2, available || 1));
-            setSeatOpen(true);
-          }}
-        >
-          <Icons.add className="size-4" /> Seat Guests
-        </Button>
         <Button
           variant="outline"
           className="w-full justify-start gap-2"
           disabled={!orderId}
           title={orderId ? `Open order ${orderId}` : "No active order — seat guests first"}
-          onClick={() =>
-            orderId &&
-            router.push(
-              `/dashboard/orders/${table.active_groups.find((g) => g.order_id)?.order_id}`,
-            )
-          }
+          onClick={() => orderId && router.push(`/dashboard/orders/${orderId}`)}
         >
           <Icons.edit className="mr-2 h-4 w-4" /> View Order
         </Button>
-        {table.status === "cleaning" && (
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-2"
-            disabled={markCleanedMut.isPending}
-            onClick={() => markCleanedMut.mutate()}
-          >
-            <Icons.check className="size-4" /> Mark cleaned
-          </Button>
-        )}
-        {table.active_block ? (
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-2"
-            disabled={unblockMut.isPending}
-            onClick={() => unblockMut.mutate()}
-          >
-            <Icons.check className="size-4" /> Unblock table
-          </Button>
-        ) : (
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-2"
-            onClick={() => {
-              setBlockReason("");
-              setBlockOpen(true);
-            }}
-          >
-            <Icons.close className="size-4" /> Block table
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          className="w-full justify-start gap-2"
+          onClick={() => setOpsOpen(true)}
+        >
+          <Icons.party className="mr-2 h-4 w-4" /> Table ops — parties, block, status
+        </Button>
       </div>
 
-      <Dialog open={seatOpen} onOpenChange={setSeatOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Seat guests — Table {table.number}</DialogTitle>
-            <DialogDescription>
-              {available} of {table.capacity} seats available.
-              {!table.allows_sharing && table.active_groups.length > 0
-                ? " This table does not allow sharing."
-                : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Party size</Label>
-            <Input
-              type="number"
-              min={1}
-              max={available}
-              value={partySize}
-              onChange={(e) => setPartySize(Number(e.target.value))}
-            />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setSeatOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              disabled={seatMut.isPending || partySize < 1 || partySize > available}
-              onClick={() => seatMut.mutate(partySize)}
-            >
-              Seat
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={releaseTarget != null} onOpenChange={(o) => !o && setReleaseTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {releaseTarget?.needsForce ? "Force-release group?" : "Release group?"}
-            </DialogTitle>
-            <DialogDescription>
-              {releaseTarget?.needsForce
-                ? "This group has an open order. Force release frees the seats anyway and records who authorized it."
-                : "Free this group's seats. The table goes to cleaning when the last group leaves."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">
-              Reason{releaseTarget?.needsForce ? " *" : ""}
-            </Label>
-            <Input
-              placeholder="Walkout, settled at counter…"
-              value={releaseReason}
-              onChange={(e) => setReleaseReason(e.target.value)}
-            />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setReleaseTarget(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant={releaseTarget?.needsForce ? "destructive" : "default"}
-              disabled={
-                releaseMut.isPending || (!!releaseTarget?.needsForce && !releaseReason.trim())
-              }
-              onClick={() =>
-                releaseTarget &&
-                releaseMut.mutate({
-                  groupId: releaseTarget.groupId,
-                  reason: releaseReason.trim() || "Released from floor view",
-                  force: releaseTarget.needsForce,
-                })
-              }
-            >
-              Release
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={transferTarget != null} onOpenChange={(o) => !o && setTransferTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Transfer group</DialogTitle>
-            <DialogDescription>
-              Move this group to another table on this floor. Capacity and sharing are re-checked.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Destination table</Label>
-            <Input
-              placeholder="Table id (e.g. tbl_…)"
-              value={transferTo}
-              onChange={(e) => setTransferTo(e.target.value)}
-            />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setTransferTarget(null)}>
-              Cancel
-            </Button>
-            <Button
-              disabled={transferMut.isPending || !transferTo.trim()}
-              onClick={() =>
-                transferTarget &&
-                transferMut.mutate({
-                  groupId: transferTarget.groupId,
-                  toTableId: transferTo.trim(),
-                })
-              }
-            >
-              Transfer
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={blockOpen} onOpenChange={setBlockOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Block table {table.number}?</DialogTitle>
-            <DialogDescription>
-              Blocked tables cannot seat new guests. Existing groups stay until released.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Reason *</Label>
-            <Input
-              placeholder="Broken leg, deep clean…"
-              value={blockReason}
-              onChange={(e) => setBlockReason(e.target.value)}
-            />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setBlockOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={blockMut.isPending || !blockReason.trim()}
-              onClick={() => blockMut.mutate(blockReason.trim())}
-            >
-              Block
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={cancelTarget != null} onOpenChange={(o) => !o && setCancelTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cancel occupancy?</DialogTitle>
-            <DialogDescription>
-              Only for groups with no order (walkouts, no-shows). Groups with orders must be
-              cancelled through the orders module.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Reason *</Label>
-            <Input
-              placeholder="Walkout, no-show…"
-              value={cancelReason}
-              onChange={(e) => setCancelReason(e.target.value)}
-            />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setCancelTarget(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={cancelMut.isPending || !cancelReason.trim()}
-              onClick={() =>
-                cancelTarget &&
-                cancelMut.mutate({ groupId: cancelTarget.groupId, reason: cancelReason.trim() })
-              }
-            >
-              Cancel occupancy
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <TableOpsDialog
+        tableId={table.id}
+        floorId={floorId}
+        open={opsOpen}
+        onOpenChange={setOpsOpen}
+        onOpenOrder={(id) => router.push(`/dashboard/orders/${id}`)}
+      />
     </div>
   );
 }

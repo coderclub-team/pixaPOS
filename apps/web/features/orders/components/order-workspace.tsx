@@ -15,7 +15,8 @@ import { getQueryClient } from "@/lib/query-client";
 import { useCrossTabSync } from "@/lib/use-cross-tab-sync";
 import { tableQueryOptions } from "@/features/table/api/queries";
 import CustomerLinkBlock from "@/features/customers/components/customer-link-block";
-import SeatingSection from "@/features/table/components/seating-section";
+import TableStrip from "@/features/table/components/table-strip";
+import TableOpsDialog from "@/features/table/components/table-ops-dialog";
 import OrderBillPanel, { CancelOrderBlock } from "./bill-panel";
 import SplitBillCard from "./split-bill-card";
 import PaymentsCard from "./payments-card";
@@ -54,7 +55,7 @@ export default function OrderWorkspacePage({ orderId }: { orderId: string }) {
   return (
     <PageContainer
       pageTitle={order.status === "DRAFT" ? "New order" : `Order ${order.order_number}`}
-      pageDescription={`${order.channel.replace("_", " ")} · ${(order.status === "DRAFT" ? "New order" : order.status.toLowerCase().replace("_", " "))} · ${formatINR(order.grand_total_paise)}`}
+      pageDescription={`${order.channel.replace("_", " ")} · ${order.status === "DRAFT" ? "New order" : order.status.toLowerCase().replace("_", " ")} · ${formatINR(order.grand_total_paise)}`}
       pageHeaderAction={
         <div className="flex items-center gap-1.5">
           {dataUpdatedAt > 0 && (
@@ -70,7 +71,9 @@ export default function OrderWorkspacePage({ orderId }: { orderId: string }) {
               getQueryClient().invalidateQueries({ queryKey: orderKeys.detail(order.id) });
               getQueryClient().invalidateQueries({ queryKey: kitchenKeys.byOrder(order.id) });
               getQueryClient().invalidateQueries({ queryKey: paymentKeys.byOrder(order.id) });
-              getQueryClient().invalidateQueries({ queryKey: paymentKeys.refundsByOrder(order.id) });
+              getQueryClient().invalidateQueries({
+                queryKey: paymentKeys.refundsByOrder(order.id),
+              });
               getQueryClient().invalidateQueries({ queryKey: eventKeys.byOrder(order.id) });
             }}
           >
@@ -80,7 +83,11 @@ export default function OrderWorkspacePage({ orderId }: { orderId: string }) {
             className="text-xs md:text-sm"
             onClick={() => setAddOpen(true)}
             disabled={terminal}
-            title={terminal ? `Order is ${order.status.toLowerCase()}` : "Add items — each creates a new KOT"}
+            title={
+              terminal
+                ? `Order is ${order.status.toLowerCase()}`
+                : "Add items — each creates a new KOT"
+            }
           >
             <Icons.add className="mr-2 h-4 w-4" /> Add Items
           </Button>
@@ -137,6 +144,7 @@ function OrderDetailsCard({ orderId }: { orderId: string }) {
     ...tableQueryOptions(order?.table_id ?? ""),
     enabled: !!order?.table_id,
   });
+  const [opsOpen, setOpsOpen] = useState(false);
   if (!order) return null;
   return (
     <Card>
@@ -171,13 +179,27 @@ function OrderDetailsCard({ orderId }: { orderId: string }) {
           </InfoRow>
           <InfoRow label="Items">
             <span>
-              {order.items.length} item{order.items.length === 1 ? "" : "s"} · {order.kot_count}{" "}
-              KOT{order.kot_count === 1 ? "" : "s"}
+              {order.items.length} item{order.items.length === 1 ? "" : "s"} · {order.kot_count} KOT
+              {order.kot_count === 1 ? "" : "s"}
             </span>
           </InfoRow>
         </div>
         <CustomerLinkBlock orderId={order.id} />
-        {table && <SeatingSection table={table} floorId={table.floor_id} />}
+        {table && (
+          <>
+            <TableStrip
+              table={table}
+              activeGroupId={order.occupancy_group_id}
+              onOpenOps={() => setOpsOpen(true)}
+            />
+            <TableOpsDialog
+              tableId={table.id}
+              floorId={table.floor_id}
+              open={opsOpen}
+              onOpenChange={setOpsOpen}
+            />
+          </>
+        )}
       </CardContent>
     </Card>
   );
