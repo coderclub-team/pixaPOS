@@ -120,6 +120,14 @@ library). Release-locks-order: a dine-in order is editable (adds, qty, voids,
 discount) only while its table has active occupancy — releasing the last group
 emits `ORDER_LOCKED`; payments and refunds stay open.
 
+Shared-table parties (ADR-0013): a table with `allows_sharing` seats several
+parties, each an `OccupancyGroup` with auto label (A, B, C…) and palette
+colour, rendered as one chip per party on the canvas (tap = focus that party's
+bill, never creates an order; 500 ms hold or Shift+Enter = `ensureGroupOrder`
+and the picker opens for that party). One live order per party; add-ons fire
+extra KOTs onto the same order. The bill panel shows a party strip to switch
+parties and seat new ones; no state machine changes.
+
 ## 6. Product workflow
 
 ```text
