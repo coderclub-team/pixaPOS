@@ -43,3 +43,12 @@ forced a `cleaning` detour on every release-with-open-order.
   via snapshots).
 - The cleaning bypass on release-with-order is deliberate (operator choice);
   revisit if hygiene compliance becomes an issue.
+
+## Addendum (2026-09-15): force-complete
+
+No waiting on the kitchen: `completeOrder` accepts `{ force, reason }` and
+completes any settled order from any non-terminal state. Settle-first still
+holds (balance due blocks both paths); reason is mandatory on the force path
+and the event records `forced: true` + `from_state`. Open KOTs stay live on
+the KDS. The bill CTA is always "Complete order" at zero balance; the checkout
+dialog switches to the force copy + reason field when unserved.

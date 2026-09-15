@@ -709,22 +709,16 @@ export default function OrderBillPanel({
               title={
                 balance > 0
                   ? "Review the bill and collect the balance"
-                  : order.status === "SERVED"
-                    ? "Review the bill and complete the order"
-                    : "Review the bill — completion needs the kitchen to serve first"
+                  : "Review the bill and complete the order"
               }
             >
               {balance > 0 ? (
                 <>
                   <Icons.billing className="mr-2 size-4" /> Settle · {formatINR(balance)}
                 </>
-              ) : order.status === "SERVED" ? (
-                <>
-                  <Icons.checks className="mr-2 size-4" /> Complete order
-                </>
               ) : (
                 <>
-                  <Icons.clock className="mr-2 size-4" /> Paid — waiting on kitchen
+                  <Icons.checks className="mr-2 size-4" /> Complete order
                 </>
               )}
             </Button>

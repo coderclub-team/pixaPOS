@@ -87,12 +87,20 @@ function canTransitionOrder(from: OrderStatus, to: OrderStatus): boolean {
 async function transitionOrder(
   idx: number,
   to: OrderStatus,
-  ctx: { actor_id?: string; reason_text?: string; event_type?: any },
+  ctx: {
+    actor_id?: string;
+    reason_text?: string;
+    event_type?: any;
+    metadata?: Record<string, any>;
+    force?: boolean;
+  },
 ): Promise<void> {
   const current = mockOrders[idx];
   const from = current.status;
   if (from === to) return;
-  if (!canTransitionOrder(from, to)) {
+  // force skips the map for authorized jumps (e.g. force-complete); the
+  // from/to pair is still recorded on the event.
+  if (!ctx.force && !canTransitionOrder(from, to)) {
     throw new Error(`Illegal order transition ${from} → ${to}`);
   }
   const now = new Date().toISOString();
@@ -106,6 +114,7 @@ async function transitionOrder(
     to_state: to,
     actor_id: ctx.actor_id,
     reason_text: ctx.reason_text,
+    metadata: ctx.metadata,
   });
 }
 
@@ -1309,10 +1318,17 @@ export async function refreshOrderKitchenState(orderId: string): Promise<void> {
 }
 
 /**
- * Explicit completion: SERVED + zero balance → COMPLETED (ORDER_COMPLETED).
- * Fulfillment alone never completes — the bill must be settled first.
+ * Explicit completion: zero balance → COMPLETED (ORDER_COMPLETED).
+ * Normal path needs SERVED (fulfillment done). Force path completes from any
+ * non-terminal state with a mandatory reason — open KOTs stay live on the KDS
+ * (kitchen truth preserved), the event records forced/from_state. Settle-first
+ * always holds: a balance due blocks both paths.
  */
-export async function completeOrder(orderId: string, by?: string): Promise<OrderWithDerived> {
+export async function completeOrder(
+  orderId: string,
+  params?: { by?: string; reason?: string; force?: boolean },
+  by?: string,
+): Promise<OrderWithDerived> {
   const release = await entityMutex.acquire(`order-${orderId}`);
   try {
     await delay(300);
@@ -1320,10 +1336,18 @@ export async function completeOrder(orderId: string, by?: string): Promise<Order
     const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
     if (idx === -1) throw new Error("Order not found");
     const order = mockOrders[idx];
-    if (order.status !== "SERVED") {
+    if (order.status === "COMPLETED" || order.status === "CANCELLED") {
+      throw new Error(`Order is already ${order.status.toLowerCase()}`);
+    }
+    const actor = params?.by ?? by ?? "staff";
+    const forced = !!params?.force && order.status !== "SERVED";
+    if (!forced && order.status !== "SERVED") {
       throw new Error(
-        `Only served orders can be completed (order is ${order.status.toLowerCase()})`,
+        `Only served orders can be completed (order is ${order.status.toLowerCase()}) — or force-complete with a reason`,
       );
+    }
+    if (forced && !params?.reason?.trim()) {
+      throw new Error("A reason is required to force-complete an order");
     }
     const { paidTotalForOrder } = await import("@/features/payments/api/service");
     const balance = Math.max(0, order.grand_total_paise - (await paidTotalForOrder(orderId)));
@@ -1331,8 +1355,11 @@ export async function completeOrder(orderId: string, by?: string): Promise<Order
       throw new Error(`Collect the remaining ₹${(balance / 100).toFixed(2)} before completing`);
     }
     await transitionOrder(idx, "COMPLETED", {
-      actor_id: by ?? "staff",
+      actor_id: actor,
       event_type: "ORDER_COMPLETED",
+      reason_text: forced ? params?.reason?.trim() : undefined,
+      metadata: forced ? { forced: true, from_state: order.status } : undefined,
+      force: forced || undefined,
     });
     saveOrders();
     return enrichOrder(mockOrders[idx]);

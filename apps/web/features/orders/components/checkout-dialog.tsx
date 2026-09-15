@@ -10,6 +10,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@pixa/ui/base-ui/dialog";
+import { Input } from "@pixa/ui/base-ui/input";
+import { Label } from "@pixa/ui/base-ui/label";
 import { formatINR } from "@/lib/money";
 import { orderKeys, orderQueryOptions } from "@/features/orders/api/queries";
 import { kitchenKeys } from "@/features/kitchen/api/queries";
@@ -45,10 +47,12 @@ export default function CheckoutDialog({
   const { data: payments } = useQuery({ ...paymentsByOrderQueryOptions(orderId), enabled: open });
   const { data: refunds } = useQuery({ ...refundsByOrderQueryOptions(orderId), enabled: open });
   const [completing, setCompleting] = useState(false);
+  const [forceReason, setForceReason] = useState("");
 
   const completeMut = useMutation({
-    mutationFn: () => completeOrder(orderId),
-    onSuccess: () => {
+    mutationFn: (reason: string) =>
+      completeOrder(orderId, reason ? { reason, force: true } : undefined),
+    onSuccess: (_o, reason) => {
       queryClient.invalidateQueries({ queryKey: orderKeys.detail(orderId) });
       queryClient.invalidateQueries({ queryKey: orderKeys.all });
       queryClient.invalidateQueries({ queryKey: kitchenKeys.byOrder(orderId) });
@@ -56,6 +60,7 @@ export default function CheckoutDialog({
       queryClient.invalidateQueries({ queryKey: eventKeys.byOrder(orderId) });
       toast.success(`Order ${order?.order_number ?? ""} completed — table free`.trim());
       setCompleting(false);
+      setForceReason("");
       onOpenChange(false);
       onCompleted?.(orderId);
     },
@@ -71,7 +76,8 @@ export default function CheckoutDialog({
   const grand = order?.grand_total_paise ?? 0;
   const balance = Math.max(0, grand - paid);
   const served = order?.status === "SERVED";
-  const canComplete = served && balance <= 0;
+  const settled = balance <= 0;
+  const needsForce = !!order && !served;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -123,8 +129,8 @@ export default function CheckoutDialog({
             </div>
             {!served && (
               <p className="pt-1 text-[11px] text-muted-foreground">
-                Completion needs the kitchen to serve everything first — payment can be collected
-                anytime.
+                Kitchen hasn't served everything — completing now is a force-complete: open KOTs
+                stay live on the KDS and your reason is audited.
               </p>
             )}
           </div>
@@ -140,22 +146,38 @@ export default function CheckoutDialog({
               Collect {formatINR(balance)}
             </Button>
           )}
+          {needsForce && settled && (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Force reason *</Label>
+              <Input
+                placeholder="Guest left early, comped by manager…"
+                value={forceReason}
+                onChange={(e) => setForceReason(e.target.value)}
+              />
+            </div>
+          )}
           <Button
-            variant={balance <= 0 ? "default" : "outline"}
-            disabled={!canComplete || completeMut.isPending || completing}
+            variant={needsForce ? "destructive" : settled ? "default" : "outline"}
+            disabled={
+              !settled || completeMut.isPending || completing || (needsForce && !forceReason.trim())
+            }
             title={
-              !served
-                ? "Kitchen hasn't served everything yet"
-                : balance > 0
-                  ? "Collect the balance first"
+              balance > 0
+                ? "Collect the balance first"
+                : needsForce
+                  ? "Force-complete: kitchen hasn't served — reason required, open KOTs stay live"
                   : "Fulfillment done and bill settled — complete the order"
             }
             onClick={() => {
               setCompleting(true);
-              completeMut.mutate();
+              completeMut.mutate(needsForce ? forceReason.trim() : "");
             }}
           >
-            {completeMut.isPending || completing ? "Completing…" : "Complete order"}
+            {completeMut.isPending || completing
+              ? "Completing…"
+              : needsForce
+                ? "Force complete"
+                : "Complete order"}
           </Button>
         </div>
       </DialogContent>
