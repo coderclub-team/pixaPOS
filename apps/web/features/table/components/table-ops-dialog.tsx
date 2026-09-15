@@ -23,6 +23,7 @@ import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { tableKeys, tableQueryOptions } from "@/features/table/api/queries";
 import { floorKeys, floorLayoutQueryOptions } from "@/features/floor/api/queries";
+import { orderKeys, ordersQueryOptions } from "@/features/orders/api/queries";
 import {
   blockTable,
   cancelOccupancy,
@@ -74,13 +75,16 @@ export default function TableOpsDialog({
     ...floorLayoutQueryOptions(floorId ?? ""),
     enabled: open && !!floorId,
   });
+  // Open tabs: live orders on this table whose party is gone (released) —
+  // they settle independently, but staff must still see the money.
+  const { data: tableOrders } = useQuery({
+    ...ordersQueryOptions({ table_id: tableId }),
+    enabled: open,
+  });
 
   const [seatOpen, setSeatOpen] = useState(false);
   const [partySize, setPartySize] = useState(2);
-  const [releaseTarget, setReleaseTarget] = useState<null | {
-    groupId: string;
-    needsForce: boolean;
-  }>(null);
+  const [releaseTarget, setReleaseTarget] = useState<null | { groupId: string }>(null);
   const [releaseReason, setReleaseReason] = useState("");
   const [transferTarget, setTransferTarget] = useState<null | { groupId: string }>(null);
   const [transferTo, setTransferTo] = useState("");
@@ -109,18 +113,11 @@ export default function TableOpsDialog({
     onError: (e: Error) => toast.error(e.message),
   });
   const releaseMut = useMutation({
-    mutationFn: ({
-      groupId,
-      reason,
-      force,
-    }: {
-      groupId: string;
-      reason: string;
-      force?: boolean;
-    }) => releaseOccupancy({ group_id: groupId, released_by: "staff", reason, force }),
-    onSuccess: (_d, vars) => {
+    mutationFn: ({ groupId, reason }: { groupId: string; reason: string }) =>
+      releaseOccupancy({ group_id: groupId, released_by: "staff", reason }),
+    onSuccess: () => {
       invalidate();
-      toast.success(vars.force ? "Group force-released" : "Group released");
+      toast.success("Party released — its order stays open and payable");
       setReleaseTarget(null);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -189,6 +186,13 @@ export default function TableOpsDialog({
 
   const available = table ? Math.max(0, table.capacity - table.seated_seats) : 0;
   const nextStates = table ? TABLE_TRANSITIONS[table.status] : [];
+  const activeGroupIds = new Set((table?.active_groups ?? []).map((g) => g.id));
+  const openTabs = (tableOrders ?? []).filter(
+    (o) =>
+      o.status !== "COMPLETED" &&
+      o.status !== "CANCELLED" &&
+      (!o.occupancy_group_id || !activeGroupIds.has(o.occupancy_group_id)),
+  );
   const destinations = (layout?.tables ?? [])
     .filter((t) => t.id !== tableId)
     .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
@@ -275,11 +279,11 @@ export default function TableOpsDialog({
                           variant="ghost"
                           size="icon-sm"
                           className="max-lg:h-9 max-lg:w-9"
-                          title={g.order_id ? "Release party (has open order)" : "Release party"}
+                          title="Release party — order stays open"
                           disabled={releaseMut.isPending}
                           onClick={() => {
                             setReleaseReason("");
-                            setReleaseTarget({ groupId: g.id, needsForce: !!g.order_id });
+                            setReleaseTarget({ groupId: g.id });
                           }}
                         >
                           <Icons.logout className="size-4" />
@@ -301,8 +305,39 @@ export default function TableOpsDialog({
                 </Button>
               </section>
 
+              {openTabs.length > 0 && (
+                <section className="space-y-2">
+                  <p className="text-xs font-medium uppercase text-muted-foreground">
+                    Open tabs · {openTabs.length}
+                  </p>
+                  {openTabs.map((o) => (
+                    <div
+                      key={o.id}
+                      className="flex items-center justify-between rounded-md border border-dashed px-2 py-1.5 text-sm"
+                    >
+                      <span>
+                        {o.order_number}
+                        <span className="ml-2 text-[11px] text-muted-foreground">
+                          {o.items.length} item{o.items.length === 1 ? "" : "s"} · party released
+                        </span>
+                      </span>
+                      {onOpenOrder && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => onOpenOrder(o.id)}
+                        >
+                          Open
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </section>
+              )}
+
               <section className="space-y-2">
-                <p className="text-xs font-medium uppercase text-muted-foreground">Table</p>
+                <p className="text-xs font-medium uppercase text-muted-foreground">Table</p>{" "}
                 <div className="flex flex-wrap gap-1.5">
                   {table.status === "cleaning" && (
                     <Button
@@ -402,21 +437,16 @@ export default function TableOpsDialog({
       <Dialog open={releaseTarget != null} onOpenChange={(o) => !o && setReleaseTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {releaseTarget?.needsForce ? "Force-release party?" : "Release party?"}
-            </DialogTitle>
+            <DialogTitle>Release party?</DialogTitle>
             <DialogDescription>
-              {releaseTarget?.needsForce
-                ? "This party has an open order. Force release frees the seats anyway and records who authorized it — the order locks for edits."
-                : "Free this party's seats. The table goes to cleaning when the last party leaves."}
+              Free this party's seats. Its order (if any) stays open, editable, and payable — the
+              table returns to available at once. Clean before reseating.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">
-              Reason{releaseTarget?.needsForce ? " *" : ""}
-            </Label>
+            <Label className="text-xs text-muted-foreground">Reason</Label>
             <Input
-              placeholder="Walkout, settled at counter…"
+              placeholder="Guests left, settled at counter…"
               value={releaseReason}
               onChange={(e) => setReleaseReason(e.target.value)}
             />
@@ -426,16 +456,12 @@ export default function TableOpsDialog({
               Cancel
             </Button>
             <Button
-              variant={releaseTarget?.needsForce ? "destructive" : "default"}
-              disabled={
-                releaseMut.isPending || (!!releaseTarget?.needsForce && !releaseReason.trim())
-              }
+              disabled={releaseMut.isPending}
               onClick={() =>
                 releaseTarget &&
                 releaseMut.mutate({
                   groupId: releaseTarget.groupId,
                   reason: releaseReason.trim() || "Released from table ops",
-                  force: releaseTarget.needsForce,
                 })
               }
             >

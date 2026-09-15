@@ -5,11 +5,7 @@ import type { ComponentType, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { Badge } from "@pixa/ui/base-ui/badge";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@pixa/ui/base-ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@pixa/ui/base-ui/collapsible";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { formatINR } from "@/lib/money";
@@ -63,18 +59,37 @@ type Ctx = {
 };
 
 /** One-line human rendering per event type. Amounts are paise in metadata. */
-function describe(e: BusinessEvent, ctx: Ctx): { title: string; detail?: string; tone: keyof typeof DOT } {
+function describe(
+  e: BusinessEvent,
+  ctx: Ctx,
+): { title: string; detail?: string; tone: keyof typeof DOT } {
   const m = e.metadata ?? {};
   switch (e.event_type) {
     case "ORDER_CREATED":
-      return { title: `Order created (${m.channel?.replace("_", " ") ?? "order"})`, detail: m.order_number, tone: "info" };
+      return {
+        title: `Order created (${m.channel?.replace("_", " ") ?? "order"})`,
+        detail: m.order_number,
+        tone: "info",
+      };
     case "ORDER_CONFIRMED":
       return { title: "Order confirmed", tone: "info" };
     case "ORDER_SENT_TO_KITCHEN":
-      if (m.reopened_by_fire) return { title: "Reopened — new items fired on a settled order", detail: `${(m.kot_ids ?? []).length} new ticket(s)`, tone: "progress" };
-      return { title: `Fired to kitchen${m.kot_number ? ` as KOT #${m.kot_number}` : ""}`, detail: m.lines != null ? `${m.lines} item(s)` : undefined, tone: "progress" };
+      if (m.reopened_by_fire)
+        return {
+          title: "Reopened — new items fired on a settled order",
+          detail: `${(m.kot_ids ?? []).length} new ticket(s)`,
+          tone: "progress",
+        };
+      return {
+        title: `Fired to kitchen${m.kot_number ? ` as KOT #${m.kot_number}` : ""}`,
+        detail: m.lines != null ? `${m.lines} item(s)` : undefined,
+        tone: "progress",
+      };
     case "ORDER_UPDATED":
-      return { title: `Order updated${e.to_state ? ` → ${e.to_state.toLowerCase().replace("_", " ")}` : ""}`, tone: "muted" };
+      return {
+        title: `Order updated${e.to_state ? ` → ${e.to_state.toLowerCase().replace("_", " ")}` : ""}`,
+        tone: "muted",
+      };
     case "ITEM_ADDED":
       return { title: `Added ${m.qty ?? 1}× ${ctx.orderLineName(m.line_id)}`, tone: "info" };
     case "ITEM_MODIFIED":
@@ -83,11 +98,17 @@ function describe(e: BusinessEvent, ctx: Ctx): { title: string; detail?: string;
       return { title: `Removed ${ctx.orderLineName(m.line_id)}`, tone: "muted" };
     case "KITCHEN_TICKET_UPDATED": {
       const k = m.kot_line_id ? ` · ${ctx.lineName(m.kot_id, m.kot_line_id)}` : "";
-      const move = e.from_state && e.to_state ? `${e.from_state.toLowerCase()} → ${e.to_state.toLowerCase()}` : "updated";
+      const move =
+        e.from_state && e.to_state
+          ? `${e.from_state.toLowerCase()} → ${e.to_state.toLowerCase()}`
+          : "updated";
       return { title: `${ctx.kotNumber(m.kot_id)} ${move}${k}`, tone: "progress" };
     }
     case "KITCHEN_STARTED":
-      return { title: m.kot_id ? `${ctx.kotNumber(m.kot_id)} acknowledged by kitchen` : "Kitchen started", tone: "progress" };
+      return {
+        title: m.kot_id ? `${ctx.kotNumber(m.kot_id)} acknowledged by kitchen` : "Kitchen started",
+        tone: "progress",
+      };
     case "KITCHEN_ITEM_READY":
       return { title: `${ctx.lineName(m.kot_id, m.kot_line_id)} ready`, tone: "success" };
     case "ORDER_READY":
@@ -97,17 +118,35 @@ function describe(e: BusinessEvent, ctx: Ctx): { title: string; detail?: string;
     case "ORDER_COMPLETED":
       return { title: "Order completed", tone: "done" };
     case "ORDER_CANCELLED":
-      return { title: `Order cancelled${e.from_state ? ` (was ${e.from_state.toLowerCase().replace("_", " ")})` : ""}`, detail: e.reason_text, tone: "danger" };
+      return {
+        title: `Order cancelled${e.from_state ? ` (was ${e.from_state.toLowerCase().replace("_", " ")})` : ""}`,
+        detail: e.reason_text,
+        tone: "danger",
+      };
     case "KOT_VOIDED":
       return { title: `${ctx.kotNumber(m.kot_id)} voided`, detail: e.reason_text, tone: "danger" };
     case "KOT_LINE_VOIDED":
-      return { title: `Voided ${m.qty ?? ""}× ${ctx.lineName(m.kot_id, m.kot_line_id)}`.trim(), detail: e.reason_text, tone: "danger" };
+      return {
+        title: `Voided ${m.qty ?? ""}× ${ctx.lineName(m.kot_id, m.kot_line_id)}`.trim(),
+        detail: e.reason_text,
+        tone: "danger",
+      };
     case "KOT_LINE_QTY_ADDED":
-      return { title: `+${m.extra}× ${ctx.lineName(m.kot_id, m.kot_line_id)} (kitchen makes more)`, tone: "info" };
+      return {
+        title: `+${m.extra}× ${ctx.lineName(m.kot_id, m.kot_line_id)} (kitchen makes more)`,
+        tone: "info",
+      };
     case "ORDER_CUSTOMER_LINKED":
       return { title: "Customer linked", tone: "info" };
+    case "ORDER_CUSTOMER_UNLINKED":
+      return { title: "Customer unlinked", detail: e.reason_text, tone: "muted" };
     case "ORDER_DISCOUNTED": {
-      const d = m.percent != null ? `${m.percent}%` : m.amount_paise != null ? formatINR(m.amount_paise) : "";
+      const d =
+        m.percent != null
+          ? `${m.percent}%`
+          : m.amount_paise != null
+            ? formatINR(m.amount_paise)
+            : "";
       return { title: `Discount ${d}`, detail: e.reason_text, tone: "muted" };
     }
     case "ORDER_SPLIT_BUILT":
@@ -128,10 +167,17 @@ function describe(e: BusinessEvent, ctx: Ctx): { title: string; detail?: string;
       ]
         .filter(Boolean)
         .join(" ");
-      return { title: `Paid ${formatINR(m.amount_paise ?? 0)} via ${method} ${extra}`.trim(), tone: "money" };
+      return {
+        title: `Paid ${formatINR(m.amount_paise ?? 0)} via ${method} ${extra}`.trim(),
+        tone: "money",
+      };
     }
     case "REFUND_CREATED":
-      return { title: `Refunded ${formatINR(m.amount_paise ?? 0)}`, detail: e.reason_text, tone: "danger" };
+      return {
+        title: `Refunded ${formatINR(m.amount_paise ?? 0)}`,
+        detail: e.reason_text,
+        tone: "danger",
+      };
     default:
       return { title: e.event_type.toLowerCase().replace(/_/g, " "), tone: "muted" };
   }
@@ -222,7 +268,9 @@ export default function OrderTimeline({ orderId }: { orderId: string }) {
                 />
               }
             >
-              <Icons.chevronRight className={cn("size-4 transition-transform", expanded && "rotate-90")} />
+              <Icons.chevronRight
+                className={cn("size-4 transition-transform", expanded && "rotate-90")}
+              />
             </CollapsibleTrigger>
           </CardTitle>
         </CardHeader>
@@ -274,7 +322,8 @@ export default function OrderTimeline({ orderId }: { orderId: string }) {
                     const k = kotById.get(n.kotId);
                     const isOpen = openKots.has(n.kotId);
                     const ready =
-                      k?.lines.filter((l) => l.status === "READY" || l.status === "SERVED").length ?? 0;
+                      k?.lines.filter((l) => l.status === "READY" || l.status === "SERVED")
+                        .length ?? 0;
                     const total =
                       k?.lines.filter((l) => l.qty - l.voided_qty > 0).length ?? events.length;
                     const tone = k ? kotTone(k.status) : "muted";
@@ -285,7 +334,10 @@ export default function OrderTimeline({ orderId }: { orderId: string }) {
                       title: ctx.kotNumber(n.kotId),
                       meta: `${ready}/${total} ready · ${events.length} event${events.length === 1 ? "" : "s"}`,
                       badge: k ? (
-                        <Badge variant="outline" className={cn("shrink-0 text-[10px]", KOT_BADGE[k.status])}>
+                        <Badge
+                          variant="outline"
+                          className={cn("shrink-0 text-[10px]", KOT_BADGE[k.status])}
+                        >
                           {k.status.toLowerCase()}
                         </Badge>
                       ) : undefined,
@@ -379,7 +431,10 @@ function TimelineRow({
         <span className="block truncate text-sm font-medium">{title}</span>
         {chevron !== undefined && (
           <Icons.chevronRight
-            className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", chevron && "rotate-90")}
+            className={cn(
+              "size-3.5 shrink-0 text-muted-foreground transition-transform",
+              chevron && "rotate-90",
+            )}
           />
         )}
       </span>

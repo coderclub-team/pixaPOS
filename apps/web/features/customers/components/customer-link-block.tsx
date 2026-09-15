@@ -4,15 +4,20 @@ import Link from "next/link";
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@pixa/ui/base-ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@pixa/ui/base-ui/dialog";
 import { Input } from "@pixa/ui/base-ui/input";
 import { Label } from "@pixa/ui/base-ui/label";
+import { Icons } from "@pixa/ui/icons";
 import { orderKeys, orderQueryOptions } from "@/features/orders/api/queries";
 import { eventKeys } from "@/features/events/api/queries";
-import { linkCustomer } from "@/features/orders/api/service";
-import {
-  createCustomer,
-  findCustomerByPhone,
-} from "@/features/customers/api/service";
+import { linkCustomer, unlinkCustomer } from "@/features/orders/api/service";
+import { createCustomer, findCustomerByPhone } from "@/features/customers/api/service";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 
@@ -27,6 +32,8 @@ export default function CustomerLinkBlock({ orderId }: { orderId: string }) {
   const [looking, setLooking] = useState(false);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
+  const [unlinkOpen, setUnlinkOpen] = useState(false);
+  const [unlinkReason, setUnlinkReason] = useState("");
 
   const invalidate = () => {
     getQueryClient().invalidateQueries({ queryKey: orderKeys.detail(orderId) });
@@ -43,6 +50,17 @@ export default function CustomerLinkBlock({ orderId }: { orderId: string }) {
       setName("");
       setLooking(false);
       setCreating(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const unlinkMut = useMutation({
+    mutationFn: (reason: string) => unlinkCustomer(orderId, { reason: reason || undefined }),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Customer unlinked — link the correct one below");
+      setUnlinkOpen(false);
+      setUnlinkReason("");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -79,17 +97,67 @@ export default function CustomerLinkBlock({ orderId }: { orderId: string }) {
   if (!order) return null;
 
   if (order.customer_id) {
+    const terminal = order.status === "COMPLETED" || order.status === "CANCELLED";
     return (
-      <div className="flex items-center justify-between">
-        <span className="text-muted-foreground">Customer</span>
-        <Link
-          href={`/dashboard/customers/${order.customer_id}`}
-          className="font-medium underline-offset-4 hover:underline"
-        >
-          {order.customer_name}
-          {order.customer_phone ? ` · ${order.customer_phone}` : ""}
-        </Link>
-      </div>
+      <>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">Customer</span>
+          <span className="flex min-w-0 items-center gap-1">
+            <Link
+              href={`/dashboard/customers/${order.customer_id}`}
+              className="truncate font-medium underline-offset-4 hover:underline"
+            >
+              {order.customer_name}
+              {order.customer_phone ? ` · ${order.customer_phone}` : ""}
+            </Link>
+            {!terminal && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="shrink-0"
+                title="Unlink customer (wrong entry)"
+                onClick={() => {
+                  setUnlinkReason("");
+                  setUnlinkOpen(true);
+                }}
+              >
+                <Icons.close className="size-3.5" />
+              </Button>
+            )}
+          </span>
+        </div>
+        <Dialog open={unlinkOpen} onOpenChange={setUnlinkOpen}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Unlink {order.customer_name}?</DialogTitle>
+              <DialogDescription>
+                The customer record stays untouched — only this order is unlinked. You can link the
+                correct customer right after.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Reason (optional)</Label>
+              <Input
+                placeholder="Wrong number entered…"
+                value={unlinkReason}
+                onChange={(e) => setUnlinkReason(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setUnlinkOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={unlinkMut.isPending}
+                onClick={() => unlinkMut.mutate(unlinkReason.trim())}
+              >
+                Unlink
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 

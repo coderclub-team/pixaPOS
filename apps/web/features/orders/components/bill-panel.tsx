@@ -549,19 +549,26 @@ export default function OrderBillPanel({
   return (
     <Card className={fill ? "flex h-full min-h-0 flex-col" : undefined}>
       <CardHeader className="pb-2">
-        <CardTitle className="flex items-center justify-between text-lg">
-          <span>{title ?? "Bill"}</span>
-          <Badge variant="outline" className={cn("gap-1", stamp.className)}>
-            <div
-              className={cn(
-                "h-2 w-2 rounded-full",
-                order.payment_status === "PAID" && "bg-green-500",
-                order.payment_status === "PARTIAL" && "bg-amber-500",
-                order.payment_status === "UNPAID" && "bg-slate-400",
-              )}
-            />
-            {stamp.label}
-          </Badge>
+        <CardTitle className="flex items-center justify-between gap-2 text-lg">
+          <span className="min-w-0 truncate">{title ?? "Bill"}</span>
+          <span className="flex shrink-0 items-center gap-1.5">
+            {onAddItems && !isTerminal && (
+              <Button size="sm" onClick={onAddItems} title="Add items — fires straight to kitchen">
+                <Icons.add className="mr-1 size-4" /> Add items
+              </Button>
+            )}
+            <Badge variant="outline" className={cn("gap-1", stamp.className)}>
+              <div
+                className={cn(
+                  "h-2 w-2 rounded-full",
+                  order.payment_status === "PAID" && "bg-green-500",
+                  order.payment_status === "PARTIAL" && "bg-amber-500",
+                  order.payment_status === "UNPAID" && "bg-slate-400",
+                )}
+              />
+              {stamp.label}
+            </Badge>
+          </span>
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           {order.order_number} · {order.items.length} item{order.items.length === 1 ? "" : "s"}
@@ -661,12 +668,6 @@ export default function OrderBillPanel({
               </div>
             ))}
           </div>
-        )}
-
-        {onAddItems && (
-          <Button variant="outline" className="w-full" onClick={onAddItems}>
-            <Icons.add className="mr-2 size-4" /> Add items
-          </Button>
         )}
 
         {showCancel && <CancelOrderBlock orderId={orderId} />}

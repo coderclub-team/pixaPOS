@@ -862,6 +862,56 @@ export async function linkCustomer(orderId: string, customerId: string): Promise
 }
 
 /**
+ * Unlink a customer record from an order (wrong entry by staff — unlink and
+ * link again). Clears the snapshot; the customer record itself is untouched.
+ * Blocked on terminal states. Audited with the previous customer in metadata.
+ */
+export async function unlinkCustomer(
+  orderId: string,
+  params?: { reason?: string; by?: string },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(300);
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (order.status === "COMPLETED" || order.status === "CANCELLED") {
+      throw new Error(`Cannot unlink a customer from a ${order.status.toLowerCase()} order`);
+    }
+    if (!order.customer_id && !order.customer_name && !order.customer_phone) {
+      throw new Error("Order has no linked customer");
+    }
+    const prev = {
+      customer_id: order.customer_id,
+      customer_name: order.customer_name,
+      customer_phone: order.customer_phone,
+    };
+    mockOrders[idx] = {
+      ...order,
+      customer_id: undefined,
+      customer_name: undefined,
+      customer_phone: undefined,
+      updated_at: new Date().toISOString(),
+      version: order.version + 1,
+    };
+    saveOrders();
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: order.id,
+      event_type: "ORDER_CUSTOMER_UNLINKED",
+      actor_id: params?.by ?? "staff",
+      reason_text: params?.reason,
+      metadata: { prev },
+    });
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
+/**
  * Bill-level discount (percent or flat paise, pre-tax). Editable in any
  * non-terminal state — paid/balance re-derive from the ledger. If a discount
  * drops the grand below paid, the balance clamps at 0 and the difference is
