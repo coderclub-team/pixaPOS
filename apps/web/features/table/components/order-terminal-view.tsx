@@ -266,13 +266,13 @@ export default function OrderTerminalPage() {
               // Mobile: bottom sheet sliding up from the screen edge.
               "fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] rounded-t-2xl border-t bg-background shadow-2xl",
               // Desktop: docked side panel sliding in from the right.
-              "lg:static lg:z-auto lg:max-h-none lg:min-h-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:shadow-none lg:w-[420px]",
+              "lg:static lg:z-auto lg:max-h-none lg:min-h-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:shadow-none lg:w-[480px]",
               panelOpen
                 ? "translate-y-0 opacity-100 lg:translate-x-0"
                 : "pointer-events-none translate-y-full opacity-0 lg:translate-x-8 lg:translate-y-0 lg:w-0",
             )}
           >
-            <div className="max-h-[85dvh] overflow-y-auto lg:h-full lg:max-h-none lg:w-[420px] lg:overflow-visible">
+            <div className="max-h-[85dvh] overflow-y-auto lg:h-full lg:max-h-none lg:w-[480px] lg:overflow-visible">
               {/* Mobile sheet grab handle + close */}
               <div className="sticky top-0 z-10 flex items-center justify-center bg-background/95 pt-2 pb-1 backdrop-blur-sm lg:hidden">
                 <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
