@@ -1,6 +1,14 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+# Always install native bindings for every dev platform (not just the
+# installing machine's arch). node_modules was once installed under Rosetta
+# x64, which left Apple-Silicon dev servers missing darwin-arm64 bindings
+# (lightningcss, oxlint, esbuild) and broke `next dev` / lint outright.
+# Disk cost is modest; mixed-arch contributors stay working.
+supportedArchitectures:
+  os: [darwin, linux]
+  cpu: [arm64, x64]
 overrides:
   next: 16.2.12
   react: 19.2.4
