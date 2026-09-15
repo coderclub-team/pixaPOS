@@ -31,6 +31,7 @@ import { tableQueryOptions } from "@/features/table/api/queries";
 import CustomerLinkBlock from "@/features/customers/components/customer-link-block";
 import TableStrip from "@/features/table/components/table-strip";
 import TableOpsDialog from "@/features/table/components/table-ops-dialog";
+import CheckoutDialog from "./checkout-dialog";
 import {
   paymentsByOrderQueryOptions,
   paymentKeys,
@@ -469,6 +470,7 @@ export default function OrderBillPanel({
   showTender = true,
   showPayments = true,
   fit = "natural",
+  onCompleted,
 }: {
   orderId: string;
   title?: string;
@@ -480,6 +482,7 @@ export default function OrderBillPanel({
   showTender?: boolean;
   showPayments?: boolean;
   fit?: "natural" | "fill";
+  onCompleted?: (orderId: string) => void;
 }) {
   const queryClient = useQueryClient();
   const { data: order } = useQuery(orderQueryOptions(orderId));
@@ -495,6 +498,14 @@ export default function OrderBillPanel({
   const [splitMode, setSplitMode] = useState<"none" | "equal" | "itemwise" | "custom">("none");
   const [activePartition, setActivePartition] = useState<string | null>(null);
   const [opsOpen, setOpsOpen] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const tenderAnchorId = `bill-tender-${orderId}`;
+  const focusTender = () => {
+    const el = document.getElementById(tenderAnchorId);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const input = el?.querySelector<HTMLInputElement>('input[type="number"], input');
+    if (input) window.setTimeout(() => input.focus({ preventScroll: true }), 350);
+  };
   const fireMut = useMutation({
     mutationFn: () => fireKOT(orderId),
     onSuccess: (kot) => {
@@ -604,11 +615,14 @@ export default function OrderBillPanel({
 
         {showCustomer && <CustomerLinkBlock orderId={orderId} />}
 
-        <div className="space-y-1">
-          <p className="text-xs font-medium uppercase text-muted-foreground">Kitchen tickets</p>
+        <section aria-label="Kitchen tickets" className="space-y-2 rounded-xl border p-3">
+          <p className="flex items-center justify-between text-xs font-medium uppercase text-muted-foreground">
+            <span>Kitchen tickets</span>
+            {(kots ?? []).length > 0 && <span>{(kots ?? []).length}</span>}
+          </p>
           <KOTAccordion kots={kots ?? []} orderId={orderId} editable />
           <div data-kot-list-bottom />
-        </div>
+        </section>
 
         <CancelledItemsList kots={kots ?? []} />
 
@@ -661,30 +675,57 @@ export default function OrderBillPanel({
           />
         )}
 
-        {showTender && dueAmount > 0 && (
-          <TenderPad orderId={orderId} duePaise={dueAmount} partitionLabel={activePartition} />
-        )}
+        <section aria-label="Payment" className="space-y-2 rounded-xl border p-3">
+          <p className="flex items-center justify-between text-xs font-medium uppercase text-muted-foreground">
+            <span>Payment</span>
+            {!isTerminal && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs uppercase"
+                onClick={() => setCheckoutOpen(true)}
+                title="Review the bill, collect balance, or complete the order"
+              >
+                Checkout
+              </Button>
+            )}
+          </p>
+          {showTender && dueAmount > 0 && (
+            <div id={tenderAnchorId} className="scroll-mt-20">
+              <TenderPad orderId={orderId} duePaise={dueAmount} partitionLabel={activePartition} />
+            </div>
+          )}
 
-        {showPayments && paidList.length > 0 && (
-          <div className="space-y-1">
-            <p className="text-xs font-medium uppercase text-muted-foreground">Payments</p>
-            {paidList.map((p: Payment) => (
-              <div key={p.id} className="flex justify-between rounded-md border px-2 py-1 text-xs">
-                <span className="capitalize">
-                  {p.method.replace("_", " ")}
-                  {p.partition_label ? ` · ${p.partition_label}` : ""}
-                  {p.change_paise ? ` · change ${formatINR(p.change_paise)}` : ""}
-                </span>
-                <span className="font-medium">{formatINR(p.amount_paise)}</span>
-              </div>
-            ))}
-          </div>
-        )}
+          {showPayments && paidList.length > 0 && (
+            <div className="space-y-1">
+              {paidList.map((p: Payment) => (
+                <div
+                  key={p.id}
+                  className="flex justify-between rounded-md border px-2 py-1 text-xs"
+                >
+                  <span className="capitalize">
+                    {p.method.replace("_", " ")}
+                    {p.partition_label ? ` · ${p.partition_label}` : ""}
+                    {p.change_paise ? ` · change ${formatINR(p.change_paise)}` : ""}
+                  </span>
+                  <span className="font-medium">{formatINR(p.amount_paise)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
 
         {showCancel && <CancelOrderBlock orderId={orderId} />}
       </CardContent>
 
       <DiscountDialog orderId={orderId} open={discountOpen} onOpenChange={setDiscountOpen} />
+      <CheckoutDialog
+        orderId={orderId}
+        open={checkoutOpen}
+        onOpenChange={setCheckoutOpen}
+        onCollect={focusTender}
+        onCompleted={onCompleted}
+      />
     </Card>
   );
 }
