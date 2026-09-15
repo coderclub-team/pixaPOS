@@ -149,10 +149,16 @@ export default function OrderTerminalPage() {
     ...ordersQueryOptions({ table_id: activeTableId ?? "" }),
     enabled: !!activeTableId,
   });
+  const liveOrders = (tableOrders ?? []).filter(
+    (o) => o.status !== "COMPLETED" && o.status !== "CANCELLED",
+  );
   const liveOrderByGroup = new Map(
-    (tableOrders ?? [])
-      .filter((o) => o.status !== "COMPLETED" && o.status !== "CANCELLED" && o.occupancy_group_id)
-      .map((o) => [o.occupancy_group_id as string, o]),
+    liveOrders.filter((o) => o.occupancy_group_id).map((o) => [o.occupancy_group_id as string, o]),
+  );
+  const groupIds = new Set(groups.map((g) => g.id));
+  // Detached open tabs: live orders whose party is gone — still payable.
+  const openTabs = liveOrders.filter(
+    (o) => !o.occupancy_group_id || !groupIds.has(o.occupancy_group_id),
   );
 
   /** Tap a party chip: focus that party's bill. Never creates an order. */
@@ -168,6 +174,14 @@ export default function OrderTerminalPage() {
     }
     setActiveGroupId(groupId);
     setActiveOrderId(liveOrderByGroup.get(groupId)?.id ?? null);
+    setPanelOpen(true);
+  };
+
+  /** Tap a detached open tab: focus its bill without any party. */
+  const handleSelectTab = (orderId: string) => {
+    if (ensureMut.isPending || ensureGroupMut.isPending) return;
+    setActiveGroupId(null);
+    setActiveOrderId(orderId);
     setPanelOpen(true);
   };
 
@@ -273,67 +287,86 @@ export default function OrderTerminalPage() {
               </div>
               {/* Party strip: one tap-target per seated party + seat-new-party.
                   Shows whenever the table has parties or accepts sharing. */}
-              {activeTableDerived && (groups.length > 0 || activeTableDerived.allows_sharing) && (
-                <div className="flex items-center gap-2 overflow-x-auto border-b bg-background/95 px-3 py-2 backdrop-blur-sm">
-                  <Icons.party className="size-4 shrink-0 text-muted-foreground" />
-                  {groups.map((g, i) => {
-                    const live = liveOrderByGroup.has(g.id);
-                    const focused = g.id === activeGroupId;
-                    return (
+              {activeTableDerived &&
+                (groups.length > 0 || openTabs.length > 0 || activeTableDerived.allows_sharing) && (
+                  <div className="flex items-center gap-2 overflow-x-auto border-b bg-background/95 px-3 py-2 backdrop-blur-sm">
+                    <Icons.party className="size-4 shrink-0 text-muted-foreground" />
+                    {groups.map((g, i) => {
+                      const live = liveOrderByGroup.has(g.id);
+                      const focused = g.id === activeGroupId;
+                      return (
+                        <button
+                          key={g.id}
+                          type="button"
+                          onClick={() => activeTableId && handleSelectParty(activeTableId, g.id)}
+                          aria-label={`Party ${g.label ?? "?"}, ${g.seats} guests${live ? ", order open" : ""}`}
+                          title={`Party ${g.label ?? "?"} — tap to focus${live ? "" : " · no order yet"}`}
+                          className={cn(
+                            "flex shrink-0 items-center gap-1.5 rounded-full border py-1 pr-2.5 pl-1 text-xs font-medium transition-colors",
+                            focused
+                              ? "border-primary bg-primary/10 text-foreground"
+                              : "border-border text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          <span
+                            className="flex size-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                            style={{ backgroundColor: partyHex(g.color_index ?? i) }}
+                          >
+                            {g.label ?? "?"}
+                          </span>
+                          {g.seats}
+                          <span
+                            className={cn(
+                              "size-1.5 rounded-full",
+                              live ? "bg-emerald-500" : "bg-zinc-300 dark:bg-zinc-600",
+                            )}
+                            title={live ? "Order open" : "No order yet"}
+                          />
+                        </button>
+                      );
+                    })}
+                    {openTabs.map((o) => (
                       <button
-                        key={g.id}
+                        key={o.id}
                         type="button"
-                        onClick={() => activeTableId && handleSelectParty(activeTableId, g.id)}
-                        aria-label={`Party ${g.label ?? "?"}, ${g.seats} guests${live ? ", order open" : ""}`}
-                        title={`Party ${g.label ?? "?"} — tap to focus${live ? "" : " · no order yet"}`}
+                        onClick={() => handleSelectTab(o.id)}
+                        aria-label={`Open tab ${o.order_number}, party released`}
+                        title={`${o.order_number} — party released, still payable`}
                         className={cn(
-                          "flex shrink-0 items-center gap-1.5 rounded-full border py-1 pr-2.5 pl-1 text-xs font-medium transition-colors",
-                          focused
+                          "flex shrink-0 items-center gap-1.5 rounded-full border border-dashed py-1 px-2.5 text-xs font-medium transition-colors",
+                          o.id === activeOrderId && !activeGroupId
                             ? "border-primary bg-primary/10 text-foreground"
                             : "border-border text-muted-foreground hover:text-foreground",
                         )}
                       >
-                        <span
-                          className="flex size-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                          style={{ backgroundColor: partyHex(g.color_index ?? i) }}
+                        <Icons.orders className="size-3.5" />
+                        {o.order_number}
+                      </button>
+                    ))}
+                    {(() => {
+                      const free =
+                        activeTableDerived.capacity - (activeTableDerived.seated_seats ?? 0);
+                      return free > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSeatCount(Math.min(2, free));
+                            setSeatOpen(true);
+                          }}
+                          aria-label={`Seat a new party, ${free} seats free`}
+                          title={`Seat a new party (${free} free)`}
+                          className="flex shrink-0 items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
                         >
-                          {g.label ?? "?"}
-                        </span>
-                        {g.seats}
-                        <span
-                          className={cn(
-                            "size-1.5 rounded-full",
-                            live ? "bg-emerald-500" : "bg-zinc-300 dark:bg-zinc-600",
-                          )}
-                          title={live ? "Order open" : "No order yet"}
-                        />
-                      </button>
-                    );
-                  })}
-                  {(() => {
-                    const free =
-                      activeTableDerived.capacity - (activeTableDerived.seated_seats ?? 0);
-                    return free > 0 ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSeatCount(Math.min(2, free));
-                          setSeatOpen(true);
-                        }}
-                        aria-label={`Seat a new party, ${free} seats free`}
-                        title={`Seat a new party (${free} free)`}
-                        className="flex shrink-0 items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-                      >
-                        <Icons.add className="size-3.5" /> Party
-                      </button>
-                    ) : null;
-                  })()}
-                </div>
-              )}
+                          <Icons.add className="size-3.5" /> Party
+                        </button>
+                      ) : null;
+                    })()}
+                  </div>
+                )}
               {activeOrderId && activeTable ? (
                 <OrderBillPanel
                   orderId={activeOrderId}
-                  title={`Bill — Table ${activeTable.number}${activeGroup ? ` · Party ${activeGroup.label ?? "?"}` : ""}`}
+                  title={`Bill — Table ${activeTable.number}${activeGroup ? ` · Party ${activeGroup.label ?? "?"}` : openTabs.some((o) => o.id === activeOrderId) ? " · open tab" : ""}`}
                   showSeating
                   showCustomer
                   onAddItems={() => setPickerOpen(true)}

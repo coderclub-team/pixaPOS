@@ -103,7 +103,7 @@ immutable once fired) — adds are allowed in any non-terminal order state, so
 an order with fired KOTs simply grows another ticket; voids are deletion
 records on the ticket with mandatory reason, never hard deletes. Bill
 discounts are editable until COMPLETED/CANCELLED (paid/balance re-derive). Dine-in orders attach to occupancy via
-`attachOrder`; release guards protect open orders. Detail pages fetch
+`attachOrder`; releasing a party detaches its open order (settles independently). Detail pages fetch
 client-side (localStorage-backed mocks — server prefetch would 404 new rows).
 
 Reception capture (ADR-0006): `/dashboard/order-terminal` shows the operations
@@ -116,9 +116,10 @@ Terminal gestures: single-press selects and slides the bill panel in (tap the
 selected table or floor background to deselect and slide out); 500 ms
 long-press jumps straight to item picking. The picker stays open for rapid
 multi-add with a fire footer; added items fly to the KOT list (CSS FLIP, no
-library). Release-locks-order: a dine-in order is editable (adds, qty, voids,
-discount) only while its table has active occupancy — releasing the last group
-emits `ORDER_LOCKED`; payments and refunds stay open.
+library). Occupancy independence (ADR-0014): releasing a party frees its seats
+and returns the table to available at once — its order and KOTs stay open,
+editable, and payable until payment + fulfillment complete them; detached bills
+surface as open tabs. `ORDER_LOCKED` is history-only.
 
 Shared-table parties (ADR-0013): a table with `allows_sharing` seats several
 parties, each an `OccupancyGroup` with auto label (A, B, C…) and palette

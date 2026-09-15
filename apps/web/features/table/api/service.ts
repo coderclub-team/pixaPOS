@@ -693,14 +693,11 @@ export async function releaseOccupancy(params: {
     const ctx = ctxOf({ ...params.ctx, actor_id: params.released_by ?? params.ctx?.actor_id });
     assertOutlet(group.outlet_id, ctx, "Occupancy group");
 
-    // Unpaid-order guard: normal release requires no open order pointer.
-    // Force path records who/why explicitly (OCCUPANCY_FORCE_RELEASED).
+    // Release frees seats — the order (if any) lives on independently:
+    // items, discounts, KOTs, splits and payments never check occupancy.
+    // The group keeps its order pointer for history; the order stays linked
+    // by table_id. Force is folded in (compat alias below) — one path.
     const forced = !!params.force;
-    if (group.order_id && !forced) {
-      throw new Error(
-        "Group has an open order. Settle, transfer, or cancel it first — or force-release with a reason.",
-      );
-    }
 
     const now = new Date().toISOString();
     mockGroups[idx] = {
@@ -725,22 +722,12 @@ export async function releaseOccupancy(params: {
     if (activeOnTable.length === 0) {
       const tableIdx = mockTables.findIndex((t) => t.id === group.table_id);
       if (tableIdx !== -1 && mockTables[tableIdx].status === "occupied") {
-        await transitionTable(tableIdx, "cleaning", {
+        // Order still open → straight back to available so the table reseats
+        // at once (order settles independently). Otherwise normal hygiene path.
+        const to = group.order_id ? "available" : "cleaning";
+        await transitionTable(tableIdx, to, {
           actor_id: params.released_by,
-          event_type: "TABLE_CLEANING_STARTED",
-        });
-      }
-      // Last group gone with an order attached → the order locks for edits
-      // (payments/refunds stay open). Emitted once per release.
-      if (group.order_id) {
-        await recordEvent({
-          outlet_id: group.outlet_id,
-          entity_type: "ORDER",
-          entity_id: group.order_id,
-          event_type: "ORDER_LOCKED",
-          actor_id: ctx.actor_id,
-          reason_text: params.reason,
-          metadata: { table_id: group.table_id },
+          event_type: to === "available" ? "TABLE_UPDATED" : "TABLE_CLEANING_STARTED",
         });
       }
     }
@@ -756,7 +743,7 @@ export async function releaseOccupancy(params: {
       to_state: "RELEASED",
       actor_id: ctx.actor_id,
       reason_text: params.reason,
-      metadata: forced ? { order_id: group.order_id } : undefined,
+      metadata: group.order_id ? { order_id: group.order_id } : undefined,
     });
   } finally {
     release();

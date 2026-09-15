@@ -4,7 +4,6 @@ import { recordWasteForCancelledOrder } from "@/features/inventory/api/service";
 import { entityMutex } from "@/lib/mutex";
 import {
   addOrderItem,
-  assertTableOccupied,
   getOrderById,
   markLinesFired,
   refreshOrderKitchenState,
@@ -496,7 +495,7 @@ export async function voidKOT(
     if (t.status === "SERVED") throw new Error("A served KOT cannot be voided");
     if (t.status === "CANCELLED") return;
     const orderForLock = await getOrderById(t.order_id);
-    if (orderForLock) await assertTableOccupied(orderForLock);
+
     const now = new Date().toISOString();
     const activeLines = t.lines.filter((l) => l.status !== "VOIDED");
     const consumed = activeLines.filter((l) => l.status === "PREPARING" || l.status === "READY");
@@ -560,7 +559,7 @@ export async function voidKOTLine(
     if (line.status === "VOIDED") return;
     if (line.status === "SERVED") throw new Error("A served line cannot be voided");
     const orderForLock = await getOrderById(t.order_id);
-    if (orderForLock) await assertTableOccupied(orderForLock);
+
     const qty = params.qty ?? line.qty - line.voided_qty;
     const remaining = line.qty - line.voided_qty;
     if (!Number.isInteger(qty) || qty < 1 || qty > remaining) {
@@ -672,7 +671,7 @@ export async function increaseKOTLineQty(
       throw new Error("Extra qty must be between 1 and 50");
     }
     const orderForLock = await getOrderById(t.order_id);
-    if (orderForLock) await assertTableOccupied(orderForLock);
+
     await setOrderLineQty(t.order_id, line.order_line_id, line.qty + params.extra);
     const lines = [...t.lines];
     lines[li] = { ...line, qty: line.qty + params.extra };
