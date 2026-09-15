@@ -208,11 +208,6 @@ export default function BillingView({
                 </p>
               )}
             </div>
-            {showSubscribe && (
-              <Button size="sm" onClick={subscribe} disabled={paying}>
-                {paying ? "Opening…" : "Subscribe"}
-              </Button>
-            )}
           </CardContent>
         </Card>
       )}
