@@ -72,6 +72,7 @@ import {
   IconRosetteDiscountCheck,
   IconSearch,
   IconReceipt,
+  IconReceiptRefund,
   IconRefresh,
   IconChefHat,
   IconSelector,
@@ -231,6 +232,7 @@ export const Icons = {
 
   // Misc
   orders: IconReceipt,
+  refund: IconReceiptRefund,
   refresh: IconRefresh,
   kitchen: IconChefHat,
   pizza: IconPizza,
