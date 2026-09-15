@@ -54,7 +54,9 @@ export default function PaymentsCard({
   }
 
   const paidList = (payments ?? []).filter((p) => p.status === "PAID");
-  const refundedTotal = (refunds ?? []).reduce((s, r) => s + r.amount_paise, 0);
+  const refundedTotal = (refunds ?? [])
+    .filter((r) => r.status === "REFUNDED")
+    .reduce((s, r) => s + r.amount_paise, 0);
   const paidTotal = paidList.reduce((s, p) => s + p.amount_paise, 0) - refundedTotal;
   const balance = Math.max(0, order.grand_total_paise - paidTotal);
   const partitions = order.split?.partitions ?? [];

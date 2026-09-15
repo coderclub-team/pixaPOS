@@ -71,7 +71,9 @@ export default function CheckoutDialog({
   });
 
   const paidList = (payments ?? []).filter((p) => p.status === "PAID");
-  const refunded = (refunds ?? []).reduce((s, r) => s + r.amount_paise, 0);
+  const refunded = (refunds ?? [])
+    .filter((r) => r.status === "REFUNDED")
+    .reduce((s, r) => s + r.amount_paise, 0);
   const paid = paidList.reduce((s, p) => s + p.amount_paise, 0) - refunded;
   const grand = order?.grand_total_paise ?? 0;
   const balance = Math.max(0, grand - paid);
