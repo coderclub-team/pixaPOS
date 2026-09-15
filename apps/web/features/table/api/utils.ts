@@ -6,7 +6,9 @@ import { TableStatus, OccupancyGroup, TableBlock, ReservationHold, RestaurantTab
  */
 export const TABLE_TRANSITIONS: Record<TableStatus, TableStatus[]> = {
   available: ["occupied", "reserved", "out_of_service"],
-  occupied: ["cleaning", "out_of_service"],
+  // occupied → available is the release-with-open-order edge only (order and
+  // KOTs live on independently). Direct writes stay rejected in setTableStatus.
+  occupied: ["cleaning", "out_of_service", "available"],
   cleaning: ["available", "out_of_service"],
   reserved: ["occupied", "available", "out_of_service"],
   out_of_service: ["available"],
