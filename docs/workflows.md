@@ -129,6 +129,13 @@ and the picker opens for that party). One live order per party; add-ons fire
 extra KOTs onto the same order. The bill panel shows a party strip to switch
 parties and seat new ones; no state machine changes.
 
+Item-wise returns (ADR-0016): served wrong/cold items return via `createReturn`
+(SERVED/COMPLETED only, mandatory reason) — the qty voids off the KOT, wastes
+via the cancelled-order path, leaves the bill pro-rata, and refunds to the
+original payment methods (largest-first, per-payment caps; cash settles
+instantly, gateway payments pend for the Razorpay phase). Returns are distinct
+from pre-service voids and whole-order cancels.
+
 ## 6. Product workflow
 
 ```text

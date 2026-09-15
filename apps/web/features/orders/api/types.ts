@@ -1,10 +1,4 @@
-export type OrderChannel =
-  | "dine_in"
-  | "takeaway"
-  | "delivery"
-  | "zomato"
-  | "swiggy"
-  | "own_online";
+export type OrderChannel = "dine_in" | "takeaway" | "delivery" | "zomato" | "swiggy" | "own_online";
 
 export type OrderStatus =
   | "DRAFT"
@@ -31,9 +25,29 @@ export type OrderItemSnapshot = {
   line_total_paise: number;
   line_tax_paise: number;
   instructions?: string;
+  /** Qty returned post-sale via createReturn. Excluded from bill totals. */
+  returned_qty?: number;
   /** Set when this draft line is fired to the kitchen. */
   kot_id?: string;
   kot_line_id?: string;
+};
+
+export type OrderReturnLine = {
+  order_line_id: string;
+  qty: number;
+  amount_paise: number;
+};
+
+/** Item-wise return: voided-off lines + bill adjustment + same-method refunds. */
+export type OrderReturn = {
+  id: string;
+  order_id: string;
+  outlet_id: string;
+  lines: OrderReturnLine[];
+  total_paise: number;
+  reason: string;
+  created_by?: string;
+  created_at: string;
 };
 
 export type RestaurantOrder = {

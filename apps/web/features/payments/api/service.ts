@@ -2,12 +2,7 @@ import { delay } from "@/constants/mock-api";
 import { recordEvent } from "@/features/events/api/service";
 import { entityMutex } from "@/lib/mutex";
 import { getOrderById } from "@/features/orders/api/service";
-import type {
-  Payment,
-  PaymentFilters,
-  PaymentMethod,
-  Refund,
-} from "./types";
+import type { Payment, PaymentFilters, PaymentMethod, Refund } from "./types";
 
 const PAYMENT_STORAGE_KEY = "pixaPayments";
 
@@ -93,9 +88,7 @@ export async function collectPayment(params: {
       throw new Error("Amount must be a positive paise integer");
     }
     if (params.amount_paise > billing.balance_paise) {
-      throw new Error(
-        `Amount exceeds the balance of ${billing.balance_paise} paise`,
-      );
+      throw new Error(`Amount exceeds the balance of ${billing.balance_paise} paise`);
     }
 
     let change = 0;
@@ -155,6 +148,17 @@ export async function recordRefund(params: {
   amount_paise: number;
   reason: string;
   by?: string;
+  /** Item linkage for item-wise returns. */
+  order_line_id?: string;
+  qty?: number;
+  return_id?: string;
+  /**
+   * Gateway handoff (phase 2): when the payment carries a gateway_payment_id,
+   * the refund is created REFUND_PENDING (visible, never silent) until the
+   * Razorpay refund API + webhook reconcile it. Cash/manual refunds settle
+   * instantly as REFUNDED.
+   */
+  gateway_payment_id?: string;
 }): Promise<Refund> {
   loadPayments(); // shared source may have moved in another tab
   const payment = mockPayments.find((p) => p.id === params.payment_id);
@@ -164,15 +168,16 @@ export async function recordRefund(params: {
     await delay(300);
     if (payment.status !== "PAID") throw new Error("Only paid payments can be refunded");
     if (!params.reason?.trim()) throw new Error("A reason is required for a refund");
-    const already = mockRefunds
-      .filter((r) => r.payment_id === payment.id && r.status === "REFUNDED")
+    const reserved = mockRefunds
+      .filter((r) => r.payment_id === payment.id && r.status !== "REFUND_FAILED")
       .reduce((s, r) => s + r.amount_paise, 0);
     if (!Number.isInteger(params.amount_paise) || params.amount_paise < 1) {
       throw new Error("Refund amount must be a positive paise integer");
     }
-    if (already + params.amount_paise > payment.amount_paise) {
+    if (reserved + params.amount_paise > payment.amount_paise) {
       throw new Error("Refund exceeds the payment amount");
     }
+    const gatewayId = params.gateway_payment_id ?? payment.gateway_payment_id;
     const now = new Date().toISOString();
     const refund: Refund = {
       id: `ref_${Date.now().toString(36)}`,
@@ -181,9 +186,14 @@ export async function recordRefund(params: {
       outlet_id: payment.outlet_id,
       amount_paise: params.amount_paise,
       reason: params.reason.trim(),
-      status: "REFUNDED",
+      status: gatewayId ? "REFUND_PENDING" : "REFUNDED",
       created_by: params.by ?? "staff",
       created_at: now,
+      order_line_id: params.order_line_id,
+      qty: params.qty,
+      return_id: params.return_id,
+      gateway_payment_id: gatewayId,
+      gateway_status: gatewayId ? "PENDING" : undefined,
     };
     mockRefunds.push(refund);
     savePayments();
@@ -198,12 +208,90 @@ export async function recordRefund(params: {
       event_type: "REFUND_CREATED",
       actor_id: refund.created_by,
       reason_text: refund.reason,
-      metadata: { order_id: payment.order_id, amount_paise: refund.amount_paise },
+      metadata: {
+        order_id: payment.order_id,
+        amount_paise: refund.amount_paise,
+        return_id: refund.return_id,
+        gateway_status: refund.gateway_status,
+      },
     });
     return { ...refund };
   } finally {
     release();
   }
+}
+
+/** Preview of a return's refund split across the order's paid methods. */
+export type RefundAllocation = {
+  payment_id: string;
+  method: Payment["method"];
+  amount_paise: number;
+  pending_gateway: boolean;
+};
+
+export async function previewReturnAllocation(
+  orderId: string,
+  total_paise: number,
+): Promise<{ allocations: RefundAllocation[]; shortfall_paise: number }> {
+  const payments = (await getPayments({ order_id: orderId, status: "PAID" })).sort(
+    (a, b) => b.amount_paise - a.amount_paise,
+  );
+  const refunds = await getRefundsByOrder(orderId);
+  const reserved = (pid: string) =>
+    refunds
+      .filter((r) => r.payment_id === pid && r.status !== "REFUND_FAILED")
+      .reduce((s, r) => s + r.amount_paise, 0);
+  let remaining = total_paise;
+  const allocations: RefundAllocation[] = [];
+  for (const p of payments) {
+    if (remaining <= 0) break;
+    const headroom = p.amount_paise - reserved(p.id);
+    if (headroom <= 0) continue;
+    const take = Math.min(headroom, remaining);
+    allocations.push({
+      payment_id: p.id,
+      method: p.method,
+      amount_paise: take,
+      pending_gateway: !!p.gateway_payment_id,
+    });
+    remaining -= take;
+  }
+  return { allocations, shortfall_paise: remaining };
+}
+
+/**
+ * Same-method refund for an item-wise return. Splits the return total across
+ * the order's paid payments (largest-first), each capped by its unrefunded
+ * remainder. Cash/manual settle instantly; gateway-sourced payments land as
+ * REFUND_PENDING until the Razorpay phase reconciles them.
+ */
+export async function refundForReturn(
+  orderId: string,
+  params: { return_id: string; total_paise: number; reason: string; by?: string },
+): Promise<Refund[]> {
+  if (!Number.isInteger(params.total_paise) || params.total_paise < 1) {
+    throw new Error("Return total must be a positive paise integer");
+  }
+  const { allocations, shortfall_paise } = await previewReturnAllocation(
+    orderId,
+    params.total_paise,
+  );
+  if (shortfall_paise > 0) {
+    throw new Error("Return exceeds refundable payments — collect history is short");
+  }
+  const created: Refund[] = [];
+  for (const a of allocations) {
+    created.push(
+      await recordRefund({
+        payment_id: a.payment_id,
+        amount_paise: a.amount_paise,
+        reason: params.reason,
+        by: params.by,
+        return_id: params.return_id,
+      }),
+    );
+  }
+  return created;
 }
 
 export async function paidTotalForOrder(orderId: string): Promise<number> {

@@ -36,7 +36,14 @@ function loadTickets(): void {
       const raw = localStorage.getItem(KOT_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed?.tickets)) mockTickets = parsed.tickets;
+        if (Array.isArray(parsed?.tickets)) {
+          // Backfill return fields for tickets written before returns existed.
+          mockTickets = parsed.tickets.map((t: KitchenTicket) => ({
+            ...t,
+            returns: t.returns ?? [],
+            lines: (t.lines ?? []).map((l) => ({ ...l, returned_qty: l.returned_qty ?? 0 })),
+          }));
+        }
       }
     } catch {}
   }
@@ -202,9 +209,11 @@ export async function fireKOT(orderId: string, by?: string): Promise<KitchenTick
         instructions: l.instructions,
         qty: l.qty,
         voided_qty: 0,
+        returned_qty: 0,
         status: "PENDING",
       })),
       voids: [],
+      returns: [],
       fired_by: by ?? "staff",
       fired_at: now,
       updated_at: now,
@@ -658,6 +667,78 @@ export async function voidKOTLine(
       actor_id: params.by ?? "staff",
       reason_text: params.reason,
       metadata: { kot_id: id, kot_line_id: lineId, qty },
+    });
+  });
+}
+
+/**
+ * Post-sale item return on a KOT line. Unlike voids (pre-service), returns
+ * work on SERVED lines and tickets: the qty is marked returned (never
+ * re-billable), recorded on the ticket, and wasted (returned food is never
+ * restocked). The bill adjustment + same-method refund live in the orders and
+ * payments domains; this command owns kitchen truth only.
+ */
+export async function returnKOTLine(
+  id: string,
+  lineId: string,
+  params: { qty: number; amount_paise: number; reason: string; by?: string },
+): Promise<KitchenTicketWithDerived> {
+  return mutateTicket(id, async (idx) => {
+    const t = mockTickets[idx];
+    if (!params.reason?.trim()) throw new Error("A reason is required to return an item");
+    if (t.status === "CANCELLED") throw new Error("Cannot return from a cancelled KOT");
+    const li = t.lines.findIndex((l) => l.id === lineId);
+    if (li === -1) throw new Error("KOT line not found");
+    const line = t.lines[li];
+    const returnable = line.qty - line.voided_qty - (line.returned_qty ?? 0);
+    if (returnable <= 0) throw new Error("Nothing returnable left on this line");
+    const qty = params.qty;
+    if (!Number.isInteger(qty) || qty < 1 || qty > returnable) {
+      throw new Error(`Return qty must be between 1 and ${returnable}`);
+    }
+    if (!Number.isInteger(params.amount_paise) || params.amount_paise < 0) {
+      throw new Error("Return amount must be a non-negative paise integer");
+    }
+    const now = new Date().toISOString();
+    const lines = [...t.lines];
+    lines[li] = { ...line, returned_qty: (line.returned_qty ?? 0) + qty };
+    mockTickets[idx] = {
+      ...t,
+      lines,
+      returns: [
+        ...(t.returns ?? []),
+        {
+          id: `ret_${Date.now().toString(36)}`,
+          kot_line_id: lineId,
+          order_line_id: line.order_line_id,
+          qty,
+          amount_paise: params.amount_paise,
+          reason: params.reason.trim(),
+          returned_by: params.by ?? "staff",
+          created_at: now,
+        },
+      ],
+      updated_at: now,
+      version: t.version + 1,
+    };
+    const order = await getOrderById(t.order_id);
+    const ol = order?.items.find((i) => i.id === line.order_line_id);
+    if (ol?.recipe_id_snapshot) {
+      await recordWasteForCancelledOrder({
+        order_id: t.order_id,
+        order_number: order?.order_number,
+        created_by: params.by ?? "staff",
+        lines: [{ recipe_id: ol.recipe_id_snapshot, variant_id: ol.variant_id, servings: qty }],
+      });
+    }
+    await recordEvent({
+      outlet_id: t.outlet_id,
+      entity_type: "ORDER",
+      entity_id: t.order_id,
+      event_type: "KOT_LINE_RETURNED",
+      actor_id: params.by ?? "staff",
+      reason_text: params.reason.trim(),
+      metadata: { kot_id: id, kot_line_id: lineId, qty, amount_paise: params.amount_paise },
     });
   });
 }

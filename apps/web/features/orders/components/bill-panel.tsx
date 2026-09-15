@@ -32,6 +32,7 @@ import CustomerLinkBlock from "@/features/customers/components/customer-link-blo
 import TableStrip from "@/features/table/components/table-strip";
 import TableOpsDialog from "@/features/table/components/table-ops-dialog";
 import CheckoutDialog from "./checkout-dialog";
+import ReturnDialog, { type ReturnTarget } from "./return-dialog";
 import {
   paymentsByOrderQueryOptions,
   paymentKeys,
@@ -112,6 +113,16 @@ export function KOTAccordion({
   } | null>(null);
   const [reason, setReason] = useState("");
   const [reduceQty, setReduceQty] = useState(1);
+  const [returnTarget, setReturnTarget] = useState<ReturnTarget | null>(null);
+  // Returns post-date voids: only on a served bill with returnable qty left.
+  const lineReturnable = (
+    kot: KitchenTicketWithDerived,
+    l: { qty: number; voided_qty: number; returned_qty?: number },
+  ) =>
+    !!editable &&
+    kot.status !== "CANCELLED" &&
+    (order?.status === "SERVED" || order?.status === "COMPLETED") &&
+    l.qty - l.voided_qty - (l.returned_qty ?? 0) > 0;
 
   // Plus on a fired line adds the same item as a NEW unfired line — it will
   // fire as a fresh KOT, never mutate the fired ticket.
@@ -171,10 +182,15 @@ export function KOTAccordion({
 
   // Pricing joins the order snapshot via order_line_id; missing joins fall
   // back to today's unpriced rendering rather than crashing.
-  const priced = (kotLine: { order_line_id: string; qty: number; voided_qty: number }) => {
+  const priced = (kotLine: {
+    order_line_id: string;
+    qty: number;
+    voided_qty: number;
+    returned_qty?: number;
+  }) => {
     const ol = order?.items.find((i) => i.id === kotLine.order_line_id);
     if (!ol || ol.qty <= 0) return null;
-    const liveQty = kotLine.qty - kotLine.voided_qty;
+    const liveQty = kotLine.qty - kotLine.voided_qty - (kotLine.returned_qty ?? 0);
     if (liveQty <= 0)
       return {
         liveQty,
@@ -324,10 +340,46 @@ export function KOTAccordion({
                           >
                             <Icons.trash className="size-3.5" />
                           </Button>
+                          {lineReturnable(kot, l) && (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="max-lg:h-9 max-lg:w-9"
+                              title="Return item (post-sale — refunds to original payment)"
+                              onClick={() =>
+                                setReturnTarget({
+                                  orderLineId: l.order_line_id,
+                                  name: l.item_name_snapshot,
+                                  maxQty: l.qty - l.voided_qty - (l.returned_qty ?? 0),
+                                })
+                              }
+                            >
+                              <Icons.refund className="size-3.5" />
+                            </Button>
+                          )}
                         </span>
                       ) : (
-                        <span className="text-[10px] capitalize text-muted-foreground">
-                          {l.status.toLowerCase()}
+                        <span className="flex shrink-0 items-center gap-0.5">
+                          {lineReturnable(kot, l) && (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="max-lg:h-9 max-lg:w-9"
+                              title="Return item (post-sale — refunds to original payment)"
+                              onClick={() =>
+                                setReturnTarget({
+                                  orderLineId: l.order_line_id,
+                                  name: l.item_name_snapshot,
+                                  maxQty: l.qty - l.voided_qty - (l.returned_qty ?? 0),
+                                })
+                              }
+                            >
+                              <Icons.refund className="size-3.5" />
+                            </Button>
+                          )}
+                          <span className="text-[10px] capitalize text-muted-foreground">
+                            {l.status.toLowerCase()}
+                          </span>
                         </span>
                       )}
                     </div>
@@ -338,6 +390,15 @@ export function KOTAccordion({
                     {kot.voids.map((v) => (
                       <p key={v.id} className="text-xs text-destructive">
                         Voided {v.qty}× — {v.reason}
+                      </p>
+                    ))}
+                  </div>
+                )}
+                {(kot.returns ?? []).length > 0 && (
+                  <div className="pt-1">
+                    {(kot.returns ?? []).map((r) => (
+                      <p key={r.id} className="text-xs text-muted-foreground">
+                        Returned {r.qty}× ({formatINR(r.amount_paise)}) — {r.reason}
                       </p>
                     ))}
                   </div>
@@ -404,6 +465,8 @@ export function KOTAccordion({
           </div>
         </DialogContent>
       </Dialog>
+
+      <ReturnDialog orderId={orderId} target={returnTarget} onClose={() => setReturnTarget(null)} />
     </div>
   );
 }
@@ -698,6 +761,31 @@ export default function OrderBillPanel({
                   <span className="font-medium">{formatINR(p.amount_paise)}</span>
                 </div>
               ))}
+            </div>
+          )}
+
+          {showPayments && (refunds ?? []).length > 0 && (
+            <div className="space-y-1">
+              {(refunds ?? []).map((r) => {
+                const method =
+                  paidList.find((p) => p.id === r.payment_id)?.method.replace("_", " ") ??
+                  "payment";
+                return (
+                  <div
+                    key={r.id}
+                    className="flex justify-between rounded-md border border-dashed px-2 py-1 text-xs"
+                  >
+                    <span className="flex items-center gap-1 capitalize text-muted-foreground">
+                      <Icons.refund className="size-3" />
+                      Refund → {method}
+                      {r.status === "REFUND_PENDING" ? " · gateway pending" : ""}
+                      {r.status === "REFUND_FAILED" ? " · failed" : ""}
+                      {r.qty ? ` · ${r.qty}×` : ""}
+                    </span>
+                    <span className="font-medium">−{formatINR(r.amount_paise)}</span>
+                  </div>
+                );
+              })}
             </div>
           )}
 
