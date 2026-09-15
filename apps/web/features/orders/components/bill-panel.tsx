@@ -132,14 +132,6 @@ export function KOTAccordion({
     },
     onError: (e: Error) => toast.error(e.message),
   });
-  const fireMut = useMutation({
-    mutationFn: () => fireKOT(orderId),
-    onSuccess: (kot) => {
-      invalidateBill(orderId, queryClient);
-      toast.success(`KOT #${kot.kot_number} fired to kitchen`);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
   const reduceMut = useMutation({
     mutationFn: ({
       kotId,
@@ -205,55 +197,41 @@ export function KOTAccordion({
     kot.lines.reduce((s, l) => s + (priced(l)?.total ?? 0), 0);
 
   return (
-    <div className="space-y-2">
-      {draft.length > 0 && (
-        <div className="rounded-lg border border-primary/40 p-2">
-          <p className="px-1 pb-1 text-xs font-medium uppercase text-muted-foreground">
-            New items — not yet in kitchen
-          </p>
-          {draft.map((d) => (
-            <div key={d.id} className="flex items-center justify-between px-1 py-0.5 text-sm">
-              <span className="truncate font-medium">
-                {d.qty}× {d.item_name_snapshot}
-                {d.variant_name_snapshot ? ` (${d.variant_name_snapshot})` : ""}
-              </span>
-              <span className="shrink-0 text-sm font-semibold">
-                {formatINR(d.line_total_paise + d.line_tax_paise)}
-              </span>
-            </div>
-          ))}
-          <Button
-            size="sm"
-            className="mt-1.5 w-full"
-            disabled={fireMut.isPending}
-            onClick={() => fireMut.mutate()}
-          >
-            {fireMut.isPending
-              ? "Firing…"
-              : `Fire to kitchen (${draft.length} item${draft.length === 1 ? "" : "s"})`}
-          </Button>
-        </div>
-      )}
+    <div className="space-y-2.5">
       {kots.map((kot) => {
         const open = openId === kot.id;
         return (
           <div
             key={kot.id}
             className={cn(
-              "rounded-lg border",
+              "rounded-xl border p-1",
               flashId === kot.id && "animate-pulse border-primary ring-2 ring-primary/40",
             )}
           >
             <button
               type="button"
               onClick={() => setOpenId(open ? null : kot.id)}
-              className="flex w-full items-center justify-between px-2 py-1.5 text-sm"
+              className="flex w-full items-center justify-between px-2 py-2 text-sm"
             >
-              <span className="font-medium">
-                KOT #{kot.kot_number}
-                <span className="ml-1 text-xs font-normal capitalize text-muted-foreground">
-                  {kot.status.toLowerCase()} · {kot.lines.length} item{KotLinesPlural(kot)} ·{" "}
-                  {kot.age_minutes}m old
+              <span className="flex min-w-0 items-center gap-2 font-medium">
+                <span className="shrink-0">KOT #{kot.kot_number}</span>
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize",
+                    kot.status === "READY" &&
+                      "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300",
+                    (kot.status === "PREPARING" || kot.status === "ACCEPTED") &&
+                      "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+                    kot.status === "SERVED" &&
+                      "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
+                    kot.status === "NEW" &&
+                      "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
+                  )}
+                >
+                  {kot.status.toLowerCase()}
+                </span>
+                <span className="truncate text-xs font-normal text-muted-foreground">
+                  {kot.lines.length} item{KotLinesPlural(kot)} · {kot.age_minutes}m old
                 </span>
               </span>
               <span className="flex items-center gap-1">
@@ -264,14 +242,14 @@ export function KOTAccordion({
               </span>
             </button>
             {open && (
-              <div className="space-y-0.5 border-t px-2 py-1.5">
+              <div className="space-y-1 border-t px-2 py-2">
                 {kot.lines.map((l) => {
                   const p = priced(l);
                   return (
                     <div
                       key={l.id}
                       className={cn(
-                        "flex items-center gap-2 rounded-md px-1 py-0.5 text-sm",
+                        "flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm",
                         l.status === "VOIDED" && "bg-destructive/10 text-destructive line-through",
                         l.status === "ACCEPTED" && "bg-sky-500/10",
                       )}
@@ -517,6 +495,14 @@ export default function OrderBillPanel({
   const [splitMode, setSplitMode] = useState<"none" | "equal" | "itemwise" | "custom">("none");
   const [activePartition, setActivePartition] = useState<string | null>(null);
   const [opsOpen, setOpsOpen] = useState(false);
+  const fireMut = useMutation({
+    mutationFn: () => fireKOT(orderId),
+    onSuccess: (kot) => {
+      invalidateBill(orderId, queryClient);
+      toast.success(`KOT #${kot.kot_number} fired to kitchen`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   if (!order) {
     return (
@@ -545,36 +531,58 @@ export default function OrderBillPanel({
   const dueAmount = activePartition ? partitionDue(activePartition) : balance;
   const isTerminal = order.status === "COMPLETED" || order.status === "CANCELLED";
   const fill = fit === "fill";
+  const drafts = order.items.filter((i) => !i.kot_id);
 
   return (
     <Card className={fill ? "flex h-full min-h-0 flex-col" : undefined}>
       <CardHeader className="pb-2">
-        <CardTitle className="flex items-center justify-between gap-2 text-lg">
+        <CardTitle className="flex items-center justify-between text-lg">
           <span className="min-w-0 truncate">{title ?? "Bill"}</span>
-          <span className="flex shrink-0 items-center gap-1.5">
-            {onAddItems && !isTerminal && (
-              <Button size="sm" onClick={onAddItems} title="Add items — fires straight to kitchen">
-                <Icons.add className="mr-1 size-4" /> Add items
-              </Button>
-            )}
-            <Badge variant="outline" className={cn("gap-1", stamp.className)}>
-              <div
-                className={cn(
-                  "h-2 w-2 rounded-full",
-                  order.payment_status === "PAID" && "bg-green-500",
-                  order.payment_status === "PARTIAL" && "bg-amber-500",
-                  order.payment_status === "UNPAID" && "bg-slate-400",
-                )}
-              />
-              {stamp.label}
-            </Badge>
-          </span>
+          <Badge variant="outline" className={cn("gap-1", stamp.className)}>
+            <div
+              className={cn(
+                "h-2 w-2 rounded-full",
+                order.payment_status === "PAID" && "bg-green-500",
+                order.payment_status === "PARTIAL" && "bg-amber-500",
+                order.payment_status === "UNPAID" && "bg-slate-400",
+              )}
+            />
+            {stamp.label}
+          </Badge>
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           {order.order_number} · {order.items.length} item{order.items.length === 1 ? "" : "s"}
         </p>
       </CardHeader>
-      <CardContent className={fill ? "min-h-0 flex-1 space-y-3 overflow-y-auto" : "space-y-3"}>
+      <CardContent className={fill ? "min-h-0 flex-1 space-y-4 overflow-y-auto" : "space-y-4"}>
+        {onAddItems && !isTerminal && (
+          <div className="flex gap-2">
+            <Button
+              className="h-11 flex-1 text-sm"
+              onClick={onAddItems}
+              title="Add items — fires straight to kitchen"
+            >
+              <Icons.add className="mr-2 size-4" />
+              Add items
+              {drafts.length > 0 && (
+                <span className="ml-2 rounded-full bg-primary-foreground/20 px-2 py-0.5 text-xs">
+                  {drafts.length} to fire
+                </span>
+              )}
+            </Button>
+            {drafts.length > 0 && (
+              <Button
+                variant="secondary"
+                className="h-11 shrink-0"
+                disabled={fireMut.isPending}
+                onClick={() => fireMut.mutate()}
+                title="Fire pending items to kitchen without opening the picker"
+              >
+                {fireMut.isPending ? "Firing…" : `Fire (${drafts.length})`}
+              </Button>
+            )}
+          </div>
+        )}
         {showSeating && table && (
           <>
             <TableStrip
