@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import PageContainer from "@/components/layout/page-container";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
@@ -17,7 +17,9 @@ type Org = { id: string; name: string; slug?: string | null; createdAt?: string 
 
 export default function WorkspacesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { organization, setActiveOrg } = useIdentity();
+  const firstRun = searchParams.get("first") === "1";
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [name, setName] = useState("");
   const [pending, setPending] = useState(false);
@@ -64,6 +66,17 @@ export default function WorkspacesPage() {
       infoContent={workspacesInfoContent}
     >
       <div className="grid max-w-2xl gap-4">
+        {firstRun && (
+          <Card className="border-primary/40 bg-primary/5">
+            <CardContent className="p-4 text-sm">
+              <p className="font-medium">Welcome — one step left.</p>
+              <p className="text-muted-foreground">
+                Create your outlet workspace below. Your full sidebar (sales, menu, inventory,
+                tables…) unlocks as soon as it exists.
+              </p>
+            </CardContent>
+          </Card>
+        )}
         <Card>
           <CardContent className="space-y-2 p-4">
             {orgs.length === 0 ? (

@@ -1,0 +1,24 @@
+"use client";
+
+import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useIdentity } from "@/hooks/use-identity";
+
+/**
+ * First-run guard: a signed-in user with zero organizations owns an empty
+ * sidebar (every operational item requires an org). Send them to Workspaces
+ * once so they create their outlet instead of staring at a blank dashboard.
+ */
+export function useFirstRunRedirect() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { loaded, user, organizations } = useIdentity();
+
+  useEffect(() => {
+    if (!loaded || !user) return;
+    if (organizations.length > 0) return;
+    if (pathname === "/dashboard/workspaces") return;
+    if (pathname === "/dashboard/profile") return;
+    router.replace("/dashboard/workspaces?first=1");
+  }, [loaded, user, organizations, pathname, router]);
+}
