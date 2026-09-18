@@ -15,6 +15,10 @@ isolated check, migrate a Neon branch first (`neon-postgres-branches` skill).
   `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL`.
 - Set: `BETTER_AUTH_SECRET` (32+ random bytes), `BETTER_AUTH_URL`
   (deployed origin, e.g. `https://pixapos-web-*.vercel.app`).
+- Google OAuth: set `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`, and register
+  every app origin + `/api/auth/callback/google` as an authorized redirect URI
+  in Google Cloud Console (localhost, production, and each preview URL under
+  test).
 - Never set `NEXT_PUBLIC_PIXAPOS_DEV_BYPASS` outside local dev.
 
 ## 3. First org + owner

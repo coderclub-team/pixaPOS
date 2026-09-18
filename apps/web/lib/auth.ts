@@ -84,6 +84,20 @@ function getAuth(): AuthInstance {
         },
       }),
       emailAndPassword: { enabled: true },
+      // Google is registered only when credentials exist — email/password
+      // keeps working in environments without OAuth configured.
+      ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+        ? {
+            socialProviders: {
+              google: {
+                clientId: process.env.GOOGLE_CLIENT_ID as string,
+                clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+                // Shared devices (counter tablets): always show the account chooser.
+                prompt: "select_account",
+              },
+            },
+          }
+        : {}),
       plugins: [
         organization({
           ac,

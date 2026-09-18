@@ -33,6 +33,18 @@ export default function BaSignInForm() {
     router.refresh();
   };
 
+  const google = async () => {
+    setPending(true);
+    const { error } = await authClient.signIn.social(
+      { provider: "google", callbackURL: "/dashboard" },
+      { onError: () => setPending(false) },
+    );
+    if (error) {
+      toast.error(error.message ?? "Google sign in failed");
+      setPending(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <Card className="w-full max-w-sm">
@@ -40,6 +52,13 @@ export default function BaSignInForm() {
           <CardTitle>Sign in</CardTitle>
         </CardHeader>
         <CardContent>
+          <Button variant="outline" className="w-full" disabled={pending} onClick={google}>
+            Continue with Google
+          </Button>
+          <div className="my-3 flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span className="h-px flex-1 bg-border" /> or with email{" "}
+            <span className="h-px flex-1 bg-border" />
+          </div>
           <form onSubmit={submit} className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="ba-email">Email</Label>

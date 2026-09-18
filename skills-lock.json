@@ -36,6 +36,18 @@
       "sourceType": "github",
       "skillPath": "skills/neon-postgres-egress-optimizer/SKILL.md",
       "computedHash": "9f991d785e63e9ae33e1a09db18ab8d559083861c70aebc6a740df01ca5bf214"
+    },
+    "better-auth-ui-react": {
+      "source": "better-auth-ui/better-auth-ui",
+      "sourceType": "github",
+      "skillPath": "packages/react/skills/better-auth-ui-react/SKILL.md",
+      "computedHash": "manual-copy-2026-09-18"
+    },
+    "better-auth-ui-core": {
+      "source": "better-auth-ui/better-auth-ui",
+      "sourceType": "github",
+      "skillPath": "packages/core/skills/better-auth-ui-core/SKILL.md",
+      "computedHash": "manual-copy-2026-09-18"
     }
   }
 }

@@ -37,3 +37,13 @@ custom roles/permissions), so the target is **self-managed Better Auth**
   database — preview branches get isolated identity automatically.
 - Custom OAuth (Google/GitHub) is not yet configured; email/password is the
   Day-1 method. Add provider client IDs when needed.
+
+## Addendum (2026-09-18): Google social sign-in
+
+Google OAuth is the second method alongside email/password (`socialProviders`
+in `lib/auth.ts`, `prompt: select_account` for shared counter tablets). No
+`hd` restriction — any Google account may sign in; roles are assigned
+post-login on the team page, and first logins without an org land on
+`/dashboard/workspaces`. Provider registers only when both Google env vars
+exist, so email/password works in environments without OAuth. Verified Google
+emails link to the same account as a matching email/password user.
