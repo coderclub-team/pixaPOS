@@ -1,20 +1,25 @@
 import PageContainer from "@/components/layout/page-container";
 import { RolesPermissionsPage } from "@/features/rbac/components/roles-permissions-page";
 import { getRolesPermissionsData } from "@/features/rbac/api/service";
+import { orgContext } from "@/lib/auth-server";
 import { hasDevBypass } from "@/lib/authz";
-import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 
 export const metadata = { title: "Dashboard : Roles & Permissions" };
 
 export default async function Page() {
-  const { orgId, orgRole } = await auth();
-  if (!hasDevBypass() && orgRole !== "org:admin") {
+  const ctx = await orgContext();
+  const adminish =
+    ctx.role === "org:admin" ||
+    ctx.role === "admin" ||
+    ctx.role === "owner" ||
+    ctx.role === "org:owner";
+  if (!hasDevBypass() && (!ctx.orgId || !adminish)) {
     redirect("/dashboard/overview");
   }
-  if (!orgId) redirect("/dashboard/overview");
+  if (!ctx.orgId) redirect("/dashboard/overview");
 
-  const data = await getRolesPermissionsData(orgId);
+  const data = await getRolesPermissionsData(ctx.orgId);
 
   return (
     <PageContainer

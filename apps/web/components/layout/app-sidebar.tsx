@@ -27,7 +27,7 @@ import {
 import { UserAvatarProfile } from "@pixa/ui/user-avatar-profile";
 import { navGroups } from "@/config/nav-config";
 import { useMediaQuery } from "@pixa/ui/hooks/use-media-query";
-import { useClerk, useOrganization, useUser } from "@clerk/nextjs";
+import { useIdentity } from "@/hooks/use-identity";
 import { useFilteredNavGroups } from "@/hooks/use-nav";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -40,9 +40,7 @@ export default function AppSidebar() {
   const initialPathnameRef = React.useRef(pathname);
   const [expandedGroups, setExpandedGroups] = React.useState<Record<string, boolean>>({});
   const { isOpen } = useMediaQuery();
-  const { user } = useUser();
-  const { organization } = useOrganization();
-  const { signOut } = useClerk();
+  const { user, organization, signOut } = useIdentity();
   const router = useRouter();
   const filteredGroups = useFilteredNavGroups(navGroups);
 
@@ -65,8 +63,7 @@ export default function AppSidebar() {
                 const groupKey = `${group.label || "ungrouped"}:${item.title}`;
                 const initiallyOpen =
                   item.items?.some(
-                    (sub) =>
-                      sub.url !== "#" && initialPathnameRef.current.startsWith(sub.url),
+                    (sub) => sub.url !== "#" && initialPathnameRef.current.startsWith(sub.url),
                   ) ?? false;
                 return item?.items && item?.items?.length > 0 ? (
                   <Collapsible
@@ -171,7 +168,7 @@ export default function AppSidebar() {
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
-                  <DropdownMenuItem onClick={() => signOut({ redirectUrl: "/auth/sign-in" })}>
+                  <DropdownMenuItem onClick={() => signOut()}>
                     <Icons.logout aria-hidden className="mr-2 h-4 w-4" />
                     Sign out
                   </DropdownMenuItem>

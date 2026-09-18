@@ -6,11 +6,11 @@ export const workspacesInfoContent: InfobarContent = {
     {
       title: "Overview",
       description:
-        "The Workspaces page allows you to manage your workspaces and switch between them. This feature is powered by Clerk Organizations, which enables multi-tenant workspace management. You can view all available workspaces, create new ones, and switch your active workspace.",
+        "The Workspaces page allows you to manage your workspaces and switch between them. This feature is powered by self-managed Better Auth organizations on Postgres, which enables multi-tenant workspace management. You can view all available workspaces, create new ones, and switch your active workspace.",
       links: [
         {
           title: "Clerk Organizations Documentation",
-          url: "https://clerk.com/docs/organizations/overview",
+          url: "https://better-auth.com/docs/plugins/organization",
         },
       ],
     },
@@ -21,7 +21,7 @@ export const workspacesInfoContent: InfobarContent = {
       links: [
         {
           title: "Multi-tenant Authentication Guide",
-          url: "https://clerk.com/blog/how-to-build-multitenant-authentication-with-clerk",
+          url: "https://better-auth.com/docs/plugins/organization",
         },
       ],
     },
@@ -40,11 +40,11 @@ export const workspacesInfoContent: InfobarContent = {
     {
       title: "Server-Side Permission Checks",
       description:
-        "This application follows Clerk's recommended patterns for multi-tenant authentication. Server-side permission checks ensure that users can only access resources for their active organization.",
+        "This application stores memberships and roles in Postgres and checks permissions server-side. Server-side permission checks ensure that users can only access resources for their active organization.",
       links: [
         {
           title: "Clerk Organizations Documentation",
-          url: "https://clerk.com/docs/organizations/overview",
+          url: "https://better-auth.com/docs/plugins/organization",
         },
       ],
     },
@@ -57,11 +57,11 @@ export const teamInfoContent: InfobarContent = {
     {
       title: "Overview",
       description:
-        "The Team Management page allows you to manage your workspace team, including members, roles, security settings, and more. This page provides comprehensive organization management through Clerk's OrganizationProfile component.",
+        "The Team Management page allows you to manage your workspace team, including members, roles, security settings, and more. This page provides organization member, role, and invitation management backed by Postgres.",
       links: [
         {
           title: "Clerk Organizations Documentation",
-          url: "https://clerk.com/docs/organizations/overview",
+          url: "https://better-auth.com/docs/plugins/organization",
         },
       ],
     },
@@ -74,11 +74,11 @@ export const teamInfoContent: InfobarContent = {
     {
       title: "Roles and Permissions",
       description:
-        "Configure default roles and permissions in the Clerk Dashboard under Organizations settings. Roles define what actions team members can perform within the workspace. Common roles include admin, member, and custom roles you define.",
+        "Configure default roles and permissions in config/permissions.ts and lib/auth.ts. Roles define what actions team members can perform within the workspace. Common roles include admin, member, and custom roles you define.",
       links: [
         {
           title: "Clerk Organizations Documentation",
-          url: "https://clerk.com/docs/organizations/overview",
+          url: "https://better-auth.com/docs/plugins/organization",
         },
       ],
     },
@@ -109,29 +109,29 @@ export const billingInfoContent: InfobarContent = {
     {
       title: "Overview",
       description:
-        "The Billing page allows you to manage your organization's subscription and usage limits. Plans and subscriptions are managed through Clerk Billing for B2B, which provides organization-level subscription management with integrated Stripe payment processing.",
+        "The Billing page allows you to manage your organization's subscription and usage limits. Plans and subscriptions are managed through Razorpay, which provides organization-level subscription management with UPI/card/netbanking payment processing.",
       links: [
         {
           title: "Clerk Billing Documentation",
-          url: "https://clerk.com/docs/billing/overview",
+          url: "https://razorpay.com/docs/subscriptions",
         },
       ],
     },
     {
       title: "Available Plans",
       description:
-        'View and subscribe to available plans through the pricing table. Plans are created and managed in the Clerk Dashboard. Toggle "Publicly available" on plans to show them in the pricing table. Common plans include free, pro, and team tiers.',
+        "View and subscribe to available plans through the pricing table. Plans are created and managed in the Razorpay Dashboard and reconciled via webhooks. Common plans include free, pro, and team tiers.",
       links: [
         {
           title: "Clerk Dashboard - Plans",
-          url: "https://dashboard.clerk.com/~/billing/plans",
+          url: "https://dashboard.razorpay.com/app/subscriptions",
         },
       ],
     },
     {
       title: "Plan Features",
       description:
-        "Each plan can include specific features that unlock functionality in the application. Features are added to plans in the Clerk Dashboard and can be checked in code using the `has()` function with `feature` checks.",
+        "Each plan can include specific features that unlock functionality in the application. Plan features are checked server-side against the subscription ledger before gating functionality.",
       links: [],
     },
     {
@@ -143,7 +143,7 @@ export const billingInfoContent: InfobarContent = {
     {
       title: "Billing Cost Structure",
       description:
-        "Clerk Billing costs 0.7% per transaction, plus transaction fees paid directly to Stripe. Clerk Billing is not the same as Stripe Billing - plans and pricing are managed through the Clerk Dashboard and won't sync with existing Stripe products. Clerk uses Stripe only for payment processing.",
+        "Razorpay subscription billing applies per-plan pricing plus standard gateway fees. Plans managed in the Razorpay Dashboard reconcile into the local subscription ledger via webhooks.",
       links: [],
     },
     {
@@ -153,14 +153,14 @@ export const billingInfoContent: InfobarContent = {
       links: [
         {
           title: "Billing Settings",
-          url: "https://dashboard.clerk.com/~/billing/settings",
+          url: "https://dashboard.razorpay.com/app/subscriptions",
         },
       ],
     },
     {
       title: "Beta Status",
       description:
-        "Billing is currently in Beta and its APIs are experimental and may undergo breaking changes. To mitigate potential disruptions, we recommend pinning your SDK and `clerk-js` package versions.",
+        "Subscription state reconciles from Razorpay webhooks; the local ledger is the source of truth for gating.",
       links: [],
     },
   ],

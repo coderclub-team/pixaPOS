@@ -3,7 +3,8 @@
 /**
  * Fully client-side hook for filtering navigation items based on RBAC
  *
- * This hook uses Clerk's client-side hooks to check permissions, roles, and organization
+ * This hook uses the unified identity hook (Better Auth preferred, Clerk
+ * fallback) to check permissions, roles, and organization
  * without any server calls. This is perfect for navigation visibility (UX only).
  *
  * Performance:
@@ -17,9 +18,9 @@
  */
 
 import { useMemo } from "react";
-import { useOrganization, useUser } from "@clerk/nextjs";
 import type { NavItem, NavGroup } from "@pixa/ui/types";
 import { hasDevBypass } from "@/lib/authz";
+import { useIdentity } from "./use-identity";
 
 /**
  * Hook to filter navigation items based on RBAC (fully client-side)
@@ -28,12 +29,11 @@ import { hasDevBypass } from "@/lib/authz";
  * @returns Filtered items
  */
 export function useFilteredNavItems(items: NavItem[]) {
-  const { isLoaded, organization, membership } = useOrganization();
-  const { user } = useUser();
+  const { loaded, user, organization, membership } = useIdentity();
 
   // Memoize context and permissions
   const accessContext = useMemo(() => {
-    if (!isLoaded) {
+    if (!loaded) {
       return {
         organization: undefined,
         user: user ?? undefined,
@@ -53,8 +53,8 @@ export function useFilteredNavItems(items: NavItem[]) {
       role: role ?? undefined,
       hasOrg: !!organization,
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- using stable primitives to avoid infinite re-renders from unstable Clerk object refs
-  }, [isLoaded, organization?.id, user?.id, membership?.permissions, membership?.role]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- using stable primitives to avoid infinite re-renders from unstable object refs
+  }, [loaded, organization?.id, user?.email, membership?.permissions, membership?.role]);
 
   // Filter items synchronously (all client-side)
   const filteredItems = useMemo(() => {

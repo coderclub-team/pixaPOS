@@ -1,9 +1,8 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { POS_PERMISSION_META } from "@/config/permissions";
-import { hasDevBypass } from "@/lib/authz";
+import { assertAnySuperAdmin } from "@/lib/auth-server";
 import {
   assignPermissionToRole,
   createPermission,
@@ -15,12 +14,7 @@ import {
 type ActionResult = { ok: boolean; message: string };
 
 async function assertSuperAdmin(): Promise<string> {
-  const { orgId, orgRole } = await auth();
-  if (!orgId) throw new Error("No active organization selected.");
-  if (!hasDevBypass() && orgRole !== "org:admin") {
-    throw new Error("Only super admins can manage roles and permissions.");
-  }
-  return orgId;
+  return assertAnySuperAdmin();
 }
 
 function toError(e: unknown): string {

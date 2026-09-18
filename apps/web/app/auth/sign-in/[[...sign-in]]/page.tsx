@@ -1,20 +1,11 @@
-import { Metadata } from 'next';
-import { SignIn as ClerkSignInForm } from '@clerk/nextjs';
+import type { Metadata } from "next";
+import BaSignInForm from "@/components/auth/ba-sign-in-form";
 
 export const metadata: Metadata = {
-  title: 'Authentication | Sign In',
-  description: 'Sign In page for authentication.'
+  title: "Authentication | Sign In",
+  description: "Sign In page for authentication.",
 };
 
 export default function SignInPage() {
-  return (
-    <div className='flex min-h-screen items-center justify-center p-4'>
-      <ClerkSignInForm
-        routing='path'
-        path='/auth/sign-in'
-        signUpUrl='/auth/sign-up'
-        fallbackRedirectUrl='/dashboard'
-      />
-    </div>
-  );
+  return <BaSignInForm />;
 }

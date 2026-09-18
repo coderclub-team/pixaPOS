@@ -4,7 +4,7 @@ import PageContainer from "@/components/layout/page-container";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Icons } from "@pixa/ui/icons";
 import { useQuery } from "@tanstack/react-query";
-import { useOrganization } from "@clerk/nextjs";
+import { useIdentity } from "@/hooks/use-identity";
 import { outletQueryOptions } from "@/features/outlet/api/queries";
 import { billingKeys } from "@/features/billing/api/queries";
 import { getQueryClient } from "@/lib/query-client";
@@ -12,10 +12,10 @@ import BillingView from "@/features/billing/components/billing-view";
 import { billingInfoContent } from "@/config/infoconfig";
 
 export default function BillingPage() {
-  const { organization, isLoaded } = useOrganization();
+  const { organization, loaded } = useIdentity();
   const { data: outlet, isPending } = useQuery(outletQueryOptions);
 
-  if (isPending || !isLoaded) {
+  if (isPending || !loaded) {
     return (
       <PageContainer pageTitle="Billing" pageDescription="Sales — Billing" isLoading>
         <div />
@@ -54,7 +54,9 @@ export default function BillingPage() {
         <BillingView
           outletId={outlet.id}
           outletName={outlet.name}
-          orgCreatedAt={organization?.createdAt?.getTime()}
+          orgCreatedAt={
+            organization?.createdAt == null ? undefined : new Date(organization.createdAt).getTime()
+          }
         />
       ) : (
         <div className="text-center text-sm text-muted-foreground">Outlet not found.</div>
