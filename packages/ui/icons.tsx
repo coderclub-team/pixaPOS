@@ -8,6 +8,7 @@ import {
   IconBold,
   IconBox,
   IconBrandGithub,
+  IconBrandGoogle,
   IconBrandTwitter,
   IconBrightness,
   IconBuildingWarehouse,
@@ -157,6 +158,7 @@ export const Icons = {
 
   // Brand
   github: IconBrandGithub,
+  google: IconBrandGoogle,
   twitter: IconBrandTwitter,
   logo: IconCommand,
 
