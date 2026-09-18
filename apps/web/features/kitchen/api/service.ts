@@ -144,6 +144,41 @@ async function transitionTicket(
   });
 }
 
+/**
+ * Fire-and-forget fan-out to the KDS live feed (Neon function). Called after
+ * every KOT mutation so wallboards subscribed over SSE refresh instantly.
+ * Never throws: offline or misconfigured feed must not break kitchen work —
+ * the 5s poll and cross-tab sync remain the fallback.
+ */
+export function publishKds(kind: string, payload: Record<string, unknown>): void {
+  try {
+    const base = process.env.NEXT_PUBLIC_KDS_FEED_URL;
+    const secret = process.env.NEXT_PUBLIC_KDS_FEED_SECRET;
+    if (!base || !secret || typeof fetch === "undefined") return;
+    void fetch(`${base.replace(/\/$/, "")}/publish`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${secret}`,
+      },
+      body: JSON.stringify({ kind, payload }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    /* never break the mutation path */
+  }
+}
+
+function publishTicket(t: KitchenTicket, extra?: Record<string, unknown>): void {
+  publishKds("kot", {
+    kot_id: t.id,
+    order_id: t.order_id,
+    status: t.status,
+    kot_number: t.kot_number,
+    ...extra,
+  });
+}
+
 export async function getKitchenTickets(filters?: KOTFilters): Promise<KitchenTicketWithDerived[]> {
   await delay(300);
   loadTickets(); // localStorage is the shared source — reload so tabs/displays agree
@@ -229,6 +264,7 @@ export async function fireKOT(orderId: string, by?: string): Promise<KitchenTick
       })),
     );
     saveTickets();
+    publishTicket(ticket, { lines: ticket.lines.length });
     await recordEvent({
       outlet_id: order.outlet_id,
       entity_type: "ORDER",
@@ -526,12 +562,12 @@ async function mutateTicket(
 ): Promise<KitchenTicketWithDerived> {
   const release = await entityMutex.acquire(`kot-${id}`);
   try {
-    await delay(300);
     loadTickets(); // re-read under lock so a concurrent tab's write isn't clobbered
     const idx = mockTickets.findIndex((t) => t.id === id);
     if (idx === -1) throw new Error("KOT not found");
     await fn(idx);
     saveTickets();
+    publishTicket(mockTickets[idx]);
     return enrichTicket(mockTickets[idx]);
   } finally {
     release();
