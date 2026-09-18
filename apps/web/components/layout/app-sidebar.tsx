@@ -40,9 +40,12 @@ export default function AppSidebar() {
   const initialPathnameRef = React.useRef(pathname);
   const [expandedGroups, setExpandedGroups] = React.useState<Record<string, boolean>>({});
   const { isOpen } = useMediaQuery();
-  const { user, organization, signOut } = useIdentity();
+  const { user, organization, organizations, loaded, signOut } = useIdentity();
   const router = useRouter();
   const filteredGroups = useFilteredNavGroups(navGroups);
+  // Signed in but org-less: every operational item is org-gated, so say so
+  // right here instead of rendering a near-empty sidebar.
+  const showOrglessCta = loaded && !!user && organizations.length === 0;
 
   React.useEffect(() => {
     // Side effects based on sidebar state changes
@@ -54,6 +57,22 @@ export default function AppSidebar() {
         <OrgSwitcher />
       </SidebarHeader>
       <SidebarContent className="overflow-x-hidden">
+        {showOrglessCta && (
+          <SidebarGroup className="py-0">
+            <div className="rounded-lg border border-dashed p-3 text-sm">
+              <p className="font-medium">No workspace yet</p>
+              <p className="pb-2 text-xs text-muted-foreground">
+                Create your outlet to unlock sales, menu, inventory and tables.
+              </p>
+              <Link
+                href="/dashboard/workspaces"
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline"
+              >
+                <Icons.add className="size-3.5" /> Create workspace
+              </Link>
+            </div>
+          </SidebarGroup>
+        )}
         {filteredGroups.map((group) => (
           <SidebarGroup key={group.label || "ungrouped"} className="py-0">
             {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}

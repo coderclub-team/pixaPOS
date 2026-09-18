@@ -87,7 +87,20 @@ export function useIdentity() {
         .catch(() => []);
       if (cancelled) return;
       const activeId = baSession.session?.activeOrganizationId;
-      const active = orgs.find((o) => o.id === activeId) ?? orgs[0] ?? null;
+      let active = orgs.find((o) => o.id === activeId) ?? null;
+      // First-run: orgs exist but none active — activate the first so server
+      // gates (baHas/baOrgId) agree with the populated sidebar. The overview
+      // page additionally redirects org-less users to /dashboard/workspaces.
+      if (!active && orgs[0]) {
+        try {
+          await baOrgs.setActive(orgs[0].id);
+        } catch {
+          /* session endpoint will retry on next mount */
+        }
+        if (cancelled) return;
+        active = orgs[0];
+      }
+      active ??= null;
       let role: string | null = null;
       if (active) {
         const full = await baOrgs
