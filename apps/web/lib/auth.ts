@@ -48,32 +48,48 @@ const roles = Object.fromEntries(
   roleKeys.map((key) => [key, ac.newRole(statementsFor(`org:${key}`))]),
 );
 
-export const auth = betterAuth({
-  database: drizzleAdapter(db(), {
-    provider: "pg",
-    schema: {
-      user: baUser,
-      session: baSession,
-      account: baAccount,
-      verification: baVerification,
-      organization: baOrganization,
-      member: baMember,
-      invitation: baInvitation,
-    },
-  }),
-  emailAndPassword: { enabled: true },
-  plugins: [
-    organization({
-      ac,
-      roles: roles as never,
-      sendInvitationEmail: async () => {
-        // No mailer wired yet (fresh-start phase): invitations are created as
-        // pending and accepted via invite link by an admin. Wire SMTP here
-        // before inviting external staff by email.
-      },
-    }),
-  ],
+type AuthInstance = ReturnType<typeof betterAuth>;
+
+export const auth = new Proxy({} as AuthInstance, {
+  get(_target, prop, receiver) {
+    return Reflect.get(getAuth(), prop, receiver);
+  },
 });
+
+let cached: AuthInstance | null = null;
+
+/** Built on first use — module import (incl. build prerender) never touches the DB. */
+function getAuth(): AuthInstance {
+  if (!cached) {
+    cached = betterAuth({
+      database: drizzleAdapter(db(), {
+        provider: "pg",
+        schema: {
+          user: baUser,
+          session: baSession,
+          account: baAccount,
+          verification: baVerification,
+          organization: baOrganization,
+          member: baMember,
+          invitation: baInvitation,
+        },
+      }),
+      emailAndPassword: { enabled: true },
+      plugins: [
+        organization({
+          ac,
+          roles: roles as never,
+          sendInvitationEmail: async () => {
+            // No mailer wired yet (fresh-start phase): invitations are created as
+            // pending and accepted via invite link by an admin. Wire SMTP here
+            // before inviting external staff by email.
+          },
+        }),
+      ],
+    }) as unknown as AuthInstance;
+  }
+  return cached;
+}
 
 export type Session = typeof auth.$Infer.Session;
 
