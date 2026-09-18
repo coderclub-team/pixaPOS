@@ -1,53 +1,99 @@
-import { clerkClient } from "@clerk/nextjs/server";
+/**
+ * RBAC data layer on Postgres (Phase 1 strangler: replaces Clerk-backed reads).
+ * Roles are config-defined (lib/auth.ts access control); the admin UI persists
+ * grants/revokes as overrides layered on the config base.
+ */
+import { and, eq } from "drizzle-orm";
+import { ulid } from "@pixa/contracts";
+import { db, baMember, baUser, rolePermissionOverrides } from "@pixa/db";
+import { POS_PERMISSION_META, ROLE_PERMISSIONS } from "@/config/permissions";
 import type { OrgMember, OrgPermission, OrgRole, RolesPermissionsData } from "./types";
 
-export async function getOrgMembers(organizationId: string): Promise<OrgMember[]> {
-  const client = await clerkClient();
-  const { data } = await client.organizations.getOrganizationMembershipList({
-    organizationId,
-    limit: 100,
-  });
-  return data
-    .map((m) => {
-      const user = m.publicUserData;
-      const raw = m.raw as { role_name?: string } | null;
-      return {
-        userId: user?.userId ?? "",
-        membershipId: m.id,
-        firstName: user?.firstName ?? null,
-        lastName: user?.lastName ?? null,
-        email: user?.identifier ?? "",
-        imageUrl: user?.imageUrl ?? "",
-        role: m.role,
-        roleName: raw?.role_name ?? m.role,
-        permissions: m.permissions ?? [],
-      };
-    })
-    .sort((a, b) => a.role.localeCompare(b.role));
+const ROLE_KEYS = ["admin", "manager", "cashier", "waiter", "kitchen", "accountant"];
+
+const ROLE_LABELS: Record<string, string> = {
+  admin: "Admin",
+  manager: "Manager",
+  cashier: "Cashier",
+  waiter: "Waiter",
+  kitchen: "Kitchen",
+  accountant: "Accountant",
+};
+
+function displayRole(role: string): string {
+  return role.startsWith("org:") ? role : `org:${role}`;
 }
 
-export async function getOrgRoles(): Promise<OrgRole[]> {
-  const client = await clerkClient();
-  const { data } = await client.organizationRoles.getOrganizationRoleList({ limit: 100 });
-  return data.map((r) => ({
-    id: r.id,
-    key: r.key,
-    name: r.name,
-    description: r.description ?? null,
-    permissionIds: (r.permissions ?? []).map((p) => p.id),
-  }));
+export async function effectivePermissions(role: string, outletId?: string): Promise<string[]> {
+  const key = displayRole(role);
+  const base = new Set(ROLE_PERMISSIONS[key] ?? ROLE_PERMISSIONS[role] ?? []);
+  if (outletId) {
+    const overrides = await db()
+      .select()
+      .from(rolePermissionOverrides)
+      .where(
+        and(eq(rolePermissionOverrides.outletId, outletId), eq(rolePermissionOverrides.role, key)),
+      );
+    for (const o of overrides) {
+      if (o.granted) base.add(o.permission);
+      else base.delete(o.permission);
+    }
+  }
+  return [...base];
+}
+
+export async function getOrgMembers(organizationId: string): Promise<OrgMember[]> {
+  const rows = await db()
+    .select({
+      membershipId: baMember.id,
+      userId: baMember.userId,
+      role: baMember.role,
+      name: baUser.name,
+      email: baUser.email,
+      image: baUser.image,
+    })
+    .from(baMember)
+    .innerJoin(baUser, eq(baMember.userId, baUser.id))
+    .where(eq(baMember.organizationId, organizationId));
+  const members: OrgMember[] = [];
+  for (const r of rows) {
+    const [firstName, ...rest] = (r.name ?? "").split(" ");
+    members.push({
+      userId: r.userId,
+      membershipId: r.membershipId,
+      firstName: firstName || null,
+      lastName: rest.join(" ") || null,
+      email: r.email,
+      imageUrl: r.image ?? "",
+      role: displayRole(r.role),
+      roleName: ROLE_LABELS[r.role] ?? r.role,
+      permissions: await effectivePermissions(r.role),
+    });
+  }
+  return members.sort((a, b) => a.role.localeCompare(b.role));
+}
+
+export async function getOrgRoles(outletId?: string): Promise<OrgRole[]> {
+  const roles: OrgRole[] = [];
+  for (const key of ROLE_KEYS) {
+    const perms = await effectivePermissions(key, outletId);
+    roles.push({
+      id: key,
+      key: `org:${key}`,
+      name: ROLE_LABELS[key] ?? key,
+      description: null,
+      permissionIds: perms,
+    });
+  }
+  return roles;
 }
 
 export async function getOrgPermissions(): Promise<OrgPermission[]> {
-  const client = await clerkClient();
-  const { data } = await client.organizationPermissions.getOrganizationPermissionList({
-    limit: 100,
-  });
-  return data.map((p) => ({
-    id: p.id,
+  return POS_PERMISSION_META.map((p) => ({
+    id: p.key,
     key: p.key,
-    name: p.name,
-    description: p.description ?? "",
+    name: p.label,
+    description: `${p.group} — ${p.label}`,
   }));
 }
 
@@ -63,32 +109,48 @@ export async function getRolesPermissionsData(
 }
 
 export async function updateMemberRole(organizationId: string, userId: string, role: string) {
-  const client = await clerkClient();
-  await client.organizations.updateOrganizationMembership({ organizationId, userId, role });
+  const key = role.replace(/^org:/, "");
+  if (!ROLE_KEYS.includes(key)) throw new Error(`Unknown role: ${role}`);
+  await db()
+    .update(baMember)
+    .set({ role: key })
+    .where(and(eq(baMember.organizationId, organizationId), eq(baMember.userId, userId)));
 }
 
 export async function createPermission(name: string, key: string, description?: string) {
-  const client = await clerkClient();
-  const p = await client.organizationPermissions.createOrganizationPermission({
-    name,
-    key,
-    description,
-  });
-  return { id: p.id, key: p.key, name: p.name, description: p.description ?? "" };
+  // Permissions are config-defined; the sync action verifies coverage.
+  const known = POS_PERMISSION_META.some((p) => p.key === key);
+  if (!known) throw new Error(`Unknown permission key: ${key} — add it to config/permissions.ts`);
+  return { id: key, key, name, description: description ?? "" };
 }
 
+/** Outlet scope for overrides resolves from the caller's active org. */
 export async function assignPermissionToRole(roleId: string, permissionId: string) {
-  const client = await clerkClient();
-  await client.organizationRoles.assignPermissionToOrganizationRole({
-    organizationRoleId: roleId,
-    permissionId,
-  });
+  await setOverride(roleId, permissionId, true);
 }
 
 export async function removePermissionFromRole(roleId: string, permissionId: string) {
-  const client = await clerkClient();
-  await client.organizationRoles.removePermissionFromOrganizationRole({
-    organizationRoleId: roleId,
-    permissionId,
+  await setOverride(roleId, permissionId, false);
+}
+
+async function setOverride(roleId: string, permissionId: string, granted: boolean) {
+  const role = displayRole(roleId.replace(/^org:/, ""));
+  const database = db();
+  await database
+    .delete(rolePermissionOverrides)
+    .where(
+      and(
+        eq(rolePermissionOverrides.outletId, "out_001"),
+        eq(rolePermissionOverrides.role, role),
+        eq(rolePermissionOverrides.permission, permissionId),
+      ),
+    );
+  await database.insert(rolePermissionOverrides).values({
+    id: ulid(),
+    outletId: "out_001",
+    role,
+    permission: permissionId,
+    granted,
+    createdAt: new Date(),
   });
 }

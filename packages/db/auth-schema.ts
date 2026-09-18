@@ -90,3 +90,16 @@ export const baInvitation = pgTable("invitation", {
     .notNull()
     .references(() => baUser.id, { onDelete: "cascade" }),
 });
+
+/**
+ * Layered on top of config-defined roles (lib/auth.ts): grants/revokes that
+ * the roles admin UI persists. Effective permission = config base ± overrides.
+ */
+export const rolePermissionOverrides = pgTable("role_permission_overrides", {
+  id: text("id").primaryKey(),
+  outletId: text("outlet_id").notNull(),
+  role: text("role").notNull(),
+  permission: text("permission").notNull(),
+  granted: boolean("granted").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

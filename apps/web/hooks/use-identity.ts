@@ -12,6 +12,7 @@ export type IdentityOrg = {
   id: string;
   name: string;
   slug?: string | null;
+  createdAt?: string | number | Date;
 };
 
 export type IdentityMembership = {
@@ -24,7 +25,7 @@ type BASession = {
   session: { activeOrganizationId?: string };
 } | null;
 
-type BAOrganization = { id: string; name: string; slug?: string | null };
+type BAOrganization = { id: string; name: string; slug?: string | null; createdAt?: string };
 
 type BAClient = {
   useSession: () => { data: BASession; isPending: boolean };
@@ -104,8 +105,15 @@ export function useIdentity() {
       if (cancelled) return;
       setBetter({
         user: toCompatUser(baSession.user.name, baSession.user.email, baSession.user.image),
-        organizations: orgs.map((o) => ({ id: o.id, name: o.name, slug: o.slug })),
-        activeOrg: active ? { id: active.id, name: active.name, slug: active.slug } : null,
+        organizations: orgs.map((o) => ({
+          id: o.id,
+          name: o.name,
+          slug: o.slug,
+          createdAt: o.createdAt,
+        })),
+        activeOrg: active
+          ? { id: active.id, name: active.name, slug: active.slug, createdAt: active.createdAt }
+          : null,
         role,
       });
     })();
@@ -147,7 +155,9 @@ export function useIdentity() {
           emailAddresses: [{ emailAddress: clerkUser.primaryEmailAddress?.emailAddress ?? "" }],
         }
       : null,
-    organization: clerkOrg ? { id: clerkOrg.id, name: clerkOrg.name, slug: clerkOrg.slug } : null,
+    organization: clerkOrg
+      ? { id: clerkOrg.id, name: clerkOrg.name, slug: clerkOrg.slug, createdAt: clerkOrg.createdAt }
+      : null,
     organizations: [],
     membership: {
       role: clerkMembership?.role,
