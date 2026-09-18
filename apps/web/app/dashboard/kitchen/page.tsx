@@ -30,6 +30,7 @@ import {
 import type { KitchenTicketWithDerived, KOTStatus } from "@/features/kitchen/api/types";
 import { getQueryClient } from "@/lib/query-client";
 import { useCrossTabSync } from "@/lib/use-cross-tab-sync";
+import { useKitchenFeed } from "@/features/kitchen/api/use-kitchen-feed";
 import { toast } from "sonner";
 
 type BoardFilter = KOTStatus | "ALL";
@@ -60,6 +61,7 @@ const COLUMN_LABEL: Record<KOTStatus, string> = {
 
 export default function KitchenBoardPage() {
   useCrossTabSync();
+  const feed = useKitchenFeed();
   const [filter, setFilter] = useState<BoardFilter>("ALL");
   const [view, setViewState] = useState<BoardView>(() => {
     if (typeof window === "undefined") return "kanban";
@@ -78,11 +80,12 @@ export default function KitchenBoardPage() {
 
   // Fetch all tickets; tabs filter client-side so counts and
   // tab switches are instant. The board is live across dates — an open
-  // ticket stays visible until served, whenever it was fired. Polled like a
-  // real KDS wallboard (pauses automatically when the tab is hidden).
+  // ticket stays visible until served, whenever it was fired. Live SSE feed
+  // (useKitchenFeed) pushes invalidations; the poll below is the offline
+  // fallback and slows down while the stream is healthy.
   const { data: tickets, isPending } = useQuery({
     ...kitchenTicketsQueryOptions({}),
-    refetchInterval: 5000,
+    refetchInterval: feed === "live" ? 30000 : 5000,
   });
 
   const live = (tickets ?? []).filter((t) => t.status !== "SERVED" && t.status !== "CANCELLED");
@@ -131,9 +134,26 @@ export default function KitchenBoardPage() {
               <Icons.cards className="size-4" />
             </Button>
           </div>
-          <Button variant="outline" size="sm" onClick={() => getQueryClient().invalidateQueries({ queryKey: kitchenKeys.all })}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => getQueryClient().invalidateQueries({ queryKey: kitchenKeys.all })}
+          >
             Refresh board
           </Button>
+          <span
+            title={feed === "live" ? "Live stream connected" : "Polling fallback"}
+            className="flex items-center gap-1 text-[11px] text-muted-foreground"
+          >
+            <span
+              className={
+                feed === "live"
+                  ? "size-1.5 rounded-full bg-emerald-500"
+                  : "size-1.5 rounded-full bg-zinc-400"
+              }
+            />
+            {feed === "live" ? "Live" : "Polling"}
+          </span>
         </div>
       }
     >
@@ -203,7 +223,9 @@ function invalidateBoard() {
 function TicketCard({ ticket: t }: { ticket: KitchenTicketWithDerived }) {
   const [voidOpen, setVoidOpen] = useState(false);
   const [reason, setReason] = useState("");
-  const [lineVoid, setLineVoid] = useState<{ lineId: string; name: string; max: number } | null>(null);
+  const [lineVoid, setLineVoid] = useState<{ lineId: string; name: string; max: number } | null>(
+    null,
+  );
   const [lineVoidQty, setLineVoidQty] = useState(1);
   const [lineVoidReason, setLineVoidReason] = useState("");
 
@@ -290,7 +312,10 @@ function TicketCard({ ticket: t }: { ticket: KitchenTicketWithDerived }) {
               {l.qty - l.voided_qty}× {l.item_name_snapshot}
               {l.variant_name_snapshot ? ` (${l.variant_name_snapshot})` : ""}
               {l.modifiers_snapshot.length > 0 && (
-                <span className="text-xs text-muted-foreground"> + {l.modifiers_snapshot.join(", ")}</span>
+                <span className="text-xs text-muted-foreground">
+                  {" "}
+                  + {l.modifiers_snapshot.join(", ")}
+                </span>
               )}
               {l.instructions && <span className="block text-xs italic">“{l.instructions}”</span>}
             </span>
@@ -326,7 +351,10 @@ function TicketCard({ ticket: t }: { ticket: KitchenTicketWithDerived }) {
                 <Icons.check className="mr-1 h-4 w-4" /> Accept
               </Button>
             )}
-            {(l.status === "PENDING" || l.status === "ACCEPTED" || l.status === "PREPARING" || l.status === "READY") &&
+            {(l.status === "PENDING" ||
+              l.status === "ACCEPTED" ||
+              l.status === "PREPARING" ||
+              l.status === "READY") &&
               t.status !== "SERVED" &&
               t.status !== "CANCELLED" && (
                 <Button
@@ -337,7 +365,11 @@ function TicketCard({ ticket: t }: { ticket: KitchenTicketWithDerived }) {
                   onClick={() => {
                     setLineVoidReason("");
                     setLineVoidQty(l.qty - l.voided_qty);
-                    setLineVoid({ lineId: l.id, name: l.item_name_snapshot, max: l.qty - l.voided_qty });
+                    setLineVoid({
+                      lineId: l.id,
+                      name: l.item_name_snapshot,
+                      max: l.qty - l.voided_qty,
+                    });
                   }}
                   title="Void this item with a reason"
                 >
@@ -396,7 +428,11 @@ function TicketCard({ ticket: t }: { ticket: KitchenTicketWithDerived }) {
             </DialogHeader>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Reason *</Label>
-              <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Out of stock, duplicate…" />
+              <Input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Out of stock, duplicate…"
+              />
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setVoidOpen(false)}>
@@ -459,7 +495,11 @@ function TicketCard({ ticket: t }: { ticket: KitchenTicketWithDerived }) {
                 }
                 onClick={() =>
                   lineVoid &&
-                  voidLineMut.mutate({ lineId: lineVoid.lineId, qty: lineVoidQty, r: lineVoidReason.trim() })
+                  voidLineMut.mutate({
+                    lineId: lineVoid.lineId,
+                    qty: lineVoidQty,
+                    r: lineVoidReason.trim(),
+                  })
                 }
               >
                 Void item
