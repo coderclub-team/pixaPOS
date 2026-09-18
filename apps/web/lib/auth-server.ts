@@ -47,7 +47,11 @@ export async function anyHas(permission: string): Promise<boolean> {
 export async function assertAnySuperAdmin(): Promise<string> {
   const ctx = await orgContext();
   if (!ctx.orgId) throw new Error("No active organization selected.");
-  const adminish = ctx.role === "org:admin" || ctx.role === "admin";
+  const adminish =
+    ctx.role === "org:admin" ||
+    ctx.role === "admin" ||
+    ctx.role === "owner" ||
+    ctx.role === "org:owner";
   if (!hasDevBypass() && !adminish) {
     throw new Error("Only super admins can manage roles and permissions.");
   }

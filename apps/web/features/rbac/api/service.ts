@@ -12,6 +12,7 @@ import type { OrgMember, OrgPermission, OrgRole, RolesPermissionsData } from "./
 const ROLE_KEYS = ["admin", "manager", "cashier", "waiter", "kitchen", "accountant"];
 
 const ROLE_LABELS: Record<string, string> = {
+  owner: "Owner",
   admin: "Admin",
   manager: "Manager",
   cashier: "Cashier",

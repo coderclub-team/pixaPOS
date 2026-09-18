@@ -9,7 +9,11 @@ export const metadata = { title: "Dashboard : Roles & Permissions" };
 
 export default async function Page() {
   const ctx = await orgContext();
-  const adminish = ctx.role === "org:admin" || ctx.role === "admin";
+  const adminish =
+    ctx.role === "org:admin" ||
+    ctx.role === "admin" ||
+    ctx.role === "owner" ||
+    ctx.role === "org:owner";
   if (!hasDevBypass() && (!ctx.orgId || !adminish)) {
     redirect("/dashboard/overview");
   }

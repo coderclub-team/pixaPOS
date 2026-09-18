@@ -125,7 +125,9 @@ export function useIdentity() {
   if (baSession?.user) {
     const role = better?.role ?? null;
     const permissions =
-      ROLE_PERMISSIONS[`org:${role}`] ?? (role ? (ROLE_PERMISSIONS[role] ?? []) : []);
+      role === "owner" || role === "org:owner"
+        ? Object.values(ROLE_PERMISSIONS).flat()
+        : (ROLE_PERMISSIONS[`org:${role}`] ?? (role ? (ROLE_PERMISSIONS[role] ?? []) : []));
     return {
       source: "better" as const,
       loaded: !baPending && better !== null,

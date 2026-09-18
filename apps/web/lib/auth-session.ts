@@ -45,6 +45,8 @@ export async function baHas(permission: string): Promise<boolean> {
   if (!orgId) return false;
   const role = await baMemberRole(orgId, session.user.id);
   if (!role) return false;
+  // Org creators hold "owner" — full access like org:admin.
+  if (role === "owner" || role === "org:owner") return true;
   return (ROLE_PERMISSIONS[`org:${role}`] ?? ROLE_PERMISSIONS[role] ?? []).includes(permission);
 }
 
