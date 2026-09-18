@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useClerk, useOrganization as useClerkOrg, useUser as useClerkUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
+import { authClient, baOrgs } from "@/lib/auth-client";
 import { ROLE_PERMISSIONS } from "@/config/permissions";
 
-export type IdentitySource = "better" | "clerk" | null;
+export type IdentitySource = "better" | null;
 
 export type IdentityOrg = {
   id: string;
@@ -68,16 +67,12 @@ function toCompatUser(name: string, email: string, image?: string | null): Compa
 }
 
 /**
- * Strangler identity: prefers a Better Auth session when present, falls back
- * to Clerk. Surfaces swap to this hook once; cutover deletes the Clerk leg.
+ * Identity: Better Auth session with organization + role-derived permissions.
  */
 export function useIdentity() {
   const router = useRouter();
   const { data: baSession, isPending: baPending } = ba.useSession();
   const [better, setBetter] = useState<BetterState>(null);
-  const { user: clerkUser } = useClerkUser();
-  const { organization: clerkOrg, membership: clerkMembership } = useClerkOrg();
-  const { signOut: clerkSignOut } = useClerk();
 
   useEffect(() => {
     if (!baSession?.user) {
@@ -86,7 +81,7 @@ export function useIdentity() {
     }
     let cancelled = false;
     (async () => {
-      const orgs = await ba.organization
+      const orgs = await baOrgs
         .list()
         .then((r) => r.data ?? [])
         .catch(() => []);
@@ -95,8 +90,8 @@ export function useIdentity() {
       const active = orgs.find((o) => o.id === activeId) ?? orgs[0] ?? null;
       let role: string | null = null;
       if (active) {
-        const full = await ba.organization
-          .getFullOrganization({ query: { organizationId: active.id } })
+        const full = await baOrgs
+          .getFull(active.id)
           .then((r) => r.data)
           .catch(() => null);
         const members = full?.members;
@@ -122,52 +117,28 @@ export function useIdentity() {
     };
   }, [baSession?.user?.id, baSession?.session?.activeOrganizationId]);
 
-  if (baSession?.user) {
-    const role = better?.role ?? null;
-    const permissions =
-      role === "owner" || role === "org:owner"
-        ? Object.values(ROLE_PERMISSIONS).flat()
-        : (ROLE_PERMISSIONS[`org:${role}`] ?? (role ? (ROLE_PERMISSIONS[role] ?? []) : []));
-    return {
-      source: "better" as const,
-      loaded: !baPending && better !== null,
-      user: better?.user ?? toCompatUser(baSession.user.name, baSession.user.email),
-      organization: better?.activeOrg ?? null,
-      organizations: better?.organizations ?? [],
-      membership: { role, permissions } as IdentityMembership,
-      setActiveOrg: async (id: string) => {
-        await ba.organization.setActive({ organizationId: id });
-      },
-      signOut: async () => {
-        await ba.signOut({});
-        router.push("/auth/ba-sign-in");
-      },
-    };
-  }
-
   return {
-    source: (clerkUser ? "clerk" : null) as IdentitySource,
-    loaded: true,
-    user: clerkUser
-      ? {
-          name: clerkUser.fullName ?? clerkUser.username ?? "",
-          email: clerkUser.primaryEmailAddress?.emailAddress ?? "",
-          imageUrl: clerkUser.imageUrl,
-          fullName: clerkUser.fullName ?? clerkUser.username ?? "",
-          emailAddresses: [{ emailAddress: clerkUser.primaryEmailAddress?.emailAddress ?? "" }],
-        }
+    source: (baSession?.user ? "better" : null) as IdentitySource,
+    loaded: !baPending,
+    user: baSession?.user
+      ? (better?.user ?? toCompatUser(baSession.user.name, baSession.user.email))
       : null,
-    organization: clerkOrg
-      ? { id: clerkOrg.id, name: clerkOrg.name, slug: clerkOrg.slug, createdAt: clerkOrg.createdAt }
-      : null,
-    organizations: [],
+    organization: better?.activeOrg ?? null,
+    organizations: better?.organizations ?? [],
     membership: {
-      role: clerkMembership?.role,
-      permissions: (clerkMembership?.permissions ?? []) as string[],
+      role: better?.role ?? null,
+      permissions:
+        better?.role === "owner" || better?.role === "org:owner"
+          ? Object.values(ROLE_PERMISSIONS).flat()
+          : (ROLE_PERMISSIONS[`org:${better?.role}`] ??
+            (better?.role ? (ROLE_PERMISSIONS[better.role] ?? []) : [])),
     } as IdentityMembership,
-    setActiveOrg: async () => {},
+    setActiveOrg: async (id: string) => {
+      await baOrgs.setActive(id);
+    },
     signOut: async () => {
-      await clerkSignOut({ redirectUrl: "/auth/sign-in" });
+      await ba.signOut({});
+      router.push("/auth/sign-in");
     },
   };
 }

@@ -17,7 +17,7 @@ import {
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { can } from "@/lib/authz";
-import { useOrganization } from "@clerk/nextjs";
+import { useIdentity } from "@/hooks/use-identity";
 import Link from "next/link";
 
 const REASONS = [
@@ -31,7 +31,7 @@ const REASONS = [
 ] as const;
 
 export default function WastePage() {
-  const { membership } = useOrganization();
+  const { membership } = useIdentity();
   const canManageWaste = can(membership?.permissions, "org:waste:manage");
   const [search, setSearch] = React.useState("");
   const [reason, setReason] = React.useState<string | undefined>(undefined);

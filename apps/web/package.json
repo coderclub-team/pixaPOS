@@ -9,7 +9,6 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
-    "@clerk/nextjs": "^7.8.3",
     "@pixa/contracts": "workspace:*",
     "@pixa/db": "workspace:*",
     "@pixa/ui": "workspace:*",

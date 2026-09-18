@@ -1,8 +1,6 @@
 /**
- * Dual-auth server helpers (Phase 1 strangler). Every gate accepts a Clerk
- * session OR a Better Auth session; cutover deletes the Clerk leg.
+ * Server identity helpers (Better Auth only).
  */
-import { auth as clerkAuth } from "@clerk/nextjs/server";
 import { baHas, baMemberRole, baOrgId, baUser } from "./auth-session";
 import { hasDevBypass } from "./authz";
 
@@ -13,33 +11,23 @@ export type OrgContext = {
   permissions: string[];
 };
 
-/** Resolve org context from whichever identity is present. */
+/** Resolve org context from the Better Auth session. */
 export async function orgContext(): Promise<OrgContext> {
   const bau = await baUser().catch(() => null);
-  if (bau) {
-    const orgId = await baOrgId();
-    const role = orgId ? await baMemberRole(orgId, bau.id) : null;
-    const { ROLE_PERMISSIONS } = await import("@/config/permissions");
-    const permissions =
-      ROLE_PERMISSIONS[`org:${role}`] ?? (role ? (ROLE_PERMISSIONS[role] ?? []) : []);
-    return { source: "better", orgId, role, permissions };
-  }
-  const { orgId, orgRole, has } = await clerkAuth();
-  void has;
-  // Clerk membership permissions for nav parity are client-side; server gates
-  // use role + explicit permission probe below.
-  return { source: orgId ? "clerk" : null, orgId, role: orgRole ?? null, permissions: [] };
+  if (!bau) return { source: null, orgId: null, role: null, permissions: [] };
+  const orgId = await baOrgId();
+  const role = orgId ? await baMemberRole(orgId, bau.id) : null;
+  const { ROLE_PERMISSIONS } = await import("@/config/permissions");
+  const permissions =
+    role === "owner" || role === "org:owner"
+      ? Object.values(ROLE_PERMISSIONS).flat()
+      : (ROLE_PERMISSIONS[`org:${role}`] ?? (role ? (ROLE_PERMISSIONS[role] ?? []) : []));
+  return { source: "better", orgId, role, permissions };
 }
 
-/** Clerk has({permission}) OR Better Auth role-map check. */
+/** Permission gate against the Better Auth role map. */
 export async function anyHas(permission: string): Promise<boolean> {
   if (hasDevBypass()) return true;
-  try {
-    const { has } = await clerkAuth();
-    if (has({ permission: permission as never })) return true;
-  } catch {
-    /* no Clerk session — try Better Auth */
-  }
   return baHas(permission);
 }
 
