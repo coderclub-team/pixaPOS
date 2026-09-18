@@ -54,6 +54,15 @@ export const auth = new Proxy({} as AuthInstance, {
   get(_target, prop, receiver) {
     return Reflect.get(getAuth(), prop, receiver);
   },
+  // toNextJsHandler probes `"handler" in auth` — delegate ownership checks too.
+  has(_target, prop) {
+    return Reflect.has(getAuth(), prop);
+  },
+  getOwnPropertyDescriptor(_target, prop) {
+    const descriptor = Reflect.getOwnPropertyDescriptor(getAuth(), prop);
+    if (descriptor) descriptor.configurable = true;
+    return descriptor;
+  },
 });
 
 let cached: AuthInstance | null = null;
