@@ -16,5 +16,8 @@
     "ui": "@pixa/ui",
     "lib": "@/lib",
     "hooks": "@/hooks"
+  },
+  "registries": {
+    "@better-auth-ui": "https://better-auth-ui.com/r/{style}/{name}.json"
   }
 }
