@@ -34,7 +34,6 @@ import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import Link from "next/link";
 
 export function MenuList({ items }: { items: MenuItem[] }) {
   if (items.length === 0)
@@ -208,9 +207,6 @@ function MenuRow({ item }: { item: MenuItem }) {
                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
               </DropdownMenuGroup>
               <DropdownMenuGroup>
-                <DropdownMenuItem onClick={() => router.push(`/dashboard/menu/items/${item.id}`)}>
-                  <Icons.edit className="mr-2 h-4 w-4" /> View
-                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => router.push(`/dashboard/menu/items/${item.id}/edit`)}
                 >
@@ -222,9 +218,6 @@ function MenuRow({ item }: { item: MenuItem }) {
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Link href={`/dashboard/menu/items/${item.id}`} className="sr-only">
-            View
-          </Link>
         </TableCell>
       </TableRow>
     </>

@@ -203,9 +203,43 @@ function slugify(s: string) {
     .replace(/^-|-$/g, "");
 }
 
+const MENU_STORAGE_KEY = "pixaMenu";
+
+function saveMenu() {
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(
+        MENU_STORAGE_KEY,
+        JSON.stringify({
+          categories: mockCategories,
+          items: mockMenuItems,
+          modifierGroups: mockModifierGroups,
+          modifiers: mockModifiers,
+        }),
+      );
+    } catch {}
+  }
+}
+
+function loadMenu(): void {
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(MENU_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed?.categories)) mockCategories = parsed.categories;
+        if (Array.isArray(parsed?.items)) mockMenuItems = parsed.items;
+        if (Array.isArray(parsed?.modifierGroups)) mockModifierGroups = parsed.modifierGroups;
+        if (Array.isArray(parsed?.modifiers)) mockModifiers = parsed.modifiers;
+      }
+    } catch {}
+  }
+}
+
 // Categories
 export async function getMenuCategories(filters?: MenuCategoryFilters): Promise<MenuCategory[]> {
   await delay(300);
+  loadMenu(); // localStorage is the shared source — reload so tabs/displays agree
   let r = [...mockCategories].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   if (filters?.search) {
     const q = filters.search.toLowerCase();
@@ -216,6 +250,7 @@ export async function getMenuCategories(filters?: MenuCategoryFilters): Promise<
 }
 export async function getMenuCategoryById(id: string): Promise<MenuCategory | null> {
   await delay(200);
+  loadMenu();
   return mockCategories.find((c) => c.id === id) ?? null;
 }
 export async function createMenuCategory(payload: MenuCategoryPayload): Promise<MenuCategory> {
@@ -236,6 +271,7 @@ export async function createMenuCategory(payload: MenuCategoryPayload): Promise<
     updated_at: now,
   };
   mockCategories.push(cat);
+  saveMenu();
   return { ...cat };
 }
 export async function updateMenuCategory(
@@ -252,6 +288,7 @@ export async function updateMenuCategory(
     image_url: (payload as any).image_url ?? mockCategories[idx].image_url,
     updated_at: new Date().toISOString(),
   };
+  saveMenu();
   return { ...mockCategories[idx] };
 }
 export async function deleteMenuCategory(id: string): Promise<void> {
@@ -263,11 +300,13 @@ export async function deleteMenuCategory(id: string): Promise<void> {
   if (mockCategories.some((c) => c.parent_id === id))
     throw new Error("Category has sub-categories");
   mockCategories.splice(idx, 1);
+  saveMenu();
 }
 
 // Menu Items
 export async function getMenuItems(filters?: MenuItemFilters): Promise<MenuItem[]> {
   await delay(400);
+  loadMenu();
   let r = [...mockMenuItems].sort((a, b) => a.name.localeCompare(b.name));
   if (filters?.search) {
     const q = filters.search.toLowerCase();
@@ -287,6 +326,7 @@ export async function getMenuItems(filters?: MenuItemFilters): Promise<MenuItem[
 }
 export async function getMenuItemById(id: string): Promise<MenuItem | null> {
   await delay(300);
+  loadMenu();
   return mockMenuItems.find((m) => m.id === id) ?? null;
 }
 export async function createMenuItem(payload: MenuItemPayload): Promise<MenuItem> {
@@ -378,6 +418,7 @@ export async function createMenuItem(payload: MenuItemPayload): Promise<MenuItem
     updated_at: now,
   };
   mockMenuItems.push(item);
+  saveMenu();
   return { ...item };
 }
 export async function updateMenuItem(id: string, payload: MenuItemPayload): Promise<MenuItem> {
@@ -438,15 +479,18 @@ export async function updateMenuItem(id: string, payload: MenuItemPayload): Prom
     updated_at: new Date().toISOString(),
   };
   mockMenuItems[idx] = updated;
+  saveMenu();
   return { ...updated };
 }
 
 export async function getModifierGroups(): Promise<import("./types").ModifierGroup[]> {
   await delay(300);
+  loadMenu();
   return [...mockModifierGroups];
 }
 export async function getModifiers(groupId?: string): Promise<import("./types").Modifier[]> {
   await delay(300);
+  loadMenu();
   let r = [...mockModifiers];
   if (groupId) r = r.filter((m) => m.modifier_group_id === groupId);
   return r;
@@ -456,4 +500,5 @@ export async function deleteMenuItem(id: string): Promise<void> {
   const idx = mockMenuItems.findIndex((m) => m.id === id);
   if (idx === -1) throw new Error("Menu item not found");
   mockMenuItems.splice(idx, 1);
+  saveMenu();
 }
