@@ -118,7 +118,7 @@ export default function WorkspacesPage() {
                   onChange={(e) => setName(e.target.value)}
                 />
               </div>
-              <Button disabled={pending || !name.trim()}>
+              <Button type="submit" disabled={pending || !name.trim()}>
                 <Icons.add className="mr-1 size-4" /> Create
               </Button>
             </form>

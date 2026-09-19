@@ -84,7 +84,9 @@ export default function ProfilePage() {
                   onChange={(e) => setNewPassword(e.target.value)}
                 />
               </div>
-              <Button disabled={pending}>{pending ? "Updating…" : "Update password"}</Button>
+              <Button type="submit" disabled={pending}>
+                {pending ? "Updating…" : "Update password"}
+              </Button>
             </form>
           </CardContent>
         </Card>

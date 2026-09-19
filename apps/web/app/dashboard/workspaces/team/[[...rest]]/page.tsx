@@ -164,7 +164,7 @@ export default function TeamPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <Button disabled={pending || !email.trim()}>
+              <Button type="submit" disabled={pending || !email.trim()}>
                 {pending ? "Inviting…" : "Invite"}
               </Button>
             </form>
