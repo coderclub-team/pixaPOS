@@ -1,0 +1,67 @@
+name: promote
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+env:
+  APP_ENV: ${{ (github.ref_type == 'tag' && 'prod') || (startsWith(github.ref, 'refs/heads/release/') && 'stage') || 'dev' }}
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.24.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+
+  build:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.24.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+        env:
+          DATABASE_URL: ${{ secrets[format('{0}_DATABASE_URL', env.APP_ENV == 'prod' && 'PROD' || env.APP_ENV == 'stage' && 'STAGE' || 'DEV')] }}
+          BETTER_AUTH_SECRET: dummy-build-secret-0123456789abcdef
+          BETTER_AUTH_URL: http://localhost:3000
+
+  migrate:
+    # Migrations promote dev → stage → prod, never prod first. Secrets
+    # DEV/STAGE/PROD_DATABASE_URL hold the pooled per-branch Neon URLs.
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.24.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: migrate target tier
+        run: pnpm exec drizzle-kit migrate --config ./drizzle.config.ts
+        env:
+          DATABASE_URL: ${{ secrets[format('{0}_DATABASE_URL', env.APP_ENV == 'prod' && 'PROD' || env.APP_ENV == 'stage' && 'STAGE' || 'DEV')] }}
