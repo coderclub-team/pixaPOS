@@ -20,16 +20,16 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
   title: {
-    default: "Shadcn Dashboard - Next.js Admin Dashboard Template",
-    template: "%s | Shadcn Dashboard",
+    default: "pixaPOS — Restaurant Operations",
+    template: "%s | pixaPOS",
   },
   description:
-    "Free, open source admin dashboard starter built with Next.js 16, shadcn/ui, Tailwind CSS, and TypeScript.",
+    "Local-first restaurant operations platform: POS, KOT/KDS, payments, inventory, tables, and reporting.",
   openGraph: {
-    title: "Shadcn Dashboard - Next.js Admin Dashboard Template",
+    title: "pixaPOS — Restaurant Operations",
     description:
-      "Free, open source admin dashboard starter built with Next.js 16, shadcn/ui, Tailwind CSS, and TypeScript.",
-    siteName: "Shadcn Dashboard",
+      "Local-first restaurant operations platform: POS, KOT/KDS, payments, inventory, tables, and reporting.",
+    siteName: "pixaPOS",
     type: "website",
     images: [
       {
@@ -42,9 +42,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Shadcn Dashboard - Next.js Admin Dashboard Template",
+    title: "pixaPOS — Restaurant Operations",
     description:
-      "Free, open source admin dashboard starter built with Next.js 16, shadcn/ui, Tailwind CSS, and TypeScript.",
+      "Local-first restaurant operations platform: POS, KOT/KDS, payments, inventory, tables, and reporting.",
     images: ["/shadcn-dashboard.png"],
   },
 };
