@@ -9,7 +9,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createMenuCategory, updateMenuCategory } from "../api/service";
-import { menuKeys, menuCategoriesQueryOptions } from "../api/queries";
+import { menuKeys, menuCategoriesQueryOptions, menuCategoryQueryOptions } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import type { MenuCategory } from "../api/types";
 import { Icons } from "@pixa/ui/icons";
@@ -17,13 +17,57 @@ import { useState } from "react";
 
 export default function MenuCategoryForm({
   initialData,
+  categoryId,
   pageTitle,
 }: {
   initialData?: MenuCategory | null;
+  /** When set, the form loads its own data client-side (fixes SSR prefetch misses on local data). */
+  categoryId?: string;
   pageTitle?: string;
 }) {
   const router = useRouter();
-  const isEdit = !!initialData;
+  const { data: fetched, isPending: isLoading } = useQuery({
+    ...menuCategoryQueryOptions(categoryId ?? ""),
+    enabled: !!categoryId && !initialData,
+  });
+  const data = initialData ?? fetched ?? null;
+  const isEdit = !!categoryId || !!initialData;
+
+  if (categoryId && !initialData) {
+    if (isLoading) {
+      return (
+        <div className="mx-auto w-full max-w-2xl space-y-6">
+          <div className="rounded-lg border p-6 text-center text-sm text-muted-foreground">
+            Loading category…
+          </div>
+        </div>
+      );
+    }
+    if (!data) {
+      return (
+        <div className="mx-auto w-full max-w-2xl space-y-4 text-center">
+          <p className="font-medium">Category not found</p>
+          <p className="text-sm text-muted-foreground">
+            This category doesn&apos;t exist in this session — it may predate saved data.
+          </p>
+        </div>
+      );
+    }
+  }
+
+  return <MenuCategoryFormInner initialData={data} pageTitle={pageTitle} isEdit={isEdit} />;
+}
+
+function MenuCategoryFormInner({
+  initialData,
+  pageTitle,
+  isEdit,
+}: {
+  initialData?: MenuCategory | null;
+  pageTitle?: string;
+  isEdit: boolean;
+}) {
+  const router = useRouter();
   const { data: categories } = useQuery(menuCategoriesQueryOptions());
   const parentOptions = (categories ?? [])
     .filter((c) => c.id !== initialData?.id)

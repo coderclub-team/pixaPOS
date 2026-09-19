@@ -16,6 +16,7 @@ const SHARED_KEYS = [
   "pixaTables",
   "pixaEvents",
   "pixaBilling",
+  "pixaMenu",
   "pixaLocalDbBump",
 ];
 
@@ -30,6 +31,7 @@ export function useCrossTabSync() {
       qc.invalidateQueries({ queryKey: ["tables"] });
       qc.invalidateQueries({ queryKey: ["events"] });
       qc.invalidateQueries({ queryKey: ["billing"] });
+      qc.invalidateQueries({ queryKey: ["menu"] });
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
