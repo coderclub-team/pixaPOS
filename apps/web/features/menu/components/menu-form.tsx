@@ -35,6 +35,7 @@ import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { useState } from "react";
 import { FileUploader } from "@/components/file-uploader";
+import { useImageUpload } from "@/hooks/use-image-upload";
 import { SortableList, SortableItem, SortableItemHandle } from "@pixa/ui/base-ui/sortable";
 
 type VariantForm = {
@@ -82,6 +83,7 @@ export default function MenuForm({
     ((initialData as any)?.image_url ? [(initialData as any).image_url] : []);
   const [images, setImages] = useState<string[]>(initialImages);
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const { upload: uploadImage } = useImageUpload("menu-item");
   const [variants, setVariants] = useState<VariantForm[]>(
     initialData?.variants.map((v) => ({
       _uid: uid(),
@@ -112,15 +114,28 @@ export default function MenuForm({
     initialData?.available_channels ?? ["dine_in", "pickup", "delivery"],
   );
 
-  const syncFromUploader = (files: File[]) => {
+  const syncFromUploader = async (files: File[]) => {
     const remaining = 6 - images.length;
     if (files.length > remaining) {
       toast.error(`Only ${remaining} more image(s) allowed (max 6)`);
     }
     const toAdd = files.slice(0, remaining);
-    const urls = toAdd.map((f) => (f as any).preview ?? URL.createObjectURL(f));
-    if (urls.length) setImages((p) => [...p, ...urls].slice(0, 6));
+    // Instant blob previews first; each swaps to its durable Neon URL on upload.
+    const previews = toAdd.map((f) => (f as any).preview ?? URL.createObjectURL(f));
+    if (previews.length) setImages((p) => [...p, ...previews].slice(0, 6));
     setUploadFiles([]);
+    for (let i = 0; i < toAdd.length; i++) {
+      const url = await uploadImage(toAdd[i], {
+        onPreview: () => {},
+      });
+      if (!url) {
+        setImages((p) => p.filter((u) => u !== previews[i]));
+        continue;
+      }
+      const preview = previews[i];
+      setImages((p) => p.map((u) => (u === preview ? url : u)));
+      URL.revokeObjectURL(preview);
+    }
   };
   const removeImage = (idx: number) => {
     const url = images[idx];

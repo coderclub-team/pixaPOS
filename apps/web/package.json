@@ -8,6 +8,9 @@
     "start": "next start"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1135.0",
+    "@aws-sdk/s3-presigned-post": "^3.1135.0",
+    "@aws-sdk/s3-request-presigner": "^3.1135.0",
     "@base-ui/react": "^1.6.0",
     "@better-auth-ui/core": "^1.7.23",
     "@better-auth-ui/react": "^1.7.23",
@@ -24,6 +27,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "drizzle-orm": "^0.45.2",
+    "files-sdk": "^2.6.0",
     "hono": "^4.13.8",
     "kbar": "0.1.0-beta.48",
     "next": "16.2.12",

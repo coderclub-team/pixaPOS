@@ -23,6 +23,7 @@ import { inventoryKeys, rawMaterialsQueryOptions } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
+import { useImageUpload } from "@/hooks/use-image-upload";
 
 const reasonOptions = [
   { label: "Spoilage", value: "spoilage" },
@@ -42,6 +43,7 @@ export default function WasteForm({ pageTitle }: { pageTitle: string }) {
     value: m.id,
   }));
   const [photoUrl, setPhotoUrl] = useState<string>("");
+  const { upload: uploadWastePhoto } = useImageUpload("waste");
   const mutation = useMutation({
     mutationFn: (v: WasteValues & { photo_url?: string }) => createWasteLog(v as any),
     onSuccess: () => {
@@ -57,12 +59,19 @@ export default function WasteForm({ pageTitle }: { pageTitle: string }) {
     onSubmit: async ({ value }) =>
       mutation.mutateAsync({ ...value, photo_url: photoUrl || undefined }),
   });
-  const handlePhoto = (file: File | undefined) => {
+  const handlePhoto = async (file: File | undefined) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) return toast.error(`${file.name}: not an image`);
     if (file.size > 5 * 1024 * 1024) return toast.error(`${file.name}: max 5MB`);
     if (photoUrl.startsWith("blob:")) URL.revokeObjectURL(photoUrl);
-    setPhotoUrl(URL.createObjectURL(file));
+    const url = await uploadWastePhoto(file, {
+      onPreview: (blob) => setPhotoUrl(blob),
+    });
+    if (!url) {
+      setPhotoUrl("");
+      return;
+    }
+    setPhotoUrl(url);
   };
   return (
     <Card className="mx-auto w-full max-w-3xl">
