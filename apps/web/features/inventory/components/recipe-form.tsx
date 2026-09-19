@@ -32,6 +32,7 @@ import { getQueryClient } from "@/lib/query-client";
 import type { Recipe } from "../api/types";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
+import { useImageUpload } from "@/hooks/use-image-upload";
 import { useState } from "react";
 import { SortableList, SortableItem, SortableItemHandle } from "@pixa/ui/base-ui/sortable";
 
@@ -99,8 +100,7 @@ export default function RecipeForm({
     (initialData as any)?.menu_item_id ?? "",
   );
   const linkedItem = (menuItems ?? []).find((m) => m.id === linkedMenuItemId);
-  const variantCols =
-    linkedItem && linkedItem.variants.length > 1 ? linkedItem.variants : [];
+  const variantCols = linkedItem && linkedItem.variants.length > 1 ? linkedItem.variants : [];
   const dishOptions = (menuItems ?? []).map((m) => ({
     label: `${m.name} — ${m.category_name ?? "Uncategorized"}${m.variants.length > 1 ? ` (${m.variants.length} variants)` : ""}`,
     value: m.id,
@@ -117,9 +117,18 @@ export default function RecipeForm({
       step_no: ing.step_no ?? "",
       variant_qtys: (ing.variant_qtys ?? []).map((vq) => ({ ...vq })),
     })) ?? [
-      { _uid: uid(), material_id: "", qty: 0.2, unit: "kg", wastage_percent: "", step_no: "", variant_qtys: [] },
+      {
+        _uid: uid(),
+        material_id: "",
+        qty: 0.2,
+        unit: "kg",
+        wastage_percent: "",
+        step_no: "",
+        variant_qtys: [],
+      },
     ],
   );
+  const { upload: uploadRecipePhoto } = useImageUpload("recipe");
   const [steps, setSteps] = useState<StepForm[]>(
     (initialData?.steps ?? []).map((s) => ({
       _uid: uid(),
@@ -257,7 +266,10 @@ export default function RecipeForm({
       for (let i = 0; i < steps.length; i++) {
         const s = steps[i];
         if (!s.instruction.trim()) return setFormError(`Step ${i + 1}: instruction required`);
-        if (s.temperature_c !== "" && (Number(s.temperature_c) < 0 || Number(s.temperature_c) > 300))
+        if (
+          s.temperature_c !== "" &&
+          (Number(s.temperature_c) < 0 || Number(s.temperature_c) > 300)
+        )
           return setFormError(`Step ${i + 1}: temp 0–300°C`);
       }
       setFormError(null);
@@ -292,7 +304,12 @@ export default function RecipeForm({
         variant_qtys: [],
       },
     ]);
-  const setVariantQty = (idx: number, variant_id: string, variant_name: string, qty: number | string) =>
+  const setVariantQty = (
+    idx: number,
+    variant_id: string,
+    variant_name: string,
+    qty: number | string,
+  ) =>
     setIngredients((prev) =>
       prev.map((ing, i) => {
         if (i !== idx) return ing;
@@ -311,9 +328,7 @@ export default function RecipeForm({
         const vqs = rest.map((v) => {
           const size = Number(v.qty) || 0;
           const sameUnit = (v.unit ?? "").toLowerCase() === baseUnit && baseSize > 0 && size > 0;
-          const q = sameUnit
-            ? Math.round(baseQty * (size / baseSize) * 1000) / 1000
-            : baseQty;
+          const q = sameUnit ? Math.round(baseQty * (size / baseSize) * 1000) / 1000 : baseQty;
           return { variant_id: v.id, variant_name: v.name, qty: q as number | string };
         });
         return {
@@ -346,13 +361,16 @@ export default function RecipeForm({
         is_optional: false,
       },
     ]);
-  const handleStepImage = (idx: number, file: File | undefined) => {
+  const handleStepImage = async (idx: number, file: File | undefined) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) return toast.error(`${file.name}: not an image`);
     if (file.size > 5 * 1024 * 1024) return toast.error(`${file.name}: max 5MB`);
     const prev = steps[idx]?.image_url;
     if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
-    updateStep(idx, { image_url: URL.createObjectURL(file) });
+    const url = await uploadRecipePhoto(file, {
+      onPreview: (blob) => updateStep(idx, { image_url: blob }),
+    });
+    updateStep(idx, { image_url: url ?? "" });
   };
   const removeStepImage = (idx: number) => {
     const prev = steps[idx]?.image_url;
@@ -492,9 +510,7 @@ export default function RecipeForm({
                                   <Icons.check
                                     className={cn(
                                       "mr-2 h-4 w-4",
-                                      linkedMenuItemId === opt.value
-                                        ? "opacity-100"
-                                        : "opacity-0",
+                                      linkedMenuItemId === opt.value ? "opacity-100" : "opacity-0",
                                     )}
                                   />
                                   <span className="truncate">{opt.label}</span>
@@ -551,7 +567,8 @@ export default function RecipeForm({
               Raw material consumption per batch. Cost auto-calculated from avg costs. Est. batch
               cost ₹{Math.round(batchCost * 100) / 100}
               {variantCosts.length > 0 &&
-                ` (${variantCosts.map((vc) => `${vc.variant_name} ₹${vc.cost}`).join(" / ")})`}.
+                ` (${variantCosts.map((vc) => `${vc.variant_name} ₹${vc.cost}`).join(" / ")})`}
+              .
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -669,10 +686,7 @@ export default function RecipeForm({
                     </div>
                     <div className="col-span-1 md:col-span-2 space-y-1.5">
                       <Label className="text-xs text-muted-foreground">Unit</Label>
-                      <Select
-                        value={ing.unit}
-                        onValueChange={(nv) => updateIng(idx, { unit: nv })}
-                      >
+                      <Select value={ing.unit} onValueChange={(nv) => updateIng(idx, { unit: nv })}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>

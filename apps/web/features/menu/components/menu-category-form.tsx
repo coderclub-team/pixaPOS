@@ -14,6 +14,7 @@ import { getQueryClient } from "@/lib/query-client";
 import type { MenuCategory } from "../api/types";
 import { Icons } from "@pixa/ui/icons";
 import { useState } from "react";
+import { useImageUpload } from "@/hooks/use-image-upload";
 
 export default function MenuCategoryForm({
   initialData,
@@ -68,6 +69,7 @@ function MenuCategoryFormInner({
   isEdit: boolean;
 }) {
   const router = useRouter();
+  const { upload, uploading } = useImageUpload("category");
   const { data: categories } = useQuery(menuCategoriesQueryOptions());
   const parentOptions = (categories ?? [])
     .filter((c) => c.id !== initialData?.id)
@@ -116,11 +118,15 @@ function MenuCategoryFormInner({
     },
   });
 
-  const handleFile = (file: File | undefined) => {
+  const handleFile = async (file: File | undefined) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) return toast.error("Only images");
     if (file.size > 5 * 1024 * 1024) return toast.error("Max 5MB");
-    const url = URL.createObjectURL(file);
+    const url = await upload(file, { onPreview: (blob) => setPreviewUrl(blob) });
+    if (!url) {
+      setPreviewUrl(initialData?.image_url ?? undefined);
+      return;
+    }
     setPreviewUrl(url);
     form.setFieldValue("image_url" as any, url);
   };
@@ -205,11 +211,12 @@ function MenuCategoryFormInner({
                         PNG, JPG up to 5MB. Recommended 400×400.
                       </p>
                       <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border bg-background px-3 py-1.5 text-sm">
-                        Upload image
+                        {uploading ? "Uploading…" : "Upload image"}
                         <Input
                           type="file"
                           accept="image/*"
                           className="sr-only"
+                          disabled={uploading}
                           onChange={(e) => handleFile(e.target.files?.[0])}
                         />
                       </label>
