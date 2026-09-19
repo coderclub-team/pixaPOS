@@ -1,15 +1,16 @@
 /**
  * Development-only authorization bypass.
  *
- * When NEXT_PUBLIC_PIXAPOS_DEV_BYPASS is "true" (and we are NOT in a production
- * build), permission/role checks are skipped so developers can see every feature
- * without configuring Clerk custom permissions first.
- *
- * This is inert in production builds and must never be enabled there.
+ * Allowed only when APP_ENV is "dev". Stage and prod always enforce real
+ * permissions — NODE_ENV alone cannot express the stage tier, so the tier
+ * selector is authoritative and env.ts additionally rejects the flag outside
+ * dev at boot.
  */
 export function hasDevBypass(): boolean {
   return (
-    process.env.NEXT_PUBLIC_PIXAPOS_DEV_BYPASS === "true" && process.env.NODE_ENV !== "production"
+    process.env.NEXT_PUBLIC_PIXAPOS_DEV_BYPASS === "true" &&
+    (process.env.APP_ENV ?? "dev") === "dev" &&
+    process.env.NODE_ENV !== "production"
   );
 }
 
