@@ -30,6 +30,7 @@ import { useMediaQuery } from "@pixa/ui/hooks/use-media-query";
 import { useIdentity } from "@/hooks/use-identity";
 import { useFilteredNavGroups } from "@/hooks/use-nav";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { Icons } from "../icons";
@@ -54,6 +55,30 @@ export default function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="group-data-[collapsible=icon]:pt-4">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size="lg"
+              render={<Link href="/dashboard/overview" aria-label="pixaPOS home" />}
+              tooltip="pixaPOS"
+            >
+              <span className="flex aspect-square size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg">
+                <Image
+                  src="/icon.png"
+                  alt="pixaPOS"
+                  width={32}
+                  height={32}
+                  className="size-full object-cover"
+                  priority
+                />
+              </span>
+              <span className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
+                <span className="truncate font-bold">pixaPOS</span>
+                <span className="truncate text-xs text-muted-foreground">Restaurant OS</span>
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
         <OrgSwitcher />
       </SidebarHeader>
       <SidebarContent className="overflow-x-hidden">
