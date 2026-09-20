@@ -36,8 +36,10 @@ const PANEL_EXIT_MS = 300;
 
 export default function OrderTerminalPage({
   hideDescription = false,
+  hideTitle = false,
 }: {
   hideDescription?: boolean;
+  hideTitle?: boolean;
 }) {
   useCrossTabSync();
   const queryClient = useQueryClient();
