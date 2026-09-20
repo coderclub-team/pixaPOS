@@ -7,6 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description:
       "Local-first restaurant operations: POS, KOT/KDS, payments, inventory, and tables.",
     start_url: "/dashboard/overview",
+    scope: "/",
+    id: "/",
     display: "standalone",
     background_color: "#ffffff",
     theme_color: "#ffffff",
