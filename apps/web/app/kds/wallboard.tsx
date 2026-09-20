@@ -38,6 +38,18 @@ export default function KdsWallboard() {
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
+    // Never register the caching worker on localhost: dev recompiles turn
+    // every transient failure into a permanently cached stall. Actively drop
+    // any worker a previous session registered, so a poisoned cache cannot
+    // survive into this load.
+    const host = window.location.hostname;
+    if (host === "localhost" || host === "127.0.0.1") {
+      navigator.serviceWorker
+        .getRegistrations()
+        .then((regs) => Promise.all(regs.map((r) => r.unregister())))
+        .catch(() => {});
+      return;
+    }
     let cancelled = false;
     navigator.serviceWorker
       .register("/sw.js", { scope: "/" })

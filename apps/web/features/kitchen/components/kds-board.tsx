@@ -87,10 +87,22 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
   // ticket stays visible until served, whenever it was fired. Live SSE feed
   // (useKitchenFeed) pushes invalidations; the poll below is the offline
   // fallback and slows down while the stream is healthy.
-  const { data: tickets, isPending } = useQuery({
+  const {
+    data: tickets,
+    isPending,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     ...kitchenTicketsQueryOptions({}),
     refetchInterval: feed === "live" ? 30000 : 5000,
+    retry: 2,
+    placeholderData: (prev) => prev,
   });
+
+  if (isError) {
+    console.error("[kds-board] tickets query failed:", error);
+  }
 
   const live = (tickets ?? []).filter((t) => t.status !== "SERVED" && t.status !== "CANCELLED");
   const scoped = live.filter((t) => filter === "ALL" || t.status === filter);
@@ -104,8 +116,23 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
     (s) => scoped.some((t) => t.status === s) || LIVE_STATUSES.includes(s),
   );
 
-  if (isPending) {
+  if (isPending && !tickets) {
     return <p className="py-12 text-center text-sm text-muted-foreground">Loading tickets…</p>;
+  }
+
+  if (isError && !tickets) {
+    return (
+      <div className="mx-auto flex max-w-md flex-col items-center gap-3 py-12 text-center">
+        <p className="font-medium">Couldn&apos;t load tickets</p>
+        <p className="text-sm text-muted-foreground">
+          {(error as Error)?.message ?? "Unknown error"} — your fired tickets are safe in local
+          storage.
+        </p>
+        <Button size="sm" onClick={() => refetch()}>
+          Retry
+        </Button>
+      </div>
+    );
   }
 
   return (

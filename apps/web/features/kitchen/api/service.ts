@@ -180,7 +180,6 @@ function publishTicket(t: KitchenTicket, extra?: Record<string, unknown>): void 
 }
 
 export async function getKitchenTickets(filters?: KOTFilters): Promise<KitchenTicketWithDerived[]> {
-  await delay(300);
   loadTickets(); // localStorage is the shared source — reload so tabs/displays agree
   let r = [...mockTickets];
   if (filters?.outlet_id) r = r.filter((t) => t.outlet_id === filters.outlet_id);
