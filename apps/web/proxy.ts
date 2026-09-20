@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 
-// Session attach + dashboard gate. Public paths: auth pages, API auth,
-// static assets. Everything under /dashboard requires a Better Auth session.
+// Session attach + app gates. Public paths: auth pages, API auth,
+// static assets. /dashboard and the /kds wallboard require a Better Auth
+// session (the wallboard shows live order data — never anonymous).
 const PUBLIC_PREFIXES = ["/auth/", "/api/auth/"];
 
 export async function middleware(request: NextRequest) {
@@ -11,7 +12,7 @@ export async function middleware(request: NextRequest) {
   if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
-  if (!pathname.startsWith("/dashboard")) {
+  if (!pathname.startsWith("/dashboard") && pathname !== "/kds") {
     return NextResponse.next();
   }
   try {
