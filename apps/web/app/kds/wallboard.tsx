@@ -132,19 +132,18 @@ export default function KdsWallboard() {
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger
                 render={
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-1.5 px-1.5"
-                    aria-label="Account menu"
-                  />
+                  <Button variant="ghost" className="h-9 gap-2 px-1.5" aria-label="Account menu" />
                 }
               >
-                <UserAvatarProfile className="size-7 rounded-full" user={user} />
-                <Icons.chevronsDown className="size-3.5 text-muted-foreground" />
+                <UserAvatarProfile className="size-7 rounded-full" showInfo user={user} />
+                <Icons.chevronsDown className="size-3.5 shrink-0 text-muted-foreground" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" sideOffset={4} className="min-w-48">
                 <DropdownMenuGroup>
+                  <DropdownMenuItem onClick={() => router.push("/dashboard/kitchen")}>
+                    <Icons.dashboard className="mr-2 size-4" />
+                    Dashboard
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => router.push("/dashboard/notifications")}>
                     <Icons.notification className="mr-2 size-4" />
                     Notifications
@@ -160,14 +159,6 @@ export default function KdsWallboard() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            nativeButton={false}
-            render={<Link href="/dashboard/kitchen" />}
-          >
-            Dashboard
-          </Button>
         </span>
       </header>
       <main className="flex-1 overflow-y-auto p-3">
