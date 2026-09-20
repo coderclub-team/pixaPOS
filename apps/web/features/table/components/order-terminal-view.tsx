@@ -439,15 +439,11 @@ export default function OrderTerminalPage() {
                 {activeGroup ? ` · Party ${activeGroup.label ?? "?"}` : ""}
               </DialogTitle>
               <DialogDescription>
-                Pick products below. Each item fires straight to the kitchen as its own ticket.
+                Pick products below — they collect as a draft. Nothing fires to the kitchen until
+                Fire to kitchen.
               </DialogDescription>
             </DialogHeader>
-            <ItemPicker
-              orderId={activeOrderId}
-              autoFire
-              stayOpen
-              onClose={() => setPickerOpen(false)}
-            />
+            <ItemPicker orderId={activeOrderId} stayOpen onClose={() => setPickerOpen(false)} />
           </DialogContent>
         </Dialog>
       )}
