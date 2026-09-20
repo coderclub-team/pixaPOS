@@ -208,7 +208,7 @@ export default function OrderTerminalPage({
 
   return (
     <PageContainer
-      pageTitle="Order Terminal"
+      pageTitle={hideTitle ? "" : "Order Terminal"}
       pageDescription={
         hideDescription
           ? undefined
