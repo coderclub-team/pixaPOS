@@ -17,7 +17,7 @@ import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { formatINR, toPaise } from "@/lib/money";
 import { orderKeys, orderQueryOptions } from "@/features/orders/api/queries";
-import { addOrderItem } from "@/features/orders/api/service";
+import { addOrderItem, removeDraftItem, updateDraftItemQty } from "@/features/orders/api/service";
 import { addAndFireItem, fireKOT } from "@/features/kitchen/api/service";
 import { kitchenKeys } from "@/features/kitchen/api/queries";
 import { eventKeys } from "@/features/events/api/queries";
@@ -27,13 +27,32 @@ import { getModifiers } from "@/features/menu/api/service";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import type { MenuItem } from "@/features/menu/api/types";
+import type { OrderItemSnapshot } from "@/features/orders/api/types";
+
+/** Default configuration a quick tap stages: default (or first) variant, no add-ons. */
+function defaultVariantOf(item: MenuItem) {
+  const variants = item.variants ?? [];
+  return variants.find((v) => v.is_default) ?? variants[0];
+}
+
+/** Draft lines are keyed by full configuration so counters merge, not split. */
+function isDefaultConfigLine(item: MenuItem, line: OrderItemSnapshot): boolean {
+  const dv = defaultVariantOf(item);
+  return (
+    !line.kot_id &&
+    line.menu_item_id === item.id &&
+    (line.variant_id ?? undefined) === dv?.id &&
+    (line.modifiers?.length ?? 0) === 0 &&
+    !line.instructions
+  );
+}
 
 /**
  * Reusable menu picker: search + category rail + grid + variant/add-on dialog.
- * Used by the full add-items page and embedded in the order-terminal dialog.
- * With autoFire (terminal), items skip the draft and land straight on a KOT.
- * With stayOpen, the picker remains for rapid multi-add and shows a fire
- * footer (draft count + Fire to kitchen + Done) instead of closing per add.
+ * Adds always land as unfired draft lines collected in the tray; nothing
+ * reaches the kitchen until Fire to kitchen. With stayOpen, the picker
+ * remains for rapid multi-add and shows a fire footer (draft count + Fire to
+ * kitchen + Done) instead of closing per add.
  */
 export default function ItemPicker({
   orderId,
@@ -110,6 +129,58 @@ export default function ItemPicker({
   });
 
   const draftCount = order?.items.filter((i) => !i.kot_id).length ?? 0;
+  const draftLines = useMemo(() => (order?.items ?? []).filter((i) => !i.kot_id), [order?.items]);
+
+  const invalidateOrder = () => {
+    const qc = getQueryClient();
+    qc.invalidateQueries({ queryKey: orderKeys.detail(orderId) });
+    qc.invalidateQueries({ queryKey: orderKeys.all });
+    qc.invalidateQueries({ queryKey: eventKeys.byOrder(orderId) });
+  };
+
+  const qtyMut = useMutation({
+    mutationFn: ({ lineId, qty }: { lineId: string; qty: number }) =>
+      updateDraftItemQty(orderId, lineId, qty),
+    onSuccess: invalidateOrder,
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const removeMut = useMutation({
+    mutationFn: (lineId: string) => removeDraftItem(orderId, lineId),
+    onSuccess: invalidateOrder,
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  /** Quick-add one unit of the default configuration, merging into its line. */
+  const quickAdd = (item: MenuItem) => {
+    const existing = draftLines.find((l) => isDefaultConfigLine(item, l));
+    if (existing) {
+      qtyMut.mutate({ lineId: existing.id, qty: existing.qty + 1 });
+      return;
+    }
+    const dv = defaultVariantOf(item);
+    addMut.mutate({
+      menu_item_id: item.id,
+      variant_id: dv?.id,
+      modifier_ids: [],
+      qty: 1,
+    });
+  };
+
+  /** Step the default-configuration line by delta; vanishes at zero. */
+  const stepDefault = (item: MenuItem, delta: number) => {
+    const existing = draftLines.find((l) => isDefaultConfigLine(item, l));
+    if (!existing) {
+      if (delta > 0) quickAdd(item);
+      return;
+    }
+    const next = existing.qty + delta;
+    if (next <= 0) removeMut.mutate(existing.id);
+    else qtyMut.mutate({ lineId: existing.id, qty: next });
+  };
+
+  const draftQtyFor = (item: MenuItem) =>
+    draftLines.filter((l) => isDefaultConfigLine(item, l)).reduce((s, l) => s + l.qty, 0);
 
   const activeCategories = useMemo(
     () => (categories ?? []).filter((c) => c.is_active),
@@ -149,6 +220,81 @@ export default function ItemPicker({
         </div>
       </div>
 
+      <div className="sticky top-0 z-10 -mx-1 mb-3 rounded-xl border bg-background/95 px-2 py-2 backdrop-blur-sm">
+        {draftLines.length === 0 ? (
+          <p className="px-1 py-1 text-xs text-muted-foreground">
+            Nothing staged yet — tap a card or use its counter. Fire to kitchen sends it all.
+          </p>
+        ) : (
+          <div className="space-y-1">
+            <p className="px-1 text-xs font-medium uppercase text-muted-foreground">
+              Staged · {draftLines.reduce((s, l) => s + l.qty, 0)}×
+              {draftLines.length > 1 && (
+                <button
+                  type="button"
+                  className="ml-2 normal-case underline underline-offset-2 hover:text-destructive"
+                  onClick={() => {
+                    for (const l of draftLines) removeMut.mutate(l.id);
+                  }}
+                >
+                  Clear all
+                </button>
+              )}
+            </p>
+            <div className="max-h-36 space-y-1 overflow-y-auto pr-1">
+              {draftLines.map((l) => (
+                <div
+                  key={l.id}
+                  className="flex items-center gap-2 rounded-lg border bg-card px-2 py-1 text-sm"
+                >
+                  <span className="min-w-0 flex-1 truncate font-medium">
+                    {l.qty}× {l.item_name_snapshot}
+                    {l.variant_name_snapshot ? ` (${l.variant_name_snapshot})` : ""}
+                    {l.modifiers?.length
+                      ? ` +${l.modifiers.map((m) => m.name_snapshot).join(", ")}`
+                      : ""}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={qtyMut.isPending || removeMut.isPending}
+                      onClick={() =>
+                        l.qty <= 1
+                          ? removeMut.mutate(l.id)
+                          : qtyMut.mutate({ lineId: l.id, qty: l.qty - 1 })
+                      }
+                      aria-label={`Decrease ${l.item_name_snapshot}`}
+                    >
+                      <Icons.minus className="size-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={qtyMut.isPending}
+                      onClick={() => qtyMut.mutate({ lineId: l.id, qty: l.qty + 1 })}
+                      aria-label={`Increase ${l.item_name_snapshot}`}
+                    >
+                      <Icons.add className="size-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-destructive"
+                      disabled={removeMut.isPending}
+                      onClick={() => removeMut.mutate(l.id)}
+                      aria-label={`Remove ${l.item_name_snapshot}`}
+                    >
+                      <Icons.trash className="size-3.5" />
+                    </Button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {isPending ? (
         <p className="py-8 text-center text-sm text-muted-foreground">Loading menu…</p>
       ) : !items?.length ? (
@@ -159,39 +305,100 @@ export default function ItemPicker({
         </Card>
       ) : (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-          {items.slice(0, 50).map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={(e) => {
-                pendingFly.current = {
-                  rect: e.currentTarget.getBoundingClientRect(),
-                  label: item.name,
-                };
-                setPicked(item);
-              }}
-              className="rounded-xl border bg-card p-3 text-left transition-colors hover:border-primary"
-            >
-              <p className="truncate text-sm font-medium">{item.name}</p>
-              <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                <span
-                  className={cn(
-                    "inline-block size-2 rounded-full",
-                    item.veg_type === "veg" ? "bg-green-600" : "bg-red-600",
+          {items.slice(0, 50).map((item) => {
+            const staged = draftQtyFor(item);
+            return (
+              <div
+                key={item.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`${item.name} — tap to add, staged ${staged}`}
+                onClick={(e) => {
+                  pendingFly.current = {
+                    rect: (e.currentTarget as HTMLElement).getBoundingClientRect(),
+                    label: item.name,
+                  };
+                  quickAdd(item);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    quickAdd(item);
+                  }
+                }}
+                className="rounded-xl border bg-card p-3 text-left transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-primary cursor-pointer"
+              >
+                <p className="truncate text-sm font-medium">{item.name}</p>
+                <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                  <span
+                    className={cn(
+                      "inline-block size-2 rounded-full",
+                      item.veg_type === "veg" ? "bg-green-600" : "bg-red-600",
+                    )}
+                  />
+                  {item.category_name}
+                </p>
+                <p className="mt-1 text-sm font-semibold">
+                  {formatINR(
+                    toPaise(
+                      ((item.variants ?? []).find((v) => v.is_default) ?? (item.variants ?? [])[0])
+                        ?.selling_price ?? 0,
+                    ),
                   )}
-                />
-                {item.category_name}
-              </p>
-              <p className="mt-1 text-sm font-semibold">
-                {formatINR(
-                  toPaise(
-                    ((item.variants ?? []).find((v) => v.is_default) ?? (item.variants ?? [])[0])
-                      ?.selling_price ?? 0,
-                  ),
-                )}
-              </p>
-            </button>
-          ))}
+                </p>
+                <div
+                  className="mt-2 flex items-center justify-between gap-1"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-xs font-medium tabular-nums",
+                      staged > 0 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+                    )}
+                    aria-live="polite"
+                  >
+                    {staged > 0 ? `${staged}× staged` : "Not staged"}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="icon-sm"
+                      className="max-lg:h-9 max-lg:w-9"
+                      disabled={staged <= 0 || qtyMut.isPending || removeMut.isPending}
+                      onClick={() => stepDefault(item, -1)}
+                      aria-label={`Remove one ${item.name}`}
+                    >
+                      <Icons.minus className="size-3.5" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon-sm"
+                      className="max-lg:h-9 max-lg:w-9"
+                      disabled={addMut.isPending || qtyMut.isPending}
+                      onClick={() => stepDefault(item, 1)}
+                      aria-label={`Add one ${item.name}`}
+                    >
+                      <Icons.add className="size-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="max-lg:h-9 max-lg:w-9"
+                      onClick={(e) => {
+                        pendingFly.current = null;
+                        setPicked(item);
+                      }}
+                      title="Customize — variants, add-ons, instructions"
+                      aria-label={`Customize ${item.name}`}
+                    >
+                      <Icons.edit className="size-3.5" />
+                    </Button>
+                  </span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
       {items && items.length > 50 && (
