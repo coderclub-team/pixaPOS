@@ -114,7 +114,7 @@ export default function KotItemDialog({
         delete next[item.id];
         return next;
       }
-      const variant = item.variants.find((v) => v.is_default) ?? item.variants[0];
+      const variant = (item.variants ?? []).find((v) => v.is_default) ?? (item.variants ?? [])[0];
       return {
         ...prev,
         [item.id]: {
@@ -122,7 +122,8 @@ export default function KotItemDialog({
           menu_item_id: item.id,
           name: item.name,
           variant_id: cur?.variant_id ?? variant?.id,
-          variant_name: cur?.variant_name ?? (item.product_type === "variant" ? variant?.name : undefined),
+          variant_name:
+            cur?.variant_name ?? (item.product_type === "variant" ? variant?.name : undefined),
           modifier_ids: cur?.modifier_ids ?? [],
           modifier_names: cur?.modifier_names ?? [],
           qty,
@@ -134,7 +135,9 @@ export default function KotItemDialog({
   const openRow = (item: MenuItem) => {
     const cur = picks[item.id];
     setDraftConfig({
-      variant_id: cur?.variant_id ?? (item.variants.find((v) => v.is_default) ?? item.variants[0])?.id,
+      variant_id:
+        cur?.variant_id ??
+        ((item.variants ?? []).find((v) => v.is_default) ?? (item.variants ?? [])[0])?.id,
       modifier_ids: cur?.modifier_ids ?? [],
       modifier_names: cur?.modifier_names ?? [],
       instructions: cur?.instructions ?? "",
@@ -146,7 +149,7 @@ export default function KotItemDialog({
     setPicks((prev) => {
       const cur = prev[item.id];
       if (!cur) return prev;
-      const variant = item.variants.find((v) => v.id === draftConfig.variant_id);
+      const variant = (item.variants ?? []).find((v) => v.id === draftConfig.variant_id);
       return {
         ...prev,
         [item.id]: {
@@ -168,7 +171,8 @@ export default function KotItemDialog({
         <DialogHeader>
           <DialogTitle>Add items</DialogTitle>
           <DialogDescription>
-            Search, set qty per row, expand a row for variants and add-ons. Firing creates a new KOT per item.
+            Search, set qty per row, expand a row for variants and add-ons. Firing creates a new KOT
+            per item.
           </DialogDescription>
         </DialogHeader>
 
@@ -214,7 +218,9 @@ export default function KotItemDialog({
             {items.slice(0, 50).map((item) => {
               const pick = picks[item.id];
               const expanded = expandedId === item.id;
-              const price = (item.variants.find((v) => v.is_default) ?? item.variants[0])?.selling_price ?? 0;
+              const price =
+                ((item.variants ?? []).find((v) => v.is_default) ?? (item.variants ?? [])[0])
+                  ?.selling_price ?? 0;
               return (
                 <div key={item.id} className="rounded-lg border">
                   <div className="flex items-center gap-2 px-2 py-1.5 text-sm">
@@ -233,7 +239,9 @@ export default function KotItemDialog({
                         <span className="block truncate font-medium">{item.name}</span>
                         <span className="block truncate text-xs text-muted-foreground">
                           {item.category_name} · {formatINR(toPaise(price))}
-                          {pick && pick.modifier_names.length > 0 ? ` · +${pick.modifier_names.join(", ")}` : ""}
+                          {pick && pick.modifier_names.length > 0
+                            ? ` · +${pick.modifier_names.join(", ")}`
+                            : ""}
                           {pick?.variant_name ? ` · ${pick.variant_name}` : ""}
                         </span>
                       </span>
@@ -283,7 +291,9 @@ export default function KotItemDialog({
 
         <div className="sticky bottom-0 flex items-center gap-2 border-t bg-background/95 pt-3 backdrop-blur-sm">
           <p className="text-sm text-muted-foreground">
-            {totalQty > 0 ? `${totalQty} item${totalQty === 1 ? "" : "s"} picked` : "Nothing picked yet"}
+            {totalQty > 0
+              ? `${totalQty} item${totalQty === 1 ? "" : "s"} picked`
+              : "Nothing picked yet"}
           </p>
           <div className="ml-auto flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -310,8 +320,18 @@ function RowConfig({
   onCancel,
 }: {
   item: MenuItem;
-  draft: { variant_id?: string; modifier_ids: string[]; modifier_names: string[]; instructions: string };
-  onChange: (d: { variant_id?: string; modifier_ids: string[]; modifier_names: string[]; instructions: string }) => void;
+  draft: {
+    variant_id?: string;
+    modifier_ids: string[];
+    modifier_names: string[];
+    instructions: string;
+  };
+  onChange: (d: {
+    variant_id?: string;
+    modifier_ids: string[];
+    modifier_names: string[];
+    instructions: string;
+  }) => void;
   onApply: () => void;
   onCancel: () => void;
 }) {
@@ -331,9 +351,7 @@ function RowConfig({
     const has = draft.modifier_ids.includes(id);
     onChange({
       ...draft,
-      modifier_ids: has
-        ? draft.modifier_ids.filter((m) => m !== id)
-        : [...draft.modifier_ids, id],
+      modifier_ids: has ? draft.modifier_ids.filter((m) => m !== id) : [...draft.modifier_ids, id],
       modifier_names: has
         ? draft.modifier_names.filter((n) => n !== name)
         : [...draft.modifier_names, name],
@@ -342,11 +360,11 @@ function RowConfig({
 
   return (
     <div className="space-y-2 border-t px-2 py-2">
-      {item.product_type === "variant" && item.variants.length > 1 && (
+      {item.product_type === "variant" && (item.variants ?? []).length > 1 && (
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">Variant</Label>
           <div className="flex flex-wrap gap-1.5">
-            {item.variants
+            {(item.variants ?? [])
               .filter((v) => v.is_active)
               .map((v) => (
                 <Button

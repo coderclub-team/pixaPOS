@@ -228,7 +228,9 @@ function loadMenu(): void {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed?.categories)) mockCategories = parsed.categories;
-        if (Array.isArray(parsed?.items)) mockMenuItems = parsed.items;
+        if (Array.isArray(parsed?.items))
+          // Backfill arrays for rows written before they were guaranteed.
+          mockMenuItems = parsed.items.map((m: any) => ({ ...m, variants: m.variants ?? [] }));
         if (Array.isArray(parsed?.modifierGroups)) mockModifierGroups = parsed.modifierGroups;
         if (Array.isArray(parsed?.modifiers)) mockModifiers = parsed.modifiers;
       }
@@ -314,7 +316,9 @@ export async function getMenuItems(filters?: MenuItemFilters): Promise<MenuItem[
       (m) =>
         m.name.toLowerCase().includes(q) ||
         m.slug.includes(q) ||
-        m.variants.some((v) => v.sku.toLowerCase().includes(q) || v.name.toLowerCase().includes(q)),
+        (m.variants ?? []).some(
+          (v) => v.sku.toLowerCase().includes(q) || v.name.toLowerCase().includes(q),
+        ),
     );
   }
   if (filters?.category_id) r = r.filter((m) => m.category_id === filters.category_id);
