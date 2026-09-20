@@ -10,7 +10,12 @@ export default function KitchenBoardPage() {
       pageTitle="Kitchen"
       pageDescription="Live kitchen tickets — accept, prepare, mark ready, serve."
       pageHeaderAction={
-        <Button variant="outline" size="sm" render={<Link href="/kds" target="_blank" />}>
+        <Button
+          variant="outline"
+          size="sm"
+          nativeButton={false}
+          render={<Link href="/kds" target="_blank" />}
+        >
           <Icons.externalLink className="mr-1 size-4" /> Open wallboard
         </Button>
       }
