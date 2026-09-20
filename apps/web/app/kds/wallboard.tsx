@@ -2,8 +2,19 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@pixa/ui/base-ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@pixa/ui/base-ui/dropdown-menu";
 import { Icons } from "@pixa/ui/icons";
+import { UserAvatarProfile } from "@pixa/ui/user-avatar-profile";
+import { useIdentity } from "@/hooks/use-identity";
 import KdsBoard from "@/features/kitchen/components/kds-board";
 
 type BIPEvent = Event & { prompt: () => Promise<void> };
@@ -14,6 +25,8 @@ type BIPEvent = Event & { prompt: () => Promise<void> };
  * sign in once, Add to Home Screen.
  */
 export default function KdsWallboard() {
+  const router = useRouter();
+  const { user, signOut } = useIdentity();
   const [installEvt, setInstallEvt] = useState<BIPEvent | null>(null);
   const [installed, setInstalled] = useState(false);
   const [swReady, setSwReady] = useState(false);
@@ -115,14 +128,37 @@ export default function KdsWallboard() {
               <Icons.add className="mr-1 size-4" /> Install
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            nativeButton={false}
-            render={<Link href="/dashboard/kitchen" />}
-          >
-            Dashboard
-          </Button>
+          {user && (
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="ghost" className="h-9 gap-2 px-1.5" aria-label="Account menu" />
+                }
+              >
+                <UserAvatarProfile className="size-7 rounded-full" showInfo user={user} />
+                <Icons.chevronsDown className="size-3.5 shrink-0 text-muted-foreground" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" sideOffset={4} className="min-w-48">
+                <DropdownMenuGroup>
+                  <DropdownMenuItem onClick={() => router.push("/dashboard/kitchen")}>
+                    <Icons.dashboard className="mr-2 size-4" />
+                    Dashboard
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push("/dashboard/notifications")}>
+                    <Icons.notification className="mr-2 size-4" />
+                    Notifications
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem onClick={() => signOut()}>
+                    <Icons.logout aria-hidden className="mr-2 size-4" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </span>
       </header>
       <main className="flex-1 overflow-y-auto p-3">
