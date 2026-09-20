@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import PageContainer from "@/components/layout/page-container";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@pixa/ui/base-ui/tabs";
@@ -212,6 +213,18 @@ export default function OrderTerminalPage({
         hideDescription
           ? undefined
           : "Tap a table for its bill. Works in a separate tab — sign-in carries over."
+      }
+      pageHeaderAction={
+        hideDescription ? undefined : (
+          <Button
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            render={<Link href="/kot" target="_blank" />}
+          >
+            <Icons.externalLink className="mr-1 size-4" /> Open counter
+          </Button>
+        )
       }
     >
       <div className="flex flex-col gap-4 lg:h-[calc(100dvh-200px)] lg:flex-row lg:gap-6">
