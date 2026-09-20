@@ -21,8 +21,8 @@
  * recompile constantly and a caching SW turns every transient 500 into a
  * permanent-looking stall. Offline testing happens on preview builds.
  */
-const VERSION = "kds-v2";
-const SHELL = ["/kds", "/icon.png", "/apple-icon.png", "/manifest.webmanifest"];
+const VERSION = "kds-v3";
+const SHELL = ["/kds", "/kot", "/icon.png", "/apple-icon.png", "/manifest.webmanifest"];
 
 function putOk(cache, request, res) {
   if (!res || !res.ok) return res;
@@ -63,7 +63,9 @@ function isApi(url) {
 function isShellNav(request, url) {
   return (
     request.mode === "navigate" &&
-    (url.pathname === "/kds" || url.pathname.startsWith("/dashboard/kitchen"))
+    (url.pathname === "/kds" ||
+      url.pathname === "/kot" ||
+      url.pathname.startsWith("/dashboard/kitchen"))
   );
 }
 
@@ -88,15 +90,16 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // KDS shell navigations: cache first, refresh in background.
+  // KDS/KOT shell navigations: cache first, refresh in background.
   if (isShellNav(request, url)) {
+    const cacheKey = url.pathname;
     event.respondWith(
-      caches.match("/kds").then((cached) => {
+      caches.match(cacheKey).then((cached) => {
         const refresh = fetch(request)
           .then((res) =>
             caches
               .open(VERSION)
-              .then((c) => putOk(c, "/kds", res))
+              .then((c) => putOk(c, cacheKey, res))
               .catch(() => res),
           )
           .catch(() => cached);
