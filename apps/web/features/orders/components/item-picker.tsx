@@ -353,48 +353,54 @@ export default function ItemPicker({
                 >
                   <span
                     className={cn(
-                      "rounded-full px-2 py-0.5 text-xs font-medium tabular-nums",
-                      staged > 0 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+                      "flex items-center rounded-full border tabular-nums",
+                      staged > 0 ? "border-primary/40 bg-primary/10" : "border-border bg-muted",
                     )}
                     aria-live="polite"
+                    aria-label={`${item.name} staged quantity: ${staged}`}
                   >
-                    {staged > 0 ? `${staged}× staged` : "Not staged"}
-                  </span>
-                  <span className="flex items-center gap-1">
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="icon-sm"
-                      className="max-lg:h-9 max-lg:w-9"
+                      className="rounded-full max-lg:h-9 max-lg:w-9"
                       disabled={staged <= 0 || qtyMut.isPending || removeMut.isPending}
                       onClick={() => stepDefault(item, -1)}
                       aria-label={`Remove one ${item.name}`}
                     >
                       <Icons.minus className="size-3.5" />
                     </Button>
+                    <span
+                      className={cn(
+                        "min-w-7 text-center text-xs font-bold",
+                        staged > 0 ? "text-primary" : "text-muted-foreground",
+                      )}
+                    >
+                      {staged}
+                    </span>
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="icon-sm"
-                      className="max-lg:h-9 max-lg:w-9"
+                      className="rounded-full max-lg:h-9 max-lg:w-9"
                       disabled={addMut.isPending || qtyMut.isPending}
                       onClick={() => stepDefault(item, 1)}
                       aria-label={`Add one ${item.name}`}
                     >
                       <Icons.add className="size-3.5" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      className="max-lg:h-9 max-lg:w-9"
-                      onClick={(e) => {
-                        pendingFly.current = null;
-                        setPicked(item);
-                      }}
-                      title="Customize — variants, add-ons, instructions"
-                      aria-label={`Customize ${item.name}`}
-                    >
-                      <Icons.edit className="size-3.5" />
-                    </Button>
                   </span>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="max-lg:h-9 max-lg:w-9"
+                    onClick={(e) => {
+                      pendingFly.current = null;
+                      setPicked(item);
+                    }}
+                    title="Customize — variants, add-ons, instructions"
+                    aria-label={`Customize ${item.name}`}
+                  >
+                    <Icons.edit className="size-3.5" />
+                  </Button>
                 </div>
               </div>
             );
