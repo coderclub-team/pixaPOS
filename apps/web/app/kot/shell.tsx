@@ -34,7 +34,7 @@ export default function KotShell() {
         </Button>
       </header>
       <main className="flex-1 overflow-y-auto p-3">
-        <OrderTerminalPage />
+        <OrderTerminalPage hideDescription />
       </main>
     </div>
   );

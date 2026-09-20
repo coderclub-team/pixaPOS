@@ -33,7 +33,11 @@ import { toast } from "sonner";
 
 const PANEL_EXIT_MS = 300;
 
-export default function OrderTerminalPage() {
+export default function OrderTerminalPage({
+  hideDescription = false,
+}: {
+  hideDescription?: boolean;
+}) {
   useCrossTabSync();
   const queryClient = useQueryClient();
   const { data: floors, isLoading } = useQuery(floorsQueryOptions());
@@ -204,7 +208,11 @@ export default function OrderTerminalPage() {
   return (
     <PageContainer
       pageTitle="Order Terminal"
-      pageDescription="Tap a table for its bill. Works in a separate tab — sign-in carries over."
+      pageDescription={
+        hideDescription
+          ? undefined
+          : "Tap a table for its bill. Works in a separate tab — sign-in carries over."
+      }
     >
       <div className="flex flex-col gap-4 lg:h-[calc(100dvh-200px)] lg:flex-row lg:gap-6">
         <div className="h-[52dvh] min-h-[320px] min-w-0 lg:h-auto lg:min-h-0 lg:flex-1">
