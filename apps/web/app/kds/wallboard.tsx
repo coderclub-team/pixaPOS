@@ -103,7 +103,12 @@ export default function KdsWallboard() {
               <Icons.add className="mr-1 size-4" /> Install
             </Button>
           )}
-          <Button variant="outline" size="sm" render={<Link href="/dashboard/kitchen" />}>
+          <Button
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            render={<Link href="/dashboard/kitchen" />}
+          >
             Dashboard
           </Button>
         </span>
