@@ -38,6 +38,10 @@ export default function KdsWallboard() {
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
+    // Never register the caching worker on localhost: dev recompiles turn
+    // every transient failure into a permanently cached stall.
+    const host = window.location.hostname;
+    if (host === "localhost" || host === "127.0.0.1") return;
     let cancelled = false;
     navigator.serviceWorker
       .register("/sw.js", { scope: "/" })
