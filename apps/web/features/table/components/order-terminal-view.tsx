@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import PageContainer from "@/components/layout/page-container";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@pixa/ui/base-ui/tabs";
@@ -33,7 +34,13 @@ import { toast } from "sonner";
 
 const PANEL_EXIT_MS = 300;
 
-export default function OrderTerminalPage() {
+export default function OrderTerminalPage({
+  hideDescription = false,
+  hideTitle = false,
+}: {
+  hideDescription?: boolean;
+  hideTitle?: boolean;
+}) {
   useCrossTabSync();
   const queryClient = useQueryClient();
   const { data: floors, isLoading } = useQuery(floorsQueryOptions());
@@ -203,8 +210,24 @@ export default function OrderTerminalPage() {
 
   return (
     <PageContainer
-      pageTitle="Order Terminal"
-      pageDescription="Tap a table for its bill. Works in a separate tab — sign-in carries over."
+      pageTitle={hideTitle ? "" : "Order Terminal"}
+      pageDescription={
+        hideDescription
+          ? undefined
+          : "Tap a table for its bill. Works in a separate tab — sign-in carries over."
+      }
+      pageHeaderAction={
+        hideDescription ? undefined : (
+          <Button
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            render={<Link href="/kot" target="_blank" />}
+          >
+            <Icons.externalLink className="mr-1 size-4" /> Open counter
+          </Button>
+        )
+      }
     >
       <div className="flex flex-col gap-4 lg:h-[calc(100dvh-200px)] lg:flex-row lg:gap-6">
         <div className="h-[52dvh] min-h-[320px] min-w-0 lg:h-auto lg:min-h-0 lg:flex-1">
