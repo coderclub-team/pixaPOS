@@ -32,6 +32,11 @@ async function rzp<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
+    if (res.status === 401) {
+      throw new Error(
+        "Razorpay rejected the API keys (401 Unauthorized) — regenerate the test key pair in the Razorpay Dashboard and update RAZORPAY_KEY_ID/SECRET",
+      );
+    }
     throw new Error(`Razorpay ${path} failed (${res.status}): ${body.slice(0, 200)}`);
   }
   return (await res.json()) as T;
