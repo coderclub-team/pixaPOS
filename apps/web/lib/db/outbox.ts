@@ -14,7 +14,8 @@ async function nextSeq(device: string): Promise<number> {
   const { rows } = await localQuery("SELECT value FROM kv_meta WHERE key = ?", [
     `device_seq:${device}`,
   ]);
-  const current = rows.length > 0 ? Number(rows[0][0]) : 0;
+  const safeRows = rows ?? [];
+  const current = safeRows.length > 0 ? Number(safeRows[0][0]) : 0;
   const next = current + 1;
   await localExec(
     "INSERT INTO kv_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -70,7 +71,7 @@ export async function pendingOutboxCount(): Promise<number> {
     "SELECT COUNT(*) FROM sync_outbox WHERE status = 'pending'",
     [],
   );
-  return Number(rows[0]?.[0] ?? 0);
+  return Number((rows ?? [])[0]?.[0] ?? 0);
 }
 
 /** Oldest pending commands first (causal order per device_seq). */
@@ -81,7 +82,7 @@ export async function pendingOutboxBatch(limit = 100): Promise<CommandEnvelope[]
      FROM sync_outbox WHERE status = 'pending' ORDER BY created_at ASC LIMIT ?`,
     [limit],
   );
-  return rows.map((r) => {
+  return (rows ?? []).map((r) => {
     const [
       command_id,
       device_id,

@@ -11,6 +11,13 @@ import { LOCAL_DDL } from "./schema";
 export type QueryResult = { columns: string[]; rows: unknown[][] };
 export type LocalDbMode = "sqlite" | "fallback" | "unavailable";
 
+/**
+ * Bump whenever public/sqlite-worker.js changes: the filename carries no
+ * content hash, so browsers otherwise keep executing a stale cached worker
+ * (which once posted {ok:true} with rows undefined → rows.length crashes).
+ */
+const WORKER_VERSION = 2;
+
 let worker: Worker | null = null;
 let seq = 0;
 const pending = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void }>();
@@ -30,8 +37,21 @@ function onMessage(event: MessageEvent) {
   const entry = pending.get(id);
   if (!entry) return;
   pending.delete(id);
-  if (ok) entry.resolve(rest);
-  else entry.reject(new Error(error ?? "sqlite worker error"));
+  if (!ok) {
+    entry.reject(new Error(error ?? "sqlite worker error"));
+    return;
+  }
+  // Shape-guard: a stale or buggy worker posting {ok:true} without rows must
+  // fail loudly here, never as a downstream rows.length TypeError.
+  const shape = rest as { columns?: unknown; rows?: unknown; changes?: unknown };
+  if (
+    ("columns" in shape || "rows" in shape) &&
+    (!Array.isArray(shape.columns) || !Array.isArray(shape.rows))
+  ) {
+    entry.reject(new Error("sqlite worker returned malformed query result"));
+    return;
+  }
+  entry.resolve(rest);
 }
 
 function call<T>(message: Record<string, unknown>): Promise<T> {
@@ -54,7 +74,7 @@ export function initLocalDb(): Promise<LocalDbMode> {
     try {
       const probe = await navigator.storage.getDirectory();
       void probe;
-      worker = new Worker("/sqlite-worker.js", { type: "module" });
+      worker = new Worker(`/sqlite-worker.js?v=${WORKER_VERSION}`, { type: "module" });
       worker.onmessage = onMessage;
       worker.onerror = (e) => {
         for (const [, entry] of pending) entry.reject(new Error(e.message));

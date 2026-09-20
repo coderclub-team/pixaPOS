@@ -51,7 +51,15 @@ self.onmessage = async (event) => {
       const result = await exec(sql, params);
       self.postMessage({ id, ok: true, changes: result ?? 0 });
     } else if (type === "query") {
-      self.postMessage({ id, ok: true, ...query(sql, params) });
+      // execWithParams is async — spreading it unawaited posts {} and the
+      // caller crashes on rows.length. Always await before spreading.
+      const result = await query(sql, params);
+      self.postMessage({
+        id,
+        ok: true,
+        columns: result.columns ?? [],
+        rows: result.rows ?? [],
+      });
     } else {
       throw new Error(`unknown message type: ${type}`);
     }

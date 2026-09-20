@@ -162,6 +162,11 @@ export async function recordEvent(params: {
       operation: "CREATE",
       payload: { ...event },
       actor_id: event.actor_id ?? "staff",
+    }).catch((e) => {
+      // The audit row above is already durable. A failed outbox write must
+      // never roll back the business mutation it audits — log loudly so the
+      // gap is visible, and let the outbox retry sweeper (pilot) pick it up.
+      console.error("[events] outbox append failed for", event.id, e);
     });
     bumpTabs();
     return { ...event };
