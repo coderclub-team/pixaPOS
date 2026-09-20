@@ -53,7 +53,10 @@ export default function ItemPicker({
   const [picked, setPicked] = useState<MenuItem | null>(null);
   const { fly, ghostNode } = useFlyToKot();
   // Source rect + label captured at tap time for the fly-to-KOT ghost.
-  const pendingFly = useRef<{ rect: { x: number; y: number; width: number }; label: string } | null>(null);
+  const pendingFly = useRef<{
+    rect: { x: number; y: number; width: number };
+    label: string;
+  } | null>(null);
   const { data: order } = useQuery({ ...orderQueryOptions(orderId), enabled: !!stayOpen });
 
   const { data: categories } = useQuery(menuCategoriesQueryOptions({}));
@@ -66,8 +69,13 @@ export default function ItemPicker({
   );
 
   const addMut = useMutation({
-    mutationFn: (v: { menu_item_id: string; variant_id?: string; modifier_ids?: string[]; qty: number; instructions?: string }): Promise<unknown> =>
-      autoFire ? addAndFireItem(orderId, v) : addOrderItem(orderId, v),
+    mutationFn: (v: {
+      menu_item_id: string;
+      variant_id?: string;
+      modifier_ids?: string[];
+      qty: number;
+      instructions?: string;
+    }): Promise<unknown> => (autoFire ? addAndFireItem(orderId, v) : addOrderItem(orderId, v)),
     onSuccess: (res: unknown) => {
       const qc = getQueryClient();
       qc.invalidateQueries({ queryKey: orderKeys.detail(orderId) });
@@ -175,7 +183,12 @@ export default function ItemPicker({
                 {item.category_name}
               </p>
               <p className="mt-1 text-sm font-semibold">
-                {formatINR(toPaise((item.variants.find((v) => v.is_default) ?? item.variants[0])?.selling_price ?? 0))}
+                {formatINR(
+                  toPaise(
+                    ((item.variants ?? []).find((v) => v.is_default) ?? (item.variants ?? [])[0])
+                      ?.selling_price ?? 0,
+                  ),
+                )}
               </p>
             </button>
           ))}
@@ -232,9 +245,17 @@ function PickItemDialog({
   item: MenuItem;
   pending: boolean;
   onClose: () => void;
-  onAdd: (v: { variant_id?: string; modifier_ids?: string[]; qty: number; instructions?: string }) => void;
+  onAdd: (v: {
+    variant_id?: string;
+    modifier_ids?: string[];
+    qty: number;
+    instructions?: string;
+  }) => void;
 }) {
-  const defaultVariant = item.variants.find((v) => v.is_default) ?? item.variants[0];
+  // variants is optional on some rows (older seeds, form-created items) —
+  // never let a missing array crash the dialog.
+  const variants = item.variants ?? [];
+  const defaultVariant = variants.find((v) => v.is_default) ?? variants[0];
   const [variantId, setVariantId] = useState<string | undefined>(defaultVariant?.id);
   const [modifierIds, setModifierIds] = useState<string[]>([]);
   const [qty, setQty] = useState(1);
@@ -263,11 +284,11 @@ function PickItemDialog({
             {item.category_name} · {item.veg_type === "veg" ? "Veg" : "Non-veg"}
           </DialogDescription>
         </DialogHeader>
-        {item.product_type === "variant" && item.variants.length > 1 && (
+        {item.product_type === "variant" && variants.length > 1 && (
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Variant</Label>
             <div className="flex flex-wrap gap-2">
-              {item.variants
+              {variants
                 .filter((v) => v.is_active)
                 .map((v) => (
                   <Button
@@ -311,11 +332,25 @@ function PickItemDialog({
         </div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
-            <Button variant="outline" size="icon-sm" className="max-lg:h-10 max-lg:w-10" disabled={qty <= 1} onClick={() => setQty(qty - 1)} aria-label="Decrease quantity">
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className="max-lg:h-10 max-lg:w-10"
+              disabled={qty <= 1}
+              onClick={() => setQty(qty - 1)}
+              aria-label="Decrease quantity"
+            >
               <Icons.minus className="size-4" />
             </Button>
             <span className="w-8 text-center font-medium">{qty}</span>
-            <Button variant="outline" size="icon-sm" className="max-lg:h-10 max-lg:w-10" disabled={qty >= 50} onClick={() => setQty(qty + 1)} aria-label="Increase quantity">
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className="max-lg:h-10 max-lg:w-10"
+              disabled={qty >= 50}
+              onClick={() => setQty(qty + 1)}
+              aria-label="Increase quantity"
+            >
               <Icons.add className="size-4" />
             </Button>
           </div>
