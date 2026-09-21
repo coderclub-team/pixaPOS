@@ -3,7 +3,6 @@
   "installCommand": "pnpm install",
   "buildCommand": "pnpm build --filter @pixa/web",
   "outputDirectory": "apps/web/.next",
-  "framework": "nextjs",
   "regions": ["bom1"],
   "git": {
     "deploymentEnabled": {
