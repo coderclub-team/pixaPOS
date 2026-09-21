@@ -15,6 +15,24 @@ inventory, tables, customers, reporting, and multi-outlet administration.
   `@pixa/api-client` owns transport and query adapters. Apps own routes and
   screen composition, never another app's feature code.
 
+## Subdomain map
+
+| Subdomain                     | Application                      | Primary user                  |
+| ----------------------------- | -------------------------------- | ----------------------------- |
+| `www.pixapos.store`           | Public pixaPOS website           | Everyone                      |
+| `admin.pixapos.store`         | SaaS administration              | pixaPOS team                  |
+| `app.pixapos.store`           | Restaurant management            | Owner / Manager               |
+| `captain.pixapos.store`       | Captain / Steward ordering       | Captain / Waiter              |
+| `kds.pixapos.store`           | Kitchen Display System           | Kitchen staff                 |
+| `kiosk.pixapos.store`         | Self-ordering kiosk              | Customers                     |
+| `order.pixapos.store`         | Online ordering                  | Customers                     |
+| `kot.pixapos.store`           | KOT-focused interface            | Restaurant staff / production |
+| `www.<restaurant-domain>`     | Restaurant's public website      | Customers                     |
+
+- `kot.pixapos.store` is provisional — build only when the KOT-interface need is confirmed.
+- Session/auth must span `*.pixapos.store` (shared cookie domain) across Clerk and Better Auth.
+- Each subdomain is a separate deploy surface (Vercel project or rewrite) serving its mapped app; `www.<restaurant-domain>` is per-tenant custom-domain territory, not platform surface.
+
 ## Domain boundaries
 
 Each domain owns its rules in `features/<domain>/api/service.ts`; UI calls
