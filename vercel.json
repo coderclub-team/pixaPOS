@@ -1,8 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "cd ../.. && pnpm install",
-  "buildCommand": "cd ../.. && pnpm build --filter @pixa/web",
-  "outputDirectory": ".next",
+  "installCommand": "pnpm install",
+  "buildCommand": "pnpm build --filter @pixa/web",
+  "outputDirectory": "apps/web/.next",
   "framework": "nextjs",
   "regions": ["bom1"],
   "git": {
