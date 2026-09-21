@@ -79,7 +79,7 @@ export type BusinessEvent = {
   event_type: BusinessEventType;
   from_state?: string;
   to_state?: string;
-  actor_id?: string; // Clerk user id
+  actor_id?: string; // Better Auth user id
   reason_code?: string;
   reason_text?: string;
   metadata?: Record<string, any>;

@@ -1,7 +1,6 @@
 /**
- * Self-managed Better Auth server (Phase 1 strangler: runs alongside Clerk
- * until cutover). Postgres-backed via @pixa/db (Neon), organization plugin
- * with pixaPOS custom roles mapped from config/permissions.ts.
+ * Self-managed Better Auth server (Postgres-backed via @pixa/db (Neon),
+ * organization plugin with pixaPOS custom roles mapped from config/permissions.ts).
  */
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
