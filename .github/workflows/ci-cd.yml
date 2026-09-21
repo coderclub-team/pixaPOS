@@ -64,6 +64,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: migrate target tier
-        run: pnpm exec drizzle-kit migrate --config ./drizzle.config.ts
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "No ${APP_ENV^^}_DATABASE_URL secret set — skipping migration."
+            exit 0
+          fi
+          pnpm exec drizzle-kit migrate --config ./drizzle.config.ts
         env:
           DATABASE_URL: ${{ secrets[format('{0}_DATABASE_URL', env.APP_ENV == 'prod' && 'PROD' || env.APP_ENV == 'stage' && 'STAGE' || 'DEV')] }}
