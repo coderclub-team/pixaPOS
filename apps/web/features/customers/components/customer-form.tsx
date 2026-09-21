@@ -102,7 +102,12 @@ export default function CustomerForm({
               <form.AppField
                 name="phone"
                 children={(field) => (
-                  <field.TextField label="Phone" required placeholder="10-digit mobile" description="Unique per outlet" />
+                  <field.TextField
+                    label="Phone"
+                    required
+                    placeholder="10-digit mobile"
+                    description="Unique per outlet"
+                  />
                 )}
               />
             </div>
@@ -115,16 +120,18 @@ export default function CustomerForm({
               />
               <form.AppField
                 name="email"
-                children={(field) => (
-                  <field.TextField label="Email" placeholder="Optional" />
-                )}
+                children={(field) => <field.TextField label="Email" placeholder="Optional" />}
               />
             </div>
             <form.AppField
               name="tags"
               mode="array"
               children={(field) => (
-                <field.TagsField label="Tags" placeholder="VIP, Corporate… (Enter to add)" description="Free-text labels for campaigns and discounts" />
+                <field.TagsField
+                  label="Tags"
+                  placeholder="VIP, Corporate… (Enter to add)"
+                  description="Free-text labels for campaigns and discounts"
+                />
               )}
             />
             <form.AppField
@@ -153,7 +160,9 @@ export default function CustomerForm({
             </Button>
             <form.AppForm
               children={
-                <form.SubmitButton>{isEdit ? "Update Customer" : "Create Customer"}</form.SubmitButton>
+                <form.SubmitButton>
+                  {isEdit ? "Update Customer" : "Create Customer"}
+                </form.SubmitButton>
               }
             />
           </div>
@@ -224,10 +233,7 @@ function AddressArrayField({ field }: { field: any }) {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div className="space-y-1.5 text-sm">
                 <span className="font-medium">Label</span>
-                <Select
-                  value={a.label}
-                  onValueChange={(v) => updateAt(i, { label: v })}
-                >
+                <Select value={a.label} onValueChange={(v) => updateAt(i, { label: v })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -292,7 +298,9 @@ function AddressArrayField({ field }: { field: any }) {
                   placeholder="Optional"
                   value={a.latitude ?? ""}
                   onChange={(e) =>
-                    updateAt(i, { latitude: e.target.value === "" ? undefined : Number(e.target.value) })
+                    updateAt(i, {
+                      latitude: e.target.value === "" ? undefined : Number(e.target.value),
+                    })
                   }
                 />
               </label>
@@ -305,7 +313,9 @@ function AddressArrayField({ field }: { field: any }) {
                   placeholder="Optional"
                   value={a.longitude ?? ""}
                   onChange={(e) =>
-                    updateAt(i, { longitude: e.target.value === "" ? undefined : Number(e.target.value) })
+                    updateAt(i, {
+                      longitude: e.target.value === "" ? undefined : Number(e.target.value),
+                    })
                   }
                 />
               </label>

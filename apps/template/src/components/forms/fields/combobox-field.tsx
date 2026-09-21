@@ -1,20 +1,20 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import { Button } from '@pixa/ui/base-ui/button';
+import * as React from "react";
+import { Button } from "@pixa/ui/base-ui/button";
 import {
   Command,
   CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
-  CommandList
-} from '@pixa/ui/base-ui/command';
-import { Field, FieldDescription, FieldError, FieldLabel } from '@pixa/ui/base-ui/field';
-import { Popover, PopoverContent, PopoverTrigger } from '@pixa/ui/base-ui/popover';
-import { Icons } from '@pixa/ui/icons';
-import { cn } from '@pixa/ui/lib/utils';
-import { useFieldContext, useFieldInvalid, type BaseFieldProps } from '@/lib/form-context';
+  CommandList,
+} from "@pixa/ui/base-ui/command";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@pixa/ui/base-ui/field";
+import { Popover, PopoverContent, PopoverTrigger } from "@pixa/ui/base-ui/popover";
+import { Icons } from "@pixa/ui/icons";
+import { cn } from "@pixa/ui/lib/utils";
+import { useFieldContext, useFieldInvalid, type BaseFieldProps } from "@/lib/form-context";
 
 /** Searchable select — Popover + Command per the shadcn combobox pattern. */
 export function ComboboxField({
@@ -22,9 +22,9 @@ export function ComboboxField({
   description,
   required,
   options,
-  placeholder = 'Select an option',
-  searchPlaceholder = 'Search...',
-  emptyMessage = 'No results found.'
+  placeholder = "Select an option",
+  searchPlaceholder = "Search...",
+  emptyMessage = "No results found.",
 }: BaseFieldProps & {
   options: { value: string; label: string; disabled?: boolean }[];
   placeholder?: string;
@@ -41,7 +41,7 @@ export function ComboboxField({
     <Field data-invalid={isInvalid}>
       <FieldLabel htmlFor={field.name}>
         {label}
-        {required && ' *'}
+        {required && " *"}
       </FieldLabel>
       <Popover
         open={open}
@@ -54,23 +54,23 @@ export function ComboboxField({
           render={
             <Button
               id={field.name}
-              variant='outline'
-              role='combobox'
+              variant="outline"
+              role="combobox"
               aria-controls={listboxId}
               aria-expanded={open}
               aria-invalid={isInvalid}
               aria-describedby={isInvalid ? `${field.name}-error` : undefined}
               className={cn(
-                'w-full justify-between font-normal',
-                !selected && 'text-muted-foreground'
+                "w-full justify-between font-normal",
+                !selected && "text-muted-foreground",
               )}
             />
           }
         >
           {selected?.label ?? placeholder}
-          <Icons.chevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
+          <Icons.chevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </PopoverTrigger>
-        <PopoverContent className='w-(--anchor-width) p-0'>
+        <PopoverContent className="w-(--anchor-width) p-0">
           <Command>
             <CommandInput placeholder={searchPlaceholder} />
             <CommandList id={listboxId}>
@@ -89,8 +89,8 @@ export function ComboboxField({
                   >
                     <Icons.check
                       className={cn(
-                        'mr-2 h-4 w-4',
-                        field.state.value === opt.value ? 'opacity-100' : 'opacity-0'
+                        "mr-2 h-4 w-4",
+                        field.state.value === opt.value ? "opacity-100" : "opacity-0",
                       )}
                     />
                     {opt.label}

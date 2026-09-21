@@ -1,8 +1,8 @@
-'use client';
-import { useEffect, useState } from 'react';
-import { Button } from '@pixa/ui/base-ui/button';
-import { Modal } from '@pixa/ui/base-ui/modal';
-import { LoadingButton } from '@pixa/ui/base-ui/loading-button';
+"use client";
+import { useSyncExternalStore } from "react";
+import { Button } from "@pixa/ui/base-ui/button";
+import { Modal } from "@pixa/ui/base-ui/modal";
+import { LoadingButton } from "@pixa/ui/base-ui/loading-button";
 
 interface AlertModalProps {
   isOpen: boolean;
@@ -19,15 +19,15 @@ export function AlertModal({
   onClose,
   onConfirm,
   loading,
-  title = 'Are you sure?',
-  description = 'This action cannot be undone.',
-  confirmLabel = 'Continue'
+  title = "Are you sure?",
+  description = "This action cannot be undone.",
+  confirmLabel = "Continue",
 }: AlertModalProps) {
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
+  const isMounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   if (!isMounted) {
     return null;
@@ -35,11 +35,11 @@ export function AlertModal({
 
   return (
     <Modal title={title} description={description} isOpen={isOpen} onClose={onClose}>
-      <div className='flex w-full items-center justify-end space-x-2 pt-6'>
-        <Button variant='outline' onClick={onClose}>
+      <div className="flex w-full items-center justify-end space-x-2 pt-6">
+        <Button variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <LoadingButton loading={loading} type='button' variant='destructive' onClick={onConfirm}>
+        <LoadingButton loading={loading} type="button" variant="destructive" onClick={onConfirm}>
           {confirmLabel}
         </LoadingButton>
       </div>

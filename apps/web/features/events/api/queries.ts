@@ -5,8 +5,7 @@ import type { EventFilters } from "./types";
 export const eventKeys = {
   all: ["events"] as const,
   list: (filters?: EventFilters) => [...eventKeys.all, "list", filters ?? {}] as const,
-  byOrder: (orderId: string) =>
-    [...eventKeys.all, "by-order", orderId] as const,
+  byOrder: (orderId: string) => [...eventKeys.all, "by-order", orderId] as const,
 };
 
 export const eventsQueryOptions = (filters?: EventFilters) =>

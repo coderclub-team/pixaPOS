@@ -107,11 +107,7 @@ function WasteRow({ log: w }: { log: WasteLog }) {
         <TableCell>
           <div className="flex items-center gap-2">
             {w.photo_url && (
-              <img
-                src={w.photo_url}
-                alt=""
-                className="h-6 w-6 rounded border object-cover"
-              />
+              <img src={w.photo_url} alt="" className="h-6 w-6 rounded border object-cover" />
             )}
             <span>{w.material_name ?? w.material_id ?? w.recipe_name ?? "-"}</span>
           </div>

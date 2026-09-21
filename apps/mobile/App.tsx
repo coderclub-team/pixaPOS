@@ -7,9 +7,7 @@ export default function App() {
     <SafeAreaView className="flex-1 bg-background">
       <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
         <Text className="text-2xl font-bold text-foreground">pixaPOS — Mobile</Text>
-        <Text className="text-sm text-muted-foreground">
-          Shared shadcn-style components
-        </Text>
+        <Text className="text-sm text-muted-foreground">Shared shadcn-style components</Text>
 
         <Card className="p-4 gap-3">
           <Label className="text-muted-foreground">Shared UI</Label>

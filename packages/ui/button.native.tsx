@@ -3,31 +3,28 @@ import { Pressable, Text, type PressableProps, type TextProps } from "react-nati
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "./lib/utils";
 
-const buttonVariants = cva(
-  "flex-row items-center justify-center gap-2 rounded-md",
-  {
-    variants: {
-      variant: {
-        default: "bg-primary",
-        destructive: "bg-destructive",
-        outline: "border border-input bg-background",
-        secondary: "bg-secondary",
-        ghost: "bg-transparent",
-        link: "bg-transparent",
-      },
-      size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-9 px-3",
-        lg: "h-11 px-8",
-        icon: "h-10 w-10",
-      },
+const buttonVariants = cva("flex-row items-center justify-center gap-2 rounded-md", {
+  variants: {
+    variant: {
+      default: "bg-primary",
+      destructive: "bg-destructive",
+      outline: "border border-input bg-background",
+      secondary: "bg-secondary",
+      ghost: "bg-transparent",
+      link: "bg-transparent",
     },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
+    size: {
+      default: "h-10 px-4 py-2",
+      sm: "h-9 px-3",
+      lg: "h-11 px-8",
+      icon: "h-10 w-10",
     },
-  }
-);
+  },
+  defaultVariants: {
+    variant: "default",
+    size: "default",
+  },
+});
 
 const buttonTextVariants = cva("text-sm font-medium", {
   variants: {

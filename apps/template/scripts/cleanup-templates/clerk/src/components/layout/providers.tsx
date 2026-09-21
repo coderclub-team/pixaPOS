@@ -1,11 +1,11 @@
-'use client';
-import React from 'react';
-import { ActiveThemeProvider } from '@/components/themes/active-theme';
-import QueryProvider from '@/components/layout/query-provider';
+"use client";
+import React from "react";
+import { ActiveThemeProvider } from "@/components/themes/active-theme";
+import QueryProvider from "@/components/layout/query-provider";
 
 export default function Providers({
   activeThemeValue,
-  children
+  children,
 }: {
   activeThemeValue: string;
   children: React.ReactNode;

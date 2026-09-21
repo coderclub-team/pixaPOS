@@ -91,7 +91,12 @@ export default function FloorForm({
               <form.AppField
                 name="code"
                 children={(field) => (
-                  <field.TextField label="Code *" required placeholder="GF" description="Short code" />
+                  <field.TextField
+                    label="Code *"
+                    required
+                    placeholder="GF"
+                    description="Short code"
+                  />
                 )}
               />
             </div>
@@ -99,13 +104,23 @@ export default function FloorForm({
               <form.AppField
                 name="level"
                 children={(field) => (
-                  <field.TextField label="Level" type="number" placeholder="0" description="0=Ground, 1=First..." />
+                  <field.TextField
+                    label="Level"
+                    type="number"
+                    placeholder="0"
+                    description="0=Ground, 1=First..."
+                  />
                 )}
               />
               <form.AppField
                 name="capacity"
                 children={(field) => (
-                  <field.TextField label="Capacity" type="number" placeholder="50" description="Headcount" />
+                  <field.TextField
+                    label="Capacity"
+                    type="number"
+                    placeholder="50"
+                    description="Headcount"
+                  />
                 )}
               />
               <form.AppField
@@ -115,7 +130,7 @@ export default function FloorForm({
                 )}
               />
             </div>
-            
+
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
               <form.AppField
                 name="width_mm"
@@ -140,15 +155,11 @@ export default function FloorForm({
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <form.AppField
                 name="is_outdoor"
-                children={(field) => (
-                  <field.SwitchField label="Outdoor Area" />
-                )}
+                children={(field) => <field.SwitchField label="Outdoor Area" />}
               />
               <form.AppField
                 name="is_active"
-                children={(field) => (
-                  <field.SwitchField label="Active" />
-                )}
+                children={(field) => <field.SwitchField label="Active" />}
               />
             </div>
 

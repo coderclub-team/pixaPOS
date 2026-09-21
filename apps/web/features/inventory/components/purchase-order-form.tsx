@@ -92,7 +92,11 @@ export default function PurchaseOrderForm({
   const toBaseItems = () =>
     items.map((it) => {
       const mat = materials?.find((m) => m.id === it.material_id);
-      if (mat && hasPurchaseUom(mat) && (it.entry_unit ?? mat.purchase_unit) === mat.purchase_unit) {
+      if (
+        mat &&
+        hasPurchaseUom(mat) &&
+        (it.entry_unit ?? mat.purchase_unit) === mat.purchase_unit
+      ) {
         const rate = rateFor(mat);
         return {
           ...it,
@@ -204,7 +208,7 @@ export default function PurchaseOrderForm({
       material_id: materialId,
       tax_percent: mat?.tax_percent,
       unit_cost: inPurchase
-        ? Math.round((mat!.cost_price * rateFor(mat)) * 100) / 100
+        ? Math.round(mat!.cost_price * rateFor(mat) * 100) / 100
         : (mat?.cost_price ?? 0),
       entry_unit: inPurchase ? mat!.purchase_unit : mat?.unit,
     });
@@ -499,8 +503,7 @@ export default function PurchaseOrderForm({
                       {mat && (
                         <div className="text-[11px] text-muted-foreground">
                           {mat.unit} • Stock {mat.stock_qty} • Avg ₹{mat.avg_cost}
-                          {uom &&
-                            ` • Buys in ${(mat as any).purchase_unit} ×${rateFor(mat)}`}
+                          {uom && ` • Buys in ${(mat as any).purchase_unit} ×${rateFor(mat)}`}
                         </div>
                       )}
                       {uom && (

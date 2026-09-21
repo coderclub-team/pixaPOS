@@ -1999,7 +1999,14 @@ export async function recordWasteForCancelledOrder(
   // aggregate per material so stock deducts once
   const agg = new Map<
     string,
-    { qty: number; unit: string; recipe_id: string; recipe_name?: string; variant_id?: string; variant_name?: string }
+    {
+      qty: number;
+      unit: string;
+      recipe_id: string;
+      recipe_name?: string;
+      variant_id?: string;
+      variant_name?: string;
+    }
   >();
   for (const line of input.lines) {
     const recipe = mockRecipes.find((r) => r.id === line.recipe_id);

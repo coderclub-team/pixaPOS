@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { Button } from '@pixa/ui/base-ui/button';
-import { Icons } from '@pixa/ui/icons';
-import { StatsErrorAlert } from '@/features/overview/components/stats-error';
-import { useRouter } from 'next/navigation';
-import { useEffect, useTransition } from 'react';
-import * as Sentry from '@sentry/nextjs';
+import { Button } from "@pixa/ui/base-ui/button";
+import { Icons } from "@pixa/ui/icons";
+import { StatsErrorAlert } from "@/features/overview/components/stats-error";
+import { useRouter } from "next/navigation";
+import { useEffect, useTransition } from "react";
+import * as Sentry from "@sentry/nextjs";
 
 export default function SalesError({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
@@ -28,18 +28,18 @@ export default function SalesError({ error, reset }: { error: Error; reset: () =
       message={`Failed to load sales data: ${error.message}`}
       action={
         <>
-          <Button variant='outline' size='sm' onClick={retry} disabled={isPending}>
+          <Button variant="outline" size="sm" onClick={retry} disabled={isPending}>
             {isPending ? (
               <>
-                <Icons.spinner className='mr-2 h-4 w-4 animate-spin' aria-hidden='true' />
+                <Icons.spinner className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
                 Retrying...
               </>
             ) : (
-              'Try again'
+              "Try again"
             )}
           </Button>
-          <span role='status' aria-live='polite' className='sr-only'>
-            {isPending ? 'Retrying' : ''}
+          <span role="status" aria-live="polite" className="sr-only">
+            {isPending ? "Retrying" : ""}
           </span>
         </>
       }

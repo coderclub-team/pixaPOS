@@ -86,9 +86,7 @@ export function CustomerList({ customers }: CustomerListProps) {
                       </Badge>
                     ))}
                   </div>
-                  {c.email && (
-                    <div className="text-xs text-muted-foreground">{c.email}</div>
-                  )}
+                  {c.email && <div className="text-xs text-muted-foreground">{c.email}</div>}
                 </TableCell>
                 <TableCell className="font-mono text-xs">{c.phone}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">
@@ -156,9 +154,7 @@ function CustomerActions({ customer }: { customer: CustomerWithDerived }) {
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
           </DropdownMenuGroup>
           <DropdownMenuGroup>
-            <DropdownMenuItem
-              onClick={() => router.push(`/dashboard/customers/${customer.id}`)}
-            >
+            <DropdownMenuItem onClick={() => router.push(`/dashboard/customers/${customer.id}`)}>
               <Icons.edit className="mr-2 h-4 w-4" /> Update
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setDeleteOpen(true)}>

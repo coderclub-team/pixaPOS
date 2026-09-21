@@ -43,9 +43,10 @@ export default function TableForm({
     ...tablesQueryOptions({}),
     enabled: isDuplicate,
   });
-  const suggested = isDuplicate && duplicateFrom && allTables
-    ? suggestDuplicateIdentifiers(duplicateFrom, allTables)
-    : null;
+  const suggested =
+    isDuplicate && duplicateFrom && allTables
+      ? suggestDuplicateIdentifiers(duplicateFrom, allTables)
+      : null;
 
   const createMutation = useMutation({
     mutationFn: (values: TableValues) => createTable(values as any),

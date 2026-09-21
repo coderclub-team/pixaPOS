@@ -6,7 +6,7 @@
  */
 export function startThemeTransition(
   apply: () => void,
-  origin?: { clientX: number; clientY: number }
+  origin?: { clientX: number; clientY: number },
 ) {
   const root = document.documentElement;
 
@@ -16,8 +16,8 @@ export function startThemeTransition(
   }
 
   if (origin) {
-    root.style.setProperty('--x', `${origin.clientX}px`);
-    root.style.setProperty('--y', `${origin.clientY}px`);
+    root.style.setProperty("--x", `${origin.clientX}px`);
+    root.style.setProperty("--y", `${origin.clientY}px`);
   }
 
   document.startViewTransition(apply);

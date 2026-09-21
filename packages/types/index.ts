@@ -1,2 +1,4 @@
-export type AppName = 'pixaPOS';
-export interface VersionInfo { version: string }
+export type AppName = "pixaPOS";
+export interface VersionInfo {
+  version: string;
+}

@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useAppForm } from '@/lib/form';
-import * as z from 'zod';
-import { Button } from '@pixa/ui/base-ui/button';
-import { FieldGroup } from '@pixa/ui/base-ui/field';
+import { useAppForm } from "@/lib/form";
+import * as z from "zod";
+import { Button } from "@pixa/ui/base-ui/button";
+import { FieldGroup } from "@pixa/ui/base-ui/field";
 import {
   Sheet,
   SheetContent,
@@ -11,23 +11,23 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-  SheetTrigger
-} from '@pixa/ui/base-ui/sheet';
-import { Icons } from '@pixa/ui/icons';
-import { useState } from 'react';
+  SheetTrigger,
+} from "@pixa/ui/base-ui/sheet";
+import { Icons } from "@pixa/ui/icons";
+import { useState } from "react";
 
 const productSchema = z.object({
-  name: z.string().min(2, 'Product name must be at least 2 characters'),
-  category: z.string().min(1, 'Please select a category'),
-  price: z.number({ error: 'Price is required' }).min(0.01, 'Price must be greater than 0'),
-  description: z.string().min(10, 'Description must be at least 10 characters')
+  name: z.string().min(2, "Product name must be at least 2 characters"),
+  category: z.string().min(1, "Please select a category"),
+  price: z.number({ error: "Price is required" }).min(0.01, "Price must be greater than 0"),
+  description: z.string().min(10, "Description must be at least 10 characters"),
 });
 
 const categoryOptions = [
-  { value: 'beauty', label: 'Beauty Products' },
-  { value: 'electronics', label: 'Electronics' },
-  { value: 'home', label: 'Home & Garden' },
-  { value: 'sports', label: 'Sports & Outdoors' }
+  { value: "beauty", label: "Beauty Products" },
+  { value: "electronics", label: "Electronics" },
+  { value: "home", label: "Home & Garden" },
+  { value: "sports", label: "Sports & Outdoors" },
 ];
 
 export default function SheetProductForm() {
@@ -35,37 +35,37 @@ export default function SheetProductForm() {
 
   const form = useAppForm({
     defaultValues: {
-      name: '',
-      category: '',
+      name: "",
+      category: "",
       price: undefined as number | undefined,
-      description: ''
+      description: "",
     },
     validators: {
-      onSubmit: productSchema
+      onSubmit: productSchema,
     },
     onSubmit: () => {
-      alert('Product created successfully!');
+      alert("Product created successfully!");
       setOpen(false);
       form.reset();
-    }
+    },
   });
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger render={<Button />}>
-        <Icons.add className='mr-2 h-4 w-4' />
+        <Icons.add className="mr-2 h-4 w-4" />
         Add Product
       </SheetTrigger>
-      <SheetContent className='flex flex-col'>
+      <SheetContent className="flex flex-col">
         <SheetHeader>
           <SheetTitle>New Product</SheetTitle>
           <SheetDescription>Fill in the details to create a new product.</SheetDescription>
         </SheetHeader>
 
-        <div className='flex-1 overflow-auto'>
+        <div className="flex-1 overflow-auto">
           <form
-            id='sheet-product-form'
-            className='space-y-4 p-4 md:p-4'
+            id="sheet-product-form"
+            className="space-y-4 p-4 md:p-4"
             onSubmit={(e) => {
               e.preventDefault();
               form.handleSubmit();
@@ -73,45 +73,45 @@ export default function SheetProductForm() {
           >
             <FieldGroup>
               <form.AppField
-                name='name'
+                name="name"
                 children={(field) => (
-                  <field.TextField label='Product Name' required placeholder='Enter product name' />
+                  <field.TextField label="Product Name" required placeholder="Enter product name" />
                 )}
               />
 
               <form.AppField
-                name='category'
+                name="category"
                 children={(field) => (
                   <field.SelectField
-                    label='Category'
+                    label="Category"
                     required
                     options={categoryOptions}
-                    placeholder='Select category'
+                    placeholder="Select category"
                   />
                 )}
               />
 
               <form.AppField
-                name='price'
+                name="price"
                 children={(field) => (
                   <field.TextField
-                    label='Price'
+                    label="Price"
                     required
-                    type='number'
+                    type="number"
                     min={0}
-                    step='0.01'
-                    placeholder='Enter price'
+                    step="0.01"
+                    placeholder="Enter price"
                   />
                 )}
               />
 
               <form.AppField
-                name='description'
+                name="description"
                 children={(field) => (
                   <field.TextareaField
-                    label='Description'
+                    label="Description"
                     required
-                    placeholder='Enter product description'
+                    placeholder="Enter product description"
                     maxLength={500}
                     rows={4}
                     showCount
@@ -123,10 +123,10 @@ export default function SheetProductForm() {
         </div>
 
         <SheetFooter>
-          <Button type='button' variant='outline' onClick={() => setOpen(false)}>
+          <Button type="button" variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button type='submit' form='sheet-product-form'>
+          <Button type="submit" form="sheet-product-form">
             Create Product
           </Button>
         </SheetFooter>

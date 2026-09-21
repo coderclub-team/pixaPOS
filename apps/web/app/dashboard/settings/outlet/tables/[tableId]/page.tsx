@@ -19,8 +19,7 @@ export default async function Page(props: PageProps) {
   // mock — the server's in-memory store never sees client-created rows, so a
   // prefetched `null` would hydrate and 404 every new/duplicated table.
   // The client component fetches from the hydrated store instead.
-  const duplicateFromId =
-    params.tableId === "new" ? searchParams.duplicate_from : undefined;
+  const duplicateFromId = params.tableId === "new" ? searchParams.duplicate_from : undefined;
 
   return (
     <PageContainer>

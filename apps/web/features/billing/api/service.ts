@@ -64,7 +64,8 @@ export async function ensureSubscription(
   try {
     await delay(400);
     loadBilling();
-    if (mockSubscription && mockSubscription.outlet_id === outletId) return deriveSubscriptionView(mockSubscription);
+    if (mockSubscription && mockSubscription.outlet_id === outletId)
+      return deriveSubscriptionView(mockSubscription);
     const now = new Date().toISOString();
     mockSubscription = {
       id: `sub_${Date.now().toString(36)}`,

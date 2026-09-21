@@ -44,8 +44,7 @@ export const inventoryKeys = {
   suppliers: (filters?: SupplierFilters) =>
     [...inventoryKeys.all, "suppliers", filters ?? {}] as const,
   supplier: (id: string) => [...inventoryKeys.all, "supplier", id] as const,
-  recipes: (filters?: RecipeFilters) =>
-    [...inventoryKeys.all, "recipes", filters ?? {}] as const,
+  recipes: (filters?: RecipeFilters) => [...inventoryKeys.all, "recipes", filters ?? {}] as const,
   recipe: (id: string) => [...inventoryKeys.all, "recipe", id] as const,
   purchaseOrders: (filters?: PurchaseOrderFilters) =>
     [...inventoryKeys.all, "purchase-orders", filters ?? {}] as const,

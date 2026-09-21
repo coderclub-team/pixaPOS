@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import { Field, FieldDescription, FieldError, FieldLabel } from '@pixa/ui/base-ui/field';
-import { Input } from '@pixa/ui/base-ui/input';
-import { Spinner } from '@pixa/ui/base-ui/spinner';
-import { useFieldContext, useFieldInvalid, type BaseFieldProps } from '@/lib/form-context';
+import * as React from "react";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@pixa/ui/base-ui/field";
+import { Input } from "@pixa/ui/base-ui/input";
+import { Spinner } from "@pixa/ui/base-ui/spinner";
+import { useFieldContext, useFieldInvalid, type BaseFieldProps } from "@/lib/form-context";
 
 /**
  * Text-style input (text, email, password, tel, url, time, number).
@@ -17,7 +17,7 @@ export function TextField({
   description,
   required,
   ...inputProps
-}: BaseFieldProps & Omit<React.ComponentProps<typeof Input>, 'value' | 'onChange' | 'onBlur'>) {
+}: BaseFieldProps & Omit<React.ComponentProps<typeof Input>, "value" | "onChange" | "onBlur">) {
   const field = useFieldContext<string | number | undefined>();
   const isInvalid = useFieldInvalid();
   const isValidating = field.state.meta.isValidating;
@@ -26,28 +26,28 @@ export function TextField({
     <Field data-invalid={isInvalid}>
       <FieldLabel htmlFor={field.name}>
         {label}
-        {required && ' *'}
+        {required && " *"}
       </FieldLabel>
-      <div className='relative'>
+      <div className="relative">
         <Input
           id={field.name}
           name={field.name}
-          value={field.state.value ?? ''}
+          value={field.state.value ?? ""}
           onBlur={field.handleBlur}
           onChange={(e) =>
             field.handleChange(
-              inputProps.type === 'number'
-                ? e.target.value === ''
+              inputProps.type === "number"
+                ? e.target.value === ""
                   ? undefined
                   : Number(e.target.value)
-                : e.target.value
+                : e.target.value,
             )
           }
           aria-invalid={isInvalid}
           aria-describedby={isInvalid ? `${field.name}-error` : undefined}
           {...inputProps}
         />
-        {isValidating && <Spinner className='absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2' />}
+        {isValidating && <Spinner className="absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2" />}
       </div>
       {description && <FieldDescription>{description}</FieldDescription>}
       {isInvalid && <FieldError id={`${field.name}-error`} errors={field.state.meta.errors} />}

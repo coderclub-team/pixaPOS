@@ -40,7 +40,10 @@ const FLOOR_STORAGE_KEY = "pixaFloors";
 function saveFloors() {
   if (typeof window !== "undefined") {
     try {
-      localStorage.setItem(FLOOR_STORAGE_KEY, JSON.stringify({ floors: mockFloors, objects: mockObjects }));
+      localStorage.setItem(
+        FLOOR_STORAGE_KEY,
+        JSON.stringify({ floors: mockFloors, objects: mockObjects }),
+      );
     } catch {}
   }
 }
@@ -278,13 +281,14 @@ export async function updateFloor(id: string, payload: FloorPayload): Promise<Fl
       const { tables } = await getTablesWithDerivedByFloor(id);
       const newW = payload.width_mm ?? mockFloors[idx].width_mm;
       const newH = payload.height_mm ?? mockFloors[idx].height_mm;
-      const orphanTables = tables.filter(t => t.x_mm + t.w_mm > newW || t.y_mm + t.h_mm > newH);
+      const orphanTables = tables.filter((t) => t.x_mm + t.w_mm > newW || t.y_mm + t.h_mm > newH);
       const orphanObjects = mockObjects.filter(
-        o => o.floor_id === id && !o.deleted_at && (o.x_mm + o.w_mm > newW || o.y_mm + o.h_mm > newH),
+        (o) =>
+          o.floor_id === id && !o.deleted_at && (o.x_mm + o.w_mm > newW || o.y_mm + o.h_mm > newH),
       );
       const orphanNames = [
-        ...orphanTables.map(t => t.number),
-        ...orphanObjects.map(o => o.label ?? o.kind),
+        ...orphanTables.map((t) => t.number),
+        ...orphanObjects.map((o) => o.label ?? o.kind),
       ];
       if (orphanNames.length > 0) {
         throw new Error(
@@ -318,8 +322,8 @@ export async function reorderFloors(input: ReorderFloorInput[]): Promise<void> {
   const release = await entityMutex.acquire("floor-write");
   try {
     await delay(400);
-    input.forEach(item => {
-      const idx = mockFloors.findIndex(f => f.id === item.floor_id);
+    input.forEach((item) => {
+      const idx = mockFloors.findIndex((f) => f.id === item.floor_id);
       if (idx !== -1) {
         mockFloors[idx].sort_order = item.sort_order;
         mockFloors[idx].updated_at = new Date().toISOString();
@@ -352,7 +356,9 @@ export async function deleteFloor(id: string): Promise<void> {
       );
     }
     if (tables.length > 0) {
-      throw new Error(`Cannot delete floor with ${tables.length} tables. Move or delete them first.`);
+      throw new Error(
+        `Cannot delete floor with ${tables.length} tables. Move or delete them first.`,
+      );
     }
 
     mockFloors[idx].deleted_at = new Date().toISOString();

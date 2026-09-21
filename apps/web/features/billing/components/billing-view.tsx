@@ -165,8 +165,7 @@ export default function BillingView({
   }
 
   const showSubscribe = ["trialing", "grace", "blocked"].includes(sub.status);
-  const cancelPending =
-    sub.subscription.cancel_at_period_end && sub.status !== "cancelled";
+  const cancelPending = sub.subscription.cancel_at_period_end && sub.status !== "cancelled";
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
@@ -179,27 +178,41 @@ export default function BillingView({
           )}
         >
           <CardContent className="flex flex-wrap items-center gap-3 py-4">
-            <Icons.info
-              className={cn("size-5", STATUS_STYLE[sub.status])}
-            />
+            <Icons.info className={cn("size-5", STATUS_STYLE[sub.status])} />
             <div className="min-w-0 flex-1">
               {sub.status === "trialing" && (
                 <p className="text-sm">
-                  <span className="font-medium">Trial — {sub.days_left} day{sub.days_left === 1 ? "" : "s"} left</span>
-                  <span className="text-muted-foreground"> (ends {fmtDate(sub.trial_ends_at)}).</span>
-                  <span className="text-muted-foreground"> Subscribe to keep billing uninterrupted.</span>
+                  <span className="font-medium">
+                    Trial — {sub.days_left} day{sub.days_left === 1 ? "" : "s"} left
+                  </span>
+                  <span className="text-muted-foreground">
+                    {" "}
+                    (ends {fmtDate(sub.trial_ends_at)}).
+                  </span>
+                  <span className="text-muted-foreground">
+                    {" "}
+                    Subscribe to keep billing uninterrupted.
+                  </span>
                 </p>
               )}
               {sub.status === "grace" && (
                 <p className="text-sm">
-                  <span className="font-medium">Trial ended — {sub.days_left} day{sub.days_left === 1 ? "" : "s"} of grace left.</span>
-                  <span className="text-muted-foreground"> Subscribe now to avoid interruption.</span>
+                  <span className="font-medium">
+                    Trial ended — {sub.days_left} day{sub.days_left === 1 ? "" : "s"} of grace left.
+                  </span>
+                  <span className="text-muted-foreground">
+                    {" "}
+                    Subscribe now to avoid interruption.
+                  </span>
                 </p>
               )}
               {sub.status === "blocked" && (
                 <p className="text-sm">
                   <span className="font-medium">Subscription blocked.</span>
-                  <span className="text-muted-foreground"> The outlet is read-only until you subscribe.</span>
+                  <span className="text-muted-foreground">
+                    {" "}
+                    The outlet is read-only until you subscribe.
+                  </span>
                 </p>
               )}
               {sub.status === "cancelled" && (
@@ -312,7 +325,9 @@ export default function BillingView({
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className={cn("text-xs font-medium capitalize", INVOICE_STYLE[inv.status])}>
+                      <span
+                        className={cn("text-xs font-medium capitalize", INVOICE_STYLE[inv.status])}
+                      >
                         {inv.status}
                       </span>
                     </TableCell>
@@ -334,8 +349,10 @@ export default function BillingView({
             <DialogTitle>Cancel subscription?</DialogTitle>
             <DialogDescription>
               The outlet stays usable until the paid period ends
-              {sub.subscription.current_period_end ? ` (${fmtDate(sub.subscription.current_period_end)})` : ""},
-              then moves to read-only. You can resubscribe anytime.
+              {sub.subscription.current_period_end
+                ? ` (${fmtDate(sub.subscription.current_period_end)})`
+                : ""}
+              , then moves to read-only. You can resubscribe anytime.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2">

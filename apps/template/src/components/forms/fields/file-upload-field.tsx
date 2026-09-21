@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { FileUploader } from '@/components/file-uploader';
-import { Field, FieldDescription, FieldError, FieldLabel } from '@pixa/ui/base-ui/field';
-import { useFieldContext, useFieldInvalid, type BaseFieldProps } from '@/lib/form-context';
+import { FileUploader } from "@/components/file-uploader";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@pixa/ui/base-ui/field";
+import { useFieldContext, useFieldInvalid, type BaseFieldProps } from "@/lib/form-context";
 
 export function FileUploadField({
   label,
   description,
   required,
   maxSize = 5 * 1024 * 1024,
-  maxFiles = 1
+  maxFiles = 1,
 }: BaseFieldProps & {
   maxSize?: number;
   maxFiles?: number;
@@ -21,12 +21,12 @@ export function FileUploadField({
     <Field data-invalid={isInvalid}>
       <FieldLabel htmlFor={field.name}>
         {label}
-        {required && ' *'}
+        {required && " *"}
       </FieldLabel>
       <FileUploader
         value={field.state.value}
         onValueChange={(files) =>
-          field.handleChange(typeof files === 'function' ? files(field.state.value ?? []) : files)
+          field.handleChange(typeof files === "function" ? files(field.state.value ?? []) : files)
         }
         maxSize={maxSize}
         maxFiles={maxFiles}

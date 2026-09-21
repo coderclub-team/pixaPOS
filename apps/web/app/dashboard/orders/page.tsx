@@ -77,7 +77,11 @@ export default function OrdersPage() {
   const [channel, setChannel] = useState<OrderChannel | "all">("all");
   const [status, setStatus] = useState<OrderStatus | "all">("all");
 
-  const { data: orders, isPending, dataUpdatedAt } = useQuery({
+  const {
+    data: orders,
+    isPending,
+    dataUpdatedAt,
+  } = useQuery({
     ...ordersQueryOptions({
       search: search || undefined,
       channel: channel === "all" ? undefined : channel,

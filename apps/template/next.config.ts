@@ -1,43 +1,43 @@
-import type { NextConfig } from 'next';
-import { withSentryConfig } from '@sentry/nextjs';
+import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 // Define the base Next.js configuration
 const baseConfig: NextConfig = {
-  output: process.env.BUILD_STANDALONE === 'true' ? 'standalone' : undefined,
-  basePath: '/template',
+  output: process.env.BUILD_STANDALONE === "true" ? "standalone" : undefined,
+  basePath: "/template",
   async redirects() {
     return [
       {
-        source: '/',
-        destination: '/template/auth/sign-in',
+        source: "/",
+        destination: "/template/auth/sign-in",
         permanent: false,
-        basePath: false
-      }
+        basePath: false,
+      },
     ];
   },
   images: {
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: 'api.slingacademy.com',
-        port: ''
+        protocol: "https",
+        hostname: "api.slingacademy.com",
+        port: "",
       },
       {
-        protocol: 'https',
-        hostname: 'img.clerk.com',
-        port: ''
+        protocol: "https",
+        hostname: "img.clerk.com",
+        port: "",
       },
       {
-        protocol: 'https',
-        hostname: 'clerk.com',
-        port: ''
-      }
-    ]
+        protocol: "https",
+        hostname: "clerk.com",
+        port: "",
+      },
+    ],
   },
-  transpilePackages: ['geist'],
+  transpilePackages: ["geist"],
   compiler: {
-    removeConsole: process.env.NODE_ENV === 'production'
-  }
+    removeConsole: process.env.NODE_ENV === "production",
+  },
 };
 
 let configWithPlugins = baseConfig;
@@ -54,7 +54,7 @@ if (!process.env.NEXT_PUBLIC_SENTRY_DISABLED) {
     widenClientFileUpload: true,
 
     // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
-    tunnelRoute: '/monitoring',
+    tunnelRoute: "/monitoring",
 
     // Disable Sentry telemetry
     telemetry: false,
@@ -62,17 +62,17 @@ if (!process.env.NEXT_PUBLIC_SENTRY_DISABLED) {
     // Sentry v10: moved under webpack namespace
     webpack: {
       reactComponentAnnotation: {
-        enabled: true
+        enabled: true,
       },
       treeshake: {
-        removeDebugLogging: true
-      }
+        removeDebugLogging: true,
+      },
     },
 
     // Disable source map upload when org/project are not configured
     sourcemaps: {
-      disable: !process.env.NEXT_PUBLIC_SENTRY_ORG || !process.env.NEXT_PUBLIC_SENTRY_PROJECT
-    }
+      disable: !process.env.NEXT_PUBLIC_SENTRY_ORG || !process.env.NEXT_PUBLIC_SENTRY_PROJECT,
+    },
   });
 }
 

@@ -1,14 +1,20 @@
-name: promote
+name: ci-cd
+
+# 3-tier pipeline: develop → dev, test → stage, main / v* tags → prod.
+# GitHub Actions validates, builds, and migrates. Vercel Git integration
+# performs the actual deploys (Development / Preview / Production).
+# Migrations promote dev → stage → prod, never prod first. Secrets
+# DEV/STAGE/PROD_DATABASE_URL hold the pooled per-branch Neon URLs.
 
 on:
   push:
-    branches: [main]
+    branches: [develop, test, main]
     tags: ["v*"]
   pull_request:
-    branches: [main]
+    branches: [develop, test, main]
 
 env:
-  APP_ENV: ${{ (github.ref_type == 'tag' && 'prod') || (startsWith(github.ref, 'refs/heads/release/') && 'stage') || 'dev' }}
+  APP_ENV: ${{ (github.ref_type == 'tag' && 'prod') || (github.ref == 'refs/heads/main' && 'prod') || (github.ref == 'refs/heads/test' && 'stage') || 'dev' }}
 
 jobs:
   validate:
@@ -23,6 +29,7 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
 
@@ -39,15 +46,16 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - run: pnpm build --filter @pixa/web
         env:
           DATABASE_URL: ${{ secrets[format('{0}_DATABASE_URL', env.APP_ENV == 'prod' && 'PROD' || env.APP_ENV == 'stage' && 'STAGE' || 'DEV')] }}
           BETTER_AUTH_SECRET: dummy-build-secret-0123456789abcdef
           BETTER_AUTH_URL: http://localhost:3000
 
   migrate:
-    # Migrations promote dev → stage → prod, never prod first. Secrets
-    # DEV/STAGE/PROD_DATABASE_URL hold the pooled per-branch Neon URLs.
+    # Schema migrates only on push (never on PRs). Stage migrates after
+    # develop is merged into test; prod migrates after test is merged
+    # into main — enforced by branch protection, not by job ordering.
     needs: build
     if: github.event_name == 'push'
     runs-on: ubuntu-latest

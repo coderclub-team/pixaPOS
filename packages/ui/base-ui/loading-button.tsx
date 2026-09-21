@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import { Button } from './button';
-import { Spinner } from './spinner';
-import { cn } from '../lib/utils';
+import * as React from "react";
+import { Button } from "./button";
+import { Spinner } from "./spinner";
+import { cn } from "../lib/utils";
 
-export interface LoadingButtonProps extends Omit<React.ComponentProps<typeof Button>, 'className'> {
+export interface LoadingButtonProps extends Omit<React.ComponentProps<typeof Button>, "className"> {
   /** When true, overlays a spinner and disables the button. */
   loading?: boolean;
   /** Polite screen-reader announcement while loading. */
@@ -21,28 +21,28 @@ export interface LoadingButtonProps extends Omit<React.ComponentProps<typeof But
  */
 export function LoadingButton({
   loading = false,
-  loadingLabel = 'Loading…',
+  loadingLabel = "Loading…",
   disabled,
   className,
   children,
   ...props
 }: LoadingButtonProps) {
-  const gap = props.size === 'sm' || props.size === 'xs' ? 'gap-1' : 'gap-1.5';
+  const gap = props.size === "sm" || props.size === "xs" ? "gap-1" : "gap-1.5";
   return (
     <>
       <Button
         {...props}
         disabled={disabled || loading}
         aria-busy={loading || undefined}
-        className={cn('relative', loading && 'disabled:opacity-100', className)}
+        className={cn("relative", loading && "disabled:opacity-100", className)}
       >
-        {loading && <Spinner aria-hidden className='absolute inset-0 m-auto' />}
-        <span className={cn('inline-flex items-center', gap, loading && 'opacity-0')}>
+        {loading && <Spinner aria-hidden className="absolute inset-0 m-auto" />}
+        <span className={cn("inline-flex items-center", gap, loading && "opacity-0")}>
           {children}
         </span>
       </Button>
-      <span role='status' aria-live='polite' className='sr-only'>
-        {loading ? loadingLabel : ''}
+      <span role="status" aria-live="polite" className="sr-only">
+        {loading ? loadingLabel : ""}
       </span>
     </>
   );

@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useAuth, useOrganizationList } from '@clerk/nextjs';
-import { Icons } from '@pixa/ui/icons';
-import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useAuth, useOrganizationList } from "@clerk/nextjs";
+import { Icons } from "@pixa/ui/icons";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 import {
   DropdownMenu,
@@ -13,15 +13,15 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
-  DropdownMenuTrigger
-} from '@pixa/ui/base-ui/dropdown-menu';
+  DropdownMenuTrigger,
+} from "@pixa/ui/base-ui/dropdown-menu";
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar
-} from '@pixa/ui/base-ui/sidebar';
-import { useEffect } from 'react';
+  useSidebar,
+} from "@pixa/ui/base-ui/sidebar";
+import { useEffect } from "react";
 
 export function OrgSwitcher() {
   const { isMobile, state } = useSidebar();
@@ -29,8 +29,8 @@ export function OrgSwitcher() {
   const { isLoaded, setActive, userMemberships } = useOrganizationList({
     userMemberships: {
       infinite: true,
-      keepPreviousData: false
-    }
+      keepPreviousData: false,
+    },
   });
 
   const { orgId } = useAuth();
@@ -44,7 +44,7 @@ export function OrgSwitcher() {
 
   // Get the currently active organization
   const activeOrganization = userMemberships?.data?.find(
-    (membership) => membership.organization.id === orgId
+    (membership) => membership.organization.id === orgId,
   )?.organization;
 
   // Handle organization switch
@@ -55,7 +55,7 @@ export function OrgSwitcher() {
     try {
       await setActive({ organization: organizationId });
     } catch (error) {
-      console.error('Failed to switch organization:', error);
+      console.error("Failed to switch organization:", error);
     }
   };
 
@@ -64,19 +64,19 @@ export function OrgSwitcher() {
     return (
       <SidebarMenu>
         <SidebarMenuItem>
-          <SidebarMenuButton size='lg' disabled>
-            <div className='bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg'>
-              <Icons.galleryVerticalEnd className='size-4' />
+          <SidebarMenuButton size="lg" disabled>
+            <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg">
+              <Icons.galleryVerticalEnd className="size-4" />
             </div>
             <div
               className={`grid flex-1 text-left text-sm leading-tight transition-all duration-200 ease-in-out ${
-                state === 'collapsed'
-                  ? 'invisible max-w-0 overflow-hidden opacity-0'
-                  : 'visible max-w-full opacity-100'
+                state === "collapsed"
+                  ? "invisible max-w-0 overflow-hidden opacity-0"
+                  : "visible max-w-full opacity-100"
               }`}
             >
-              <span className='truncate font-medium'>Loading...</span>
-              <span className='text-muted-foreground truncate text-xs'>Organizations</span>
+              <span className="truncate font-medium">Loading...</span>
+              <span className="text-muted-foreground truncate text-xs">Organizations</span>
             </div>
           </SidebarMenuButton>
         </SidebarMenuItem>
@@ -90,28 +90,28 @@ export function OrgSwitcher() {
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton
-            size='lg'
-            onClick={() => router.push('/dashboard/workspaces')}
-            className='data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground'
+            size="lg"
+            onClick={() => router.push("/dashboard/workspaces")}
+            className="data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground"
           >
-            <div className='bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg'>
-              <Icons.add className='size-4' />
+            <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg">
+              <Icons.add className="size-4" />
             </div>
             <div
               className={`grid flex-1 text-left text-sm leading-tight transition-all duration-200 ease-in-out ${
-                state === 'collapsed'
-                  ? 'invisible max-w-0 overflow-hidden opacity-0'
-                  : 'visible max-w-full opacity-100'
+                state === "collapsed"
+                  ? "invisible max-w-0 overflow-hidden opacity-0"
+                  : "visible max-w-full opacity-100"
               }`}
             >
-              <span className='truncate font-medium'>Create organization</span>
-              <span className='text-muted-foreground truncate text-xs'>Get started</span>
+              <span className="truncate font-medium">Create organization</span>
+              <span className="text-muted-foreground truncate text-xs">Get started</span>
             </div>
             <Icons.chevronsUpDown
               className={`ml-auto transition-all duration-200 ease-in-out ${
-                state === 'collapsed'
-                  ? 'invisible max-w-0 opacity-0'
-                  : 'visible max-w-full opacity-100'
+                state === "collapsed"
+                  ? "invisible max-w-0 opacity-0"
+                  : "visible max-w-full opacity-100"
               }`}
             />
           </SidebarMenuButton>
@@ -134,53 +134,53 @@ export function OrgSwitcher() {
           <DropdownMenuTrigger
             render={
               <SidebarMenuButton
-                size='lg'
-                className='data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground'
+                size="lg"
+                className="data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground"
               />
             }
           >
-            <div className='bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg'>
+            <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg">
               {displayOrganization.hasImage && displayOrganization.imageUrl ? (
                 <Image
                   src={displayOrganization.imageUrl}
                   alt={displayOrganization.name}
                   width={32}
                   height={32}
-                  className='size-full object-cover'
+                  className="size-full object-cover"
                 />
               ) : (
-                <Icons.galleryVerticalEnd className='size-4' />
+                <Icons.galleryVerticalEnd className="size-4" />
               )}
             </div>
             <div
               className={`grid flex-1 text-left text-sm leading-tight transition-all duration-200 ease-in-out ${
-                state === 'collapsed'
-                  ? 'invisible max-w-0 overflow-hidden opacity-0'
-                  : 'visible max-w-full opacity-100'
+                state === "collapsed"
+                  ? "invisible max-w-0 overflow-hidden opacity-0"
+                  : "visible max-w-full opacity-100"
               }`}
             >
-              <span className='truncate font-medium'>{displayOrganization.name}</span>
-              <span className='text-muted-foreground truncate text-xs'>
+              <span className="truncate font-medium">{displayOrganization.name}</span>
+              <span className="text-muted-foreground truncate text-xs">
                 {userMemberships.data.find((m) => m.organization.id === displayOrganization.id)
-                  ?.role || 'Organization'}
+                  ?.role || "Organization"}
               </span>
             </div>
             <Icons.chevronsUpDown
               className={`ml-auto transition-all duration-200 ease-in-out ${
-                state === 'collapsed'
-                  ? 'invisible max-w-0 opacity-0'
-                  : 'visible max-w-full opacity-100'
+                state === "collapsed"
+                  ? "invisible max-w-0 opacity-0"
+                  : "visible max-w-full opacity-100"
               }`}
             />
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className='w-(--anchor-width) min-w-56 rounded-lg'
-            align='start'
-            side={isMobile ? 'bottom' : 'right'}
+            className="w-(--anchor-width) min-w-56 rounded-lg"
+            align="start"
+            side={isMobile ? "bottom" : "right"}
             sideOffset={4}
           >
             <DropdownMenuGroup>
-              <DropdownMenuLabel className='text-muted-foreground text-xs'>
+              <DropdownMenuLabel className="text-muted-foreground text-xs">
                 Organizations
               </DropdownMenuLabel>
             </DropdownMenuGroup>
@@ -191,23 +191,23 @@ export function OrgSwitcher() {
                   <DropdownMenuItem
                     key={membership.id}
                     onClick={() => handleOrganizationSwitch(membership.organization.id)}
-                    className='gap-2 p-2'
+                    className="gap-2 p-2"
                   >
-                    <div className='flex size-6 items-center justify-center overflow-hidden rounded-md border'>
+                    <div className="flex size-6 items-center justify-center overflow-hidden rounded-md border">
                       {membership.organization.hasImage && membership.organization.imageUrl ? (
                         <Image
                           src={membership.organization.imageUrl}
                           alt={membership.organization.name}
                           width={24}
                           height={24}
-                          className='size-full object-cover'
+                          className="size-full object-cover"
                         />
                       ) : (
-                        <Icons.galleryVerticalEnd className='size-3.5 shrink-0' />
+                        <Icons.galleryVerticalEnd className="size-3.5 shrink-0" />
                       )}
                     </div>
                     {membership.organization.name}
-                    {isActive && <Icons.check className='ml-auto size-4' />}
+                    {isActive && <Icons.check className="ml-auto size-4" />}
                     {!isActive && <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>}
                   </DropdownMenuItem>
                 );
@@ -216,15 +216,15 @@ export function OrgSwitcher() {
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem
-                className='gap-2 p-2'
+                className="gap-2 p-2"
                 onClick={() => {
-                  router.push('/dashboard/workspaces');
+                  router.push("/dashboard/workspaces");
                 }}
               >
-                <div className='flex size-6 items-center justify-center rounded-md border bg-transparent'>
-                  <Icons.add className='size-4' />
+                <div className="flex size-6 items-center justify-center rounded-md border bg-transparent">
+                  <Icons.add className="size-4" />
                 </div>
-                <div className='text-muted-foreground font-medium'>Add organization</div>
+                <div className="text-muted-foreground font-medium">Add organization</div>
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>

@@ -107,7 +107,11 @@ export function deriveSubscriptionView(
 
   let status: SubscriptionStatus;
   let days_left: number;
-  if (sub.cancel_at_period_end && sub.current_period_end && nowMs >= new Date(sub.current_period_end).getTime()) {
+  if (
+    sub.cancel_at_period_end &&
+    sub.current_period_end &&
+    nowMs >= new Date(sub.current_period_end).getTime()
+  ) {
     status = "cancelled";
     days_left = 0;
   } else if (hasLiveRazorpay) {
@@ -126,11 +130,20 @@ export function deriveSubscriptionView(
     days_left = 0;
   }
 
-  return { subscription: sub, status, trial_ends_at: trialEndsAt, grace_ends_at: graceEndsAt, days_left };
+  return {
+    subscription: sub,
+    status,
+    trial_ends_at: trialEndsAt,
+    grace_ends_at: graceEndsAt,
+    days_left,
+  };
 }
 
 /** GST-exclusive price → invoice totals. Rounds GST to the nearest paise. */
-export function buildInvoiceTotals(subtotal_paise: number, gst_percent: number = BILLING_GST_PERCENT) {
+export function buildInvoiceTotals(
+  subtotal_paise: number,
+  gst_percent: number = BILLING_GST_PERCENT,
+) {
   const gst_paise = Math.round((subtotal_paise * gst_percent) / 100);
   return { subtotal_paise, gst_percent, gst_paise, total_paise: subtotal_paise + gst_paise };
 }

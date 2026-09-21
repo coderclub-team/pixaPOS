@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import { Checkbox } from '@pixa/ui/base-ui/checkbox';
+import { Checkbox } from "@pixa/ui/base-ui/checkbox";
 import {
   Field,
   FieldContent,
   FieldDescription,
   FieldError,
-  FieldLabel
-} from '@pixa/ui/base-ui/field';
-import { useFieldContext, useFieldInvalid, type BaseFieldProps } from '@/lib/form-context';
+  FieldLabel,
+} from "@pixa/ui/base-ui/field";
+import { useFieldContext, useFieldInvalid, type BaseFieldProps } from "@/lib/form-context";
 
 /** Single boolean checkbox (terms, consent, …). */
 export function CheckboxField({ label, description, required }: BaseFieldProps) {
@@ -16,7 +16,7 @@ export function CheckboxField({ label, description, required }: BaseFieldProps) 
   const isInvalid = useFieldInvalid();
 
   return (
-    <Field orientation='horizontal' data-invalid={isInvalid}>
+    <Field orientation="horizontal" data-invalid={isInvalid}>
       <Checkbox
         id={field.name}
         name={field.name}
@@ -26,9 +26,9 @@ export function CheckboxField({ label, description, required }: BaseFieldProps) 
         aria-describedby={isInvalid ? `${field.name}-error` : undefined}
       />
       <FieldContent>
-        <FieldLabel htmlFor={field.name} className='font-normal'>
+        <FieldLabel htmlFor={field.name} className="font-normal">
           {label}
-          {required && ' *'}
+          {required && " *"}
         </FieldLabel>
         {description && <FieldDescription>{description}</FieldDescription>}
         {isInvalid && <FieldError id={`${field.name}-error`} errors={field.state.meta.errors} />}

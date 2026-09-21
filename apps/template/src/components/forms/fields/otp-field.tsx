@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { Field, FieldDescription, FieldError, FieldLabel } from '@pixa/ui/base-ui/field';
+import { Field, FieldDescription, FieldError, FieldLabel } from "@pixa/ui/base-ui/field";
 import {
   InputOTP,
   InputOTPGroup,
   InputOTPSlot,
-  InputOTPSeparator
-} from '@pixa/ui/base-ui/input-otp';
-import { useFieldContext, useFieldInvalid, type BaseFieldProps } from '@/lib/form-context';
+  InputOTPSeparator,
+} from "@pixa/ui/base-ui/input-otp";
+import { useFieldContext, useFieldInvalid, type BaseFieldProps } from "@/lib/form-context";
 
 /** 6-digit one-time-code input (3 + 3 with a separator). */
 export function OtpField({ label, description, required }: BaseFieldProps) {
@@ -18,7 +18,7 @@ export function OtpField({ label, description, required }: BaseFieldProps) {
     <Field data-invalid={isInvalid}>
       <FieldLabel>
         {label}
-        {required && ' *'}
+        {required && " *"}
       </FieldLabel>
       <InputOTP
         maxLength={6}

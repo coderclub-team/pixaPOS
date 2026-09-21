@@ -1,5 +1,5 @@
-import { createChat } from '@shadcn/helpers/ai-sdk';
-import type { UIMessage } from 'ai';
+import { createChat } from "@shadcn/helpers/ai-sdk";
+import type { UIMessage } from "ai";
 
 type Tools = {
   getRevenue: {
@@ -22,37 +22,37 @@ export type DemoUIMessage = UIMessage<unknown, Record<string, never>, Tools>;
  * script shows off reasoning, a tool call, and streamed text across two turns.
  */
 export const demoChat = createChat<unknown, Record<string, never>, Tools>()
-  .user('How did revenue do last month, and what should I focus on next?')
+  .user("How did revenue do last month, and what should I focus on next?")
   .sleep(500)
   .assistant(({ writer }) => {
     writer.reasoning(
-      "The user is asking two things — last month's revenue trend and a recommendation. I'll pull the numbers from the metrics tool first, then base the suggestion on what the data shows."
+      "The user is asking two things — last month's revenue trend and a recommendation. I'll pull the numbers from the metrics tool first, then base the suggestion on what the data shows.",
     );
     writer
-      .tool('getRevenue', {
-        title: 'Fetching revenue metrics',
-        input: { period: 'last-month' }
+      .tool("getRevenue", {
+        title: "Fetching revenue metrics",
+        input: { period: "last-month" },
       })
       .sleep(900)
       .output({
-        period: 'last-month',
+        period: "last-month",
         revenue: 1250,
         changePct: 12.5,
-        topDriver: 'returning customers'
+        topDriver: "returning customers",
       });
     writer.text(
-      'Last month you brought in $1,250 — up 12.5% from the month before, so revenue is clearly trending up. '
+      "Last month you brought in $1,250 — up 12.5% from the month before, so revenue is clearly trending up. ",
     );
-    writer.text('Most of that growth came from returning customers.');
+    writer.text("Most of that growth came from returning customers.");
   })
-  .user('Great. Where should I put my energy next?')
+  .user("Great. Where should I put my energy next?")
   .sleep(500)
   .assistant(({ writer }) => {
     writer.reasoning(
-      "Revenue is healthy and driven by retention, so the weak spot is acquisition. I'll point them there with a concrete, low-lift action."
+      "Revenue is healthy and driven by retention, so the weak spot is acquisition. I'll point them there with a concrete, low-lift action.",
     );
     writer.text(
-      "Since returning customers are carrying growth, I'd shift focus to new-customer acquisition — it slipped about 20% this period. A referral incentive or a small targeted campaign would rebalance the funnel without much lift."
+      "Since returning customers are carrying growth, I'd shift focus to new-customer acquisition — it slipped about 20% this period. A referral incentive or a small targeted campaign would rebalance the funnel without much lift.",
     );
   });
 

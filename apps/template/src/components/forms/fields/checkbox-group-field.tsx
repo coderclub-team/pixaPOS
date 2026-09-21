@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { Checkbox } from '@pixa/ui/base-ui/checkbox';
+import { Checkbox } from "@pixa/ui/base-ui/checkbox";
 import {
   Field,
   FieldDescription,
@@ -8,10 +8,10 @@ import {
   FieldGroup,
   FieldLabel,
   FieldLegend,
-  FieldSet
-} from '@pixa/ui/base-ui/field';
-import { cn } from '@pixa/ui/lib/utils';
-import { useFieldContext, useFieldInvalid, type BaseFieldProps } from '@/lib/form-context';
+  FieldSet,
+} from "@pixa/ui/base-ui/field";
+import { cn } from "@pixa/ui/lib/utils";
+import { useFieldContext, useFieldInvalid, type BaseFieldProps } from "@/lib/form-context";
 
 /**
  * Multi-select checkbox group over a `string[]` value. Use with
@@ -27,7 +27,7 @@ export function CheckboxGroupField({
   description,
   required,
   options,
-  className
+  className,
 }: BaseFieldProps & {
   options: { value: string; label: string; disabled?: boolean }[];
   /** Layout for the option grid, e.g. 'grid grid-cols-2 gap-3'. */
@@ -38,14 +38,14 @@ export function CheckboxGroupField({
 
   return (
     <FieldSet>
-      <FieldLegend variant='label'>
+      <FieldLegend variant="label">
         {label}
-        {required && ' *'}
+        {required && " *"}
       </FieldLegend>
       {description && <FieldDescription>{description}</FieldDescription>}
-      <FieldGroup data-slot='checkbox-group' className={cn('gap-3', className)}>
+      <FieldGroup data-slot="checkbox-group" className={cn("gap-3", className)}>
         {options.map((opt) => (
-          <Field key={opt.value} orientation='horizontal' data-invalid={isInvalid}>
+          <Field key={opt.value} orientation="horizontal" data-invalid={isInvalid}>
             <Checkbox
               id={`${field.name}-${opt.value}`}
               name={field.name}
@@ -64,7 +64,7 @@ export function CheckboxGroupField({
                 }
               }}
             />
-            <FieldLabel htmlFor={`${field.name}-${opt.value}`} className='font-normal'>
+            <FieldLabel htmlFor={`${field.name}-${opt.value}`} className="font-normal">
               {opt.label}
             </FieldLabel>
           </Field>

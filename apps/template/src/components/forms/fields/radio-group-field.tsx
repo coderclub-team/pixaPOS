@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
   Field,
@@ -6,16 +6,16 @@ import {
   FieldError,
   FieldLabel,
   FieldLegend,
-  FieldSet
-} from '@pixa/ui/base-ui/field';
-import { RadioGroup, RadioGroupItem } from '@pixa/ui/base-ui/radio-group';
-import { useFieldContext, useFieldInvalid, type BaseFieldProps } from '@/lib/form-context';
+  FieldSet,
+} from "@pixa/ui/base-ui/field";
+import { RadioGroup, RadioGroupItem } from "@pixa/ui/base-ui/radio-group";
+import { useFieldContext, useFieldInvalid, type BaseFieldProps } from "@/lib/form-context";
 
 export function RadioGroupField({
   label,
   description,
   required,
-  options
+  options,
 }: BaseFieldProps & {
   options: { value: string; label: string; disabled?: boolean }[];
 }) {
@@ -24,9 +24,9 @@ export function RadioGroupField({
 
   return (
     <FieldSet>
-      <FieldLegend variant='label'>
+      <FieldLegend variant="label">
         {label}
-        {required && ' *'}
+        {required && " *"}
       </FieldLegend>
       {description && <FieldDescription>{description}</FieldDescription>}
       <RadioGroup
@@ -34,14 +34,14 @@ export function RadioGroupField({
         value={field.state.value}
         onValueChange={field.handleChange}
         onBlur={field.handleBlur}
-        className='flex flex-wrap gap-x-6 gap-y-2'
+        className="flex flex-wrap gap-x-6 gap-y-2"
       >
         {options.map((opt) => (
           <Field
             key={opt.value}
-            orientation='horizontal'
+            orientation="horizontal"
             data-invalid={isInvalid}
-            className='w-auto'
+            className="w-auto"
           >
             <RadioGroupItem
               value={opt.value}
@@ -50,7 +50,7 @@ export function RadioGroupField({
               aria-invalid={isInvalid}
               aria-describedby={isInvalid ? `${field.name}-error` : undefined}
             />
-            <FieldLabel htmlFor={`${field.name}-${opt.value}`} className='font-normal'>
+            <FieldLabel htmlFor={`${field.name}-${opt.value}`} className="font-normal">
               {opt.label}
             </FieldLabel>
           </Field>

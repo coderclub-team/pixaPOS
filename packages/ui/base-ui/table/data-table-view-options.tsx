@@ -1,20 +1,20 @@
-'use client';
+"use client";
 
-import type { Table } from '@tanstack/react-table';
-import { Icons } from '../../icons';
+import type { Table } from "@tanstack/react-table";
+import { Icons } from "../../icons";
 
-import { Button } from '../button';
+import { Button } from "../button";
 import {
   Command,
   CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
-  CommandList
-} from '../command';
-import { Popover, PopoverContent, PopoverTrigger } from '../popover';
-import { cn } from '../../lib/utils';
-import * as React from 'react';
+  CommandList,
+} from "../command";
+import { Popover, PopoverContent, PopoverTrigger } from "../popover";
+import { cn } from "../../lib/utils";
+import * as React from "react";
 
 interface DataTableViewOptionsProps<TData> {
   table: Table<TData>;
@@ -25,8 +25,8 @@ export function DataTableViewOptions<TData>({ table }: DataTableViewOptionsProps
     () =>
       table
         .getAllColumns()
-        .filter((column) => typeof column.accessorFn !== 'undefined' && column.getCanHide()),
-    [table]
+        .filter((column) => typeof column.accessorFn !== "undefined" && column.getCanHide()),
+    [table],
   );
 
   return (
@@ -34,20 +34,20 @@ export function DataTableViewOptions<TData>({ table }: DataTableViewOptionsProps
       <PopoverTrigger
         render={
           <Button
-            aria-label='Toggle columns'
-            variant='outline'
-            size='sm'
-            className='ml-auto hidden h-8 lg:flex'
+            aria-label="Toggle columns"
+            variant="outline"
+            size="sm"
+            className="ml-auto hidden h-8 lg:flex"
           />
         }
       >
         <Icons.adjustments />
         View
-        <Icons.chevronsUpDown className='ml-auto opacity-50' />
+        <Icons.chevronsUpDown className="ml-auto opacity-50" />
       </PopoverTrigger>
-      <PopoverContent align='end' className='w-44 p-0'>
+      <PopoverContent align="end" className="w-44 p-0">
         <Command>
-          <CommandInput placeholder='Search columns...' />
+          <CommandInput placeholder="Search columns..." />
           <CommandList>
             <CommandEmpty>No columns found.</CommandEmpty>
             <CommandGroup>
@@ -56,11 +56,11 @@ export function DataTableViewOptions<TData>({ table }: DataTableViewOptionsProps
                   key={column.id}
                   onSelect={() => column.toggleVisibility(!column.getIsVisible())}
                 >
-                  <span className='truncate'>{column.columnDef.meta?.label ?? column.id}</span>
+                  <span className="truncate">{column.columnDef.meta?.label ?? column.id}</span>
                   <Icons.check
                     className={cn(
-                      'ml-auto size-4 shrink-0',
-                      column.getIsVisible() ? 'opacity-100' : 'opacity-0'
+                      "ml-auto size-4 shrink-0",
+                      column.getIsVisible() ? "opacity-100" : "opacity-0",
                     )}
                   />
                 </CommandItem>

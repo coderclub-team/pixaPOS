@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 /**
  * Fully client-side hook for filtering navigation items based on RBAC
@@ -16,9 +16,9 @@
  * This is only for UI visibility.
  */
 
-import { useMemo } from 'react';
-import { useOrganization, useUser } from '@clerk/nextjs';
-import type { NavItem, NavGroup } from '../types';
+import { useMemo } from "react";
+import { useOrganization, useUser } from "@clerk/nextjs";
+import type { NavItem, NavGroup } from "../types";
 
 /**
  * Hook to filter navigation items based on RBAC (fully client-side)
@@ -38,7 +38,7 @@ export function useFilteredNavItems(items: NavItem[]) {
         user: user ?? undefined,
         permissions: [] as string[],
         role: undefined,
-        hasOrg: false
+        hasOrg: false,
       };
     }
 
@@ -50,7 +50,7 @@ export function useFilteredNavItems(items: NavItem[]) {
       user: user ?? undefined,
       permissions: permissions as string[],
       role: role ?? undefined,
-      hasOrg: !!organization
+      hasOrg: !!organization,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- using stable primitives to avoid infinite re-renders from unstable Clerk object refs
   }, [isLoaded, organization?.id, user?.id, membership?.permissions, membership?.role]);
@@ -102,7 +102,7 @@ export function useFilteredNavItems(items: NavItem[]) {
           // For now, we'll show it (page-level protection should handle it)
           console.warn(
             `Plan/feature checks for navigation items require server-side verification. ` +
-              `Item "${item.title}" will be shown, but page-level protection should be implemented.`
+              `Item "${item.title}" will be shown, but page-level protection should be implemented.`,
           );
         }
 
@@ -146,7 +146,7 @@ export function useFilteredNavItems(items: NavItem[]) {
             if (childItem.access.plan || childItem.access.feature) {
               console.warn(
                 `Plan/feature checks for navigation items require server-side verification. ` +
-                  `Item "${childItem.title}" will be shown, but page-level protection should be implemented.`
+                  `Item "${childItem.title}" will be shown, but page-level protection should be implemented.`,
               );
             }
 
@@ -155,7 +155,7 @@ export function useFilteredNavItems(items: NavItem[]) {
 
           return {
             ...item,
-            items: filteredChildren
+            items: filteredChildren,
           };
         }
 
@@ -182,8 +182,8 @@ export function useFilteredNavGroups(groups: NavGroup[]) {
       .map((group) => ({
         ...group,
         items: filteredItems.filter((item) =>
-          group.items.some((gi) => gi.title === item.title && filteredSet.has(gi.title))
-        )
+          group.items.some((gi) => gi.title === item.title && filteredSet.has(gi.title)),
+        ),
       }))
       .filter((group) => group.items.length > 0);
   }, [groups, filteredItems]);

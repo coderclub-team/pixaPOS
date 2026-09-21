@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
-import {
-  createRazorpaySubscription,
-  isRazorpayConfigured,
-} from "@/features/billing/api/razorpay";
+import { createRazorpaySubscription, isRazorpayConfigured } from "@/features/billing/api/razorpay";
 import { BILLING_PLAN } from "@/features/billing/api/types";
 
 export const runtime = "nodejs";

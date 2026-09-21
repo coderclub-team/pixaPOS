@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import { Field, FieldDescription, FieldError, FieldLabel } from '@pixa/ui/base-ui/field';
-import { Textarea } from '@pixa/ui/base-ui/textarea';
-import { useFieldContext, useFieldInvalid, type BaseFieldProps } from '@/lib/form-context';
+import * as React from "react";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@pixa/ui/base-ui/field";
+import { Textarea } from "@pixa/ui/base-ui/textarea";
+import { useFieldContext, useFieldInvalid, type BaseFieldProps } from "@/lib/form-context";
 
 export function TextareaField({
   label,
@@ -14,7 +14,7 @@ export function TextareaField({
 }: BaseFieldProps & {
   /** Show a character counter (uses `maxLength` as the denominator). */
   showCount?: boolean;
-} & Omit<React.ComponentProps<typeof Textarea>, 'value' | 'onChange' | 'onBlur'>) {
+} & Omit<React.ComponentProps<typeof Textarea>, "value" | "onChange" | "onBlur">) {
   const field = useFieldContext<string>();
   const isInvalid = useFieldInvalid();
 
@@ -22,7 +22,7 @@ export function TextareaField({
     <Field data-invalid={isInvalid}>
       <FieldLabel htmlFor={field.name}>
         {label}
-        {required && ' *'}
+        {required && " *"}
       </FieldLabel>
       <Textarea
         id={field.name}
@@ -35,7 +35,7 @@ export function TextareaField({
         {...textareaProps}
       />
       {showCount && textareaProps.maxLength && (
-        <div className='text-muted-foreground text-right text-sm'>
+        <div className="text-muted-foreground text-right text-sm">
           {field.state.value?.length || 0} / {textareaProps.maxLength}
         </div>
       )}

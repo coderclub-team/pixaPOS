@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import { Icons } from '@pixa/ui/icons';
+import { Icons } from "@pixa/ui/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from '@pixa/ui/base-ui/dropdown-menu';
+  DropdownMenuTrigger,
+} from "@pixa/ui/base-ui/dropdown-menu";
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -16,12 +16,12 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar
-} from '@pixa/ui/base-ui/sidebar';
-import { Icon } from '@pixa/ui/icons';
+  useSidebar,
+} from "@pixa/ui/base-ui/sidebar";
+import { Icon } from "@pixa/ui/icons";
 
 export function NavProjects({
-  projects
+  projects,
 }: {
   projects: {
     name: string;
@@ -32,12 +32,12 @@ export function NavProjects({
   const { isMobile } = useSidebar();
 
   return (
-    <SidebarGroup className='group-data-[collapsible=icon]:hidden'>
+    <SidebarGroup className="group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel>Projects</SidebarGroupLabel>
       <SidebarMenu>
         {projects.length === 0 && (
           <SidebarMenuItem>
-            <p className='text-sidebar-foreground/70 px-2 py-1.5 text-xs'>
+            <p className="text-sidebar-foreground/70 px-2 py-1.5 text-xs">
               No projects yet. Create one to see it here.
             </p>
           </SidebarMenuItem>
@@ -51,27 +51,27 @@ export function NavProjects({
             <DropdownMenu>
               <DropdownMenuTrigger render={<SidebarMenuAction showOnHover />}>
                 <Icons.dots />
-                <span className='sr-only'>More</span>
+                <span className="sr-only">More</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                className='w-48 rounded-lg'
-                side={isMobile ? 'bottom' : 'right'}
-                align={isMobile ? 'end' : 'start'}
+                className="w-48 rounded-lg"
+                side={isMobile ? "bottom" : "right"}
+                align={isMobile ? "end" : "start"}
               >
                 <DropdownMenuGroup>
                   <DropdownMenuItem>
-                    <Icons.workspace className='text-muted-foreground mr-2 h-4 w-4' />
+                    <Icons.workspace className="text-muted-foreground mr-2 h-4 w-4" />
                     <span>View Project</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem>
-                    <Icons.share className='text-muted-foreground mr-2 h-4 w-4' />
+                    <Icons.share className="text-muted-foreground mr-2 h-4 w-4" />
                     <span>Share Project</span>
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
                   <DropdownMenuItem>
-                    <Icons.trash className='text-muted-foreground mr-2 h-4 w-4' />
+                    <Icons.trash className="text-muted-foreground mr-2 h-4 w-4" />
                     <span>Delete Project</span>
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
@@ -80,8 +80,8 @@ export function NavProjects({
           </SidebarMenuItem>
         ))}
         <SidebarMenuItem>
-          <SidebarMenuButton className='text-sidebar-foreground/70'>
-            <Icons.dots className='text-sidebar-foreground/70' />
+          <SidebarMenuButton className="text-sidebar-foreground/70">
+            <Icons.dots className="text-sidebar-foreground/70" />
             <span>More</span>
           </SidebarMenuButton>
         </SidebarMenuItem>

@@ -173,7 +173,11 @@ export default function OrderForm({
           </FieldGroup>
 
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => router.push("/dashboard/orders")}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/dashboard/orders")}
+            >
               Cancel
             </Button>
             <form.AppForm children={<form.SubmitButton>Create Order</form.SubmitButton>} />

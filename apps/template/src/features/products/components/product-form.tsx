@@ -1,21 +1,21 @@
-'use client';
+"use client";
 
-import { Button } from '@pixa/ui/base-ui/button';
-import { LoadingButton } from '@pixa/ui/base-ui/loading-button';
-import { Card, CardContent, CardHeader, CardTitle } from '@pixa/ui/base-ui/card';
-import { FieldGroup } from '@pixa/ui/base-ui/field';
-import { useAppForm } from '@/lib/form';
-import { categoryOptions } from '@/features/products/constants/product-options';
-import { productSchema, type ProductFormValues } from '@/features/products/schemas/product';
-import { useMutation } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
-import { createProductMutation, updateProductMutation } from '../api/mutations';
-import type { Product } from '../api/types';
+import { Button } from "@pixa/ui/base-ui/button";
+import { LoadingButton } from "@pixa/ui/base-ui/loading-button";
+import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
+import { FieldGroup } from "@pixa/ui/base-ui/field";
+import { useAppForm } from "@/lib/form";
+import { categoryOptions } from "@/features/products/constants/product-options";
+import { productSchema, type ProductFormValues } from "@/features/products/schemas/product";
+import { useMutation } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { createProductMutation, updateProductMutation } from "../api/mutations";
+import type { Product } from "../api/types";
 
 export default function ProductForm({
   initialData,
-  pageTitle
+  pageTitle,
 }: {
   initialData: Product | null;
   pageTitle: string;
@@ -26,42 +26,42 @@ export default function ProductForm({
   const createMutation = useMutation({
     ...createProductMutation,
     onSuccess: () => {
-      toast.success('Product created');
-      router.push('/dashboard/product');
+      toast.success("Product created");
+      router.push("/dashboard/product");
     },
     onError: () => {
       toast.error("Couldn't create product. Try again.");
-    }
+    },
   });
 
   const updateMutation = useMutation({
     ...updateProductMutation,
     onSuccess: () => {
-      toast.success('Product updated');
-      router.push('/dashboard/product');
+      toast.success("Product updated");
+      router.push("/dashboard/product");
     },
     onError: () => {
       toast.error("Couldn't update product. Try again.");
-    }
+    },
   });
 
   const form = useAppForm({
     defaultValues: {
       image: undefined,
-      name: initialData?.name ?? '',
-      category: initialData?.category ?? '',
+      name: initialData?.name ?? "",
+      category: initialData?.category ?? "",
       price: initialData?.price,
-      description: initialData?.description ?? ''
+      description: initialData?.description ?? "",
     } as ProductFormValues,
     validators: {
-      onSubmit: productSchema
+      onSubmit: productSchema,
     },
     onSubmit: ({ value }) => {
       const payload = {
         name: value.name,
         category: value.category,
         price: value.price!,
-        description: value.description
+        description: value.description,
       };
 
       if (isEdit) {
@@ -69,19 +69,19 @@ export default function ProductForm({
       } else {
         createMutation.mutate(payload);
       }
-    }
+    },
   });
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <Card className='mx-auto w-full max-w-3xl'>
+    <Card className="mx-auto w-full max-w-3xl">
       <CardHeader>
-        <CardTitle className='text-left text-2xl font-bold'>{pageTitle}</CardTitle>
+        <CardTitle className="text-left text-2xl font-bold">{pageTitle}</CardTitle>
       </CardHeader>
       <CardContent>
         <form
-          className='space-y-8'
+          className="space-y-8"
           onSubmit={(e) => {
             e.preventDefault();
             form.handleSubmit();
@@ -89,59 +89,59 @@ export default function ProductForm({
         >
           <FieldGroup>
             <form.AppField
-              name='image'
+              name="image"
               children={(field) => (
                 <field.FileUploadField
-                  label='Product Image'
-                  description='Upload a product image'
+                  label="Product Image"
+                  description="Upload a product image"
                   maxSize={5 * 1024 * 1024}
                   maxFiles={4}
                 />
               )}
             />
 
-            <div className='grid grid-cols-1 gap-6 md:grid-cols-2'>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <form.AppField
-                name='name'
+                name="name"
                 children={(field) => (
-                  <field.TextField label='Product Name' required placeholder='Enter product name' />
+                  <field.TextField label="Product Name" required placeholder="Enter product name" />
                 )}
               />
 
               <form.AppField
-                name='category'
+                name="category"
                 children={(field) => (
                   <field.SelectField
-                    label='Category'
+                    label="Category"
                     required
                     options={categoryOptions}
-                    placeholder='Select category'
+                    placeholder="Select category"
                   />
                 )}
               />
 
               <form.AppField
-                name='price'
+                name="price"
                 children={(field) => (
                   <field.TextField
-                    label='Price'
+                    label="Price"
                     required
-                    type='number'
+                    type="number"
                     min={0}
                     step={0.01}
-                    placeholder='Enter price'
+                    placeholder="Enter price"
                   />
                 )}
               />
             </div>
 
             <form.AppField
-              name='description'
+              name="description"
               children={(field) => (
                 <field.TextareaField
-                  label='Description'
+                  label="Description"
                   required
-                  placeholder='Enter product description'
+                  placeholder="Enter product description"
                   maxLength={500}
                   rows={4}
                 />
@@ -149,12 +149,12 @@ export default function ProductForm({
             />
           </FieldGroup>
 
-          <div className='flex justify-end gap-2'>
-            <Button type='button' variant='outline' onClick={() => router.back()}>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => router.back()}>
               Cancel
             </Button>
-            <LoadingButton loading={isPending} type='submit'>
-              {isEdit ? 'Update Product' : 'Add Product'}
+            <LoadingButton loading={isPending} type="submit">
+              {isEdit ? "Update Product" : "Add Product"}
             </LoadingButton>
           </div>
         </form>

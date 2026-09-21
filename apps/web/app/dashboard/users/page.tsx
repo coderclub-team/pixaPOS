@@ -63,10 +63,7 @@ export default function UsersPage() {
           onChange={(e) => setInputValue(e.target.value)}
           className="max-w-sm"
         />
-        <Select
-          value={role ?? "all"}
-          onValueChange={(v) => setRole(v === "all" ? undefined : v)}
-        >
+        <Select value={role ?? "all"} onValueChange={(v) => setRole(v === "all" ? undefined : v)}>
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="All roles" />
           </SelectTrigger>

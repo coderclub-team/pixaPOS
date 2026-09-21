@@ -29,36 +29,36 @@ export function useFlyToKot() {
     [],
   );
 
-  const fly = useCallback((sourceRect: { x: number; y: number; width: number } | null, label: string) => {
-    if (
-      !sourceRect ||
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    ) {
-      return null;
-    }
-    const target = document.querySelector("[data-kot-list-bottom]");
-    if (!target) return null;
-    const tr = target.getBoundingClientRect();
-    const id = ++idRef.current;
-    setGhost({
-      id,
-      label,
-      from: { x: sourceRect.x, y: sourceRect.y, w: Math.min(sourceRect.width, 220) },
-      to: { x: tr.x + tr.width / 2 - 60, y: tr.y - 12 },
-      moved: false,
-    });
-    timers.current.push(
-      window.setTimeout(() => {
-        setGhost((g) => (g && g.id === id ? { ...g, moved: true } : g));
-      }, 30),
-    );
-    timers.current.push(
-      window.setTimeout(() => {
-        setGhost((g) => (g && g.id === id ? null : g));
-      }, FLY_MS + 120),
-    );
-    return id;
-  }, []);
+  const fly = useCallback(
+    (sourceRect: { x: number; y: number; width: number } | null, label: string) => {
+      if (!sourceRect || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        return null;
+      }
+      const target = document.querySelector("[data-kot-list-bottom]");
+      if (!target) return null;
+      const tr = target.getBoundingClientRect();
+      const id = ++idRef.current;
+      setGhost({
+        id,
+        label,
+        from: { x: sourceRect.x, y: sourceRect.y, w: Math.min(sourceRect.width, 220) },
+        to: { x: tr.x + tr.width / 2 - 60, y: tr.y - 12 },
+        moved: false,
+      });
+      timers.current.push(
+        window.setTimeout(() => {
+          setGhost((g) => (g && g.id === id ? { ...g, moved: true } : g));
+        }, 30),
+      );
+      timers.current.push(
+        window.setTimeout(() => {
+          setGhost((g) => (g && g.id === id ? null : g));
+        }, FLY_MS + 120),
+      );
+      return id;
+    },
+    [],
+  );
 
   const ghostNode = ghost ? (
     <div

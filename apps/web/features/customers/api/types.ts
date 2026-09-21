@@ -41,9 +41,7 @@ export type CustomerWithDerived = Customer & {
   primary_address?: CustomerAddress;
 };
 
-export type AddressPayload = Partial<
-  Omit<CustomerAddress, "id" | "is_primary">
-> & {
+export type AddressPayload = Partial<Omit<CustomerAddress, "id" | "is_primary">> & {
   is_primary?: boolean;
 };
 

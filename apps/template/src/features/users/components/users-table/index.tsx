@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { DataTable } from '@pixa/ui/base-ui/table/data-table';
-import { DataTableToolbar } from '@pixa/ui/base-ui/table/data-table-toolbar';
-import { useDataTable } from '@pixa/ui/hooks/use-data-table';
-import { useSuspenseQuery } from '@tanstack/react-query';
-import { parseAsInteger, parseAsString, useQueryStates } from 'nuqs';
-import { getSortingStateParser } from '@pixa/ui/lib/parsers';
-import { usersQueryOptions } from '../../api/queries';
-import { columns } from './columns';
+import { DataTable } from "@pixa/ui/base-ui/table/data-table";
+import { DataTableToolbar } from "@pixa/ui/base-ui/table/data-table-toolbar";
+import { useDataTable } from "@pixa/ui/hooks/use-data-table";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { parseAsInteger, parseAsString, useQueryStates } from "nuqs";
+import { getSortingStateParser } from "@pixa/ui/lib/parsers";
+import { usersQueryOptions } from "../../api/queries";
+import { columns } from "./columns";
 
 const columnIds = columns.map((c) => c.id).filter(Boolean) as string[];
 
@@ -17,7 +17,7 @@ export function UsersTable() {
     perPage: parseAsInteger.withDefault(10),
     name: parseAsString,
     role: parseAsString,
-    sort: getSortingStateParser(columnIds).withDefault([])
+    sort: getSortingStateParser(columnIds).withDefault([]),
   });
 
   const filters = {
@@ -25,7 +25,7 @@ export function UsersTable() {
     limit: params.perPage,
     ...(params.name && { search: params.name }),
     ...(params.role && { roles: params.role }),
-    ...(params.sort.length > 0 && { sort: JSON.stringify(params.sort) })
+    ...(params.sort.length > 0 && { sort: JSON.stringify(params.sort) }),
   };
 
   const { data } = useSuspenseQuery(usersQueryOptions(filters));
@@ -39,8 +39,8 @@ export function UsersTable() {
     shallow: true,
     debounceMs: 500,
     initialState: {
-      columnPinning: { right: ['actions'] }
-    }
+      columnPinning: { right: ["actions"] },
+    },
   });
 
   return (
@@ -52,10 +52,10 @@ export function UsersTable() {
 
 export function UsersTableSkeleton() {
   return (
-    <div className='flex flex-1 animate-pulse flex-col gap-4'>
-      <div className='bg-muted h-10 w-full rounded' />
-      <div className='bg-muted h-96 w-full rounded-lg' />
-      <div className='bg-muted h-10 w-full rounded' />
+    <div className="flex flex-1 animate-pulse flex-col gap-4">
+      <div className="bg-muted h-10 w-full rounded" />
+      <div className="bg-muted h-96 w-full rounded-lg" />
+      <div className="bg-muted h-10 w-full rounded" />
     </div>
   );
 }

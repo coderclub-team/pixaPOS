@@ -17,7 +17,11 @@ export const floorSchema = z.object({
   width_mm: z.number().min(1000).max(100000).optional(),
   height_mm: z.number().min(1000).max(100000).optional(),
   grid_size_mm: z.number().min(10).max(1000).optional(),
-  background_color: z.string().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/).optional().or(z.literal("")),
+  background_color: z
+    .string()
+    .regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/)
+    .optional()
+    .or(z.literal("")),
   background_image_url: z.string().url().optional().or(z.literal("")),
 });
 

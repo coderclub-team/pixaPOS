@@ -1,22 +1,22 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import { Icons } from '../icons';
-import { Button } from './button';
-import { useInfobar, type InfobarContent } from './infobar';
-import { cn } from '../lib/utils';
+import * as React from "react";
+import { Icons } from "../icons";
+import { Button } from "./button";
+import { useInfobar, type InfobarContent } from "./infobar";
+import { cn } from "../lib/utils";
 
-interface InfoButtonProps extends Omit<React.ComponentProps<typeof Button>, 'content'> {
+interface InfoButtonProps extends Omit<React.ComponentProps<typeof Button>, "content"> {
   content: InfobarContent;
-  variant?: 'default' | 'ghost' | 'outline' | 'secondary' | 'destructive' | 'link';
-  size?: 'default' | 'sm' | 'lg' | 'icon';
+  variant?: "default" | "ghost" | "outline" | "secondary" | "destructive" | "link";
+  size?: "default" | "sm" | "lg" | "icon";
 }
 
 export function InfoButton({
   content,
   className,
-  variant = 'ghost',
-  size = 'icon',
+  variant = "ghost",
+  size = "icon",
   ...props
 }: InfoButtonProps) {
   const { setContent, setOpen } = useInfobar();
@@ -29,7 +29,7 @@ export function InfoButton({
     setContent(contentRef.current);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleClick: React.ComponentProps<typeof Button>['onClick'] = (e) => {
+  const handleClick: React.ComponentProps<typeof Button>["onClick"] = (e) => {
     setContent(content);
     setOpen(true);
     props.onClick?.(e);
@@ -39,13 +39,13 @@ export function InfoButton({
     <Button
       variant={variant}
       size={size}
-      className={cn('shrink-0', className)}
+      className={cn("shrink-0", className)}
       onClick={handleClick}
-      aria-label='Show information'
+      aria-label="Show information"
       {...props}
     >
-      <Icons.info className='h-4 w-4' />
-      <span className='sr-only'>Show information</span>
+      <Icons.info className="h-4 w-4" />
+      <span className="sr-only">Show information</span>
     </Button>
   );
 }

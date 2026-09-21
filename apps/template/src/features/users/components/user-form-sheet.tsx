@@ -1,30 +1,30 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Button } from '@pixa/ui/base-ui/button';
-import { FieldGroup } from '@pixa/ui/base-ui/field';
-import { useAppForm } from '@/lib/form';
-import { LoadingButton } from '@pixa/ui/base-ui/loading-button';
+import { useState } from "react";
+import { Button } from "@pixa/ui/base-ui/button";
+import { FieldGroup } from "@pixa/ui/base-ui/field";
+import { useAppForm } from "@/lib/form";
+import { LoadingButton } from "@pixa/ui/base-ui/loading-button";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetFooter,
   SheetHeader,
-  SheetTitle
-} from '@pixa/ui/base-ui/sheet';
-import { Icons } from '@pixa/ui/icons';
-import { useMutation } from '@tanstack/react-query';
-import { createUserMutation, updateUserMutation } from '../api/mutations';
-import type { User } from '../api/types';
-import { toast } from 'sonner';
-import { userSchema, type UserFormValues } from '../schemas/user';
-import { ROLE_OPTIONS } from './users-table/options';
+  SheetTitle,
+} from "@pixa/ui/base-ui/sheet";
+import { Icons } from "@pixa/ui/icons";
+import { useMutation } from "@tanstack/react-query";
+import { createUserMutation, updateUserMutation } from "../api/mutations";
+import type { User } from "../api/types";
+import { toast } from "sonner";
+import { userSchema, type UserFormValues } from "../schemas/user";
+import { ROLE_OPTIONS } from "./users-table/options";
 
 const STATUS_OPTIONS = [
-  { value: 'Active', label: 'Active' },
-  { value: 'Inactive', label: 'Inactive' },
-  { value: 'Invited', label: 'Invited' }
+  { value: "Active", label: "Active" },
+  { value: "Inactive", label: "Inactive" },
+  { value: "Invited", label: "Invited" },
 ];
 
 interface UserFormSheetProps {
@@ -39,33 +39,33 @@ export function UserFormSheet({ user, open, onOpenChange }: UserFormSheetProps) 
   const createMutation = useMutation({
     ...createUserMutation,
     onSuccess: () => {
-      toast.success('User created');
+      toast.success("User created");
       onOpenChange(false);
       form.reset();
     },
-    onError: () => toast.error("Couldn't create user. Try again.")
+    onError: () => toast.error("Couldn't create user. Try again."),
   });
 
   const updateMutation = useMutation({
     ...updateUserMutation,
     onSuccess: () => {
-      toast.success('User updated');
+      toast.success("User updated");
       onOpenChange(false);
     },
-    onError: () => toast.error("Couldn't update user. Try again.")
+    onError: () => toast.error("Couldn't update user. Try again."),
   });
 
   const form = useAppForm({
     defaultValues: {
-      first_name: user?.first_name ?? '',
-      last_name: user?.last_name ?? '',
-      email: user?.email ?? '',
-      phone: user?.phone ?? '',
-      role: user?.role ?? '',
-      status: user?.status ?? 'Active'
+      first_name: user?.first_name ?? "",
+      last_name: user?.last_name ?? "",
+      email: user?.email ?? "",
+      phone: user?.phone ?? "",
+      role: user?.role ?? "",
+      status: user?.status ?? "Active",
     } as UserFormValues,
     validators: {
-      onSubmit: userSchema
+      onSubmit: userSchema,
     },
     onSubmit: async ({ value }) => {
       if (isEdit) {
@@ -73,87 +73,87 @@ export function UserFormSheet({ user, open, onOpenChange }: UserFormSheetProps) 
       } else {
         await createMutation.mutateAsync(value);
       }
-    }
+    },
   });
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className='flex flex-col'>
+      <SheetContent className="flex flex-col">
         <SheetHeader>
-          <SheetTitle>{isEdit ? 'Edit User' : 'New User'}</SheetTitle>
+          <SheetTitle>{isEdit ? "Edit User" : "New User"}</SheetTitle>
           <SheetDescription>
             {isEdit
-              ? 'Update the user details below.'
-              : 'Fill in the details to create a new user.'}
+              ? "Update the user details below."
+              : "Fill in the details to create a new user."}
           </SheetDescription>
         </SheetHeader>
 
-        <div className='flex-1 overflow-auto'>
+        <div className="flex-1 overflow-auto">
           <form
-            id='user-form-sheet'
-            className='space-y-4 p-4 md:p-4'
+            id="user-form-sheet"
+            className="space-y-4 p-4 md:p-4"
             onSubmit={(e) => {
               e.preventDefault();
               form.handleSubmit();
             }}
           >
             <FieldGroup>
-              <div className='grid grid-cols-2 gap-4'>
+              <div className="grid grid-cols-2 gap-4">
                 <form.AppField
-                  name='first_name'
+                  name="first_name"
                   children={(field) => (
-                    <field.TextField label='First Name' required placeholder='John' />
+                    <field.TextField label="First Name" required placeholder="John" />
                   )}
                 />
                 <form.AppField
-                  name='last_name'
+                  name="last_name"
                   children={(field) => (
-                    <field.TextField label='Last Name' required placeholder='Doe' />
+                    <field.TextField label="Last Name" required placeholder="Doe" />
                   )}
                 />
               </div>
 
               <form.AppField
-                name='email'
+                name="email"
                 children={(field) => (
                   <field.TextField
-                    label='Email'
+                    label="Email"
                     required
-                    type='email'
-                    placeholder='john@example.com'
+                    type="email"
+                    placeholder="john@example.com"
                   />
                 )}
               />
 
               <form.AppField
-                name='phone'
+                name="phone"
                 children={(field) => (
-                  <field.TextField label='Phone' required type='tel' placeholder='(555) 123-4567' />
+                  <field.TextField label="Phone" required type="tel" placeholder="(555) 123-4567" />
                 )}
               />
 
               <form.AppField
-                name='role'
+                name="role"
                 children={(field) => (
                   <field.SelectField
-                    label='Role'
+                    label="Role"
                     required
                     options={ROLE_OPTIONS}
-                    placeholder='Select role'
+                    placeholder="Select role"
                   />
                 )}
               />
 
               <form.AppField
-                name='status'
+                name="status"
                 children={(field) => (
                   <field.SelectField
-                    label='Status'
+                    label="Status"
                     required
                     options={STATUS_OPTIONS}
-                    placeholder='Select status'
+                    placeholder="Select status"
                   />
                 )}
               />
@@ -162,11 +162,11 @@ export function UserFormSheet({ user, open, onOpenChange }: UserFormSheetProps) 
         </div>
 
         <SheetFooter>
-          <Button type='button' variant='outline' onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <LoadingButton loading={isPending} type='submit' form='user-form-sheet'>
-            {isEdit ? 'Update User' : 'Create User'}
+          <LoadingButton loading={isPending} type="submit" form="user-form-sheet">
+            {isEdit ? "Update User" : "Create User"}
           </LoadingButton>
         </SheetFooter>
       </SheetContent>
@@ -180,7 +180,7 @@ export function UserFormSheetTrigger() {
   return (
     <>
       <Button onClick={() => setOpen(true)}>
-        <Icons.add className='mr-2 h-4 w-4' /> Add User
+        <Icons.add className="mr-2 h-4 w-4" /> Add User
       </Button>
       <UserFormSheet open={open} onOpenChange={setOpen} />
     </>

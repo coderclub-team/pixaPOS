@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { DataTable } from '@pixa/ui/base-ui/table/data-table';
-import { DataTableToolbar } from '@pixa/ui/base-ui/table/data-table-toolbar';
-import { useDataTable } from '@pixa/ui/hooks/use-data-table';
-import { useSuspenseQuery } from '@tanstack/react-query';
-import { parseAsInteger, parseAsString, useQueryStates } from 'nuqs';
-import { getSortingStateParser } from '@pixa/ui/lib/parsers';
-import { productsQueryOptions } from '../../api/queries';
-import { columns } from './columns';
+import { DataTable } from "@pixa/ui/base-ui/table/data-table";
+import { DataTableToolbar } from "@pixa/ui/base-ui/table/data-table-toolbar";
+import { useDataTable } from "@pixa/ui/hooks/use-data-table";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { parseAsInteger, parseAsString, useQueryStates } from "nuqs";
+import { getSortingStateParser } from "@pixa/ui/lib/parsers";
+import { productsQueryOptions } from "../../api/queries";
+import { columns } from "./columns";
 
 const columnIds = columns.map((c) => c.id).filter(Boolean) as string[];
 
@@ -17,7 +17,7 @@ export function ProductTable() {
     perPage: parseAsInteger.withDefault(10),
     name: parseAsString,
     category: parseAsString,
-    sort: getSortingStateParser(columnIds).withDefault([])
+    sort: getSortingStateParser(columnIds).withDefault([]),
   });
 
   const filters = {
@@ -25,7 +25,7 @@ export function ProductTable() {
     limit: params.perPage,
     ...(params.name && { search: params.name }),
     ...(params.category && { categories: params.category }),
-    ...(params.sort.length > 0 && { sort: JSON.stringify(params.sort) })
+    ...(params.sort.length > 0 && { sort: JSON.stringify(params.sort) }),
   };
 
   const { data } = useSuspenseQuery(productsQueryOptions(filters));
@@ -39,8 +39,8 @@ export function ProductTable() {
     shallow: true,
     debounceMs: 500,
     initialState: {
-      columnPinning: { right: ['actions'] }
-    }
+      columnPinning: { right: ["actions"] },
+    },
   });
 
   return (

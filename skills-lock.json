@@ -13,6 +13,12 @@
       "skillPath": "packages/react/skills/better-auth-ui-react/SKILL.md",
       "computedHash": "manual-copy-2026-09-18"
     },
+    "gddy": {
+      "source": "godaddy/cli",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/gddy/SKILL.md",
+      "computedHash": "6f27de08162f9375c0a0e87a4f1b39179f59a3a5f5338aecef8e5f3d3ad8c09e"
+    },
     "neon": {
       "source": "neondatabase/agent-skills",
       "sourceType": "github",

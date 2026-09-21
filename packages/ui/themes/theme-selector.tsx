@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useThemeConfig } from './active-theme';
-import { Label } from '../base-ui/label';
+import { useThemeConfig } from "./active-theme";
+import { Label } from "../base-ui/label";
 import {
   Select,
   SelectContent,
@@ -9,19 +9,19 @@ import {
   SelectItem,
   SelectLabel,
   SelectTrigger,
-  SelectValue
-} from '../base-ui/select';
+  SelectValue,
+} from "../base-ui/select";
 
-import { Icons } from '../icons';
-import { Kbd } from '../base-ui/kbd';
-import { THEMES } from './theme.config';
+import { Icons } from "../icons";
+import { Kbd } from "../base-ui/kbd";
+import { THEMES } from "./theme.config";
 
 export function ThemeSelector() {
   const { activeTheme, setActiveTheme } = useThemeConfig();
 
   return (
-    <div className='flex items-center gap-2'>
-      <Label htmlFor='theme-selector' className='sr-only'>
+    <div className="flex items-center gap-2">
+      <Label htmlFor="theme-selector" className="sr-only">
         Theme
       </Label>
       <Select
@@ -32,17 +32,17 @@ export function ThemeSelector() {
         }}
       >
         <SelectTrigger
-          id='theme-selector'
-          className='justify-start *:data-[slot=select-value]:w-24'
+          id="theme-selector"
+          className="justify-start *:data-[slot=select-value]:w-24"
         >
-          <span className='text-muted-foreground hidden sm:block'>
+          <span className="text-muted-foreground hidden sm:block">
             <Icons.palette />
           </span>
-          <span className='text-muted-foreground block sm:hidden'>Theme</span>
-          <SelectValue placeholder='Select a theme' />
+          <span className="text-muted-foreground block sm:hidden">Theme</span>
+          <SelectValue placeholder="Select a theme" />
           <Kbd>T T</Kbd>
         </SelectTrigger>
-        <SelectContent align='end'>
+        <SelectContent align="end">
           {THEMES.length > 0 && (
             <>
               <SelectGroup>

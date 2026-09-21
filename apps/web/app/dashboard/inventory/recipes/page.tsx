@@ -57,7 +57,10 @@ export default function RecipesPage() {
           onChange={(e) => setInputValue(e.target.value)}
           className="max-w-sm"
         />
-        <Select value={status ?? "all"} onValueChange={(v) => setStatus(v === "all" ? undefined : v)}>
+        <Select
+          value={status ?? "all"}
+          onValueChange={(v) => setStatus(v === "all" ? undefined : v)}
+        >
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="All status" />
           </SelectTrigger>

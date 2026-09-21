@@ -1,22 +1,22 @@
-import { HydrationBoundary, dehydrate } from '@tanstack/react-query';
-import { getQueryClient } from '@/lib/query-client';
-import { searchParamsCache } from '@/lib/searchparams';
-import { usersQueryOptions } from '../api/queries';
-import { UsersTable } from './users-table';
+import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
+import { getQueryClient } from "@/lib/query-client";
+import { searchParamsCache } from "@/lib/searchparams";
+import { usersQueryOptions } from "../api/queries";
+import { UsersTable } from "./users-table";
 
 export default function UserListingPage() {
-  const page = searchParamsCache.get('page');
-  const search = searchParamsCache.get('name');
-  const pageLimit = searchParamsCache.get('perPage');
-  const roles = searchParamsCache.get('role');
-  const sort = searchParamsCache.get('sort');
+  const page = searchParamsCache.get("page");
+  const search = searchParamsCache.get("name");
+  const pageLimit = searchParamsCache.get("perPage");
+  const roles = searchParamsCache.get("role");
+  const sort = searchParamsCache.get("sort");
 
   const filters = {
     page,
     limit: pageLimit,
     ...(search && { search }),
     ...(roles && { roles }),
-    ...(sort && { sort })
+    ...(sort && { sort }),
   };
 
   const queryClient = getQueryClient();

@@ -1,5 +1,5 @@
-import type { AnyFormApi } from '@tanstack/react-form';
-import { useCallback, useState } from 'react';
+import type { AnyFormApi } from "@tanstack/react-form";
+import { useCallback, useState } from "react";
 
 /**
  * Minimal structural schema surface the stepper needs. Deliberately NOT
@@ -47,16 +47,16 @@ type StepState = {
  * Exported for the smoke suite; consumed by the step gate below.
  */
 export function applyStepIssues(
-  form: Pick<AnyFormApi, 'setFieldMeta'> & { setErrorMap?(map: unknown): void },
-  issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey>; message: string }>
+  form: Pick<AnyFormApi, "setFieldMeta"> & { setErrorMap?(map: unknown): void },
+  issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey>; message: string }>,
 ) {
   const byField = new Map<string, string[]>();
   const pathless: string[] = [];
   for (const issue of issues) {
     const path = issue.path.reduce<string>(
       (acc, seg) =>
-        typeof seg === 'number' ? `${acc}[${seg}]` : acc ? `${acc}.${String(seg)}` : String(seg),
-      ''
+        typeof seg === "number" ? `${acc}[${seg}]` : acc ? `${acc}.${String(seg)}` : String(seg),
+      "",
     );
     if (!path) {
       pathless.push(issue.message);
@@ -70,7 +70,7 @@ export function applyStepIssues(
     form.setFieldMeta(path as never, (meta) => ({
       ...meta,
       isTouched: true,
-      errorMap: { ...meta?.errorMap, onSubmit: messages.map((message) => ({ message })) }
+      errorMap: { ...meta?.errorMap, onSubmit: messages.map((message) => ({ message })) },
     }));
   }
   // Pathless (cross-field) issues have no field to render at — surface them
@@ -78,7 +78,7 @@ export function applyStepIssues(
   // before a submit attempt, since programmatic errors are always
   // intentional).
   if (pathless.length && form.setErrorMap) {
-    form.setErrorMap({ onServer: pathless.join(' ') });
+    form.setErrorMap({ onServer: pathless.join(" ") });
   }
 }
 
@@ -116,7 +116,7 @@ export function useFormStepper(schemas: StepValidator[], options?: UseFormSteppe
     (step: number) => {
       setCurrentStep(Math.min(Math.max(step, 1), stepCount));
     },
-    [stepCount]
+    [stepCount],
   );
 
   const step: StepState = {
@@ -125,7 +125,7 @@ export function useFormStepper(schemas: StepValidator[], options?: UseFormSteppe
     goToNextStep,
     goToPrevStep,
     goToStep,
-    isCompleted: currentStep === stepCount
+    isCompleted: currentStep === stepCount,
   };
 
   const currentValidator = schemas[currentStep - 1]; // Convert to 0-based for array access
@@ -141,7 +141,7 @@ export function useFormStepper(schemas: StepValidator[], options?: UseFormSteppe
    * errors when they mount.
    */
   const triggerFormGroup = async (form: AnyFormApi) => {
-    const fieldErrors = await form.validateAllFields('submit');
+    const fieldErrors = await form.validateAllFields("submit");
     for (const name of Object.keys(form.state.fieldMeta)) {
       form.setFieldMeta(name as never, (meta) => ({ ...meta, isTouched: true }));
     }
@@ -213,6 +213,6 @@ export function useFormStepper(schemas: StepValidator[], options?: UseFormSteppe
     currentValidator, // Zod schema for current step
     triggerFormGroup, // Validate current step fields (async-aware)
     handleNextStepOrSubmit, // Handle next/submit action
-    handleCancelOrBack // Handle back/cancel action
+    handleCancelOrBack, // Handle back/cancel action
   };
 }

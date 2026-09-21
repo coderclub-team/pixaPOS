@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import { Icons } from '../../icons';
+import * as React from "react";
+import { Icons } from "../../icons";
 
 /**
  * Clear affordance rendered INSIDE a PopoverTrigger button. It must not be a
@@ -10,24 +10,24 @@ import { Icons } from '../../icons';
  */
 export function DataTableFilterClear({
   title,
-  onReset
+  onReset,
 }: {
   title?: string;
   onReset: (event: React.MouseEvent | React.KeyboardEvent) => void;
 }) {
   return (
     <div
-      role='button'
+      role="button"
       aria-label={`Clear ${title} filter`}
       tabIndex={0}
       onClick={onReset}
       onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
+        if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           onReset(event);
         }
       }}
-      className='focus-visible:ring-ring rounded-sm opacity-70 transition-opacity hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none'
+      className="focus-visible:ring-ring rounded-sm opacity-70 transition-opacity hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none"
     >
       <Icons.xCircle />
     </div>

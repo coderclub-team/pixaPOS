@@ -4,8 +4,8 @@
 // See src/app/api/products/route.ts for pattern documentation.
 // ============================================================
 
-import { fakeProducts } from '@/constants/mock-api';
-import { NextRequest, NextResponse } from 'next/server';
+import { fakeProducts } from "@/constants/mock-api";
+import { NextRequest, NextResponse } from "next/server";
 
 type Params = { params: Promise<{ id: string }> };
 

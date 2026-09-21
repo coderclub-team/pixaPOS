@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import { Badge } from '@pixa/ui/base-ui/badge';
-import { Button } from '@pixa/ui/base-ui/button';
-import { Field, FieldDescription, FieldError, FieldLabel } from '@pixa/ui/base-ui/field';
-import { Input } from '@pixa/ui/base-ui/input';
-import { Icons } from '@pixa/ui/icons';
-import { useFieldContext, useFieldInvalid, type BaseFieldProps } from '@/lib/form-context';
+import * as React from "react";
+import { Badge } from "@pixa/ui/base-ui/badge";
+import { Button } from "@pixa/ui/base-ui/button";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@pixa/ui/base-ui/field";
+import { Input } from "@pixa/ui/base-ui/input";
+import { Icons } from "@pixa/ui/icons";
+import { useFieldContext, useFieldInvalid, type BaseFieldProps } from "@/lib/form-context";
 
 /**
  * Free-text tag list over a `string[]` value. Use with `mode='array'` on the
@@ -16,18 +16,18 @@ export function TagsField({
   label,
   description,
   required,
-  placeholder = 'Type and press Enter...'
+  placeholder = "Type and press Enter...",
 }: BaseFieldProps & { placeholder?: string }) {
   const field = useFieldContext<string[]>();
   const isInvalid = useFieldInvalid();
-  const [tagInput, setTagInput] = React.useState('');
+  const [tagInput, setTagInput] = React.useState("");
   const values = field.state.value || [];
 
   const addTag = () => {
     const tag = tagInput.trim();
     if (tag && !values.includes(tag)) {
       field.pushValue(tag);
-      setTagInput('');
+      setTagInput("");
     }
   };
 
@@ -35,39 +35,39 @@ export function TagsField({
     <Field data-invalid={isInvalid}>
       <FieldLabel>
         {label}
-        {required && ' *'}
+        {required && " *"}
       </FieldLabel>
-      <div className='flex gap-2'>
+      <div className="flex gap-2">
         <Input
           value={tagInput}
           onChange={(e) => setTagInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+            if (e.key === "Enter") {
               e.preventDefault();
               addTag();
             }
           }}
           placeholder={placeholder}
-          aria-label={`Add a ${label.toLowerCase().replace(/ \*$/, '')}`}
+          aria-label={`Add a ${label.toLowerCase().replace(/ \*$/, "")}`}
           aria-invalid={isInvalid}
           aria-describedby={isInvalid ? `${field.name}-error` : undefined}
         />
-        <Button type='button' variant='secondary' onClick={addTag}>
+        <Button type="button" variant="secondary" onClick={addTag}>
           Add
         </Button>
       </div>
       {values.length > 0 && (
-        <div className='flex flex-wrap gap-2'>
+        <div className="flex flex-wrap gap-2">
           {values.map((tag, idx) => (
-            <Badge key={tag} variant='secondary' className='gap-1'>
+            <Badge key={tag} variant="secondary" className="gap-1">
               {tag}
               <button
-                type='button'
+                type="button"
                 onClick={() => field.removeValue(idx)}
                 aria-label={`Remove ${tag}`}
-                className='hover:text-destructive ml-0.5'
+                className="hover:text-destructive ml-0.5"
               >
-                <Icons.close className='h-3 w-3' />
+                <Icons.close className="h-3 w-3" />
               </button>
             </Badge>
           ))}

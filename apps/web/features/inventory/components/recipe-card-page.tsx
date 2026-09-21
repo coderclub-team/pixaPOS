@@ -57,7 +57,9 @@ export default function RecipeCardPage({ recipeId }: { recipeId: string }) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Material</TableHead>
-                  <TableHead className="text-right">Qty{variantCols.length === 0 && ` (${r.ingredients[0]?.unit ?? ""})`}</TableHead>
+                  <TableHead className="text-right">
+                    Qty{variantCols.length === 0 && ` (${r.ingredients[0]?.unit ?? ""})`}
+                  </TableHead>
                   {variantCols.map((v) => (
                     <TableHead key={v.id} className="text-right">
                       {v.name}
@@ -72,7 +74,10 @@ export default function RecipeCardPage({ recipeId }: { recipeId: string }) {
                     <TableCell>
                       <span className="font-medium">{ing.material_name}</span>
                       {ing.wastage_percent ? (
-                        <span className="text-xs text-muted-foreground"> +{ing.wastage_percent}% waste</span>
+                        <span className="text-xs text-muted-foreground">
+                          {" "}
+                          +{ing.wastage_percent}% waste
+                        </span>
                       ) : null}
                     </TableCell>
                     <TableCell className="text-right font-mono text-xs">
@@ -106,13 +111,17 @@ export default function RecipeCardPage({ recipeId }: { recipeId: string }) {
                     <p className="text-sm">{s.instruction}</p>
                     <div className="flex flex-wrap gap-1.5 text-xs text-muted-foreground">
                       {s.vessel && (
-                        <span className="rounded border px-1.5 py-0.5">{s.vessel.replace("_", " ")}</span>
+                        <span className="rounded border px-1.5 py-0.5">
+                          {s.vessel.replace("_", " ")}
+                        </span>
                       )}
                       {s.temperature_c !== undefined && (
                         <span className="rounded border px-1.5 py-0.5">{s.temperature_c}°C</span>
                       )}
                       {s.heat_level && (
-                        <span className="rounded border px-1.5 py-0.5 capitalize">{s.heat_level} heat</span>
+                        <span className="rounded border px-1.5 py-0.5 capitalize">
+                          {s.heat_level} heat
+                        </span>
                       )}
                       {s.duration_min !== undefined && (
                         <span className="rounded border px-1.5 py-0.5">{s.duration_min} min</span>

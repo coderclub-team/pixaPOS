@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import { LoadingButton } from '@pixa/ui/base-ui/loading-button';
-import { useFormContext } from '@/lib/form-context';
+import * as React from "react";
+import { LoadingButton } from "@pixa/ui/base-ui/loading-button";
+import { useFormContext } from "@/lib/form-context";
 
 /** Submit button that shows a no-layout-shift spinner while the form submits. */
 export function SubmitButton({
@@ -16,7 +16,7 @@ export function SubmitButton({
     <form.Subscribe selector={(state) => state.isSubmitting}>
       {(isSubmitting) => (
         <LoadingButton
-          type='submit'
+          type="submit"
           {...props}
           loading={isSubmitting}
           disabled={disabled || isSubmitting}

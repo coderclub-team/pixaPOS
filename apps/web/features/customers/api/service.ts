@@ -59,9 +59,7 @@ function buildAddress(payload: AddressPayload, isPrimary: boolean): CustomerAddr
 /** Exactly one primary: the flagged one wins, else the first. */
 function normalizeAddresses(payloads: AddressPayload[]): CustomerAddress[] {
   const flagged = payloads.findIndex((p) => p.is_primary);
-  return payloads.map((p, i) =>
-    buildAddress(p, flagged >= 0 ? i === flagged : i === 0),
-  );
+  return payloads.map((p, i) => buildAddress(p, flagged >= 0 ? i === flagged : i === 0));
 }
 
 type OrderStat = { count: number; spent: number; last: string };
@@ -142,12 +140,17 @@ export async function findCustomerByPhone(
 ): Promise<CustomerWithDerived | null> {
   await delay(200);
   const c = mockCustomers.find(
-    (c) => !c.deleted_at && c.outlet_id === outletId && normalizePhone(c.phone) === normalizePhone(phone),
+    (c) =>
+      !c.deleted_at &&
+      c.outlet_id === outletId &&
+      normalizePhone(c.phone) === normalizePhone(phone),
   );
   return c ? enrichCustomer(c) : null;
 }
 
-export async function createCustomer(payload: CustomerPayload & { outlet_id?: string }): Promise<CustomerWithDerived> {
+export async function createCustomer(
+  payload: CustomerPayload & { outlet_id?: string },
+): Promise<CustomerWithDerived> {
   const release = await entityMutex.acquire("customer-write");
   try {
     await delay(400);

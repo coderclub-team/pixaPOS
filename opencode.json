@@ -3,10 +3,7 @@
 
   "model": "opencode/claude-sonnet-4-5",
 
-  "instructions": [
-    "AGENTS.md",
-    "docs/workflows.md"
-  ],
+  "instructions": ["AGENTS.md", "docs/workflows.md"],
 
   "lsp": false,
 
@@ -35,7 +32,7 @@
       "model": "opencode/gemini-3.1-pro",
       "prompt": "You are the security engineer for pixaPOS. Review architecture and implementation for: Authentication, Authorization, Clerk organization permissions, Tenant isolation, Branch isolation, Broken access control, API authorization, Payment/Refund authorization, Dangerous state transitions, Audit logging, Injection risks, and PII exposure. Cite file paths and severity. Do not modify code."
     },
-      "fixer": {
+    "fixer": {
       "description": "Senior implementation engineer who diagnoses issues, fixes code, and verifies the fix without changing unrelated behavior.",
       "mode": "subagent",
       "model": "opencode-go/kimi-k2.7-code",

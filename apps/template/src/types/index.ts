@@ -1,4 +1,4 @@
-import { Icons } from '@pixa/ui/icons';
+import { Icons } from "@pixa/ui/icons";
 
 export interface PermissionCheck {
   permission?: string;

@@ -1,22 +1,22 @@
-'use client';
+"use client";
 
-import { Field, FieldDescription, FieldError, FieldLabel } from '@pixa/ui/base-ui/field';
+import { Field, FieldDescription, FieldError, FieldLabel } from "@pixa/ui/base-ui/field";
 import {
   Select,
   SelectContent,
   SelectGroup,
   SelectItem,
   SelectTrigger,
-  SelectValue
-} from '@pixa/ui/base-ui/select';
-import { useFieldContext, useFieldInvalid, type BaseFieldProps } from '@/lib/form-context';
+  SelectValue,
+} from "@pixa/ui/base-ui/select";
+import { useFieldContext, useFieldInvalid, type BaseFieldProps } from "@/lib/form-context";
 
 export function SelectField({
   label,
   description,
   required,
-  placeholder = 'Select',
-  options
+  placeholder = "Select",
+  options,
 }: BaseFieldProps & {
   placeholder?: string;
   options: { value: string; label: string; disabled?: boolean }[];
@@ -28,12 +28,12 @@ export function SelectField({
     <Field data-invalid={isInvalid}>
       <FieldLabel htmlFor={field.name}>
         {label}
-        {required && ' *'}
+        {required && " *"}
       </FieldLabel>
       <Select
         name={field.name}
         value={field.state.value}
-        onValueChange={(value) => field.handleChange(value ?? '')}
+        onValueChange={(value) => field.handleChange(value ?? "")}
       >
         <SelectTrigger
           id={field.name}

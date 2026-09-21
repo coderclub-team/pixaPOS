@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import { Field, FieldDescription, FieldLabel } from '@pixa/ui/base-ui/field';
-import { ToggleGroup } from '@pixa/ui/base-ui/toggle-group';
-import { useFieldContext, type BaseFieldProps } from '@/lib/form-context';
+import * as React from "react";
+import { Field, FieldDescription, FieldLabel } from "@pixa/ui/base-ui/field";
+import { ToggleGroup } from "@pixa/ui/base-ui/toggle-group";
+import { useFieldContext, type BaseFieldProps } from "@/lib/form-context";
 
 /**
  * Multi-select toggle group over a `string[]` value. Pass `ToggleGroupItem`s
@@ -12,8 +12,8 @@ import { useFieldContext, type BaseFieldProps } from '@/lib/form-context';
 export function ToggleGroupField({
   label,
   description,
-  children
-}: Omit<BaseFieldProps, 'required'> & { children: React.ReactNode }) {
+  children,
+}: Omit<BaseFieldProps, "required"> & { children: React.ReactNode }) {
   const field = useFieldContext<string[]>();
   const labelId = `${field.name}-label`;
 
@@ -22,7 +22,7 @@ export function ToggleGroupField({
       <FieldLabel id={labelId}>{label}</FieldLabel>
       <ToggleGroup
         multiple
-        variant='outline'
+        variant="outline"
         aria-labelledby={labelId}
         value={field.state.value || []}
         onValueChange={(val) => field.handleChange(val)}

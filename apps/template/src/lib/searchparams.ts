@@ -2,8 +2,8 @@ import {
   createSearchParamsCache,
   createSerializer,
   parseAsInteger,
-  parseAsString
-} from 'nuqs/server';
+  parseAsString,
+} from "nuqs/server";
 
 export const searchParams = {
   page: parseAsInteger.withDefault(1),
@@ -12,7 +12,7 @@ export const searchParams = {
   gender: parseAsString,
   category: parseAsString,
   role: parseAsString,
-  sort: parseAsString
+  sort: parseAsString,
   // advanced filter
   // filters: getFiltersStateParser().withDefault([]),
   // joinOperator: parseAsStringEnum(['and', 'or']).withDefault('and')

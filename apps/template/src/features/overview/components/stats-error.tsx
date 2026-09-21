@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { Alert, AlertDescription, AlertTitle } from '@pixa/ui/base-ui/alert';
-import { Icons } from '@pixa/ui/icons';
+import { Alert, AlertDescription, AlertTitle } from "@pixa/ui/base-ui/alert";
+import { Icons } from "@pixa/ui/icons";
 
 interface StatsErrorAlertProps {
   message: string;
@@ -13,10 +13,10 @@ interface StatsErrorAlertProps {
 // button in via `action` so the recovery path stays visible in the route file.
 export function StatsErrorAlert({ message, action }: StatsErrorAlertProps) {
   return (
-    <Alert variant='destructive'>
-      <Icons.alertCircle className='h-4 w-4' />
+    <Alert variant="destructive">
+      <Icons.alertCircle className="h-4 w-4" />
       <AlertTitle>Error</AlertTitle>
-      <AlertDescription className='flex flex-col items-start gap-3'>
+      <AlertDescription className="flex flex-col items-start gap-3">
         <span>{message}</span>
         {action}
       </AlertDescription>

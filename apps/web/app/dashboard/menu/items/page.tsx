@@ -123,7 +123,10 @@ export default function MenuItemsPage() {
             <SelectItem value="service">Service</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={status ?? "all"} onValueChange={(v) => setStatus(v === "all" ? undefined : v)}>
+        <Select
+          value={status ?? "all"}
+          onValueChange={(v) => setStatus(v === "all" ? undefined : v)}
+        >
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="All status" />
           </SelectTrigger>

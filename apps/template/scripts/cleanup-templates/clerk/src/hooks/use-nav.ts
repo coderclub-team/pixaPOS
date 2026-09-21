@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import type { NavItem, NavGroup } from '@/types';
+import type { NavItem, NavGroup } from "@/types";
 
 export function useFilteredNavItems(items: NavItem[]) {
   return items;

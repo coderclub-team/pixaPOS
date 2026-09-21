@@ -117,7 +117,9 @@ function RecipeRow({ recipe: r }: { recipe: Recipe }) {
         </TableCell>
         <TableCell
           className="max-w-[280px] truncate text-xs"
-          title={r.ingredients.map((ing) => `${ing.material_name} ${ing.qty}${ing.unit}`).join(", ")}
+          title={r.ingredients
+            .map((ing) => `${ing.material_name} ${ing.qty}${ing.unit}`)
+            .join(", ")}
         >
           {r.ingredients.map((ing) => `${ing.material_name} ${ing.qty}${ing.unit}`).join(", ")}
         </TableCell>

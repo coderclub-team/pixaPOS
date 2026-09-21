@@ -1,5 +1,5 @@
-'use client';
-import { Button } from '@pixa/ui/base-ui/button';
+"use client";
+import { Button } from "@pixa/ui/base-ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,11 +7,11 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from '@pixa/ui/base-ui/dropdown-menu';
-import { UserAvatarProfile } from '@pixa/ui/user-avatar-profile';
-import { SignOutButton, useUser } from '@clerk/nextjs';
-import { useRouter } from 'next/navigation';
+  DropdownMenuTrigger,
+} from "@pixa/ui/base-ui/dropdown-menu";
+import { UserAvatarProfile } from "@pixa/ui/user-avatar-profile";
+import { SignOutButton, useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 export function UserNav() {
   const { user } = useUser();
   const router = useRouter();
@@ -19,16 +19,16 @@ export function UserNav() {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger
-          render={<Button variant='ghost' className='relative h-8 w-8 rounded-full' />}
+          render={<Button variant="ghost" className="relative h-8 w-8 rounded-full" />}
         >
           <UserAvatarProfile user={user} />
         </DropdownMenuTrigger>
-        <DropdownMenuContent className='w-56' align='end' sideOffset={10}>
+        <DropdownMenuContent className="w-56" align="end" sideOffset={10}>
           <DropdownMenuGroup>
-            <DropdownMenuLabel className='font-normal'>
-              <div className='flex flex-col space-y-1'>
-                <p className='text-sm leading-none font-medium'>{user.fullName}</p>
-                <p className='text-muted-foreground text-xs leading-none'>
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm leading-none font-medium">{user.fullName}</p>
+                <p className="text-muted-foreground text-xs leading-none">
                   {user.emailAddresses[0].emailAddress}
                 </p>
               </div>
@@ -36,7 +36,7 @@ export function UserNav() {
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            <DropdownMenuItem onClick={() => router.push('/dashboard/profile')}>
+            <DropdownMenuItem onClick={() => router.push("/dashboard/profile")}>
               Profile
             </DropdownMenuItem>
             <DropdownMenuItem>Billing</DropdownMenuItem>
@@ -46,7 +46,7 @@ export function UserNav() {
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuItem>
-              <SignOutButton redirectUrl='/auth/sign-in' />
+              <SignOutButton redirectUrl="/auth/sign-in" />
             </DropdownMenuItem>
           </DropdownMenuGroup>
         </DropdownMenuContent>
