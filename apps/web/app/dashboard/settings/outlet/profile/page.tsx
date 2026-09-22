@@ -38,7 +38,7 @@ export default function OutletProfilePage() {
               code: outlet.code,
               alias: outlet.alias ?? "",
               type: outlet.type,
-              logo_url: undefined,
+              logo_url: outlet.logo_url ?? "",
               is_active: outlet.is_active,
             }}
           />
