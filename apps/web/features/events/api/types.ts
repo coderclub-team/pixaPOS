@@ -7,6 +7,7 @@ export type EntityType =
   | "KITCHEN_TICKET"
   | "CUSTOMER"
   | "PAYMENT"
+  | "PRINT_JOB"
   | "STOCK_ITEM"
   | "WASTE_LOG";
 
@@ -65,6 +66,11 @@ export type BusinessEventType =
   | "ORDER_SPLIT_CLEARED"
   | "ORDER_PAID"
   | "ORDER_LOCKED"
+  | "PRINT_QUEUED"
+  | "PRINT_SENT"
+  | "PRINT_FAILED"
+  | "BILL_REPRINTED"
+  | "KOT_REPRINTED"
   | "CUSTOMER_CREATED"
   | "CUSTOMER_UPDATED"
   | "CUSTOMER_DELETED"
