@@ -85,7 +85,31 @@ export function setPrintTransport(t: PrintTransport): void {
 
 export async function getPrinters(outlet_id = OUTLET_ID): Promise<Printer[]> {
   await delay(100);
-  return load<Printer[]>(PRINTER_KEY, []).filter((p) => p.outlet_id === outlet_id);
+  const printers = load<Printer[]>(PRINTER_KEY, []).filter((p) => p.outlet_id === outlet_id);
+  if (printers.length > 0) return printers;
+  // Localhost convenience: seed the emulator printer so local dev prints
+  // without setup. Browser-only guard — never seeds on servers/deploys.
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host === "localhost" || host === "127.0.0.1") {
+      const seed: Printer = {
+        id: "prn_emulator",
+        outlet_id,
+        name: "Emulator (localhost:9100)",
+        connection: "NETWORK",
+        address: "localhost",
+        port: 9100,
+        paper: "P80",
+        is_default: true,
+        is_active: true,
+        created_at: now(),
+        updated_at: now(),
+      };
+      save(PRINTER_KEY, [seed]);
+      return [seed];
+    }
+  }
+  return printers;
 }
 
 export async function registerPrinter(
