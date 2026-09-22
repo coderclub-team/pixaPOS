@@ -273,6 +273,10 @@ export async function fireKOT(orderId: string, by?: string): Promise<KitchenTick
       actor_id: by ?? "staff",
       metadata: { kot_id: ticket.id, kot_number: kotNumber, lines: ticket.lines.length },
     });
+    // Auto-print KOT (template flag; never fails the fire — dynamic import
+    // avoids a kitchen <-> print-studio module cycle).
+    const { maybeAutoPrintKOT } = await import("@/features/print-studio/api/service");
+    await maybeAutoPrintKOT(ticket.id, by);
     return enrichTicket(ticket);
   } finally {
     release();

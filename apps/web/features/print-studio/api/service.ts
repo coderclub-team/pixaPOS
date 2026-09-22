@@ -69,6 +69,7 @@ function defaultTemplate(outlet_id: string, purpose: PrintPurpose): PrintTemplat
     merchant_copy: purpose === "BILL",
     cut_after: true,
     beep: purpose === "BILL",
+    auto_print: true,
     updated_at: now(),
   };
 }
@@ -367,6 +368,38 @@ export async function enqueuePrint(
   await sendJob({ ...job }, doc, printer);
   const latest = readJobs().find((j) => j.id === job.id);
   return latest ?? job;
+}
+
+/** Auto-print guards: template flag on, printer resolvable. Never throw — a
+ * failed auto-print leaves a QUEUED job for the outbox sweeper; the business
+ * transition (fire/collect/complete) must never fail because of printing. */
+export async function maybeAutoPrintKOT(ticket_id: string, by?: string): Promise<void> {
+  try {
+    const ticket = await getTicketById(ticket_id);
+    if (!ticket) return;
+    const template = await getTemplate("KOT", ticket.outlet_id);
+    if (!template.auto_print) return;
+    await enqueuePrint("KOT", ticket_id, { created_by: by });
+  } catch (e) {
+    console.error("[print-studio] auto KOT print failed", e);
+  }
+}
+
+export async function maybeAutoPrintBill(order_id: string, by?: string): Promise<void> {
+  try {
+    const order = await getOrderById(order_id);
+    if (!order) return;
+    const [billTemplate, tokenTemplate] = await Promise.all([
+      getTemplate("BILL", order.outlet_id),
+      getTemplate("TOKEN", order.outlet_id),
+    ]);
+    if (billTemplate.auto_print) await enqueuePrint("BILL", order_id, { created_by: by });
+    if (order.channel === "takeaway" && tokenTemplate.auto_print) {
+      await enqueuePrint("TOKEN", order_id, { created_by: by });
+    }
+  } catch (e) {
+    console.error("[print-studio] auto bill print failed", e);
+  }
 }
 
 /** Reprint: new job on the immutable snapshot, audited with mandatory reason. */

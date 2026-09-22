@@ -73,6 +73,8 @@ export type PrintTemplate = {
   merchant_copy: boolean;
   cut_after: boolean;
   beep: boolean;
+  /** Auto-print on trigger (KOT: on fire, BILL: on complete, TOKEN: on takeaway fire). */
+  auto_print: boolean;
   updated_at: string;
 };
 

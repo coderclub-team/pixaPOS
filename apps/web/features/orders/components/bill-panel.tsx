@@ -33,6 +33,7 @@ import TableStrip from "@/features/table/components/table-strip";
 import TableOpsDialog from "@/features/table/components/table-ops-dialog";
 import CheckoutDialog from "./checkout-dialog";
 import ReturnDialog, { type ReturnTarget } from "./return-dialog";
+import ReprintDialog from "@/features/print-studio/components/reprint-dialog";
 import {
   paymentsByOrderQueryOptions,
   paymentKeys,
@@ -225,10 +226,17 @@ export function KOTAccordion({
               flashId === kot.id && "animate-pulse border-primary ring-2 ring-primary/40",
             )}
           >
-            <button
-              type="button"
+            <div
+              role="button"
+              tabIndex={0}
               onClick={() => setOpenId(open ? null : kot.id)}
-              className="flex w-full items-center justify-between px-2 py-2 text-sm"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setOpenId(open ? null : kot.id);
+                }
+              }}
+              className="flex w-full cursor-pointer items-center justify-between px-2 py-2 text-sm"
             >
               <span className="flex min-w-0 items-center gap-2 font-medium">
                 <span className="shrink-0">KOT #{kot.kot_number}</span>
@@ -253,11 +261,19 @@ export function KOTAccordion({
               </span>
               <span className="flex items-center gap-1">
                 <span className="text-sm font-semibold">{formatINR(kotTotal(kot))}</span>
+                <span onClick={(e) => e.stopPropagation()}>
+                  <ReprintDialog
+                    purpose="KOT"
+                    refId={kot.id}
+                    refLabel={`KOT #${kot.kot_number}`}
+                    triggerLabel=""
+                  />
+                </span>
                 <Icons.chevronRight
                   className={cn("size-4 transition-transform", open && "rotate-90")}
                 />
               </span>
-            </button>
+            </div>
             {open && (
               <div className="space-y-1 border-t px-2 py-2">
                 {kot.lines.map((l) => {
@@ -614,17 +630,26 @@ export default function OrderBillPanel({
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center justify-between text-lg">
           <span className="min-w-0 truncate">{title ?? "Bill"}</span>
-          <Badge variant="outline" className={cn("gap-1", stamp.className)}>
-            <div
-              className={cn(
-                "h-2 w-2 rounded-full",
-                order.payment_status === "PAID" && "bg-green-500",
-                order.payment_status === "PARTIAL" && "bg-amber-500",
-                order.payment_status === "UNPAID" && "bg-slate-400",
-              )}
-            />
-            {stamp.label}
-          </Badge>
+          <span className="flex items-center gap-1">
+            {(kots?.length ?? 0) > 0 && (
+              <ReprintDialog
+                purpose="BILL"
+                refId={orderId}
+                refLabel={`Bill ${order.order_number}`}
+              />
+            )}
+            <Badge variant="outline" className={cn("gap-1", stamp.className)}>
+              <div
+                className={cn(
+                  "h-2 w-2 rounded-full",
+                  order.payment_status === "PAID" && "bg-green-500",
+                  order.payment_status === "PARTIAL" && "bg-amber-500",
+                  order.payment_status === "UNPAID" && "bg-slate-400",
+                )}
+              />
+              {stamp.label}
+            </Badge>
+          </span>
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           {order.order_number} · {order.items.length} item{order.items.length === 1 ? "" : "s"}

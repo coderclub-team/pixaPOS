@@ -52,6 +52,7 @@ function template(purpose: PrintTemplate["purpose"]): PrintTemplate {
     merchant_copy: purpose === "BILL",
     cut_after: true,
     beep: false,
+    auto_print: true,
     updated_at: new Date().toISOString(),
   };
 }
