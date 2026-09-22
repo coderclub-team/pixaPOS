@@ -7,6 +7,7 @@ import { Badge } from "@pixa/ui/base-ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
@@ -99,21 +100,25 @@ export default function PrinterList({ printers }: { printers: Printer[] }) {
               <Icons.ellipsis className="size-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => setEditing(p)}>
-                <Icons.edit className="size-4" /> Edit
-              </DropdownMenuItem>
-              {!p.is_default && (
-                <DropdownMenuItem onClick={() => setDefaultMut.mutate(p)}>
-                  <Icons.check className="size-4" /> Set default
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              </DropdownMenuGroup>
+              <DropdownMenuGroup>
+                <DropdownMenuItem onClick={() => setEditing(p)}>
+                  <Icons.edit className="size-4" /> Edit
                 </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onClick={() => testMut.mutate(p)}>
-                <Icons.refresh className="size-4" /> Test print
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toggleMut.mutate(p)}>
-                <Icons.trash className="size-4" /> {p.is_active ? "Deactivate" : "Activate"}
-              </DropdownMenuItem>
+                {!p.is_default && (
+                  <DropdownMenuItem onClick={() => setDefaultMut.mutate(p)}>
+                    <Icons.check className="size-4" /> Set default
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => testMut.mutate(p)}>
+                  <Icons.refresh className="size-4" /> Test print
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toggleMut.mutate(p)}>
+                  <Icons.trash className="size-4" /> {p.is_active ? "Deactivate" : "Activate"}
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
