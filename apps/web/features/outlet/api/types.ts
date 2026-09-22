@@ -29,6 +29,8 @@ export type Outlet = {
   currency: string;
   timezone: string;
   locale: string;
+  /** UPI VPA for collect-QR on bills (Print Studio). Optional until set. */
+  upi_id?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;

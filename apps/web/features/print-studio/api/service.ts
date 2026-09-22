@@ -234,13 +234,24 @@ async function assembleDoc(
     const order = await getOrderById(ref_id);
     if (!order) throw new Error("order not found");
     const payments = await getPayments({ order_id: order.id });
+    const { paidTotalForOrder } = await import("@/features/payments/api/service");
+    const paid = await paidTotalForOrder(order.id);
+    const balance = Math.max(0, order.grand_total_paise - paid);
+    // QR invalidation by construction: a collect-QR prints ONLY while a
+    // balance is outstanding. Settled bills (balance 0) print payment lines
+    // instead — a photographed old QR can never collect twice against us
+    // without a mismatching tr + amount at reconciliation.
+    const showQR = template.qr === "UPI" && !!outlet.upi_id && balance > 0;
     return {
       doc: buildBillDoc({
-        billing: { order, paid_paise: 0, balance_paise: 0 },
+        billing: { order, paid_paise: paid, balance_paise: balance },
         payments,
         outlet,
         template,
         isDuplicate: opts?.isDuplicate,
+        upiId: showQR ? outlet.upi_id : undefined,
+        upiTr: order.order_number,
+        qrAmountPaise: paid > 0 ? balance : order.grand_total_paise,
       }),
       outlet_id: outlet.id,
       refLabel: order.order_number,

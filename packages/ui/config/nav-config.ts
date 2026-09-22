@@ -146,6 +146,12 @@ export const navGroups: NavGroup[] = [
             shortcut: ["o", "i"],
           },
           {
+            title: "UPI Payments",
+            url: "/dashboard/settings/outlet/billing/upi",
+            icon: "billing",
+            shortcut: ["o", "u"],
+          },
+          {
             title: "Printers",
             url: "/dashboard/settings/outlet/billing/printers",
             icon: "printer",

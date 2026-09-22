@@ -240,5 +240,36 @@ for (const paper of papers) {
   );
 }
 
+// QR invalidation: collect-QR only while balance is outstanding, carrying the
+// order ref (tr) and the outstanding amount — never a settled full-total QR.
+{
+  const owing = buildBillDoc({
+    billing: { ...billing, paid_paise: 20000, balance_paise: 50000 },
+    payments,
+    outlet,
+    template: template("BILL"),
+    upiId: "spiceroute@upi",
+    upiTr: "A-1024",
+    qrAmountPaise: 50000,
+  });
+  const owingText = renderText(owing, "P80");
+  check(
+    "owing bill shows QR",
+    owingText.some((l) => l.includes("[QR]")),
+  );
+  check(
+    "owing QR is collect-type",
+    owingText.some((l) => l.includes("Scan to pay")),
+  );
+
+  const settled = buildBillDoc({
+    billing,
+    payments,
+    outlet,
+    template: template("BILL"),
+  });
+  check("settled bill shows no QR", !renderText(settled, "P80").some((l) => l.includes("[QR]")));
+}
+
 console.log(failures === 0 ? "\nALL GOLDEN CHECKS PASSED" : `\n${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

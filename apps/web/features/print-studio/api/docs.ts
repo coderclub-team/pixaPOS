@@ -95,10 +95,25 @@ export function buildBillDoc(args: {
   outlet: Outlet;
   template: PrintTemplate;
   isDuplicate?: boolean;
+  /** UPI VPA — QR prints only when provided (service gates on balance due). */
   upiId?: string;
+  /** Reconciliation ref + note baked into the UPI intent (tr/tn). */
+  upiTr?: string;
+  /** QR amount override — the outstanding balance on partial pays. */
+  qrAmountPaise?: number;
   trackingUrl?: string;
 }): PrintDoc {
-  const { billing, payments, outlet, template, isDuplicate, upiId, trackingUrl } = args;
+  const {
+    billing,
+    payments,
+    outlet,
+    template,
+    isDuplicate,
+    upiId,
+    upiTr,
+    qrAmountPaise,
+    trackingUrl,
+  } = args;
   const order = billing.order;
   const lines: DocLine[] = [
     ...headerLines(outlet, template),
@@ -184,9 +199,11 @@ export function buildBillDoc(args: {
     }
   }
   if (template.qr === "UPI" && upiId) {
+    const amount = ((qrAmountPaise ?? order.grand_total_paise) / 100).toFixed(2);
+    const ref = upiTr ?? order.order_number;
     lines.push({
       kind: "qr",
-      data: `upi://pay?pa=${upiId}&pn=${encodeURIComponent(outlet.name)}&am=${(order.grand_total_paise / 100).toFixed(2)}&cu=INR`,
+      data: `upi://pay?pa=${upiId}&pn=${encodeURIComponent(outlet.name)}&am=${amount}&cu=INR&tr=${encodeURIComponent(ref)}&tn=${encodeURIComponent(`pixaPOS ${order.order_number}`)}`,
       label: "Scan to pay",
     });
   }
