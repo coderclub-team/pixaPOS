@@ -118,7 +118,8 @@ function qrBytes(data: string): number[] {
   const raw = Buffer.from(data.slice(0, 400), "utf8");
   const out: number[] = [];
   const store = (fn: number, payload: number[]) => {
-    const len = payload.length + 3;
+    // pL/pH counts bytes AFTER them: cn + fn + payload.
+    const len = payload.length + 2;
     out.push(GS, 0x28, 0x6b, len & 0xff, (len >> 8) & 0xff, 0x31, fn, ...payload);
   };
   store(0x41, [0x32, 0x00]); // model 2

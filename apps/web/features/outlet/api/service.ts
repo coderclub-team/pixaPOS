@@ -1,6 +1,29 @@
 import { delay } from "@/constants/mock-api";
 import type { Outlet, OutletPayload } from "./types";
 
+const OUTLET_STORAGE_KEY = "pixaOutlet";
+
+function saveOutlet(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(OUTLET_STORAGE_KEY, JSON.stringify({ outlet: mockOutlet }));
+  } catch {}
+}
+
+function loadOutlet(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(OUTLET_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (parsed?.outlet && parsed.outlet.id === mockOutlet.id) {
+      mockOutlet = { ...mockOutlet, ...parsed.outlet, upi_ids: parsed.outlet.upi_ids ?? [] };
+    }
+  } catch {}
+}
+
+loadOutlet();
+
 let mockOutlet: Outlet = {
   id: "out_001",
   organization_id: "org_001",
@@ -47,6 +70,7 @@ export async function getOutlet(): Promise<Outlet> {
 export async function updateOutlet(payload: OutletPayload): Promise<Outlet> {
   await delay(800);
   mockOutlet = { ...mockOutlet, ...payload, updated_at: new Date().toISOString() };
+  saveOutlet();
   return { ...mockOutlet };
 }
 
@@ -80,6 +104,7 @@ export async function addUpiAccount(label: string, vpa: string): Promise<Outlet>
     upi_ids: [...mockOutlet.upi_ids, account],
     updated_at: new Date().toISOString(),
   };
+  saveOutlet();
   return { ...mockOutlet };
 }
 
@@ -93,6 +118,7 @@ export async function setDefaultUpiAccount(id: string): Promise<Outlet> {
     upi_ids: mockOutlet.upi_ids.map((u) => ({ ...u, is_active: u.id === id })),
     updated_at: new Date().toISOString(),
   };
+  saveOutlet();
   return { ...mockOutlet };
 }
 
@@ -110,6 +136,7 @@ export async function removeUpiAccount(id: string): Promise<{ outlet: Outlet; pr
     promoted = true;
   }
   mockOutlet = { ...mockOutlet, upi_ids: rest, updated_at: new Date().toISOString() };
+  saveOutlet();
   return { outlet: { ...mockOutlet }, promoted };
 }
 

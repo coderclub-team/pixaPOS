@@ -33,7 +33,7 @@ const template = {
   show_fssai: true,
   show_tax_breakup: true,
   show_payments: true,
-  qr: "NONE",
+  qr: "UPI",
   footer_lines: ["Thank you! Visit again"],
   show_powered_by: false,
   copies: 1,
@@ -75,7 +75,15 @@ const billing = {
   balance_paise: 0,
 } as unknown as BillingView;
 
-const doc = buildBillDoc({ billing, payments: [], outlet, template });
+const doc = buildBillDoc({
+  billing,
+  payments: [],
+  outlet,
+  template,
+  upiId: "spiceroute@upi",
+  upiTr: "ORD-0001",
+  qrAmountPaise: 20895,
+});
 const body = renderEscPos(doc, "P58", 42);
 const cut = cutBytes(true);
 const bytes = new Uint8Array(body.length + cut.length);

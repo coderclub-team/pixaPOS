@@ -210,6 +210,11 @@ for (const paper of papers) {
   check(`cut framing ${paper}`, cut[3] === 0x1d && cut[4] === 0x56);
   const joined = Buffer.from(bytes).toString("binary");
   check(`qr command present ${paper}`, joined.includes(String.fromCharCode(0x1d, 0x28, 0x6b)));
+  // GS ( k framing: pL/pH must equal cn+fn+payload (model cmd = 04 00 31 41).
+  check(
+    `qr framing valid ${paper}`,
+    joined.includes(String.fromCharCode(0x1d, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41)),
+  );
   check(
     `ascii only ${paper}`,
     billText.every((l) => [...l].every((ch) => ch.charCodeAt(0) < 128)),
