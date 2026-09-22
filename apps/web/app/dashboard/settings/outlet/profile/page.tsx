@@ -7,11 +7,18 @@ import AddressForm from "@/features/outlet/components/address-form";
 import BusinessDetailsForm from "@/features/outlet/components/business-details-form";
 import UpiAccountsManager from "@/features/outlet/components/upi-accounts-manager";
 import { outletQueryOptions } from "@/features/outlet/api/queries";
+import { getOrganizationLogo } from "@/features/outlet/api/service";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@pixa/ui/base-ui/tabs";
 
 export default function OutletProfilePage() {
   const { data: outlet, isPending } = useQuery(outletQueryOptions);
+  // Server truth first: Better Auth organization logo (Neon) survives every
+  // host/reload; the outlet mock mirrors it for offline reads + printing.
+  const { data: orgLogo } = useQuery({
+    queryKey: ["outlet", "org-logo"],
+    queryFn: getOrganizationLogo,
+  });
   if (isPending || !outlet) {
     return (
       <PageContainer pageTitle="Outlet Profile" isLoading>
@@ -19,6 +26,7 @@ export default function OutletProfilePage() {
       </PageContainer>
     );
   }
+  const logoUrl = orgLogo ?? (typeof outlet.logo_url === "string" ? outlet.logo_url : "") ?? "";
   return (
     <PageContainer
       pageTitle="Outlet Profile"
@@ -38,7 +46,7 @@ export default function OutletProfilePage() {
               code: outlet.code,
               alias: outlet.alias ?? "",
               type: outlet.type,
-              logo_url: outlet.logo_url ?? "",
+              logo_url: logoUrl,
               is_active: outlet.is_active,
             }}
           />

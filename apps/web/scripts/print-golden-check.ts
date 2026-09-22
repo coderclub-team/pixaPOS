@@ -4,7 +4,13 @@
  * and asserts ESC/POS framing bytes. Exits non-zero on any failure.
  */
 import { buildBillDoc, buildKOTDoc, buildTokenDoc } from "../features/print-studio/api/docs";
-import { charsFor, cutBytes, renderEscPos, renderText } from "../features/print-studio/api/render";
+import {
+  charsFor,
+  cutBytes,
+  rasterBytes,
+  renderEscPos,
+  renderText,
+} from "../features/print-studio/api/render";
 import { PAPER_PROFILES, type PaperSize } from "../features/print-studio/api/types";
 import type { BillingView } from "../features/orders/api/types";
 import type { Payment } from "../features/payments/api/types";
@@ -281,6 +287,32 @@ for (const paper of papers) {
 console.log(failures === 0 ? "\nALL GOLDEN CHECKS PASSED (sync)" : `\n${failures} FAILURES`);
 
 async function asyncChecks(): Promise<void> {
+  // Logo raster framing: 16x8 checkerboard -> GS v 0 m=0, xL=2, yL=8, 16 bytes.
+  const checker = Array.from({ length: 8 }, (_, y) =>
+    Array.from({ length: 16 }, (_, x) => (x + y) % 2 === 0),
+  );
+  const raster = rasterBytes(checker);
+  check(
+    "raster framing",
+    raster[0] === 0x1d &&
+      raster[1] === 0x76 &&
+      raster[2] === 0x30 &&
+      raster[3] === 0x00 &&
+      raster[4] === 2 &&
+      raster[5] === 0 &&
+      raster[6] === 8 &&
+      raster[7] === 0 &&
+      raster.length === 8 + 16,
+  );
+  const logoBill = buildBillDoc({
+    billing,
+    payments,
+    outlet,
+    template: template("BILL"),
+    logoRows: checker,
+  });
+  check("logo bill starts with image", logoBill.lines[0].kind === "image");
+  check("logo preview marker", renderText(logoBill, "P80")[0].includes("[LOGO]"));
   // Never-throw enqueue: missing order / no printer leaves a FAILED trace.
   const job = await enqueuePrint("BILL", "order_that_does_not_exist");
   check("failed assemble parks FAILED job", job.status === "FAILED" && !!job.last_error);

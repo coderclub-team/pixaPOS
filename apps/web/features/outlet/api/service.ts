@@ -22,8 +22,6 @@ function loadOutlet(): void {
   } catch {}
 }
 
-loadOutlet();
-
 let mockOutlet: Outlet = {
   id: "out_001",
   organization_id: "org_001",
@@ -61,6 +59,9 @@ let mockOutlet: Outlet = {
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
 };
+
+// Restore persisted edits (logo, UPI IDs, details) after the base is defined.
+loadOutlet();
 
 export async function getOutlet(): Promise<Outlet> {
   await delay(500);
@@ -154,5 +155,45 @@ function loadOutletIds(): void {
         created_at: new Date().toISOString(),
       },
     ];
+  }
+}
+
+/**
+ * Server truth for the outlet logo: Better Auth `organization.logo`
+ * (Neon, per-tenant, visible on every host). Throws when no organization
+ * is available or the role may not manage it — callers mirror into the
+ * outlet mock only after this succeeds.
+ */
+export async function setOrganizationLogo(url: string): Promise<void> {
+  const m = (await import("@/lib/auth-client")) as unknown as {
+    authClient: { organization: { update: (args: unknown) => Promise<unknown> } };
+    baOrgs: { list: () => Promise<{ data: { id: string }[] | null }> };
+  };
+  const orgs = await m.baOrgs.list().catch(() => ({ data: null }));
+  const orgId = orgs.data?.[0]?.id;
+  if (!orgId) throw new Error("No organization — sign in and create one first");
+  await m.authClient.organization.update({ data: { logo: url }, organizationId: orgId });
+}
+
+/** Organization logo (server truth) or null when unavailable/offline. */
+export async function getOrganizationLogo(): Promise<string | null> {
+  try {
+    const m = (await import("@/lib/auth-client")) as unknown as {
+      baOrgs: {
+        list: () => Promise<{ data: { id: string }[] | null }>;
+        getFull: (args: { query: { organizationId: string } }) => Promise<{
+          data: { logo?: string | null } | null;
+        }>;
+      };
+    };
+    const orgs = await m.baOrgs.list().catch(() => ({ data: null }));
+    const orgId = orgs.data?.[0]?.id;
+    if (!orgId) return null;
+    const full = await m.baOrgs
+      .getFull({ query: { organizationId: orgId } })
+      .catch(() => ({ data: null }));
+    return full.data?.logo ?? null;
+  } catch {
+    return null;
   }
 }

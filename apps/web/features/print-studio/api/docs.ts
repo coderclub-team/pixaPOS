@@ -20,6 +20,7 @@ export type DocLine =
   | { kind: "rule" }
   | { kind: "pair"; left: string; right: string; bold?: boolean }
   | { kind: "qr"; data: string; label?: string }
+  | { kind: "image"; rows: boolean[][] }
   | { kind: "feed"; lines: number };
 
 export type PrintDoc = {
@@ -101,6 +102,8 @@ export function buildBillDoc(args: {
   upiTr?: string;
   /** QR amount override — the outstanding balance on partial pays. */
   qrAmountPaise?: number;
+  /** Pre-rasterized outlet logo (1-bit rows) — prints top-center when present. */
+  logoRows?: boolean[][];
   trackingUrl?: string;
 }): PrintDoc {
   const {
@@ -112,10 +115,12 @@ export function buildBillDoc(args: {
     upiId,
     upiTr,
     qrAmountPaise,
+    logoRows,
     trackingUrl,
   } = args;
   const order = billing.order;
   const lines: DocLine[] = [
+    ...(logoRows && logoRows.length > 0 ? [{ kind: "image" as const, rows: logoRows }] : []),
     ...headerLines(outlet, template),
     {
       kind: "text",

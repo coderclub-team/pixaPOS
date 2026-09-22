@@ -100,6 +100,9 @@ export function renderText(doc: PrintDoc, paper: PaperSize, cols?: number): stri
         out.push(align("[QR]", width, "center"));
         if (line.label) out.push(align(sanitizeReceiptText(line.label), width, "center"));
         break;
+      case "image":
+        out.push(align("[LOGO]", width, "center"));
+        break;
       case "pair":
         out.push(...pair(sanitizeReceiptText(line.left), sanitizeReceiptText(line.right), width));
         break;
@@ -183,9 +186,40 @@ export function renderEscPos(doc: PrintDoc, paper: PaperSize, cols?: number): Ui
         out.push(ESC, 0x61, 0x00);
         break;
       }
+      case "image": {
+        out.push(ESC, 0x61, 0x01);
+        out.push(...rasterBytes(line.rows));
+        out.push(0x0a);
+        out.push(ESC, 0x61, 0x00);
+        ti += 1; // skips the matching "[LOGO]" preview line
+        break;
+      }
     }
   }
   return Uint8Array.from(out);
+}
+
+/** 1-bit rows -> GS v 0 raster (m=0 normal). Rows pad to byte width. */
+export function rasterBytes(rows: boolean[][]): number[] {
+  if (rows.length === 0) return [];
+  const width = Math.max(...rows.map((r) => r.length));
+  const stride = Math.ceil(width / 8);
+  const out: number[] = [GS, 0x76, 0x30, 0x00];
+  const xL = stride & 0xff;
+  const xH = (stride >> 8) & 0xff;
+  const yL = rows.length & 0xff;
+  const yH = (rows.length >> 8) & 0xff;
+  out.push(xL, xH, yL, yH);
+  for (const row of rows) {
+    for (let b = 0; b < stride; b++) {
+      let byte = 0;
+      for (let bit = 0; bit < 8; bit++) {
+        if (row[b * 8 + bit]) byte |= 0x80 >> bit;
+      }
+      out.push(byte);
+    }
+  }
+  return out;
 }
 
 /** Paper cut (GS V) + feed trailer. */

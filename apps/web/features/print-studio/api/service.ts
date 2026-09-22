@@ -13,6 +13,8 @@ import { activeUpiId } from "@/features/outlet/api/types";
 import { getPayments } from "@/features/payments/api/service";
 import { buildBillDoc, buildKOTDoc, buildTokenDoc, type PrintDoc } from "./docs";
 import { beepBytes, charsFor, cutBytes, renderEscPos } from "./render";
+import { rasterizeLogoUrl } from "./logo";
+import { PAPER_PROFILES } from "./types";
 import { HttpRelayTransport, type PrintTransport } from "./transport";
 import type {
   EBillPayload,
@@ -227,7 +229,7 @@ export async function saveTemplate(
 async function assembleDoc(
   purpose: PrintPurpose,
   ref_id: string,
-  opts?: { isDuplicate?: boolean; reprintReason?: string },
+  opts?: { isDuplicate?: boolean; reprintReason?: string; logoRows?: boolean[][] },
 ): Promise<{ doc: PrintDoc; outlet_id: string; refLabel: string; qr: string }> {
   const outlet = await getOutlet();
   const template = await getTemplate(purpose, outlet.id);
@@ -261,6 +263,7 @@ async function assembleDoc(
         upiId: showQR && defaultVpa ? defaultVpa : undefined,
         upiTr: order.order_number,
         qrAmountPaise: paid > 0 ? balance : order.grand_total_paise,
+        logoRows: opts?.logoRows,
       }),
       outlet_id: outlet.id,
       refLabel: order.order_number,
@@ -407,11 +410,33 @@ export async function enqueuePrint(
   save(JOB_KEY, jobs);
 
   try {
-    const { doc, outlet_id, qr } = await assembleDoc(purpose, ref_id, opts);
-    const printer = await resolvePrinter(purpose, outlet_id);
+    const pre = await assembleDoc(purpose, ref_id, opts);
+    const printer = await resolvePrinter(purpose, pre.outlet_id);
     if (!printer) {
-      return parkJob(job, "no active printer: add one in Print Studio settings", qr, outlet_id);
+      return parkJob(
+        job,
+        "no active printer: add one in Print Studio settings",
+        pre.qr,
+        pre.outlet_id,
+      );
     }
+    // Bill logo: rasterize the outlet logo to the printer's dot width when
+    // the template asks for it. Offline/undecodable -> omit, never fail.
+    let doc = pre.doc;
+    if (purpose === "BILL") {
+      const outlet = await getOutlet();
+      const template = await getTemplate("BILL", outlet.id);
+      const logoUrl = typeof outlet.logo_url === "string" ? outlet.logo_url : "";
+      if (template.show_logo && logoUrl.startsWith("http")) {
+        const dots = PAPER_PROFILES[printer.paper].dots;
+        const rows = await rasterizeLogoUrl(logoUrl, dots).catch(() => null);
+        if (rows) {
+          const rebuilt = await assembleDoc(purpose, ref_id, { ...opts, logoRows: rows });
+          doc = rebuilt.doc;
+        }
+      }
+    }
+    const { outlet_id, qr } = pre;
     Object.assign(job, { outlet_id, printer_id: printer.id, doc_hash: doc.hash });
     save(JOB_KEY, jobs);
     await recordEvent({

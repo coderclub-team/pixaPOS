@@ -24,7 +24,9 @@ export default function BasicInformationForm({
 
   const mutation = useMutation({
     // Logo uploads on Save, not on pick: a staged File[] is POSTed to
-    // /api/outlet-logo first and the returned URL is what gets persisted.
+    // /api/outlet-logo first. The URL is written to the Better Auth
+    // organization (server truth, Neon `organization.logo`) and mirrored
+    // into the outlet mock (fast offline reads + print path).
     mutationFn: async (values: BasicInformationValues) => {
       const logo = (values as { logo_url?: string | File[] }).logo_url;
       if (Array.isArray(logo) && logo.length > 0 && logo[0] instanceof File) {
@@ -37,6 +39,15 @@ export default function BasicInformationForm({
           error?: string;
         } | null;
         if (!res.ok || !data?.url) throw new Error(data?.error ?? "Logo upload failed");
+        // Server truth first (Better Auth organization.logo); a failure here
+        // must not block the outlet save — the mock mirror keeps local reads
+        // and printing working, and the next save retries the org write.
+        const { setOrganizationLogo } = await import("../api/service");
+        await setOrganizationLogo(data.url).catch((e: unknown) => {
+          toast.warning(
+            `Logo saved locally; org sync skipped (${e instanceof Error ? e.message : "offline"}). Re-save when online.`,
+          );
+        });
         return updateOutlet({ ...values, logo_url: data.url });
       }
       return updateOutlet(values);
