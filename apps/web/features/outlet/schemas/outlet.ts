@@ -82,6 +82,17 @@ export const fssaiSchema = z.object({
     .or(z.literal("")),
 });
 
+/** UPI VPA for bill collect-QR (Print Studio). Empty = no QR printed. */
+export const upiSchema = z.object({
+  upi_id: z
+    .string()
+    .regex(/^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/, "Enter a valid UPI ID (e.g. outlet@okhdfc)")
+    .optional()
+    .or(z.literal("")),
+});
+
+export type UPIValues = z.infer<typeof upiSchema>;
+
 export const businessDetailsSchema = z
   .object({
     legal_name: z.string().min(2, "Legal name required"),

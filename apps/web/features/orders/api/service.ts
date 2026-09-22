@@ -1536,6 +1536,10 @@ export async function completeOrder(
       force: forced || undefined,
     });
     saveOrders();
+    // Auto-print bill (+ takeaway token) on settle. Dynamic import avoids an
+    // orders <-> print-studio cycle; print failure never fails completion.
+    const { maybeAutoPrintBill } = await import("@/features/print-studio/api/service");
+    await maybeAutoPrintBill(orderId, actor);
     return enrichOrder(mockOrders[idx]);
   } finally {
     release();
