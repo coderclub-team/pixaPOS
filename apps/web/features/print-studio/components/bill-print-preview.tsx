@@ -9,6 +9,7 @@ import { paymentsByOrderQueryOptions } from "@/features/payments/api/queries";
 import { paidTotalForOrder } from "@/features/payments/api/service";
 import { outletQueryOptions } from "@/features/outlet/api/queries";
 import { templateQueryOptions } from "../api/queries";
+import { activeUpiId } from "@/features/outlet/api/types";
 import { buildBillDoc } from "../api/docs";
 import ReceiptPreview from "./receipt-preview";
 import { cn } from "@pixa/ui/lib/utils";
@@ -37,13 +38,14 @@ export default function BillPrintPreview({ orderId }: { orderId: string }) {
   const doc = useMemo(() => {
     if (!order || !outlet || !template) return null;
     const balance = Math.max(0, order.grand_total_paise - paid);
-    const showQR = template.qr === "UPI" && !!outlet.upi_id && balance > 0;
+    const defaultVpa = activeUpiId(outlet);
+    const showQR = template.qr === "UPI" && !!defaultVpa && balance > 0;
     return buildBillDoc({
       billing: { order, paid_paise: paid, balance_paise: balance },
       payments: (payments ?? []).filter((p) => p.status === "PAID"),
       outlet,
       template,
-      upiId: showQR ? outlet.upi_id : undefined,
+      upiId: showQR && defaultVpa ? defaultVpa : undefined,
       upiTr: order.order_number,
       qrAmountPaise: paid > 0 ? balance : order.grand_total_paise,
     });

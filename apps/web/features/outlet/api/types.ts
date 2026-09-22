@@ -29,7 +29,9 @@ export type Outlet = {
   currency: string;
   timezone: string;
   locale: string;
-  /** UPI VPA for collect-QR on bills (Print Studio). Optional until set. */
+  /** UPI VPAs for bill collect-QR (Print Studio). Exactly one may be default. */
+  upi_ids: UpiAccount[];
+  /** @deprecated single-VPA era; migrated into upi_ids on read. */
   upi_id?: string;
   is_active: boolean;
   created_at: string;
@@ -37,3 +39,19 @@ export type Outlet = {
 };
 
 export type OutletPayload = Partial<Outlet>;
+
+export type UpiAccount = {
+  id: string;
+  label: string;
+  vpa: string;
+  is_active: boolean;
+  created_at: string;
+};
+
+/** Explicit default VPA, or null when none is active (QR disabled). */
+export function activeUpiId(outlet: Pick<Outlet, "upi_ids" | "upi_id">): string | null {
+  const hit = (outlet.upi_ids ?? []).find((u) => u.is_active);
+  if (hit) return hit.vpa;
+  if (outlet.upi_id) return outlet.upi_id;
+  return null;
+}

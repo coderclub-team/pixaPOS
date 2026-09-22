@@ -9,6 +9,7 @@ import { recordEvent } from "@/features/events/api/service";
 import { getOrderById } from "@/features/orders/api/service";
 import { getTicketById } from "@/features/kitchen/api/service";
 import { getOutlet } from "@/features/outlet/api/service";
+import { activeUpiId } from "@/features/outlet/api/types";
 import { getPayments } from "@/features/payments/api/service";
 import { buildBillDoc, buildKOTDoc, buildTokenDoc, type PrintDoc } from "./docs";
 import { beepBytes, charsFor, cutBytes, renderEscPos } from "./render";
@@ -238,10 +239,11 @@ async function assembleDoc(
     const paid = await paidTotalForOrder(order.id);
     const balance = Math.max(0, order.grand_total_paise - paid);
     // QR invalidation by construction: a collect-QR prints ONLY while a
-    // balance is outstanding. Settled bills (balance 0) print payment lines
-    // instead — a photographed old QR can never collect twice against us
-    // without a mismatching tr + amount at reconciliation.
-    const showQR = template.qr === "UPI" && !!outlet.upi_id && balance > 0;
+    // balance is outstanding, against the outlet's default VPA. Settled bills
+    // print payment lines instead — a photographed old QR can never collect
+    // twice against us without a mismatching tr + amount at reconciliation.
+    const defaultVpa = activeUpiId(outlet);
+    const showQR = template.qr === "UPI" && !!defaultVpa && balance > 0;
     return {
       doc: buildBillDoc({
         billing: { order, paid_paise: paid, balance_paise: balance },
@@ -249,7 +251,7 @@ async function assembleDoc(
         outlet,
         template,
         isDuplicate: opts?.isDuplicate,
-        upiId: showQR ? outlet.upi_id : undefined,
+        upiId: showQR && defaultVpa ? defaultVpa : undefined,
         upiTr: order.order_number,
         qrAmountPaise: paid > 0 ? balance : order.grand_total_paise,
       }),

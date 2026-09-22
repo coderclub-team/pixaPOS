@@ -11,6 +11,7 @@ import type { Payment } from "../features/payments/api/types";
 import type { KitchenTicket } from "../features/kitchen/api/types";
 import type { Outlet } from "../features/outlet/api/types";
 import type { PrintTemplate } from "../features/print-studio/api/types";
+import { activeUpiId } from "../features/outlet/api/types";
 
 let failures = 0;
 function check(name: string, cond: boolean, extra = ""): void {
@@ -272,4 +273,16 @@ for (const paper of papers) {
 }
 
 console.log(failures === 0 ? "\nALL GOLDEN CHECKS PASSED" : `\n${failures} FAILURES`);
+
+// Multi-UPI default resolution: exactly one default feeds the QR.
+{
+  const multi = {
+    upi_ids: [
+      { id: "u1", label: "Owner", vpa: "owner@upi", is_active: false, created_at: "" },
+      { id: "u2", label: "Counter", vpa: "counter@upi", is_active: true, created_at: "" },
+    ],
+  };
+  check("default VPA resolves", activeUpiId(multi as never) === "counter@upi");
+  check("none active disables QR", activeUpiId({ upi_ids: [] } as never) === null);
+}
 process.exit(failures === 0 ? 0 : 1);
