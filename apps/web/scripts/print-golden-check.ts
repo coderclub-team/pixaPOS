@@ -340,7 +340,7 @@ async function asyncChecks(): Promise<void> {
   check("dither gradients dark-to-light", leftHeat > rightHeat + 40); // Never-throw enqueue: missing order / no printer leaves a FAILED trace.
   const job = await enqueuePrint("BILL", "order_that_does_not_exist");
   check("failed assemble parks FAILED job", job.status === "FAILED" && !!job.last_error);
-
+  check("parked job carries gate reasons", job.qr === "error");
   // Multi-UPI default resolution: exactly one default feeds the QR.
   const multi = {
     upi_ids: [

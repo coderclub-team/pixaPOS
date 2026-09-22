@@ -96,6 +96,9 @@ export type PrintJob = {
   status: PrintJobStatus;
   attempts: number;
   last_error?: string;
+  /** QR/logo gate outcomes (shown|suppressed/omitted:<reason>) — answers "why text-only" in History. */
+  qr?: string;
+  logo?: string;
   created_by?: string;
   created_at: string;
   updated_at: string;

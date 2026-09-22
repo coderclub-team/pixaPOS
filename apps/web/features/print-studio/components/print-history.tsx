@@ -62,6 +62,13 @@ export default function PrintHistory({ jobs }: { jobs: PrintJob[] }) {
               {j.reprint_reason ? ` · ${j.reprint_reason}` : ""}
               {j.last_error ? ` · ${j.last_error}` : ""}
             </div>
+            {(j.qr || j.logo) && (
+              <div className="truncate text-[11px] text-muted-foreground">
+                {j.qr ? `QR ${j.qr}` : ""}
+                {j.qr && j.logo ? " · " : ""}
+                {j.logo ? `logo ${j.logo}` : ""}
+              </div>
+            )}
           </div>
         </div>
       ))}

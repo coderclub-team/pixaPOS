@@ -424,8 +424,10 @@ export async function enqueuePrint(
     // Logo: rasterize the outlet logo to the printer's dot width when the
     // template asks for it. Source prefers the local mirror, falling back to
     // the organization logo (server truth) so fresh hosts print it too.
-    // Offline/undecodable -> omit, never fail.
+    // Offline/undecodable -> omit, never fail. The reason rides in metadata
+    // so History answers "why text-only" without a debugger.
     let doc = pre.doc;
+    let logo = "omitted:toggle-off";
     {
       const outlet = await getOutlet();
       const template = await getTemplate(purpose, outlet.id);
@@ -434,24 +436,31 @@ export async function enqueuePrint(
         const { getOrganizationLogo } = await import("@/features/outlet/api/service");
         logoUrl = (await getOrganizationLogo().catch(() => null)) ?? "";
       }
-      if (template.show_logo && logoUrl.startsWith("http")) {
+      if (!template.show_logo) {
+        logo = "omitted:toggle-off";
+      } else if (!logoUrl.startsWith("http")) {
+        logo = "omitted:no-logo-url";
+      } else {
         const dots = PAPER_PROFILES[printer.paper].dots;
         const rows = await rasterizeLogoUrl(logoUrl, dots).catch(() => null);
         if (rows) {
           const rebuilt = await assembleDoc(purpose, ref_id, { ...opts, logoRows: rows });
           doc = rebuilt.doc;
+          logo = "shown";
+        } else {
+          logo = "omitted:raster-failed";
         }
       }
     }
     const { outlet_id, qr } = pre;
-    Object.assign(job, { outlet_id, printer_id: printer.id, doc_hash: doc.hash });
+    Object.assign(job, { outlet_id, printer_id: printer.id, doc_hash: doc.hash, qr, logo });
     save(JOB_KEY, jobs);
     await recordEvent({
       outlet_id,
       entity_type: "PRINT_JOB",
       entity_id: job.id,
       event_type: "PRINT_QUEUED",
-      metadata: { purpose, ref_id, printer_id: printer.id, doc_hash: doc.hash, qr },
+      metadata: { purpose, ref_id, printer_id: printer.id, doc_hash: doc.hash, qr, logo },
       actor_id: opts?.created_by,
     });
     await sendJob({ ...job }, doc, printer);
@@ -468,6 +477,7 @@ async function parkJob(
   error: string,
   qr: string,
   outlet_id: string,
+  logo = "n/a",
 ): Promise<PrintJob> {
   const jobs = readJobs();
   const idx = jobs.findIndex((j) => j.id === job.id);
@@ -477,6 +487,8 @@ async function parkJob(
     status: "FAILED" as const,
     attempts: job.attempts + 1,
     last_error: error,
+    qr,
+    logo,
     updated_at: now(),
   };
   if (idx >= 0) jobs[idx] = updated;
@@ -488,7 +500,13 @@ async function parkJob(
     entity_id: job.id,
     event_type: "PRINT_FAILED",
     reason_text: error,
-    metadata: { purpose: job.purpose, ref_id: job.ref_id, attempt: updated.attempts, qr },
+    metadata: {
+      purpose: job.purpose,
+      ref_id: job.ref_id,
+      attempt: updated.attempts,
+      qr,
+      logo: updated.logo ?? "n/a",
+    },
     actor_id: job.created_by,
   });
   return { ...updated };

@@ -78,7 +78,6 @@ export default function PrinterList({ printers }: { printers: Printer[] }) {
       </div>
     );
   }
-
   return (
     <div className="space-y-2.5">
       {printers.map((p) => (
@@ -94,6 +93,11 @@ export default function PrinterList({ printers }: { printers: Printer[] }) {
               {p.connection === "NETWORK" ? `:${p.port ?? 9100}` : ""} ·{" "}
               {PAPER_PROFILES[p.paper].label}
             </div>
+            {(p.address === "localhost" || p.address === "127.0.0.1") && (
+              <div className="truncate text-[11px] text-muted-foreground">
+                Emulator builds don&apos;t render logo raster — toggle logo off for visual QA.
+              </div>
+            )}
           </div>
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger className="flex h-8 w-8 items-center justify-center rounded-md p-0 hover:bg-muted">
