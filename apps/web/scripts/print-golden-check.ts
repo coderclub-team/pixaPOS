@@ -19,6 +19,7 @@ import type { Outlet } from "../features/outlet/api/types";
 import type { PrintTemplate } from "../features/print-studio/api/types";
 import { activeUpiId } from "../features/outlet/api/types";
 import { enqueuePrint } from "../features/print-studio/api/service";
+import { floydSteinberg } from "../features/print-studio/api/logo";
 
 let failures = 0;
 function check(name: string, cond: boolean, extra = ""): void {
@@ -323,7 +324,20 @@ async function asyncChecks(): Promise<void> {
     logoRows: checker,
   });
   check("logo token starts with image", logoToken.lines[0].kind === "image");
-  // Never-throw enqueue: missing order / no printer leaves a FAILED trace.
+  // Dither preserves tone: 32-step gray ramp should heat ~half the dots
+  // (flat threshold would cliff at the midpoint with banding).
+  const ramp = Array.from({ length: 16 }, () =>
+    Array.from({ length: 32 }, (_, x) => Math.round((x / 31) * 255)),
+  );
+  const dithered = floydSteinberg(ramp);
+  const total = 16 * 32;
+  const heated = dithered.flat().filter(Boolean).length;
+  const ratio = heated / total;
+  check("dither keeps dims", dithered.length === 16 && dithered.every((r) => r.length === 32));
+  check("dither preserves mid tone", ratio > 0.4 && ratio < 0.6, `ratio=${ratio.toFixed(2)}`);
+  const leftHeat = dithered.flatMap((r) => r.slice(0, 8)).filter(Boolean).length;
+  const rightHeat = dithered.flatMap((r) => r.slice(24)).filter(Boolean).length;
+  check("dither gradients dark-to-light", leftHeat > rightHeat + 40); // Never-throw enqueue: missing order / no printer leaves a FAILED trace.
   const job = await enqueuePrint("BILL", "order_that_does_not_exist");
   check("failed assemble parks FAILED job", job.status === "FAILED" && !!job.last_error);
 

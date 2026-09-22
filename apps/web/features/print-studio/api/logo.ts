@@ -32,21 +32,61 @@ export async function rasterizeLogoUrl(
     ctx.drawImage(bitmap, 0, 0, width, cappedHeight);
     if (typeof bitmap.close === "function") bitmap.close();
     const pixels = ctx.getImageData(0, 0, width, cappedHeight).data;
-    const rows: boolean[][] = [];
+    // Luminance field (white base) + transparency mask.
+    const lum: number[][] = [];
+    let hasInk = false;
     for (let y = 0; y < cappedHeight; y++) {
-      const row: boolean[] = [];
+      const row: number[] = [];
       for (let x = 0; x < width; x++) {
         const i = (y * width + x) * 4;
-        const luminance = 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2];
         const alpha = pixels[i + 3];
-        row.push(alpha > 16 && luminance < 128);
+        const v =
+          alpha > 16 ? 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2] : 255;
+        if (v < 250) hasInk = true;
+        row.push(v);
       }
-      rows.push(row);
+      lum.push(row);
     }
-    // Blank image (all white) = nothing worth printing.
-    if (!rows.some((r) => r.some(Boolean))) return null;
-    return rows;
+    // Blank image (nothing but white) = nothing worth printing. Evaluated
+    // pre-dither so diffusion noise can never flip this guard.
+    if (!hasInk) return null;
+    return floydSteinberg(lum);
   } catch {
     return null;
   }
+}
+
+/**
+ * Floyd-Steinberg error diffusion (serpentine): smooth tone rendering for
+ * gradients/photos where a flat threshold would posterize. `true` = heat.
+ */
+export function floydSteinberg(field: number[][]): boolean[][] {
+  const height = field.length;
+  if (height === 0) return [];
+  const width = field[0].length;
+  const buf = field.map((r) => [...r]);
+  const rows: boolean[][] = [];
+  for (let y = 0; y < height; y++) {
+    const leftToRight = y % 2 === 0;
+    const row: boolean[] = new Array(width);
+    for (let xi = 0; xi < width; xi++) {
+      const x = leftToRight ? xi : width - 1 - xi;
+      const old = buf[y][x];
+      const heat = old < 128;
+      row[x] = heat;
+      const err = old - (heat ? 0 : 255);
+      const right = leftToRight ? 1 : -1;
+      const put = (dx: number, dy: number, f: number) => {
+        const nx = x + dx * right;
+        const ny = y + dy;
+        if (nx >= 0 && nx < width && ny < height) buf[ny][nx] += (err * f) / 16;
+      };
+      put(1, 0, 7);
+      put(-1, 1, 3);
+      put(0, 1, 5);
+      put(1, 1, 1);
+    }
+    rows.push(row);
+  }
+  return rows;
 }
