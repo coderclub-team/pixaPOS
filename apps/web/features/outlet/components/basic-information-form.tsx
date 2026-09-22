@@ -91,7 +91,7 @@ export default function BasicInformationForm({
               children={() => (
                 <LogoUploadField
                   label="Logo"
-                  description="Upload outlet logo (JPG, PNG, WebP, max 5MB) — stored on Neon object storage"
+                  description="Upload outlet logo (JPG, PNG, WebP, max 5MB)"
                 />
               )}
             />
