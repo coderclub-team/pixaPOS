@@ -37,7 +37,7 @@ export async function baMemberRole(orgId: string, userId: string): Promise<strin
   return rows[0]?.role ?? null;
 }
 
-/** Clerk has({permission}) equivalent for org:resource:action strings. */
+/** Permission check for org:resource:action strings. */
 export async function baHas(permission: string): Promise<boolean> {
   const session = await baSession();
   if (!session?.user) return false;
