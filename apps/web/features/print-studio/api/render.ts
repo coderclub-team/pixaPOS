@@ -13,6 +13,32 @@ export function charsFor(paper: PaperSize): number {
   return PAPER_PROFILES[paper].chars;
 }
 
+const TRANSLITERATE: Record<string, string> = {
+  "₹": "Rs.",
+  "“": '"',
+  "”": '"',
+  "‘": "'",
+  "’": "'",
+  "–": "-",
+  "—": "-",
+  "…": "...",
+  "•": "-",
+  "°": "deg",
+};
+
+/** ASCII-safe receipt text: transliterate known glyphs, drop the rest so
+ * column math stays honest on legacy printer code pages. */
+export function sanitizeReceiptText(text: string): string {
+  let out = "";
+  for (const ch of text) {
+    if (ch >= " " && ch <= "~") out += ch;
+    else if (TRANSLITERATE[ch] !== undefined) out += TRANSLITERATE[ch];
+    else if (ch === "\n" || ch === "\t") out += " ";
+    else out += "?";
+  }
+  return out;
+}
+
 function wrap(text: string, width: number): string[] {
   const words = text.split(/\s+/).filter(Boolean);
   const out: string[] = [];
@@ -59,8 +85,8 @@ function pair(left: string, right: string, width: number): string[] {
 }
 
 /** Plain-text preview lines (also the emulator-readable layout). */
-export function renderText(doc: PrintDoc, paper: PaperSize): string[] {
-  const width = charsFor(paper);
+export function renderText(doc: PrintDoc, paper: PaperSize, cols?: number): string[] {
+  const width = cols ?? charsFor(paper);
   const out: string[] = [];
   for (const line of doc.lines) {
     switch (line.kind) {
@@ -72,14 +98,16 @@ export function renderText(doc: PrintDoc, paper: PaperSize): string[] {
         break;
       case "qr":
         out.push(align("[QR]", width, "center"));
-        if (line.label) out.push(align(line.label, width, "center"));
+        if (line.label) out.push(align(sanitizeReceiptText(line.label), width, "center"));
         break;
       case "pair":
-        out.push(...pair(line.left, line.right, width));
+        out.push(...pair(sanitizeReceiptText(line.left), sanitizeReceiptText(line.right), width));
         break;
-      case "text":
-        out.push(...wrap(line.text, width).map((t) => align(t, width, line.align ?? "left")));
+      case "text": {
+        const clean = sanitizeReceiptText(line.text);
+        out.push(...wrap(clean, width).map((t) => align(t, width, line.align ?? "left")));
         break;
+      }
     }
   }
   return out;
@@ -104,9 +132,10 @@ function qrBytes(data: string): number[] {
   return out;
 }
 
-/** PrintDoc -> ESC/POS byte array. */
-export function renderEscPos(doc: PrintDoc, paper: PaperSize): Uint8Array {
-  const text = renderText(doc, paper);
+/** PrintDoc -> ESC/POS byte array. `cols` overrides the paper default. */
+export function renderEscPos(doc: PrintDoc, paper: PaperSize, cols?: number): Uint8Array {
+  const text = renderText(doc, paper, cols);
+  const width = cols ?? charsFor(paper);
   const out: number[] = [ESC, 0x40]; // init
   // Map preview lines back through doc lines for style bytes.
   let ti = 0;
@@ -132,7 +161,7 @@ export function renderEscPos(doc: PrintDoc, paper: PaperSize): Uint8Array {
       case "text": {
         const count =
           line.kind === "text" || line.kind === "pair"
-            ? renderText({ lines: [line], hash: "" }, paper).length
+            ? renderText({ lines: [line], hash: "" }, paper, cols).length
             : line.kind === "rule"
               ? 1
               : line.lines;
@@ -148,7 +177,8 @@ export function renderEscPos(doc: PrintDoc, paper: PaperSize): Uint8Array {
         out.push(ESC, 0x61, 0x01);
         out.push(...qrBytes(line.data));
         out.push(0x0a);
-        if (line.label) pushText(align(line.label, charsFor(paper), "center"), { align: "center" });
+        if (line.label)
+          pushText(align(sanitizeReceiptText(line.label), width, "center"), { align: "center" });
         out.push(ESC, 0x61, 0x00);
         break;
       }

@@ -24,6 +24,8 @@ export type Printer = {
   /** NETWORK: raw ESC/POS TCP port (real printers + emulator default 9100). */
   port?: number;
   paper: PaperSize;
+  /** Printable columns override (e.g. 42 for Epson Font A on 58mm). Blank = paper default. */
+  chars_per_line?: number;
   is_default: boolean;
   is_active: boolean;
   created_at: string;

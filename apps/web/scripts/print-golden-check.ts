@@ -209,6 +209,35 @@ for (const paper of papers) {
   check(`cut framing ${paper}`, cut[3] === 0x1d && cut[4] === 0x56);
   const joined = Buffer.from(bytes).toString("binary");
   check(`qr command present ${paper}`, joined.includes(String.fromCharCode(0x1d, 0x28, 0x6b)));
+  check(
+    `ascii only ${paper}`,
+    billText.every((l) => [...l].every((ch) => ch.charCodeAt(0) < 128)),
+  );
+  check(
+    `rupee as Rs ${paper}`,
+    billText.some((l) => l.includes("Rs.")) && !billText.some((l) => l.includes("₹")),
+  );
+}
+
+// Epson Font A reality: 58mm printers fit 42 cols, not the 48-col profile.
+{
+  const bill = buildBillDoc({
+    billing,
+    payments,
+    outlet,
+    template: template("BILL"),
+    upiId: "spiceroute@upi",
+  });
+  const narrow = renderText(bill, "P58", 42);
+  check(
+    "bill fits 42 cols",
+    narrow.every((l) => l.length <= 42),
+    `max=${Math.max(...narrow.map((l) => l.length))}`,
+  );
+  check(
+    "42-col keeps grand total",
+    narrow.some((l) => l.includes("GRAND TOTAL") && l.includes("Rs.")),
+  );
 }
 
 console.log(failures === 0 ? "\nALL GOLDEN CHECKS PASSED" : `\n${failures} FAILURES`);

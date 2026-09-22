@@ -134,6 +134,7 @@ function printerValues(p: Printer) {
     address: p.address,
     port: p.port != null ? String(p.port) : "",
     paper: p.paper,
+    chars_per_line: p.chars_per_line != null ? String(p.chars_per_line) : "",
     is_default: p.is_default,
     is_active: p.is_active,
   };
@@ -143,5 +144,10 @@ function printerValues(p: Printer) {
 function toPayload(p: Printer) {
   const v = printerValues(p);
   const port = v.port.trim() ? Number.parseInt(v.port, 10) : undefined;
-  return { ...v, port: port != null && Number.isFinite(port) ? port : undefined };
+  const cols = v.chars_per_line.trim() ? Number.parseInt(v.chars_per_line, 10) : undefined;
+  return {
+    ...v,
+    port: port != null && Number.isFinite(port) ? port : undefined,
+    chars_per_line: cols != null && Number.isFinite(cols) && cols > 0 ? cols : undefined,
+  };
 }

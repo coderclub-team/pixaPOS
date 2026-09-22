@@ -2,7 +2,7 @@
  * Pure print-document builders (Phase 1). Paise in, printable doc out.
  * Builders never touch printers, network, or stores — service.ts orchestrates.
  */
-import { formatINR } from "@/lib/money";
+import { formatReceiptAmount } from "@/lib/money";
 import type { Outlet } from "@/features/outlet/api/types";
 import type { BillingView } from "@/features/orders/api/types";
 import type { Payment } from "@/features/payments/api/types";
@@ -124,33 +124,33 @@ export function buildBillDoc(args: {
     lines.push({
       kind: "pair",
       left: itemLabel(item, liveQty),
-      right: formatINR(item.line_total_paise),
+      right: formatReceiptAmount(item.line_total_paise),
     });
     for (const mod of item.modifiers) {
       lines.push({
         kind: "pair",
         left: `  + ${mod.name_snapshot}`,
-        right: formatINR(mod.price_paise),
+        right: formatReceiptAmount(mod.price_paise),
       });
     }
     if (item.instructions) lines.push({ kind: "text", text: `  * ${item.instructions}` });
   }
   lines.push({ kind: "rule" });
-  lines.push({ kind: "pair", left: "Subtotal", right: formatINR(order.subtotal_paise) });
+  lines.push({ kind: "pair", left: "Subtotal", right: formatReceiptAmount(order.subtotal_paise) });
   if ((order.discount_paise ?? 0) > 0) {
     lines.push({
       kind: "pair",
       left: `Discount${order.discount_reason ? ` (${order.discount_reason})` : ""}`,
-      right: `-${formatINR(order.discount_paise ?? 0)}`,
+      right: `-${formatReceiptAmount(order.discount_paise ?? 0)}`,
     });
   }
   if (template.show_tax_breakup) {
-    lines.push({ kind: "pair", left: "Tax", right: formatINR(order.tax_paise) });
+    lines.push({ kind: "pair", left: "Tax", right: formatReceiptAmount(order.tax_paise) });
   }
   lines.push({
     kind: "pair",
     left: "GRAND TOTAL",
-    right: formatINR(order.grand_total_paise),
+    right: formatReceiptAmount(order.grand_total_paise),
     bold: true,
   });
   if (template.show_payments && payments.length > 0) {
@@ -159,18 +159,26 @@ export function buildBillDoc(args: {
       lines.push({
         kind: "pair",
         left: `${p.method}${p.partition_label ? ` (${p.partition_label})` : ""}`,
-        right: formatINR(p.amount_paise),
+        right: formatReceiptAmount(p.amount_paise),
       });
       if (p.tendered_paise != null) {
-        lines.push({ kind: "pair", left: "  Tendered", right: formatINR(p.tendered_paise) });
-        lines.push({ kind: "pair", left: "  Change", right: formatINR(p.change_paise ?? 0) });
+        lines.push({
+          kind: "pair",
+          left: "  Tendered",
+          right: formatReceiptAmount(p.tendered_paise),
+        });
+        lines.push({
+          kind: "pair",
+          left: "  Change",
+          right: formatReceiptAmount(p.change_paise ?? 0),
+        });
       }
     }
     if (billing.balance_paise > 0) {
       lines.push({
         kind: "pair",
         left: "Balance due",
-        right: formatINR(billing.balance_paise),
+        right: formatReceiptAmount(billing.balance_paise),
         bold: true,
       });
     }

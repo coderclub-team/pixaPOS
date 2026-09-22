@@ -36,6 +36,7 @@ export default function PrintersPage() {
               address: "",
               port: "9100",
               paper: "P80",
+              chars_per_line: "",
               is_default: printers.length === 0,
               is_active: true,
             }}

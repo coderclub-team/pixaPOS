@@ -11,7 +11,7 @@ import { getTicketById } from "@/features/kitchen/api/service";
 import { getOutlet } from "@/features/outlet/api/service";
 import { getPayments } from "@/features/payments/api/service";
 import { buildBillDoc, buildKOTDoc, buildTokenDoc, type PrintDoc } from "./docs";
-import { beepBytes, cutBytes, renderEscPos } from "./render";
+import { beepBytes, charsFor, cutBytes, renderEscPos } from "./render";
 import { HttpRelayTransport, type PrintTransport } from "./transport";
 import type {
   EBillPayload,
@@ -306,7 +306,8 @@ async function sendJob(job: PrintJob, doc: PrintDoc, printer: Printer): Promise<
   };
   try {
     const template = await getTemplate(job.purpose, job.outlet_id);
-    let bytes = renderEscPos(doc, printer.paper);
+    const cols = printer.chars_per_line ?? charsFor(printer.paper);
+    let bytes = renderEscPos(doc, printer.paper, cols);
     const copies =
       Math.max(1, template.copies) +
       (template.merchant_copy && job.purpose === "BILL" && !job.is_reprint ? 1 : 0);

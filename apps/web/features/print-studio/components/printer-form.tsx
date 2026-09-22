@@ -35,7 +35,14 @@ export default function PrinterForm({
   const mutation = useMutation({
     mutationFn: (values: PrinterValues) => {
       const port = values.port?.trim() ? Number.parseInt(values.port, 10) : undefined;
-      const payload = { ...values, port: port != null && Number.isFinite(port) ? port : undefined };
+      const cols = values.chars_per_line?.trim()
+        ? Number.parseInt(values.chars_per_line, 10)
+        : undefined;
+      const payload = {
+        ...values,
+        port: port != null && Number.isFinite(port) ? port : undefined,
+        chars_per_line: cols != null && Number.isFinite(cols) && cols > 0 ? cols : undefined,
+      };
       return editing ? updatePrinter(editing.id, payload) : registerPrinter(payload);
     },
     onSuccess: () => {
@@ -108,6 +115,16 @@ export default function PrinterForm({
             <form.AppField
               name="paper"
               children={(field) => <field.SelectField label="Paper size" options={PAPER_OPTIONS} />}
+            />
+            <form.AppField
+              name="chars_per_line"
+              children={(field) => (
+                <field.TextField
+                  label="Chars per line (optional)"
+                  placeholder="Blank = paper default"
+                  description="E.g. 42 for Epson Font A on 58mm"
+                />
+              )}
             />
             <form.AppField
               name="is_default"
