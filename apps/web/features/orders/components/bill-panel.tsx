@@ -588,9 +588,16 @@ export default function OrderBillPanel({
   };
   const fireMut = useMutation({
     mutationFn: () => fireKOT(orderId),
-    onSuccess: (kot) => {
+    onSuccess: async (kot) => {
       invalidateBill(orderId, queryClient);
       toast.success(`KOT #${kot.kot_number} fired to kitchen`);
+      const { latestJobForRef } = await import("@/features/print-studio/api/service");
+      const job = await latestJobForRef("KOT", kot.id).catch(() => null);
+      if (job && job.status !== "SENT") {
+        toast.warning(
+          `KOT print ${job.status.toLowerCase()}: ${job.last_error ?? "see Print History"}. Retry there.`,
+        );
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });

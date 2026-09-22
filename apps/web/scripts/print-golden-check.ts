@@ -12,6 +12,7 @@ import type { KitchenTicket } from "../features/kitchen/api/types";
 import type { Outlet } from "../features/outlet/api/types";
 import type { PrintTemplate } from "../features/print-studio/api/types";
 import { activeUpiId } from "../features/outlet/api/types";
+import { enqueuePrint } from "../features/print-studio/api/service";
 
 let failures = 0;
 function check(name: string, cond: boolean, extra = ""): void {
@@ -277,10 +278,14 @@ for (const paper of papers) {
   check("settled bill shows no QR", !renderText(settled, "P80").some((l) => l.includes("[QR]")));
 }
 
-console.log(failures === 0 ? "\nALL GOLDEN CHECKS PASSED" : `\n${failures} FAILURES`);
+console.log(failures === 0 ? "\nALL GOLDEN CHECKS PASSED (sync)" : `\n${failures} FAILURES`);
 
-// Multi-UPI default resolution: exactly one default feeds the QR.
-{
+async function asyncChecks(): Promise<void> {
+  // Never-throw enqueue: missing order / no printer leaves a FAILED trace.
+  const job = await enqueuePrint("BILL", "order_that_does_not_exist");
+  check("failed assemble parks FAILED job", job.status === "FAILED" && !!job.last_error);
+
+  // Multi-UPI default resolution: exactly one default feeds the QR.
   const multi = {
     upi_ids: [
       { id: "u1", label: "Owner", vpa: "owner@upi", is_active: false, created_at: "" },
@@ -289,5 +294,12 @@ console.log(failures === 0 ? "\nALL GOLDEN CHECKS PASSED" : `\n${failures} FAILU
   };
   check("default VPA resolves", activeUpiId(multi as never) === "counter@upi");
   check("none active disables QR", activeUpiId({ upi_ids: [] } as never) === null);
+
+  console.log(failures === 0 ? "ALL GOLDEN CHECKS PASSED" : `${failures} FAILURES`);
+  process.exit(failures === 0 ? 0 : 1);
 }
-process.exit(failures === 0 ? 0 : 1);
+
+asyncChecks().catch((e: unknown) => {
+  console.error(e instanceof Error ? e.message : e);
+  process.exit(1);
+});

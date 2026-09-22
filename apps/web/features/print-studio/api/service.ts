@@ -228,7 +228,7 @@ async function assembleDoc(
   purpose: PrintPurpose,
   ref_id: string,
   opts?: { isDuplicate?: boolean; reprintReason?: string },
-): Promise<{ doc: PrintDoc; outlet_id: string; refLabel: string }> {
+): Promise<{ doc: PrintDoc; outlet_id: string; refLabel: string; qr: string }> {
   const outlet = await getOutlet();
   const template = await getTemplate(purpose, outlet.id);
   if (purpose === "BILL") {
@@ -244,6 +244,13 @@ async function assembleDoc(
     // twice against us without a mismatching tr + amount at reconciliation.
     const defaultVpa = activeUpiId(outlet);
     const showQR = template.qr === "UPI" && !!defaultVpa && balance > 0;
+    const qr = showQR
+      ? "shown"
+      : !defaultVpa
+        ? "suppressed:no-default-vpa"
+        : balance <= 0
+          ? "suppressed:settled"
+          : "suppressed:kind-off";
     return {
       doc: buildBillDoc({
         billing: { order, paid_paise: paid, balance_paise: balance },
@@ -257,6 +264,7 @@ async function assembleDoc(
       }),
       outlet_id: outlet.id,
       refLabel: order.order_number,
+      qr,
     };
   }
   if (purpose === "KOT") {
@@ -266,6 +274,7 @@ async function assembleDoc(
       doc: buildKOTDoc({ ticket, outlet, template }),
       outlet_id: outlet.id,
       refLabel: `KOT-${ticket.kot_number}`,
+      qr: "n/a",
     };
   }
   const order = await getOrderById(ref_id);
@@ -279,6 +288,7 @@ async function assembleDoc(
     }),
     outlet_id: outlet.id,
     refLabel: order.order_number,
+    qr: template.qr === "ORDER" ? "shown" : "n/a",
   };
 }
 
@@ -368,22 +378,22 @@ function concatBytes(a: Uint8Array, b: Uint8Array): Uint8Array {
   return out;
 }
 
-/** Enqueue a print (auto-fire on KOT/collect/complete call this). Processes inline when online. */
+/** Enqueue a print (auto-fire on KOT/collect/complete call this). The job row
+ * is created BEFORE printer resolution, so a missing printer, failed
+ * assembly, or dead transport always leaves a visible QUEUED/FAILED trace —
+ * never a silent throw. Processes inline when online. */
 export async function enqueuePrint(
   purpose: PrintPurpose,
   ref_id: string,
   opts?: { isDuplicate?: boolean; reprintReason?: string; created_by?: string },
 ): Promise<PrintJob> {
-  const { doc, outlet_id } = await assembleDoc(purpose, ref_id, opts);
-  const printer = await resolvePrinter(purpose, outlet_id);
-  if (!printer) throw new Error("no active printer: add one in Print Studio settings");
   const job: PrintJob = {
     id: `pj_${ulid().toLowerCase()}`,
-    outlet_id,
+    outlet_id: OUTLET_ID,
     purpose,
     ref_id,
-    printer_id: printer.id,
-    doc_hash: doc.hash,
+    printer_id: "pending",
+    doc_hash: "pending",
     is_reprint: opts?.isDuplicate ?? false,
     reprint_reason: opts?.reprintReason,
     status: "QUEUED",
@@ -395,17 +405,61 @@ export async function enqueuePrint(
   const jobs = readJobs();
   jobs.push(job);
   save(JOB_KEY, jobs);
+
+  try {
+    const { doc, outlet_id, qr } = await assembleDoc(purpose, ref_id, opts);
+    const printer = await resolvePrinter(purpose, outlet_id);
+    if (!printer) {
+      return parkJob(job, "no active printer: add one in Print Studio settings", qr, outlet_id);
+    }
+    Object.assign(job, { outlet_id, printer_id: printer.id, doc_hash: doc.hash });
+    save(JOB_KEY, jobs);
+    await recordEvent({
+      outlet_id,
+      entity_type: "PRINT_JOB",
+      entity_id: job.id,
+      event_type: "PRINT_QUEUED",
+      metadata: { purpose, ref_id, printer_id: printer.id, doc_hash: doc.hash, qr },
+      actor_id: opts?.created_by,
+    });
+    await sendJob({ ...job }, doc, printer);
+  } catch (e) {
+    return parkJob(job, e instanceof Error ? e.message : "assemble failed", "error", job.outlet_id);
+  }
+  const latest = readJobs().find((j) => j.id === job.id);
+  return latest ?? job;
+}
+
+/** Park a job as FAILED with a visible reason (no silent throws). */
+async function parkJob(
+  job: PrintJob,
+  error: string,
+  qr: string,
+  outlet_id: string,
+): Promise<PrintJob> {
+  const jobs = readJobs();
+  const idx = jobs.findIndex((j) => j.id === job.id);
+  const updated = {
+    ...job,
+    outlet_id,
+    status: "FAILED" as const,
+    attempts: job.attempts + 1,
+    last_error: error,
+    updated_at: now(),
+  };
+  if (idx >= 0) jobs[idx] = updated;
+  else jobs.push(updated);
+  save(JOB_KEY, jobs);
   await recordEvent({
     outlet_id,
     entity_type: "PRINT_JOB",
     entity_id: job.id,
-    event_type: "PRINT_QUEUED",
-    metadata: { purpose, ref_id, printer_id: printer.id, doc_hash: doc.hash },
-    actor_id: opts?.created_by,
+    event_type: "PRINT_FAILED",
+    reason_text: error,
+    metadata: { purpose: job.purpose, ref_id: job.ref_id, attempt: updated.attempts, qr },
+    actor_id: job.created_by,
   });
-  await sendJob({ ...job }, doc, printer);
-  const latest = readJobs().find((j) => j.id === job.id);
-  return latest ?? job;
+  return { ...updated };
 }
 
 /** Auto-print guards: template flag on, printer resolvable. Never throw — a
@@ -438,6 +492,18 @@ export async function maybeAutoPrintBill(order_id: string, by?: string): Promise
   } catch (e) {
     console.error("[print-studio] auto bill print failed", e);
   }
+}
+
+/** Latest job for a purpose+ref — lets settle/fire toasts tell the truth. */
+export async function latestJobForRef(
+  purpose: PrintPurpose,
+  ref_id: string,
+): Promise<PrintJob | null> {
+  await delay(50);
+  const hits = readJobs().filter((j) => j.purpose === purpose && j.ref_id === ref_id);
+  if (hits.length === 0) return null;
+  hits.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+  return { ...hits[0] };
 }
 
 /** Reprint: new job on the immutable snapshot, audited with mandatory reason. */
