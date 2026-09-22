@@ -127,6 +127,15 @@ export default function PrinterForm({
               )}
             />
             <form.AppField
+              name="supports_raster"
+              children={(field) => (
+                <field.SwitchField
+                  label="Raster graphics (GS v 0)"
+                  description="Off for emulators — they drop graphics and the receipt vanishes"
+                />
+              )}
+            />
+            <form.AppField
               name="is_default"
               children={(field) => (
                 <field.SwitchField

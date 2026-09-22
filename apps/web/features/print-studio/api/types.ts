@@ -26,6 +26,8 @@ export type Printer = {
   paper: PaperSize;
   /** Printable columns override (e.g. 42 for Epson Font A on 58mm). Blank = paper default. */
   chars_per_line?: number;
+  /** Raster (GS v 0) support. Off for emulators that drop graphics. Default on. */
+  supports_raster?: boolean;
   is_default: boolean;
   is_active: boolean;
   created_at: string;

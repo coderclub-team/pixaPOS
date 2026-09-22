@@ -9,6 +9,7 @@ export const printerSchema = z.object({
   paper: z.enum(["P58", "P78", "P80"]),
   /** Blank = paper default (48/72/80). Epson Font A on 58mm needs 42. */
   chars_per_line: z.string().optional(),
+  supports_raster: z.boolean(),
   is_default: z.boolean(),
   is_active: z.boolean(),
 });

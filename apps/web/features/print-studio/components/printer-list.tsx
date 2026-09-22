@@ -139,6 +139,7 @@ function printerValues(p: Printer) {
     port: p.port != null ? String(p.port) : "",
     paper: p.paper,
     chars_per_line: p.chars_per_line != null ? String(p.chars_per_line) : "",
+    supports_raster: p.supports_raster ?? true,
     is_default: p.is_default,
     is_active: p.is_active,
   };

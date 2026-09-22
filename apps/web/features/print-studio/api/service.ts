@@ -103,6 +103,7 @@ export async function getPrinters(outlet_id = OUTLET_ID): Promise<Printer[]> {
         address: "localhost",
         port: 9100,
         paper: "P80",
+        supports_raster: false,
         is_default: true,
         is_active: true,
         created_at: now(),
@@ -438,6 +439,8 @@ export async function enqueuePrint(
       }
       if (!template.show_logo) {
         logo = "omitted:toggle-off";
+      } else if (printer.supports_raster === false) {
+        logo = "omitted:no-raster-support";
       } else if (!logoUrl.startsWith("http")) {
         logo = "omitted:no-logo-url";
       } else {

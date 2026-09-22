@@ -37,6 +37,7 @@ export default function PrintersPage() {
               port: "9100",
               paper: "P80",
               chars_per_line: "",
+              supports_raster: true,
               is_default: printers.length === 0,
               is_active: true,
             }}
