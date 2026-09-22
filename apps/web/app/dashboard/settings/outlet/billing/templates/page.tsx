@@ -117,6 +117,7 @@ function useSampleDoc(purpose: PrintPurpose, outletId: string) {
 export default function TemplatesPage() {
   const [purpose, setPurpose] = useState<PrintPurpose>("BILL");
   const { data: template, isPending } = useQuery(templateQueryOptions(purpose));
+  const { data: outlet } = useQuery(outletQueryOptions);
   const doc = useSampleDoc(purpose, "out_001");
 
   return (
@@ -148,7 +149,17 @@ export default function TemplatesPage() {
               purpose={purpose}
               initialData={templateToValues(template)}
             />
-            {doc && <ReceiptPreview doc={doc} title={`${purpose} preview`} />}
+            {doc && (
+              <ReceiptPreview
+                doc={doc}
+                title={`${purpose} preview`}
+                logoUrl={
+                  template.show_logo && outlet?.logo_url && typeof outlet.logo_url === "string"
+                    ? outlet.logo_url
+                    : undefined
+                }
+              />
+            )}
           </>
         )}
       </div>

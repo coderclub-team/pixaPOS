@@ -62,6 +62,15 @@ export default function TemplateForm({
         >
           <FieldGroup>
             <form.AppField
+              name="show_logo"
+              children={(field) => (
+                <field.SwitchField
+                  label="Outlet logo"
+                  description="Shows in previews now; thermal raster printing follows in a later phase"
+                />
+              )}
+            />
+            <form.AppField
               name="auto_print"
               children={(field) => (
                 <field.SwitchField

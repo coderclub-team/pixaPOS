@@ -62,8 +62,16 @@ export default function BillPrintPreview({ orderId }: { orderId: string }) {
         <Icons.chevronRight className={cn("size-4 transition-transform", open && "rotate-90")} />
       </Button>
       {open &&
-        (doc ? (
-          <ReceiptPreview doc={doc} title="Bill preview" />
+        (doc && outlet && template ? (
+          <ReceiptPreview
+            doc={doc}
+            title="Bill preview"
+            logoUrl={
+              template.show_logo && typeof outlet.logo_url === "string" && outlet.logo_url
+                ? outlet.logo_url
+                : undefined
+            }
+          />
         ) : (
           <p className="text-xs text-muted-foreground">Loading preview…</p>
         ))}

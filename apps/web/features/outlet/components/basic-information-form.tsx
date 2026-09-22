@@ -11,7 +11,6 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateOutlet } from "../api/service";
 import { outletKeys } from "../api/queries";
-import { LogoUploadField } from "./logo-upload-field";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -24,7 +23,24 @@ export default function BasicInformationForm({
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: (values: BasicInformationValues) => updateOutlet(values),
+    // Logo uploads on Save, not on pick: a staged File[] is POSTed to
+    // /api/outlet-logo first and the returned URL is what gets persisted.
+    mutationFn: async (values: BasicInformationValues) => {
+      const logo = (values as { logo_url?: string | File[] }).logo_url;
+      if (Array.isArray(logo) && logo.length > 0 && logo[0] instanceof File) {
+        const form = new FormData();
+        form.append("file", logo[0]);
+        form.append("outlet_id", "out_001");
+        const res = await fetch("/api/outlet-logo", { method: "POST", body: form });
+        const data = (await res.json().catch(() => null)) as {
+          url?: string;
+          error?: string;
+        } | null;
+        if (!res.ok || !data?.url) throw new Error(data?.error ?? "Logo upload failed");
+        return updateOutlet({ ...values, logo_url: data.url });
+      }
+      return updateOutlet(values);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: outletKeys.all });
       toast.success("Basic information updated");
@@ -37,7 +53,12 @@ export default function BasicInformationForm({
     defaultValues: initialData,
     validators: { onSubmit: basicInformationSchema },
     onSubmit: async ({ value }) => {
-      await mutation.mutateAsync(value);
+      const updated = await mutation.mutateAsync(value);
+      // Swap the staged File[] for the persisted URL so the preview survives
+      // without a reload.
+      if (typeof updated.logo_url === "string") {
+        form.setFieldValue("logo_url", updated.logo_url);
+      }
     },
   });
 
@@ -88,10 +109,12 @@ export default function BasicInformationForm({
             </div>
             <form.AppField
               name="logo_url"
-              children={() => (
-                <LogoUploadField
+              children={(field) => (
+                <field.FileUploadField
                   label="Logo"
-                  description="Upload outlet logo (JPG, PNG, WebP, max 5MB)"
+                  description="Pick a logo (JPG, PNG, WebP, max 5MB) — uploads when you save"
+                  maxSize={5 * 1024 * 1024}
+                  maxFiles={1}
                 />
               )}
             />

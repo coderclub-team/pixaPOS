@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { Button } from "@pixa/ui/base-ui/button";
 import { renderText } from "../api/render";
@@ -11,7 +12,15 @@ import { cn } from "@pixa/ui/lib/utils";
 const PAPERS: PaperSize[] = ["P58", "P78", "P80"];
 
 /** Live text preview of a print doc with paper-width switcher. */
-export default function ReceiptPreview({ doc, title }: { doc: PrintDoc; title: string }) {
+export default function ReceiptPreview({
+  doc,
+  title,
+  logoUrl,
+}: {
+  doc: PrintDoc;
+  title: string;
+  logoUrl?: string;
+}) {
   const [paper, setPaper] = useState<PaperSize>("P80");
   const lines = renderText(doc, paper);
   return (
@@ -34,6 +43,17 @@ export default function ReceiptPreview({ doc, title }: { doc: PrintDoc; title: s
         </div>
       </CardHeader>
       <CardContent>
+        {logoUrl ? (
+          <div className="mb-2 flex justify-center">
+            <Image
+              src={logoUrl}
+              alt="Outlet logo preview"
+              width={96}
+              height={96}
+              className="max-h-24 object-contain"
+            />
+          </div>
+        ) : null}
         <pre
           className={cn(
             "overflow-x-auto rounded-lg bg-zinc-950 p-4 font-mono text-[11px] leading-relaxed text-zinc-100",
