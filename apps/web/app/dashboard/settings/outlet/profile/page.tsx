@@ -5,6 +5,7 @@ import BasicInformationForm from "@/features/outlet/components/basic-information
 import ContactForm from "@/features/outlet/components/contact-form";
 import AddressForm from "@/features/outlet/components/address-form";
 import BusinessDetailsForm from "@/features/outlet/components/business-details-form";
+import UpiAccountsManager from "@/features/outlet/components/upi-accounts-manager";
 import { outletQueryOptions } from "@/features/outlet/api/queries";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@pixa/ui/base-ui/tabs";
@@ -28,6 +29,7 @@ export default function OutletProfilePage() {
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="address">Address</TabsTrigger>
           <TabsTrigger value="legal">Legal & Tax</TabsTrigger>
+          <TabsTrigger value="payments">Payments</TabsTrigger>
         </TabsList>
         <TabsContent value="general" className="space-y-6 pt-4">
           <BasicInformationForm
@@ -75,6 +77,9 @@ export default function OutletProfilePage() {
               fssai_number: outlet.fssai_number ?? "",
             }}
           />
+        </TabsContent>
+        <TabsContent value="payments" className="pt-4">
+          <UpiAccountsManager outlet={outlet} />
         </TabsContent>
       </Tabs>
       <div className="mt-4 grid grid-cols-2 gap-4 text-sm text-muted-foreground">

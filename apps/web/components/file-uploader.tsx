@@ -123,12 +123,15 @@ export function FileUploader(props: FileUploaderProps) {
         return;
       }
 
-      const newFiles = acceptedFiles.map(
-        (file) =>
-          Object.assign(Object.create(File.prototype), file, {
-            preview: URL.createObjectURL(file),
-          }) as File & { preview: string },
-      );
+      const newFiles = acceptedFiles.map((file) => {
+        // Attach the preview to the REAL File object. Never fake the
+        // prototype (Object.create(File.prototype)) — File getters (.name,
+        // .size, .slice) require the internal slot and throw
+        // "Illegal invocation" on impostors.
+        const withPreview = file as File & { preview?: string };
+        withPreview.preview = URL.createObjectURL(file);
+        return withPreview as File & { preview: string };
+      });
 
       const updatedFiles = files ? [...(files as File[]), ...newFiles] : newFiles;
 

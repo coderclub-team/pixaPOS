@@ -27,3 +27,28 @@ export async function uploadMenuImage(kind: string, file: File): Promise<string>
 export async function menuImageUrl(key: string, expiresIn = 3600): Promise<string> {
   return files().url(key, { expiresIn });
 }
+
+const LOGO_BUCKET = "outlet-assets";
+
+let logoCached: Files | null = null;
+
+function logoFiles() {
+  if (!logoCached) logoCached = new Files({ adapter: neon({ bucket: LOGO_BUCKET }) });
+  return logoCached;
+}
+
+/**
+ * Outlet logo upload (server-only): validates logo constraints and stores to
+ * the public-read `outlet-assets` bucket. Keys are versioned per upload
+ * (`logos/<outlet>/<uuid>.<ext>`) so cached objects never go stale.
+ * Returns the public URL — safe to persist on the outlet and print on bills.
+ */
+export async function uploadOutletLogo(outletId: string, file: File): Promise<string> {
+  const safeOutlet = /^[a-z0-9_-]+$/i.test(outletId) ? outletId : "default";
+  const ext = (file.name.split(".").pop() ?? "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const key = `logos/${safeOutlet}/${crypto.randomUUID()}.${ext || "jpg"}`;
+  await logoFiles().upload(key, file, { contentType: file.type || "image/jpeg" });
+  const endpoint = process.env.AWS_ENDPOINT_URL_S3?.replace(/\/$/, "");
+  if (!endpoint) throw new Error("storage endpoint not configured");
+  return `${endpoint}/${LOGO_BUCKET}/${key}`;
+}

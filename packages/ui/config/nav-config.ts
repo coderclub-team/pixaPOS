@@ -145,6 +145,24 @@ export const navGroups: NavGroup[] = [
             icon: "billing",
             shortcut: ["o", "i"],
           },
+          {
+            title: "Printers",
+            url: "/dashboard/settings/outlet/billing/printers",
+            icon: "printer",
+            shortcut: ["o", "p"],
+          },
+          {
+            title: "Print Templates",
+            url: "/dashboard/settings/outlet/billing/templates",
+            icon: "printer",
+            shortcut: ["o", "p", "t"],
+          },
+          {
+            title: "Print History",
+            url: "/dashboard/settings/outlet/billing/history",
+            icon: "printer",
+            shortcut: ["o", "p", "h"],
+          },
         ],
       },
       {

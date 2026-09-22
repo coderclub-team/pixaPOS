@@ -11,6 +11,7 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateOutlet } from "../api/service";
 import { outletKeys } from "../api/queries";
+import { LogoUploadField } from "./logo-upload-field";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -87,12 +88,10 @@ export default function BasicInformationForm({
             </div>
             <form.AppField
               name="logo_url"
-              children={(field) => (
-                <field.FileUploadField
+              children={() => (
+                <LogoUploadField
                   label="Logo"
                   description="Upload outlet logo (JPG, PNG, WebP, max 5MB)"
-                  maxSize={5 * 1024 * 1024}
-                  maxFiles={1}
                 />
               )}
             />
