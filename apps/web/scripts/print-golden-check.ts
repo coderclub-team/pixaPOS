@@ -313,6 +313,16 @@ async function asyncChecks(): Promise<void> {
   });
   check("logo bill starts with image", logoBill.lines[0].kind === "image");
   check("logo preview marker", renderText(logoBill, "P80")[0].includes("[LOGO]"));
+  const logoKot = buildKOTDoc({ ticket, outlet, template: template("KOT"), logoRows: checker });
+  check("logo KOT starts with image", logoKot.lines[0].kind === "image");
+  const logoToken = buildTokenDoc({
+    orderNumber: "A-1024",
+    tokenNo: "T-42",
+    outlet,
+    template: template("TOKEN"),
+    logoRows: checker,
+  });
+  check("logo token starts with image", logoToken.lines[0].kind === "image");
   // Never-throw enqueue: missing order / no printer leaves a FAILED trace.
   const job = await enqueuePrint("BILL", "order_that_does_not_exist");
   check("failed assemble parks FAILED job", job.status === "FAILED" && !!job.last_error);

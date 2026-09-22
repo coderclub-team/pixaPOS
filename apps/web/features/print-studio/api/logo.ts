@@ -1,6 +1,8 @@
 /**
  * Logo rasterizer (browser-only): image URL -> 1-bit rows for ESC/POS
  * `GS v 0` raster printing. Uses createImageBitmap + canvas (no new deps).
+ * Fetches through the same-origin proxy (/api/outlet-logo/image) because the
+ * bucket sends no CORS headers and canvas pixel reads require CORS.
  * Returns null when offline, undecodable, or not in a browser — callers omit
  * the logo and print on, never fail the job for it.
  */
@@ -10,7 +12,7 @@ export async function rasterizeLogoUrl(
 ): Promise<boolean[][] | null> {
   try {
     if (typeof window === "undefined" || typeof createImageBitmap !== "function") return null;
-    const res = await fetch(url, { mode: "cors" });
+    const res = await fetch(`/api/outlet-logo/image?url=${encodeURIComponent(url)}`);
     if (!res.ok) return null;
     const blob = await res.blob();
     if (!blob.type.startsWith("image/")) return null;

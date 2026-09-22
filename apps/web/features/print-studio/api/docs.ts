@@ -225,9 +225,11 @@ export function buildKOTDoc(args: {
   outlet: Outlet;
   template: PrintTemplate;
   tokenNo?: string;
+  logoRows?: boolean[][];
 }): PrintDoc {
-  const { ticket, outlet, template, tokenNo } = args;
+  const { ticket, outlet, template, tokenNo, logoRows } = args;
   const lines: DocLine[] = [
+    ...(logoRows && logoRows.length > 0 ? [{ kind: "image" as const, rows: logoRows }] : []),
     {
       kind: "text",
       text: `*** KOT #${ticket.kot_number} ***`,
@@ -279,9 +281,11 @@ export function buildTokenDoc(args: {
   template: PrintTemplate;
   trackingUrl?: string;
   itemCount?: number;
+  logoRows?: boolean[][];
 }): PrintDoc {
-  const { orderNumber, tokenNo, outlet, template, trackingUrl, itemCount } = args;
+  const { orderNumber, tokenNo, outlet, template, trackingUrl, itemCount, logoRows } = args;
   const lines: DocLine[] = [
+    ...(logoRows && logoRows.length > 0 ? [{ kind: "image" as const, rows: logoRows }] : []),
     ...headerLines(outlet, template),
     { kind: "text", text: "*** TAKEAWAY TOKEN ***", align: "center", bold: true },
     { kind: "text", text: tokenNo, align: "center", bold: true, double: true },

@@ -274,7 +274,7 @@ async function assembleDoc(
     const ticket = await getTicketById(ref_id);
     if (!ticket) throw new Error("KOT not found");
     return {
-      doc: buildKOTDoc({ ticket, outlet, template }),
+      doc: buildKOTDoc({ ticket, outlet, template, logoRows: opts?.logoRows }),
       outlet_id: outlet.id,
       refLabel: `KOT-${ticket.kot_number}`,
       qr: "n/a",
@@ -288,6 +288,7 @@ async function assembleDoc(
       tokenNo: order.order_number,
       outlet,
       template,
+      logoRows: opts?.logoRows,
     }),
     outlet_id: outlet.id,
     refLabel: order.order_number,
@@ -420,13 +421,19 @@ export async function enqueuePrint(
         pre.outlet_id,
       );
     }
-    // Bill logo: rasterize the outlet logo to the printer's dot width when
-    // the template asks for it. Offline/undecodable -> omit, never fail.
+    // Logo: rasterize the outlet logo to the printer's dot width when the
+    // template asks for it. Source prefers the local mirror, falling back to
+    // the organization logo (server truth) so fresh hosts print it too.
+    // Offline/undecodable -> omit, never fail.
     let doc = pre.doc;
-    if (purpose === "BILL") {
+    {
       const outlet = await getOutlet();
-      const template = await getTemplate("BILL", outlet.id);
-      const logoUrl = typeof outlet.logo_url === "string" ? outlet.logo_url : "";
+      const template = await getTemplate(purpose, outlet.id);
+      let logoUrl = typeof outlet.logo_url === "string" ? outlet.logo_url : "";
+      if (!logoUrl.startsWith("http")) {
+        const { getOrganizationLogo } = await import("@/features/outlet/api/service");
+        logoUrl = (await getOrganizationLogo().catch(() => null)) ?? "";
+      }
       if (template.show_logo && logoUrl.startsWith("http")) {
         const dots = PAPER_PROFILES[printer.paper].dots;
         const rows = await rasterizeLogoUrl(logoUrl, dots).catch(() => null);
