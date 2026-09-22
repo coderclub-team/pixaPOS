@@ -34,6 +34,7 @@ import TableOpsDialog from "@/features/table/components/table-ops-dialog";
 import CheckoutDialog from "./checkout-dialog";
 import ReturnDialog, { type ReturnTarget } from "./return-dialog";
 import ReprintDialog from "@/features/print-studio/components/reprint-dialog";
+import BillPrintPreview from "@/features/print-studio/components/bill-print-preview";
 import {
   paymentsByOrderQueryOptions,
   paymentKeys,
@@ -839,6 +840,8 @@ export default function OrderBillPanel({
             </Button>
           )}
         </section>
+
+        <BillPrintPreview orderId={orderId} />
 
         {showCancel && <CancelOrderBlock orderId={orderId} />}
       </CardContent>
