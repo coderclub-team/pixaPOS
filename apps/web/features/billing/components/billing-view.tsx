@@ -78,7 +78,7 @@ export default function BillingView({
 }: {
   outletId: string;
   outletName: string;
-  /** Clerk org createdAt (ms) — anchors the trial clock; else local first-seen. */
+  /** Better Auth org createdAt (ms) — anchors the trial clock; else local first-seen. */
   orgCreatedAt?: number;
 }) {
   const trialAnchor = orgCreatedAt ? new Date(orgCreatedAt).toISOString() : undefined;

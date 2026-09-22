@@ -44,7 +44,7 @@ type CompatUser = {
   name: string;
   email: string;
   imageUrl?: string;
-  /** Clerk shape mirror for UserAvatarProfile. */
+  /** Legacy avatar shape kept for UserAvatarProfile compat. */
   fullName: string;
   emailAddresses: { emailAddress: string }[];
 };

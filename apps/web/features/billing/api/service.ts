@@ -52,7 +52,7 @@ export async function getSubscription(outletId: string): Promise<SubscriptionVie
 
 /**
  * Create the trial subscription if missing. Trial clock pins first-wins:
- * pass Clerk org `createdAt` when available, else local first-seen is stored.
+ * pass the Better Auth org `createdAt` when available, else local first-seen is stored.
  * NOTE (audit follow-up): subscription lifecycle events are not yet in the
  * business-event trail — Razorpay dashboard is the audit source short-term.
  */

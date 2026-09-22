@@ -43,7 +43,7 @@ export type Subscription = {
   id: string;
   outlet_id: string;
   plan_id: string;
-  /** Trial clock anchor. Pinned first-wins: Clerk org createdAt when available,
+  /** Trial clock anchor. Pinned first-wins: Better Auth org createdAt when available,
    * else local first-seen (documented tradeoff — a data wipe restarts it). */
   trial_started_at: string;
   razorpay_subscription_id?: string;

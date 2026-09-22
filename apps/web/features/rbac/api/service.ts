@@ -1,5 +1,5 @@
 /**
- * RBAC data layer on Postgres (Phase 1 strangler: replaces Clerk-backed reads).
+ * RBAC data layer on Postgres (Better Auth organization roles).
  * Roles are config-defined (lib/auth.ts access control); the admin UI persists
  * grants/revokes as overrides layered on the config base.
  */

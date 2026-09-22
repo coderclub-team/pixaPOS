@@ -265,7 +265,8 @@ export function RolesPermissionsPage({ data }: { data: RolesPermissionsData }) {
       {missingPermissions.length > 0 && (
         <p className="text-xs text-muted-foreground">
           {missingPermissions.length} POS permission{missingPermissions.length === 1 ? "" : "s"}{" "}
-          used by this app {missingPermissions.length === 1 ? "does" : "do"} not exist in Clerk yet:
+          used by this app {missingPermissions.length === 1 ? "does" : "do"} not exist in the
+          organization roles yet:
           <span className="ml-1 font-mono">
             {missingPermissions
               .slice(0, 4)
