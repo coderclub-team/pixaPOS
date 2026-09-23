@@ -503,6 +503,8 @@ Additional Outlet
 
 The exact pricing is a business decision, but the architecture should support outlet-based usage limits.
 
+See also: `docs/pixaPOS-saas-plans-indian-pricing.md` (parked draft — plan tiers, open pricing questions, do-not-touch list).
+
 ---
 
 ## 13. Workspace Creation vs Outlet Creation
