@@ -630,6 +630,8 @@ export default function FloorPlanCanvas({
   const [objOverrides, setObjOverrides] = useState<Record<string, Pose & { rotation: number }>>({});
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [addingSpec, setAddingSpec] = useState<PaletteSpec | null>(null);
+  /** Shape palette starts collapsed (it hid tables); toolbar toggles it. */
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const dragRef = useRef<DragSession>(null);
   const rafRef = useRef<number | null>(null);
   // M10: client-side undo stack of inverse pose mutations (cap 50)
@@ -643,6 +645,31 @@ export default function FloorPlanCanvas({
 
   const grid = layout.floor.grid_size_mm || 100;
   const snap = (v: number) => Math.round(v / grid) * grid;
+
+  // Edit mode: fit the whole floor on load/floor-change (single-page canvas).
+  // Deps are scalar floor identity — never the layout object (invalidations
+  // must not yank the view mid-edit).
+  useEffect(() => {
+    if (!editable) return;
+    fitToFloor();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editable, layout.floor.id, layout.floor.width_mm, layout.floor.height_mm]);
+
+  const fitToFloor = () => {
+    const m = 1000;
+    setViewBox({
+      x: -m,
+      y: -m,
+      w: layout.floor.width_mm + 2 * m,
+      h: layout.floor.height_mm + 2 * m,
+    });
+    setZoom(1);
+  };
+
+  /** Guided view step (edit mode): D-pad replaces drag-pan. */
+  const nudgeView = (dx: number, dy: number) => {
+    setViewBox((prev) => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
+  };
 
   const invalidateLayout = () => {
     queryClient.invalidateQueries({ queryKey: floorKeys.layout(floorId) });
@@ -1310,7 +1337,9 @@ export default function FloorPlanCanvas({
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (e.button === 1 || (e.button === 0 && e.altKey)) {
+    // Background-drag pan exists only in operations mode. Edit mode is a
+    // fixed single-page canvas (D-pad + Fit move the view instead).
+    if (!editable && (e.button === 1 || (e.button === 0 && e.altKey))) {
       setIsPanning(true);
       setDragStart({ x: e.clientX, y: e.clientY });
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -1331,10 +1360,11 @@ export default function FloorPlanCanvas({
     }
   };
 
-  // H3: wheel zoom to cursor via non-passive listener (React onWheel is passive)
+  // H3: wheel zoom to cursor via non-passive listener (React onWheel is passive).
+  // Operations only — the editor is fit-only.
   useEffect(() => {
     const el = containerRef.current;
-    if (!el) return;
+    if (!el || editable) return;
     const onWheelNative = (e: WheelEvent) => {
       e.preventDefault();
       const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
@@ -1352,7 +1382,7 @@ export default function FloorPlanCanvas({
     };
     el.addEventListener("wheel", onWheelNative, { passive: false });
     return () => el.removeEventListener("wheel", onWheelNative);
-  }, [floorId]);
+  }, [floorId, editable]);
 
   // H7: pointercancel / lost capture / blur cleanup — never leave a stuck drag
   useEffect(() => {
@@ -1440,29 +1470,31 @@ export default function FloorPlanCanvas({
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-xl border bg-zinc-50 dark:bg-zinc-950">
-      <div className="absolute left-4 top-12 z-10 flex max-w-[220px] flex-wrap gap-1.5 rounded-lg bg-background/80 p-2 backdrop-blur-sm">
-        {editable &&
-          SHAPE_PALETTE.map((spec) => (
-            <Button
-              key={spec.key}
-              variant={addingSpec?.key === spec.key ? "default" : "secondary"}
-              size="sm"
-              className="h-7 px-2 text-xs"
-              onClick={() => setAddingSpec((s) => (s?.key === spec.key ? null : spec))}
-              title={`Add ${spec.label} — then click where you want it placed`}
-            >
-              {spec.label}
-            </Button>
-          ))}
-        {!editable && (
-          <span className="px-1 text-xs text-muted-foreground">
-            Operations — tap a table to select
-            {onHoldParty
-              ? " · tap a party chip to focus it · press & hold a chip to take its order"
-              : " · tap a party chip to focus it"}
-          </span>
-        )}
-      </div>
+      {((editable && paletteOpen) || !editable) && (
+        <div className="absolute left-4 top-12 z-10 flex max-w-[220px] flex-wrap gap-1.5 rounded-lg bg-background/80 p-2 backdrop-blur-sm">
+          {editable &&
+            SHAPE_PALETTE.map((spec) => (
+              <Button
+                key={spec.key}
+                variant={addingSpec?.key === spec.key ? "default" : "secondary"}
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => setAddingSpec((s) => (s?.key === spec.key ? null : spec))}
+                title={`Add ${spec.label} — then click where you want it placed`}
+              >
+                {spec.label}
+              </Button>
+            ))}
+          {!editable && (
+            <span className="px-1 text-xs text-muted-foreground">
+              Operations — tap a table to select
+              {onHoldParty
+                ? " · tap a party chip to focus it · press & hold a chip to take its order"
+                : " · tap a party chip to focus it"}
+            </span>
+          )}
+        </div>
+      )}
       <div className="absolute right-4 top-4 z-10 flex flex-col gap-2">
         {editable && (
           <>
@@ -1484,28 +1516,89 @@ export default function FloorPlanCanvas({
             >
               <Icons.trash className="size-4" />
             </Button>
+            <Button
+              variant={paletteOpen ? "default" : "secondary"}
+              size="icon-sm"
+              onClick={() => setPaletteOpen((v) => !v)}
+              title={paletteOpen ? "Hide shape palette" : "Show shape palette"}
+              aria-label={paletteOpen ? "Hide shape palette" : "Show shape palette"}
+              aria-expanded={paletteOpen}
+            >
+              <Icons.layers className="size-4" />
+            </Button>
+            <Button
+              variant="secondary"
+              size="icon-sm"
+              onClick={fitToFloor}
+              title="Fit whole floor"
+              aria-label="Fit whole floor"
+            >
+              <Icons.fit className="size-4" />
+            </Button>
+            <Button
+              variant="secondary"
+              size="icon-sm"
+              onClick={() => nudgeView(0, -1500)}
+              title="Move view up"
+              aria-label="Move view up"
+            >
+              <Icons.chevronUp className="size-4" />
+            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                size="icon-sm"
+                onClick={() => nudgeView(-1500, 0)}
+                title="Move view left"
+                aria-label="Move view left"
+              >
+                <Icons.chevronLeft className="size-4" />
+              </Button>
+              <Button
+                variant="secondary"
+                size="icon-sm"
+                onClick={() => nudgeView(1500, 0)}
+                title="Move view right"
+                aria-label="Move view right"
+              >
+                <Icons.chevronRight className="size-4" />
+              </Button>
+            </div>
+            <Button
+              variant="secondary"
+              size="icon-sm"
+              onClick={() => nudgeView(0, 1500)}
+              title="Move view down"
+              aria-label="Move view down"
+            >
+              <Icons.chevronDown className="size-4" />
+            </Button>
           </>
         )}
-        <Button
-          variant="secondary"
-          size="icon-sm"
-          className="max-lg:h-11 max-lg:w-11"
-          onClick={() => zoomCenter(1.2)}
-          title="Zoom in"
-          aria-label="Zoom in"
-        >
-          <Icons.add className="size-4 max-lg:size-5" />
-        </Button>
-        <Button
-          variant="secondary"
-          size="icon-sm"
-          className="max-lg:h-11 max-lg:w-11"
-          onClick={() => zoomCenter(1 / 1.2)}
-          title="Zoom out"
-          aria-label="Zoom out"
-        >
-          <Icons.chevronDown className="size-4 rotate-180 max-lg:size-5" />
-        </Button>
+        {!editable && (
+          <>
+            <Button
+              variant="secondary"
+              size="icon-sm"
+              className="max-lg:h-11 max-lg:w-11"
+              onClick={() => zoomCenter(1.2)}
+              title="Zoom in"
+              aria-label="Zoom in"
+            >
+              <Icons.add className="size-4 max-lg:size-5" />
+            </Button>
+            <Button
+              variant="secondary"
+              size="icon-sm"
+              className="max-lg:h-11 max-lg:w-11"
+              onClick={() => zoomCenter(1 / 1.2)}
+              title="Zoom out"
+              aria-label="Zoom out"
+            >
+              <Icons.chevronDown className="size-4 rotate-180 max-lg:size-5" />
+            </Button>
+          </>
+        )}
       </div>
       {saving && (
         <div className="absolute left-4 top-4 z-10 rounded-lg bg-background/80 px-2 py-1 text-xs backdrop-blur-sm">
@@ -1618,7 +1711,7 @@ export default function FloorPlanCanvas({
 
       <div className="absolute bottom-4 left-4 rounded-lg bg-background/80 p-2 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
         {editable
-          ? "Drag to move • Resize from handles • Rotate from the top handle • Arrow keys move the selected table • Ctrl/Cmd+Z to undo"
+          ? "Drag tables to move • Resize/rotate from handles • D-pad + Fit move the view • Arrow keys nudge selection • Ctrl/Cmd+Z to undo"
           : "Scroll to zoom • Middle Mouse / Alt+drag to pan • Click a table to select • Hold a party chip to take its order"}
       </div>
     </div>

@@ -46,6 +46,7 @@ import {
   IconFileTypeXls,
   IconFileZip,
   IconFolder,
+  IconFrame,
   IconGripVertical,
   IconHelpCircle,
   IconInfoCircle,
@@ -189,6 +190,7 @@ export const Icons = {
   login: IconLogin,
   logout: IconLogout,
   gripVertical: IconGripVertical,
+  fit: IconFrame,
 
   // Shapes / Indicators
   circle: IconCircle,

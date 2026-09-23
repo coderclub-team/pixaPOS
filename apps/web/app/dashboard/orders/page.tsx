@@ -3,9 +3,8 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import PageContainer from "@/components/layout/page-container";
-import { Button, buttonVariants } from "@pixa/ui/base-ui/button";
+import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
 import {
   DropdownMenu,
@@ -125,9 +124,6 @@ export default function OrdersPage() {
           >
             <Icons.refresh className="size-4" />
           </Button>
-          <Link href="/dashboard/orders/new" className={cn(buttonVariants(), "text-xs md:text-sm")}>
-            <Icons.add className="mr-2 h-4 w-4" /> New Order
-          </Link>
         </div>
       }
     >
