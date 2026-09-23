@@ -27,24 +27,26 @@ const WALLBOARDS = [
 export default function DashboardPage() {
   return (
     <PageContainer pageTitle="Dashboard" pageDescription="Welcome to pixaPOS">
-      <div className="mx-auto grid w-full max-w-3xl gap-4 py-10 sm:grid-cols-2">
-        {WALLBOARDS.map((w) => {
-          const WallboardIcon = WALLBOARD_ICONS[w.icon];
-          return (
-            <Card key={w.href} className="flex flex-col items-center p-8 text-center">
-              <CardHeader className="items-center p-0">
-                <WallboardIcon className="size-10 text-primary" />
-                <CardTitle className="mt-3 text-xl">{w.title}</CardTitle>
-                <CardDescription>{w.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="mt-6 p-0">
-                <Button render={<Link href={w.href} target="_blank" />}>
-                  Open {w.title} <Icons.externalLink className="size-4" />
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        })}
+      <div className="flex flex-1 items-center justify-center py-6">
+        <div className="grid w-full max-w-3xl gap-4 sm:grid-cols-2">
+          {WALLBOARDS.map((w) => {
+            const WallboardIcon = WALLBOARD_ICONS[w.icon];
+            return (
+              <Card key={w.href} className="flex flex-col items-center p-8 text-center">
+                <CardHeader className="items-center p-0">
+                  <WallboardIcon className="size-10 text-primary" />
+                  <CardTitle className="mt-3 text-xl">{w.title}</CardTitle>
+                  <CardDescription>{w.description}</CardDescription>
+                </CardHeader>
+                <CardContent className="mt-6 p-0">
+                  <Button nativeButton={false} render={<Link href={w.href} target="_blank" />}>
+                    Open {w.title} <Icons.externalLink className="size-4" />
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       </div>
     </PageContainer>
   );
