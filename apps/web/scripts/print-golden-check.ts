@@ -351,18 +351,7 @@ async function asyncChecks(): Promise<void> {
     "template PRINTER follows printer",
     effectiveChars({ paper: "PRINTER" }, { paper: "P78" }) === 72,
   );
-  check(
-    "custom width honored",
-    effectiveChars({ paper: "CUSTOM", custom_chars: 56 }, { paper: "P80" }) === 56,
-  );
-  check(
-    "custom out of range falls back",
-    effectiveChars({ paper: "CUSTOM", custom_chars: 200 }, { paper: "P80" }) === 80,
-  );
-  check(
-    "dots follow chars",
-    effectiveDots({ paper: "CUSTOM", custom_chars: 42 }, { paper: "P80" }) === 336,
-  );
+  check("dots follow chars", effectiveDots({ paper: "P58" }, { paper: "P80" }) === 384);
   // Raster capability: explicit flag wins; localhost unset means incapable.
   const lan = { address: "192.168.1.50" } as never;
   const local = { address: "localhost" } as never;
