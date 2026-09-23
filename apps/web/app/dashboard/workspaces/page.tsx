@@ -71,8 +71,9 @@ export default function WorkspacesPage() {
             <CardContent className="p-4 text-sm">
               <p className="font-medium">Welcome — one step left.</p>
               <p className="text-muted-foreground">
-                Create your outlet workspace below. Your full sidebar (sales, menu, inventory,
-                tables…) unlocks as soon as it exists.
+                Create your business workspace below (e.g. Yummy Roast). Branches like Erode or
+                Salem come later as outlets under it — never as new workspaces. Your full sidebar
+                (sales, menu, inventory, tables…) unlocks as soon as it exists.
               </p>
             </CardContent>
           </Card>
@@ -112,7 +113,7 @@ export default function WorkspacesPage() {
                 <Label htmlFor="ws-name">New workspace</Label>
                 <Input
                   id="ws-name"
-                  placeholder="Downtown outlet"
+                  placeholder="Yummy Roast"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}

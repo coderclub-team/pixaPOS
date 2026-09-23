@@ -7,7 +7,8 @@ import { useIdentity } from "@/hooks/use-identity";
 /**
  * First-run guard: a signed-in user with zero organizations owns an empty
  * sidebar (every operational item requires an org). Send them to Workspaces
- * once so they create their outlet instead of staring at a blank dashboard.
+ * once so they create their business workspace instead of staring at a blank
+ * dashboard. Branches arrive later as outlets — never as new workspaces.
  */
 export function useFirstRunRedirect() {
   const router = useRouter();
