@@ -95,7 +95,7 @@ export default function PrinterList({ printers }: { printers: Printer[] }) {
             </div>
             {(p.address === "localhost" || p.address === "127.0.0.1") && (
               <div className="truncate text-[11px] text-muted-foreground">
-                Emulator builds don&apos;t render logo raster — toggle logo off for visual QA.
+                lezram emulator drops logo raster — use escpresso (TCP :9100) for logo QA.
               </div>
             )}
           </div>
