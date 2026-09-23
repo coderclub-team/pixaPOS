@@ -51,15 +51,6 @@ export const navGroups: NavGroup[] = [
     label: "Sales",
     items: [
       {
-        title: "Order Terminal",
-        url: "/dashboard/order-terminal",
-        icon: "orders",
-        isActive: false,
-        shortcut: ["o", "t"],
-        items: [],
-        access: { requireOrg: true },
-      },
-      {
         title: "Orders",
         url: "/dashboard/orders",
         icon: "orders",
@@ -74,15 +65,6 @@ export const navGroups: NavGroup[] = [
         icon: "refund",
         isActive: false,
         shortcut: ["o", "r"],
-        items: [],
-        access: { requireOrg: true },
-      },
-      {
-        title: "Kitchen",
-        url: "/dashboard/kitchen",
-        icon: "kitchen",
-        isActive: false,
-        shortcut: ["o", "k"],
         items: [],
         access: { requireOrg: true },
       },
