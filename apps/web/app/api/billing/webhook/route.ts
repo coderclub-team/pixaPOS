@@ -31,9 +31,9 @@ export async function POST(req: Request) {
   // Skeleton acknowledges receipt so Razorpay stops retrying unknown events.
   if (event.event === "subscription.charged" || event.event === "payment.captured") {
     const entity = event.payload?.payment?.entity ?? event.payload?.subscription?.entity ?? {};
-    const outletId = entity?.notes?.outlet_id as string | undefined;
-    if (outletId && entity?.invoice_id) {
-      await reconcileRazorpayInvoice(outletId, {
+    const organizationId = entity?.notes?.organization_id as string | undefined;
+    if (organizationId && entity?.invoice_id) {
+      await reconcileRazorpayInvoice(organizationId, {
         razorpay_invoice_id: String(entity.invoice_id),
         razorpay_payment_id: entity.id ? String(entity.id) : undefined,
         razorpay_subscription_id: entity.subscription_id

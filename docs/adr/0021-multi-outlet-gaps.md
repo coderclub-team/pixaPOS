@@ -26,9 +26,11 @@ missing, plus one direct contradiction (billing scope).
 2. **No `workspace_id` in code/DB.** Zero columns/indexes; workspace joins
    work by convention only (`out_001 → org_001`).
 3. **Billing is outlet-scoped; policy demands workspace-scoped.**
-   `Subscription.outlet_id`, per-outlet query keys, Razorpay reconcile keyed
-   on outlet (`features/billing`). Only the trial clock touches the org.
-   *Contradiction, not absence — fix first when billing is touched.*
+   ~~`Subscription.outlet_id`, per-outlet query keys, Razorpay reconcile keyed
+   on outlet (`features/billing`).~~ **FIXED:** subscription + invoices keyed
+   on `organization_id` (legacy outlet-keyed rows adopted once); query keys,
+   view, page, subscribe route, and webhook reconcile on organization.
+   Only the trial clock anchor already touched the org.
 4. **Menu/suppliers are flat globals.** No workspace catalog, outlet
    availability/pricing, or supplier scoping (`RawMaterial.outlet_id?` is
    decorative; seeds hardcode `out_001`).
@@ -46,6 +48,7 @@ missing, plus one direct contradiction (billing scope).
 2. Billing re-scope (subscription → organization) rides the next billing
    change, not a standalone rewrite — until then the outlet-scoped
    implementation stands as documented tech debt.
+   → DONE 2026-09-23: subscription/invoices on `organization_id`.
 3. New outlet-owned tables MUST carry both `outlet_id` and `workspace_id`
    from day one (§11 of the architecture doc). Reviewers reject new tables
    with only one.

@@ -3,9 +3,7 @@
 import PageContainer from "@/components/layout/page-container";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Icons } from "@pixa/ui/icons";
-import { useQuery } from "@tanstack/react-query";
 import { useIdentity } from "@/hooks/use-identity";
-import { outletQueryOptions } from "@/features/outlet/api/queries";
 import { billingKeys } from "@/features/billing/api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import BillingView from "@/features/billing/components/billing-view";
@@ -13,9 +11,8 @@ import { billingInfoContent } from "@/config/infoconfig";
 
 export default function BillingPage() {
   const { organization, loaded } = useIdentity();
-  const { data: outlet, isPending } = useQuery(outletQueryOptions);
 
-  if (isPending || !loaded) {
+  if (!loaded) {
     return (
       <PageContainer pageTitle="Billing" pageDescription="Sales — Billing" isLoading>
         <div />
@@ -26,7 +23,7 @@ export default function BillingPage() {
   return (
     <PageContainer
       pageTitle="Billing"
-      pageDescription="Subscription, 14-day trial, payment method and billing history for this outlet."
+      pageDescription="Subscription, 14-day trial, payment method and billing history for this organization."
       infoContent={billingInfoContent}
       access={!!organization}
       accessFallback={
@@ -35,14 +32,18 @@ export default function BillingPage() {
         </div>
       }
       pageHeaderAction={
-        outlet ? (
+        organization ? (
           <Button
             variant="outline"
             size="sm"
             title="Refresh billing"
             onClick={() => {
-              getQueryClient().invalidateQueries({ queryKey: billingKeys.subscription(outlet.id) });
-              getQueryClient().invalidateQueries({ queryKey: billingKeys.invoices(outlet.id) });
+              getQueryClient().invalidateQueries({
+                queryKey: billingKeys.subscription(organization.id),
+              });
+              getQueryClient().invalidateQueries({
+                queryKey: billingKeys.invoices(organization.id),
+              });
             }}
           >
             <Icons.refresh className="size-4" />
@@ -50,16 +51,16 @@ export default function BillingPage() {
         ) : undefined
       }
     >
-      {outlet ? (
+      {organization ? (
         <BillingView
-          outletId={outlet.id}
-          outletName={outlet.name}
+          organizationId={organization.id}
+          organizationName={organization.name}
           orgCreatedAt={
             organization?.createdAt == null ? undefined : new Date(organization.createdAt).getTime()
           }
         />
       ) : (
-        <div className="text-center text-sm text-muted-foreground">Outlet not found.</div>
+        <div className="text-center text-sm text-muted-foreground">Organization not found.</div>
       )}
     </PageContainer>
   );

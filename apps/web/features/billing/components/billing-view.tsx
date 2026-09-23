@@ -65,44 +65,44 @@ function fmtDate(iso?: string) {
   });
 }
 
-function invalidate(outletId: string) {
+function invalidate(organizationId: string) {
   const qc = getQueryClient();
-  qc.invalidateQueries({ queryKey: billingKeys.subscription(outletId) });
-  qc.invalidateQueries({ queryKey: billingKeys.invoices(outletId) });
+  qc.invalidateQueries({ queryKey: billingKeys.subscription(organizationId) });
+  qc.invalidateQueries({ queryKey: billingKeys.invoices(organizationId) });
 }
 
 export default function BillingView({
-  outletId,
-  outletName,
+  organizationId,
+  organizationName,
   orgCreatedAt,
 }: {
-  outletId: string;
-  outletName: string;
+  organizationId: string;
+  organizationName: string;
   /** Better Auth org createdAt (ms) — anchors the trial clock; else local first-seen. */
   orgCreatedAt?: number;
 }) {
   const trialAnchor = orgCreatedAt ? new Date(orgCreatedAt).toISOString() : undefined;
 
   const subQuery = useQuery({
-    queryKey: billingKeys.subscription(outletId),
+    queryKey: billingKeys.subscription(organizationId),
     queryFn: async () => {
       const { getSubscription } = await import("../api/service");
-      const existing = await getSubscription(outletId);
+      const existing = await getSubscription(organizationId);
       if (existing) return existing;
-      return ensureSubscription(outletId, trialAnchor);
+      return ensureSubscription(organizationId, trialAnchor);
     },
   });
   const { data: invoices } = useQuery({
-    ...invoicesQueryOptions(outletId),
+    ...invoicesQueryOptions(organizationId),
     enabled: !!subQuery.data,
   });
 
   const sub: SubscriptionView | null = subQuery.data ?? null;
 
   const cancelMut = useMutation({
-    mutationFn: () => cancelSubscription(outletId, { atPeriodEnd: true }),
+    mutationFn: () => cancelSubscription(organizationId, { atPeriodEnd: true }),
     onSuccess: () => {
-      invalidate(outletId);
+      invalidate(organizationId);
       setCancelOpen(false);
       toast.success("Subscription will cancel at the period end");
     },
@@ -120,7 +120,7 @@ export default function BillingView({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          outlet_id: outletId,
+          organization_id: organizationId,
           start_at_unix:
             sub.status === "trialing"
               ? Math.floor(new Date(sub.trial_ends_at).getTime() / 1000)
@@ -140,9 +140,9 @@ export default function BillingView({
         key_id: body.key_id,
         subscription_id: body.subscription_id,
         name: "pixaPOS",
-        description: `${BILLING_PLAN.name} — ${outletName}`,
+        description: `${BILLING_PLAN.name} — ${organizationName}`,
         onSuccess: () => {
-          invalidate(outletId);
+          invalidate(organizationId);
           toast.success("Payment authorized — subscription activating");
         },
         onDismiss: () => toast("Checkout closed — no charge made"),
@@ -211,7 +211,7 @@ export default function BillingView({
                   <span className="font-medium">Subscription blocked.</span>
                   <span className="text-muted-foreground">
                     {" "}
-                    The outlet is read-only until you subscribe.
+                    The organization is read-only until you subscribe.
                   </span>
                 </p>
               )}
@@ -232,7 +232,7 @@ export default function BillingView({
             <div>
               <p className="font-medium">{BILLING_PLAN.name}</p>
               <p className="text-sm text-muted-foreground">
-                {formatINR(BILLING_PLAN.amount_paise)}/outlet/month + {BILLING_GST_PERCENT}% GST
+                {formatINR(BILLING_PLAN.amount_paise)}/month + {BILLING_GST_PERCENT}% GST
               </p>
             </div>
             <span className={cn("text-xs font-medium capitalize", STATUS_STYLE[sub.status])}>
@@ -348,7 +348,7 @@ export default function BillingView({
           <DialogHeader>
             <DialogTitle>Cancel subscription?</DialogTitle>
             <DialogDescription>
-              The outlet stays usable until the paid period ends
+              The organization stays usable until the paid period ends
               {sub.subscription.current_period_end
                 ? ` (${fmtDate(sub.subscription.current_period_end)})`
                 : ""}

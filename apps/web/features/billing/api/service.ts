@@ -40,14 +40,27 @@ function loadBilling(): void {
 loadBilling();
 
 /**
- * Fetch the outlet subscription with its derived status. Null until the
- * first ensure (billing page calls ensure on mount).
+ * Fetch the organization subscription with its derived status. Null until the
+ * first ensure (billing page calls ensure on mount). Legacy outlet-keyed rows
+ * (pre-ADR-0021) are adopted once into the organization scope.
  */
-export async function getSubscription(outletId: string): Promise<SubscriptionView | null> {
+export async function getSubscription(organizationId: string): Promise<SubscriptionView | null> {
   await delay(300);
   loadBilling();
-  if (!mockSubscription || mockSubscription.outlet_id !== outletId) return null;
+  adoptLegacyRow(organizationId);
+  if (!mockSubscription || mockSubscription.organization_id !== organizationId) return null;
   return deriveSubscriptionView(mockSubscription);
+}
+
+/** One-way adoption of a pre-workspace subscription row. */
+function adoptLegacyRow(organizationId: string): void {
+  if (mockSubscription && !mockSubscription.organization_id && mockSubscription.outlet_id) {
+    mockSubscription = { ...mockSubscription, organization_id: organizationId };
+    mockInvoices = mockInvoices.map((i) =>
+      !i.organization_id && i.outlet_id ? { ...i, organization_id: organizationId } : i,
+    );
+    saveBilling();
+  }
 }
 
 /**
@@ -57,19 +70,20 @@ export async function getSubscription(outletId: string): Promise<SubscriptionVie
  * business-event trail — Razorpay dashboard is the audit source short-term.
  */
 export async function ensureSubscription(
-  outletId: string,
+  organizationId: string,
   trialStartedAt?: string,
 ): Promise<SubscriptionView> {
   const release = await entityMutex.acquire("billing-write");
   try {
     await delay(400);
     loadBilling();
-    if (mockSubscription && mockSubscription.outlet_id === outletId)
+    adoptLegacyRow(organizationId);
+    if (mockSubscription && mockSubscription.organization_id === organizationId)
       return deriveSubscriptionView(mockSubscription);
     const now = new Date().toISOString();
     mockSubscription = {
       id: `sub_${Date.now().toString(36)}`,
-      outlet_id: outletId,
+      organization_id: organizationId,
       plan_id: "pixa_pro_monthly",
       trial_started_at: trialStartedAt ?? now,
       cancel_at_period_end: false,
@@ -86,14 +100,15 @@ export async function ensureSubscription(
 
 /** Zoho pattern: usable until the paid period ends, then cancelled. */
 export async function cancelSubscription(
-  outletId: string,
+  organizationId: string,
   params: { atPeriodEnd?: boolean } = {},
 ): Promise<SubscriptionView> {
   const release = await entityMutex.acquire("billing-write");
   try {
     await delay(400);
     loadBilling();
-    if (!mockSubscription || mockSubscription.outlet_id !== outletId) {
+    adoptLegacyRow(organizationId);
+    if (!mockSubscription || mockSubscription.organization_id !== organizationId) {
       throw new Error("No subscription found");
     }
     const now = new Date().toISOString();
@@ -110,17 +125,18 @@ export async function cancelSubscription(
   }
 }
 
-export async function getInvoices(outletId: string): Promise<SubscriptionInvoice[]> {
+export async function getInvoices(organizationId: string): Promise<SubscriptionInvoice[]> {
   await delay(300);
   loadBilling();
+  adoptLegacyRow(organizationId);
   return [...mockInvoices]
-    .filter((i) => i.outlet_id === outletId)
+    .filter((i) => i.organization_id === organizationId)
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
 /** Append an invoice to the local ledger (system of record for history). */
 export async function recordInvoice(
-  outletId: string,
+  organizationId: string,
   params: {
     subscription_id: string;
     period_start: string;
@@ -136,11 +152,11 @@ export async function recordInvoice(
     await delay(300);
     loadBilling();
     const totals = buildInvoiceTotals(params.subtotal_paise);
-    const count = mockInvoices.filter((i) => i.outlet_id === outletId).length + 1;
+    const count = mockInvoices.filter((i) => i.organization_id === organizationId).length + 1;
     const year = new Date().getFullYear();
     const invoice: SubscriptionInvoice = {
       id: `binv_${Date.now().toString(36)}`,
-      outlet_id: outletId,
+      organization_id: organizationId,
       invoice_number: `INV-${year}-${String(count).padStart(4, "0")}`,
       created_at: new Date().toISOString(),
       gst_percent: totals.gst_percent,
@@ -161,7 +177,7 @@ export async function recordInvoice(
  * retried deliveries stay idempotent; attach subscription refs on success.
  */
 export async function reconcileRazorpayInvoice(
-  outletId: string,
+  organizationId: string,
   params: {
     razorpay_invoice_id: string;
     razorpay_payment_id?: string;
@@ -175,8 +191,11 @@ export async function reconcileRazorpayInvoice(
   const release = await entityMutex.acquire("billing-write");
   try {
     loadBilling();
+    adoptLegacyRow(organizationId);
     const existing = mockInvoices.find(
-      (i) => i.outlet_id === outletId && i.razorpay_invoice_id === params.razorpay_invoice_id,
+      (i) =>
+        i.organization_id === organizationId &&
+        i.razorpay_invoice_id === params.razorpay_invoice_id,
     );
     if (existing) {
       const totals = buildInvoiceTotals(params.subtotal_paise);
@@ -188,7 +207,7 @@ export async function reconcileRazorpayInvoice(
         gst_paise: totals.gst_paise,
         total_paise: totals.total_paise,
       };
-      if (params.status === "paid" && mockSubscription?.outlet_id === outletId) {
+      if (params.status === "paid" && mockSubscription?.organization_id === organizationId) {
         mockSubscription = {
           ...mockSubscription,
           razorpay_subscription_id:
@@ -205,10 +224,10 @@ export async function reconcileRazorpayInvoice(
     }
     // New invoice — reuse recordInvoice path without re-locking.
     const totals = buildInvoiceTotals(params.subtotal_paise);
-    const count = mockInvoices.filter((i) => i.outlet_id === outletId).length + 1;
+    const count = mockInvoices.filter((i) => i.organization_id === organizationId).length + 1;
     const invoice: SubscriptionInvoice = {
       id: `binv_${Date.now().toString(36)}`,
-      outlet_id: outletId,
+      organization_id: organizationId,
       subscription_id: mockSubscription?.id ?? "unknown",
       invoice_number: `INV-${new Date().getFullYear()}-${String(count).padStart(4, "0")}`,
       period_start: params.period_start,
@@ -223,7 +242,7 @@ export async function reconcileRazorpayInvoice(
       created_at: new Date().toISOString(),
     };
     mockInvoices.push(invoice);
-    if (params.status === "paid" && mockSubscription?.outlet_id === outletId) {
+    if (params.status === "paid" && mockSubscription?.organization_id === organizationId) {
       mockSubscription = {
         ...mockSubscription,
         razorpay_subscription_id:
