@@ -158,7 +158,10 @@ function printerValues(p: Printer) {
     paper: p.paper,
     chars_per_line: p.chars_per_line != null ? String(p.chars_per_line) : "",
     supports_raster: p.supports_raster ?? true,
-    qr_mode_byte: p.qr_mode_byte ?? true,
+    qr_mode_byte: (p.qr_mode_byte === undefined ? "auto" : p.qr_mode_byte ? "on" : "off") as
+      | "auto"
+      | "on"
+      | "off",
     is_default: p.is_default,
     is_active: p.is_active,
   };
@@ -173,5 +176,6 @@ function toPayload(p: Printer) {
     ...v,
     port: port != null && Number.isFinite(port) ? port : undefined,
     chars_per_line: cols != null && Number.isFinite(cols) && cols > 0 ? cols : undefined,
+    qr_mode_byte: v.qr_mode_byte === "auto" ? undefined : v.qr_mode_byte === "on",
   };
 }

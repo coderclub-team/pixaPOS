@@ -51,6 +51,7 @@ export default function PrinterForm({
         ...values,
         port: port != null && Number.isFinite(port) ? port : undefined,
         chars_per_line: cols != null && Number.isFinite(cols) && cols > 0 ? cols : undefined,
+        qr_mode_byte: values.qr_mode_byte === "auto" ? undefined : values.qr_mode_byte === "on",
       };
       return editing ? updatePrinter(editing.id, payload) : registerPrinter(payload);
     },
@@ -241,9 +242,16 @@ export default function PrinterForm({
             <form.AppField
               name="qr_mode_byte"
               children={(field) => (
-                <field.SwitchField
-                  label="QR mode byte (Epson standard)"
-                  description="Off for escpresso — it misrenders the byte as a leading 0"
+                <field.SelectField
+                  label="QR mode byte"
+                  options={[
+                    {
+                      value: "auto",
+                      label: "Auto (spec on real domains, compatible on localhost/previews)",
+                    },
+                    { value: "on", label: "On — Epson standard" },
+                    { value: "off", label: "Off — escpresso-compatible" },
+                  ]}
                 />
               )}
             />

@@ -363,7 +363,7 @@ async function sendJob(job: PrintJob, doc: PrintDoc, printer: Printer): Promise<
   try {
     const template = await getTemplate(job.purpose, job.outlet_id);
     const cols = effectiveChars(template, printer);
-    const qrMode = printer.qr_mode_byte ?? true;
+    const qrMode = defaultQrMode(printer);
     let bytes = renderEscPos(doc, printer.paper, cols, qrMode);
     const copies =
       Math.max(1, template.copies) +
@@ -581,6 +581,20 @@ export async function maybeAutoPrintBill(order_id: string, by?: string): Promise
 export function printerSupportsRaster(printer: Printer): boolean {
   if (printer.supports_raster !== undefined) return printer.supports_raster;
   return printer.address !== "localhost" && printer.address !== "127.0.0.1";
+}
+
+/** QR mode byte: explicit flag wins; otherwise spec bytes on real domains,
+ * compatible bytes on dev hosts (localhost, *.vercel.app, *.local) where
+ * escpresso-style parsers live. `host` is injectable for tests. */
+export function defaultQrMode(printer: Printer, host?: string): boolean {
+  if (printer.qr_mode_byte !== undefined) return printer.qr_mode_byte;
+  const h = host ?? (typeof window !== "undefined" ? window.location.hostname : undefined) ?? "";
+  return !(
+    h === "localhost" ||
+    h === "127.0.0.1" ||
+    h.endsWith(".vercel.app") ||
+    h.endsWith(".local")
+  );
 }
 
 /** Latest job for a purpose+ref — lets settle/fire toasts tell the truth. */

@@ -21,6 +21,7 @@ import type { PrintTemplate } from "../features/print-studio/api/types";
 import { activeUpiId } from "../features/outlet/api/types";
 import { enqueuePrint } from "../features/print-studio/api/service";
 import { floydSteinberg } from "../features/print-studio/api/logo";
+import { defaultQrMode } from "../features/print-studio/api/service";
 import { effectiveChars, effectiveDots } from "../features/print-studio/api/types";
 import { printerSupportsRaster } from "../features/print-studio/api/service";
 
@@ -383,6 +384,15 @@ async function asyncChecks(): Promise<void> {
   const leftHeat = dithered.flatMap((r) => r.slice(0, 8)).filter(Boolean).length;
   const rightHeat = dithered.flatMap((r) => r.slice(24)).filter(Boolean).length;
   check("dither gradients dark-to-light", leftHeat > rightHeat + 40);
+  // QR mode default: explicit wins; dev hosts compatible, real domains spec.
+  const noprinter = {};
+  check("qr explicit wins", defaultQrMode({ qr_mode_byte: true } as never, "localhost") === true);
+  check("qr localhost compatible", defaultQrMode(noprinter as never, "localhost") === false);
+  check(
+    "qr vercel preview compatible",
+    defaultQrMode(noprinter as never, "pixapos-dev.vercel.app") === false,
+  );
+  check("qr real domain spec", defaultQrMode(noprinter as never, "app.pixapos.store") === true);
   // Template paper resolution: printer override > template > printer profile.
   check(
     "printer override wins",
