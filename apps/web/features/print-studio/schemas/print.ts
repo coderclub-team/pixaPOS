@@ -18,6 +18,8 @@ export type PrinterValues = z.infer<typeof printerSchema>;
 
 export const templateSchema = z.object({
   show_logo: z.boolean(),
+  paper: z.enum(["PRINTER", "P58", "P78", "P80", "CUSTOM"]),
+  custom_chars: z.string().optional(),
   header_lines: z.string(),
   show_outlet_address: z.boolean(),
   show_gstin: z.boolean(),

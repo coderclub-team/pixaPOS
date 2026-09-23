@@ -17,6 +17,14 @@ const QR_OPTIONS = [
   { value: "NONE", label: "No QR" },
 ];
 
+const PAPER_OPTIONS = [
+  { value: "PRINTER", label: "Use printer paper" },
+  { value: "P58", label: "58mm — 48 chars, small receipts & tickets" },
+  { value: "P78", label: "78mm — 72 chars, standard receipts" },
+  { value: "P80", label: "80mm — 80 chars, large receipts & invoices" },
+  { value: "CUSTOM", label: "Custom width…" },
+];
+
 export default function TemplateForm({
   purpose,
   initialData,
@@ -26,12 +34,17 @@ export default function TemplateForm({
 }) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: (values: TemplateValues) =>
-      saveTemplate(purpose, {
+    mutationFn: (values: TemplateValues) => {
+      const custom = values.custom_chars?.trim()
+        ? Number.parseInt(values.custom_chars, 10)
+        : undefined;
+      return saveTemplate(purpose, {
         ...values,
+        custom_chars: custom != null && Number.isFinite(custom) ? custom : undefined,
         header_lines: textToLines(values.header_lines),
         footer_lines: textToLines(values.footer_lines),
-      }),
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: printKeys.all });
       toast.success(`${purpose} template saved`);
@@ -61,6 +74,20 @@ export default function TemplateForm({
           }}
         >
           <FieldGroup>
+            <form.AppField
+              name="paper"
+              children={(field) => <field.SelectField label="Paper size" options={PAPER_OPTIONS} />}
+            />
+            <form.AppField
+              name="custom_chars"
+              children={(field) => (
+                <field.TextField
+                  label="Custom width (chars)"
+                  placeholder="e.g. 42"
+                  description="24–96 columns, used only when paper is Custom"
+                />
+              )}
+            />
             <form.AppField
               name="show_logo"
               children={(field) => (
@@ -175,6 +202,8 @@ export default function TemplateForm({
 export function templateToValues(t: PrintTemplate): TemplateValues {
   return {
     show_logo: t.show_logo,
+    paper: t.paper ?? "PRINTER",
+    custom_chars: t.custom_chars != null ? String(t.custom_chars) : "",
     header_lines: linesToText(t.header_lines),
     show_outlet_address: t.show_outlet_address,
     show_gstin: t.show_gstin,

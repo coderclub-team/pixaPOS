@@ -153,6 +153,11 @@ export default function TemplatesPage() {
               <ReceiptPreview
                 doc={doc}
                 title={`${purpose} preview`}
+                initialPaper={
+                  template.paper === "P58" || template.paper === "P78" || template.paper === "P80"
+                    ? template.paper
+                    : "P80"
+                }
                 logoUrl={
                   template.show_logo && outlet?.logo_url && typeof outlet.logo_url === "string"
                     ? outlet.logo_url

@@ -16,12 +16,14 @@ export default function ReceiptPreview({
   doc,
   title,
   logoUrl,
+  initialPaper,
 }: {
   doc: PrintDoc;
   title: string;
   logoUrl?: string;
+  initialPaper?: PaperSize;
 }) {
-  const [paper, setPaper] = useState<PaperSize>("P80");
+  const [paper, setPaper] = useState<PaperSize>(initialPaper ?? "P80");
   const lines = renderText(doc, paper);
   return (
     <Card className="mx-auto w-full max-w-3xl">

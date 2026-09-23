@@ -14,7 +14,7 @@ import { getPayments } from "@/features/payments/api/service";
 import { buildBillDoc, buildKOTDoc, buildTokenDoc, type PrintDoc } from "./docs";
 import { beepBytes, charsFor, cutBytes, renderEscPos } from "./render";
 import { rasterizeLogoUrl } from "./logo";
-import { PAPER_PROFILES } from "./types";
+import { PAPER_PROFILES, effectiveChars, effectiveDots } from "./types";
 import { HttpRelayTransport, type PrintTransport } from "./transport";
 import type {
   EBillPayload,
@@ -59,6 +59,7 @@ function defaultTemplate(outlet_id: string, purpose: PrintPurpose): PrintTemplat
     outlet_id,
     purpose,
     show_logo: false,
+    paper: "PRINTER",
     header_lines: [],
     show_outlet_address: true,
     show_gstin: true,
@@ -334,7 +335,7 @@ async function sendJob(job: PrintJob, doc: PrintDoc, printer: Printer): Promise<
   };
   try {
     const template = await getTemplate(job.purpose, job.outlet_id);
-    const cols = printer.chars_per_line ?? charsFor(printer.paper);
+    const cols = effectiveChars(template, printer);
     let bytes = renderEscPos(doc, printer.paper, cols);
     const copies =
       Math.max(1, template.copies) +
@@ -444,7 +445,7 @@ export async function enqueuePrint(
       } else if (!logoUrl.startsWith("http")) {
         logo = "omitted:no-logo-url";
       } else {
-        const dots = PAPER_PROFILES[printer.paper].dots;
+        const dots = effectiveDots(template, printer);
         const rows = await rasterizeLogoUrl(logoUrl, dots).catch(() => null);
         if (rows) {
           const rebuilt = await assembleDoc(purpose, ref_id, { ...opts, logoRows: rows });

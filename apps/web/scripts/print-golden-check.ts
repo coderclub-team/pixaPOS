@@ -20,6 +20,7 @@ import type { PrintTemplate } from "../features/print-studio/api/types";
 import { activeUpiId } from "../features/outlet/api/types";
 import { enqueuePrint } from "../features/print-studio/api/service";
 import { floydSteinberg } from "../features/print-studio/api/logo";
+import { effectiveChars, effectiveDots } from "../features/print-studio/api/types";
 import { printerSupportsRaster } from "../features/print-studio/api/service";
 
 let failures = 0;
@@ -49,6 +50,7 @@ function template(purpose: PrintTemplate["purpose"]): PrintTemplate {
     outlet_id: "out_001",
     purpose,
     show_logo: false,
+    paper: "PRINTER",
     header_lines: ["Spice Route"],
     show_outlet_address: true,
     show_gstin: true,
@@ -339,6 +341,28 @@ async function asyncChecks(): Promise<void> {
   const leftHeat = dithered.flatMap((r) => r.slice(0, 8)).filter(Boolean).length;
   const rightHeat = dithered.flatMap((r) => r.slice(24)).filter(Boolean).length;
   check("dither gradients dark-to-light", leftHeat > rightHeat + 40);
+  // Template paper resolution: printer override > template > printer profile.
+  check(
+    "printer override wins",
+    effectiveChars({ paper: "P58" }, { paper: "P80", chars_per_line: 42 }) === 42,
+  );
+  check("template fixed wins", effectiveChars({ paper: "P58" }, { paper: "P80" }) === 48);
+  check(
+    "template PRINTER follows printer",
+    effectiveChars({ paper: "PRINTER" }, { paper: "P78" }) === 72,
+  );
+  check(
+    "custom width honored",
+    effectiveChars({ paper: "CUSTOM", custom_chars: 56 }, { paper: "P80" }) === 56,
+  );
+  check(
+    "custom out of range falls back",
+    effectiveChars({ paper: "CUSTOM", custom_chars: 200 }, { paper: "P80" }) === 80,
+  );
+  check(
+    "dots follow chars",
+    effectiveDots({ paper: "CUSTOM", custom_chars: 42 }, { paper: "P80" }) === 336,
+  );
   // Raster capability: explicit flag wins; localhost unset means incapable.
   const lan = { address: "192.168.1.50" } as never;
   const local = { address: "localhost" } as never;

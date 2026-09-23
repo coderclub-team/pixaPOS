@@ -2,6 +2,9 @@
 
 export type PaperSize = "P58" | "P78" | "P80";
 
+/** Template paper choice: follow the printer, a fixed size, or custom width. */
+export type TemplatePaper = "PRINTER" | PaperSize | "CUSTOM";
+
 /** Paper profiles: printable chars per line + head dots (203dpi class). */
 export const PAPER_PROFILES: Record<
   PaperSize,
@@ -14,6 +17,28 @@ export const PAPER_PROFILES: Record<
 
 export type PrinterConnection = "NETWORK" | "USB" | "BLUETOOTH";
 
+/** Effective printable columns: printer override wins, then template paper,
+ * then the printer's paper profile. Dots are always chars × 8 (Font A). */
+export function effectiveChars(
+  template: { paper?: TemplatePaper; custom_chars?: number },
+  printer: { paper: PaperSize; chars_per_line?: number },
+): number {
+  if (printer.chars_per_line && printer.chars_per_line > 0) return printer.chars_per_line;
+  if (template.paper === "CUSTOM") {
+    const custom = template.custom_chars ?? 0;
+    if (custom >= 24 && custom <= 96) return custom;
+    return 80;
+  }
+  if (template.paper && template.paper !== "PRINTER") return PAPER_PROFILES[template.paper].chars;
+  return PAPER_PROFILES[printer.paper].chars;
+}
+
+export function effectiveDots(
+  template: { paper?: TemplatePaper; custom_chars?: number },
+  printer: { paper: PaperSize; chars_per_line?: number },
+): number {
+  return effectiveChars(template, printer) * 8;
+}
 export type Printer = {
   id: string;
   outlet_id: string;
@@ -63,6 +88,10 @@ export type PrintTemplate = {
   outlet_id: string;
   purpose: PrintPurpose;
   show_logo: boolean;
+  /** Paper size for this template. PRINTER = follow the printer's paper. */
+  paper: TemplatePaper;
+  /** Printable columns when paper is CUSTOM (24–96). */
+  custom_chars?: number;
   header_lines: string[];
   show_outlet_address: boolean;
   show_gstin: boolean;
