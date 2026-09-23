@@ -14,6 +14,10 @@ inventory, tables, customers, reporting, and multi-outlet administration.
 - Future packages: `@pixa/contracts` owns domain command/query contracts and
   `@pixa/api-client` owns transport and query adapters. Apps own routes and
   screen composition, never another app's feature code.
+- Multi-tenant rule: Workspace = business/billing boundary, Outlet =
+  operational boundary (`docs/architecture/multi-workspace-multi-outlet.md`).
+  Never create a workspace per outlet; outlet rows carry `outlet_id` today and
+  gain explicit `workspace_id` with the second outlet.
 
 ## Subdomain map
 
