@@ -36,14 +36,28 @@ export default function WorkspacesPage() {
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     setPending(true);
-    const slug = name
+    const base = name
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
-    const created = await baOrgs.create(name.trim(), slug).catch(() => null);
+    // Slug is globally unique: retry with a numeric suffix so a taken slug
+    // (e.g. recreating a deleted workspace) surfaces as success, not a 400.
+    // The server's message is shown verbatim for anything else.
+    let created: { data: Org | null; error: { message?: string } | null } | null = null;
+    let lastError = "Could not create workspace";
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const slug = attempt === 0 ? base : `${base}-${attempt + 1}`;
+      created = await baOrgs.create(name.trim(), slug).catch((err: unknown) => ({
+        data: null,
+        error: { message: err instanceof Error ? err.message : lastError },
+      }));
+      if (created?.data) break;
+      lastError = created?.error?.message ?? lastError;
+      if (!/slug|taken|exists|unique|duplicate/i.test(lastError)) break;
+    }
     if (!created?.data) {
-      toast.error("Could not create workspace");
+      toast.error(lastError);
       setPending(false);
       return;
     }
