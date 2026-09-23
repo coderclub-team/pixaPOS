@@ -20,6 +20,7 @@ import type { PrintTemplate } from "../features/print-studio/api/types";
 import { activeUpiId } from "../features/outlet/api/types";
 import { enqueuePrint } from "../features/print-studio/api/service";
 import { floydSteinberg } from "../features/print-studio/api/logo";
+import { printerSupportsRaster } from "../features/print-studio/api/service";
 
 let failures = 0;
 function check(name: string, cond: boolean, extra = ""): void {
@@ -337,7 +338,17 @@ async function asyncChecks(): Promise<void> {
   check("dither preserves mid tone", ratio > 0.4 && ratio < 0.6, `ratio=${ratio.toFixed(2)}`);
   const leftHeat = dithered.flatMap((r) => r.slice(0, 8)).filter(Boolean).length;
   const rightHeat = dithered.flatMap((r) => r.slice(24)).filter(Boolean).length;
-  check("dither gradients dark-to-light", leftHeat > rightHeat + 40); // Never-throw enqueue: missing order / no printer leaves a FAILED trace.
+  check("dither gradients dark-to-light", leftHeat > rightHeat + 40);
+  // Raster capability: explicit flag wins; localhost unset means incapable.
+  const lan = { address: "192.168.1.50" } as never;
+  const local = { address: "localhost" } as never;
+  check("lan unset capable", printerSupportsRaster(lan) === true);
+  check("localhost unset incapable", printerSupportsRaster(local) === false);
+  check(
+    "explicit wins",
+    printerSupportsRaster({ address: "localhost", supports_raster: true } as never) === true &&
+      printerSupportsRaster({ address: "192.168.1.50", supports_raster: false } as never) === false,
+  ); // Never-throw enqueue: missing order / no printer leaves a FAILED trace.
   const job = await enqueuePrint("BILL", "order_that_does_not_exist");
   check("failed assemble parks FAILED job", job.status === "FAILED" && !!job.last_error);
   check("parked job carries gate reasons", job.qr === "error");

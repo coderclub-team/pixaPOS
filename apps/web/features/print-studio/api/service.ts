@@ -439,7 +439,7 @@ export async function enqueuePrint(
       }
       if (!template.show_logo) {
         logo = "omitted:toggle-off";
-      } else if (printer.supports_raster === false) {
+      } else if (!printerSupportsRaster(printer)) {
         logo = "omitted:no-raster-support";
       } else if (!logoUrl.startsWith("http")) {
         logo = "omitted:no-logo-url";
@@ -545,6 +545,13 @@ export async function maybeAutoPrintBill(order_id: string, by?: string): Promise
   } catch (e) {
     console.error("[print-studio] auto bill print failed", e);
   }
+}
+
+/** Raster capability: explicit flag wins; unset means capable except on
+ * localhost (emulators live there and drop GS v 0 graphics). */
+export function printerSupportsRaster(printer: Printer): boolean {
+  if (printer.supports_raster !== undefined) return printer.supports_raster;
+  return printer.address !== "localhost" && printer.address !== "127.0.0.1";
 }
 
 /** Latest job for a purpose+ref — lets settle/fire toasts tell the truth. */
