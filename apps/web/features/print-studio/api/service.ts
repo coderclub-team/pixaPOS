@@ -287,27 +287,42 @@ async function assembleDoc(
   if (purpose === "KOT") {
     const ticket = await getTicketById(ref_id);
     if (!ticket) throw new Error("KOT not found");
+    const trackingUrl = trackingUrlFor(template, ticket.order_number_snapshot);
     return {
-      doc: buildKOTDoc({ ticket, outlet, template, logoRows: opts?.logoRows }),
+      doc: buildKOTDoc({ ticket, outlet, template, logoRows: opts?.logoRows, trackingUrl }),
       outlet_id: outlet.id,
       refLabel: `KOT-${ticket.kot_number}`,
-      qr: "n/a",
+      qr: trackingUrl ? "shown" : template.qr === "ORDER" ? "suppressed:no-tracking-url" : "n/a",
     };
   }
   const order = await getOrderById(ref_id);
   if (!order) throw new Error("order not found");
+  const tokenTrackingUrl = trackingUrlFor(template, order.order_number);
   return {
     doc: buildTokenDoc({
       orderNumber: order.order_number,
       tokenNo: order.order_number,
       outlet,
       template,
+      trackingUrl: tokenTrackingUrl,
       logoRows: opts?.logoRows,
     }),
     outlet_id: outlet.id,
     refLabel: order.order_number,
-    qr: template.qr === "ORDER" ? "shown" : "n/a",
+    qr: tokenTrackingUrl ? "shown" : template.qr === "ORDER" ? "suppressed:no-tracking-url" : "n/a",
   };
+}
+
+/** Tracking URL for ORDER-kind QR (KOT expedite / token slip). Null unless the
+ * template selects ORDER kind AND a base URL is configured. */
+function trackingUrlFor(
+  template: { qr: PrintTemplate["qr"]; tracking_base_url?: string },
+  ref: string,
+): string | undefined {
+  if (template.qr !== "ORDER") return undefined;
+  const base = (template.tracking_base_url ?? "").trim().replace(/\/?$/, "/");
+  if (!base.startsWith("http")) return undefined;
+  return `${base}${encodeURIComponent(ref)}`;
 }
 
 /* ---------- outbox ---------- */

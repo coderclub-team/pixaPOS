@@ -226,8 +226,9 @@ export function buildKOTDoc(args: {
   template: PrintTemplate;
   tokenNo?: string;
   logoRows?: boolean[][];
+  trackingUrl?: string;
 }): PrintDoc {
-  const { ticket, outlet, template, tokenNo, logoRows } = args;
+  const { ticket, outlet, template, tokenNo, logoRows, trackingUrl } = args;
   const lines: DocLine[] = [
     ...(logoRows && logoRows.length > 0 ? [{ kind: "image" as const, rows: logoRows }] : []),
     {
@@ -269,6 +270,9 @@ export function buildKOTDoc(args: {
       lines.push({ kind: "text", text: `  !! ${line.instructions}`, bold: true });
   }
   if (ticket.fired_by) lines.push({ kind: "text", text: `Fired by: ${ticket.fired_by}` });
+  if (template.qr === "ORDER" && trackingUrl) {
+    lines.push({ kind: "qr", data: trackingUrl, label: "Track order" });
+  }
   lines.push(...footerLines(template));
   return { lines, hash: hashDoc(lines) };
 }

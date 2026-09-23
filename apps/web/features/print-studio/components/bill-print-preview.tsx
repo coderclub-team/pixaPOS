@@ -50,7 +50,6 @@ export default function BillPrintPreview({ orderId }: { orderId: string }) {
       qrAmountPaise: paid > 0 ? balance : order.grand_total_paise,
     });
   }, [order, payments, outlet, template, paid]);
-
   return (
     <section aria-label="Print preview" className="space-y-2 rounded-xl border p-3">
       <Button

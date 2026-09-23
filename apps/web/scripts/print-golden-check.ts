@@ -327,6 +327,34 @@ async function asyncChecks(): Promise<void> {
     logoRows: checker,
   });
   check("logo token starts with image", logoToken.lines[0].kind === "image");
+  // Tracking QR: ORDER kind + base URL prints it on token and KOT.
+  const trackedToken = buildTokenDoc({
+    orderNumber: "A-1024",
+    tokenNo: "T-42",
+    outlet,
+    template: {
+      ...template("TOKEN"),
+      qr: "ORDER",
+      tracking_base_url: "https://order.pixapos.store/t/",
+    },
+    trackingUrl: "https://order.pixapos.store/t/T-42",
+  });
+  check(
+    "token tracking QR prints",
+    renderText(trackedToken, "P80").some((l) => l.includes("[QR]")),
+  );
+  const trackedKot = buildKOTDoc({
+    ticket,
+    outlet,
+    template: { ...template("KOT"), qr: "ORDER" },
+    trackingUrl: "https://order.pixapos.store/t/A-1024",
+  });
+  check(
+    "KOT tracking QR prints",
+    renderText(trackedKot, "P80").some((l) => l.includes("[QR]")),
+  );
+  const quietKot = buildKOTDoc({ ticket, outlet, template: template("KOT") });
+  check("KOT default has no QR", !renderText(quietKot, "P80").some((l) => l.includes("[QR]")));
   // Dither preserves tone: 32-step gray ramp should heat ~half the dots
   // (flat threshold would cliff at the midpoint with banding).
   const ramp = Array.from({ length: 16 }, () =>

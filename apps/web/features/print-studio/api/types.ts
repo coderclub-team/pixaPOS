@@ -86,6 +86,8 @@ export type PrintTemplate = {
   show_logo: boolean;
   /** Paper size for this template. PRINTER = follow the printer's paper. */
   paper: TemplatePaper;
+  /** Base URL composed with the order/token number for ORDER tracking QR. */
+  tracking_base_url?: string;
   header_lines: string[];
   show_outlet_address: boolean;
   show_gstin: boolean;

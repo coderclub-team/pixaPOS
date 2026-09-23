@@ -64,7 +64,9 @@ function useSampleDoc(purpose: PrintPurpose, outletId: string) {
         payments: [],
         outlet,
         template,
-        upiId: "sample@upi",
+        upiId: template.qr === "UPI" ? "sample@upi" : undefined,
+        upiTr: "A-1024",
+        qrAmountPaise: 54600,
       });
     }
     if (purpose === "KOT") {
