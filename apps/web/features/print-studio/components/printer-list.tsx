@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Badge } from "@pixa/ui/base-ui/badge";
 import {
@@ -15,6 +15,7 @@ import {
 import { Icons } from "@pixa/ui/icons";
 import { PAPER_PROFILES, type Printer } from "../api/types";
 import { testPrint, updatePrinter } from "../api/service";
+import { pairedUsbPrinters } from "../api/transport";
 import { printKeys } from "../api/queries";
 import { toast } from "sonner";
 import PrinterForm from "./printer-form";
@@ -92,6 +93,7 @@ export default function PrinterList({ printers }: { printers: Printer[] }) {
               {p.connection} · {p.address}
               {p.connection === "NETWORK" ? `:${p.port ?? 9100}` : ""} ·{" "}
               {PAPER_PROFILES[p.paper].label}
+              {p.connection === "USB" && <PairedDot address={p.address} />}
             </div>
             {(p.address === "localhost" || p.address === "127.0.0.1") && (
               <div className="truncate text-[11px] text-muted-foreground">
@@ -128,6 +130,22 @@ export default function PrinterList({ printers }: { printers: Printer[] }) {
         </div>
       ))}
     </div>
+  );
+}
+
+/** Green dot when this USB printer is paired with this browser/origin. */
+function PairedDot({ address }: { address: string }) {
+  const { data } = useQuery({
+    queryKey: ["print-studio", "paired-usb"],
+    queryFn: pairedUsbPrinters,
+    staleTime: 30_000,
+  });
+  const paired = (data ?? []).some((d) => d.address === address);
+  return (
+    <span className={paired ? "text-green-600" : "text-muted-foreground"}>
+      {" "}
+      · {paired ? "paired" : "not paired here"}
+    </span>
   );
 }
 

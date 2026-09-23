@@ -6,8 +6,17 @@ import { useAppForm } from "@/lib/form";
 import { printerSchema, type PrinterValues } from "../schemas/print";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { registerPrinter, updatePrinter } from "../api/service";
+import {
+  pairedUsbPrinters,
+  requestBlePrinter,
+  requestUsbPrinter,
+  webBluetoothSupported,
+  webUsbSupported,
+} from "../api/transport";
 import { printKeys } from "../api/queries";
 import type { Printer } from "../api/types";
+import { Button } from "@pixa/ui/base-ui/button";
+import { useState } from "react";
 import { toast } from "sonner";
 
 const CONNECTION_OPTIONS = [
@@ -61,6 +70,41 @@ export default function PrinterForm({
     },
   });
 
+  const [scanning, setScanning] = useState<"usb" | "ble" | null>(null);
+  const [showIpGuide, setShowIpGuide] = useState(false);
+
+  async function discoverUsb(): Promise<void> {
+    setScanning("usb");
+    try {
+      const found = await requestUsbPrinter();
+      form.setFieldValue("connection", "USB");
+      form.setFieldValue("address", found.address);
+      if (!form.state.values.name) form.setFieldValue("name", found.label);
+      toast.success(`Found ${found.label} — save to add`);
+    } catch (e) {
+      if (e instanceof Error && e.name === "NotFoundError") return;
+      toast.error(e instanceof Error ? e.message : "USB scan failed");
+    } finally {
+      setScanning(null);
+    }
+  }
+
+  async function discoverBle(): Promise<void> {
+    setScanning("ble");
+    try {
+      const found = await requestBlePrinter();
+      form.setFieldValue("connection", "BLUETOOTH");
+      form.setFieldValue("address", found.address);
+      if (!form.state.values.name) form.setFieldValue("name", found.label);
+      toast.success(`Found ${found.label} — save to add`);
+    } catch (e) {
+      if (e instanceof Error && e.name === "NotFoundError") return;
+      toast.error(e instanceof Error ? e.message : "Bluetooth scan failed");
+    } finally {
+      setScanning(null);
+    }
+  }
+
   return (
     <Card className="mx-auto w-full max-w-3xl">
       <CardHeader>
@@ -77,6 +121,65 @@ export default function PrinterForm({
           }}
         >
           <FieldGroup>
+            <div className="rounded-xl border p-3">
+              <p className="text-sm font-medium">Discover nearby printer</p>
+              <p className="text-xs text-muted-foreground">
+                USB and BLE open the OS picker — tap your printer to fill the form.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={scanning !== null || !webUsbSupported()}
+                  onClick={() => void discoverUsb()}
+                  title={
+                    webUsbSupported()
+                      ? "Scan USB"
+                      : "WebUSB needs Chrome/Edge on localhost or HTTPS"
+                  }
+                >
+                  {scanning === "usb" ? "Scanning…" : "Scan USB"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={scanning !== null || !webBluetoothSupported()}
+                  onClick={() => void discoverBle()}
+                  title={
+                    webBluetoothSupported()
+                      ? "Scan Bluetooth LE"
+                      : "Web Bluetooth needs Chrome/Edge on localhost or HTTPS"
+                  }
+                >
+                  {scanning === "ble" ? "Scanning…" : "Scan Bluetooth"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowIpGuide((v) => !v)}
+                >
+                  Find WiFi IP
+                </Button>
+              </div>
+              {showIpGuide && (
+                <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-muted-foreground">
+                  <li>
+                    Hold the printer&apos;s Feed button, power on — it prints a self-test page with
+                    its IP.
+                  </li>
+                  <li>Enter that IP in Address below (port stays 9100).</li>
+                  <li>Save, then use Test print — a receipt must arrive before going live.</li>
+                  <li>Tip: reserve the IP in your router (DHCP reservation) so it never moves.</li>
+                </ol>
+              )}
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Classic-Bluetooth (SPP) printers — the majority — are invisible to browsers; pair
+                those in OS settings and enter details manually, or use a native shell later.
+              </p>
+            </div>
             <form.AppField
               name="name"
               children={(field) => (

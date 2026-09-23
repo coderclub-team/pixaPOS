@@ -15,7 +15,12 @@ import { buildBillDoc, buildKOTDoc, buildTokenDoc, type PrintDoc } from "./docs"
 import { beepBytes, charsFor, cutBytes, renderEscPos } from "./render";
 import { rasterizeLogoUrl } from "./logo";
 import { PAPER_PROFILES, effectiveChars, effectiveDots } from "./types";
-import { HttpRelayTransport, type PrintTransport } from "./transport";
+import {
+  HttpRelayTransport,
+  WebBluetoothTransport,
+  WebUSBTransport,
+  type PrintTransport,
+} from "./transport";
 import type {
   EBillPayload,
   Printer,
@@ -83,6 +88,13 @@ let transport: PrintTransport = new HttpRelayTransport();
 /** Swap transport (tests, native shells). */
 export function setPrintTransport(t: PrintTransport): void {
   transport = t;
+}
+
+/** Connection-aware transport: network goes through the relay, USB/BT direct. */
+function transportFor(printer: Printer): PrintTransport {
+  if (printer.connection === "USB") return new WebUSBTransport();
+  if (printer.connection === "BLUETOOTH") return new WebBluetoothTransport();
+  return transport;
 }
 
 /* ---------- registry ---------- */
@@ -342,7 +354,7 @@ async function sendJob(job: PrintJob, doc: PrintDoc, printer: Printer): Promise<
       (template.merchant_copy && job.purpose === "BILL" && !job.is_reprint ? 1 : 0);
     for (let c = 0; c < copies; c++) {
       const chunk = template.cut_after ? concatBytes(bytes, cutBytes(true)) : bytes;
-      const res = await transport.send(
+      const res = await transportFor(printer).send(
         printer,
         template.beep && c === 0 ? concatBytes(chunk, beepBytes()) : chunk,
       );
