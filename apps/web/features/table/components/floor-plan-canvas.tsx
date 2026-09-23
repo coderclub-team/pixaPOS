@@ -1523,11 +1523,12 @@ export default function FloorPlanCanvas({
         onPointerCancel={cancelDragSession}
         onLostPointerCapture={cancelDragSession}
         onKeyDown={(e) => {
-          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+          const key = typeof e.key === "string" ? e.key : "";
+          if ((e.ctrlKey || e.metaKey) && key.toLowerCase() === "z") {
             e.preventDefault();
             undoLast();
           }
-          if (e.key === "Escape") {
+          if (key === "Escape") {
             onSelectTable?.(null);
             setSelectedObjectId(null);
             setAddingSpec(null);

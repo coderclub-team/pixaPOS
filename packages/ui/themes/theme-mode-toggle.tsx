@@ -25,6 +25,8 @@ export function ThemeModeToggle() {
   // Cmd/Ctrl+Shift+D toggles the theme; kbar separately handles the 'D D' sequence
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Synthetic key events (IME, autofill, extensions) may carry no key.
+      if (typeof e.key !== "string") return;
       if (e.key.toLowerCase() !== "d" || !e.shiftKey || !(e.metaKey || e.ctrlKey)) return;
       const target = e.target as HTMLElement | null;
       if (
