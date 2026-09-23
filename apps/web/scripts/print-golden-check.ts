@@ -226,6 +226,10 @@ for (const paper of papers) {
     `qr framing valid ${paper}`,
     joined.includes(String.fromCharCode(0x1d, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41)),
   );
+  // QR store carries the Epson mode byte 0x30 (31 50 30) — python-escpos
+  // convention; real Epson hardware requires it. escpresso misrenders it as
+  // a leading "0" (their parser skips the mode byte) — emulator artifact.
+  check(`qr store mode byte ${paper}`, joined.includes(String.fromCharCode(0x31, 0x50, 0x30)));
   check(
     `ascii only ${paper}`,
     billText.every((l) => [...l].every((ch) => ch.charCodeAt(0) < 128)),
