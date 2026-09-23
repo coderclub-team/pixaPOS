@@ -7,6 +7,7 @@ import { buildBillDoc, buildKOTDoc, buildTokenDoc } from "../features/print-stud
 import {
   charsFor,
   cutBytes,
+  qrBytes,
   rasterBytes,
   renderEscPos,
   renderText,
@@ -226,10 +227,19 @@ for (const paper of papers) {
     `qr framing valid ${paper}`,
     joined.includes(String.fromCharCode(0x1d, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41)),
   );
-  // QR store carries the Epson mode byte 0x30 (31 50 30) — python-escpos
-  // convention; real Epson hardware requires it. escpresso misrenders it as
-  // a leading "0" (their parser skips the mode byte) — emulator artifact.
+  // QR store carries the Epson mode byte 0x30 (31 50 30) by default —
+  // python-escpos convention for real hardware. Opt-out variant (escpresso)
+  // drops it and shortens pL by one.
   check(`qr store mode byte ${paper}`, joined.includes(String.fromCharCode(0x31, 0x50, 0x30)));
+  {
+    const noMode = qrBytes("upi://pay?pa=a@b", false);
+    const hex = String.fromCharCode(...noMode);
+    check(
+      `qr opt-out drops mode byte ${paper}`,
+      !hex.includes(String.fromCharCode(0x31, 0x50, 0x30)) &&
+        hex.includes(String.fromCharCode(0x1d, 0x28, 0x6b)),
+    );
+  }
   check(
     `ascii only ${paper}`,
     billText.every((l) => [...l].every((ch) => ch.charCodeAt(0) < 128)),

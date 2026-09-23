@@ -38,6 +38,7 @@ export default function PrintersPage() {
               paper: "P80",
               chars_per_line: "",
               supports_raster: true,
+              qr_mode_byte: true,
               is_default: printers.length === 0,
               is_active: true,
             }}

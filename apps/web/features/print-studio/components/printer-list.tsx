@@ -158,6 +158,7 @@ function printerValues(p: Printer) {
     paper: p.paper,
     chars_per_line: p.chars_per_line != null ? String(p.chars_per_line) : "",
     supports_raster: p.supports_raster ?? true,
+    qr_mode_byte: p.qr_mode_byte ?? true,
     is_default: p.is_default,
     is_active: p.is_active,
   };

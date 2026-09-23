@@ -49,6 +49,9 @@ export type Printer = {
   chars_per_line?: number;
   /** Raster (GS v 0) support. Off for emulators that drop graphics. Default on. */
   supports_raster?: boolean;
+  /** QR store mode byte (Epson/python-escpos convention). Off for escpresso,
+   * which misrenders it as a leading "0". Default on (real hardware). */
+  qr_mode_byte?: boolean;
   is_default: boolean;
   is_active: boolean;
   created_at: string;

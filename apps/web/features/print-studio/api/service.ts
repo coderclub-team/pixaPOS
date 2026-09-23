@@ -363,7 +363,8 @@ async function sendJob(job: PrintJob, doc: PrintDoc, printer: Printer): Promise<
   try {
     const template = await getTemplate(job.purpose, job.outlet_id);
     const cols = effectiveChars(template, printer);
-    let bytes = renderEscPos(doc, printer.paper, cols);
+    const qrMode = printer.qr_mode_byte ?? true;
+    let bytes = renderEscPos(doc, printer.paper, cols, qrMode);
     const copies =
       Math.max(1, template.copies) +
       (template.merchant_copy && job.purpose === "BILL" && !job.is_reprint ? 1 : 0);

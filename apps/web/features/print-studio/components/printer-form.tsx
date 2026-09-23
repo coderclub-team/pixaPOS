@@ -239,6 +239,15 @@ export default function PrinterForm({
               )}
             />
             <form.AppField
+              name="qr_mode_byte"
+              children={(field) => (
+                <field.SwitchField
+                  label="QR mode byte (Epson standard)"
+                  description="Off for escpresso — it misrenders the byte as a leading 0"
+                />
+              )}
+            />
+            <form.AppField
               name="is_default"
               children={(field) => (
                 <field.SwitchField

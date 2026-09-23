@@ -116,8 +116,11 @@ export function renderText(doc: PrintDoc, paper: PaperSize, cols?: number): stri
   return out;
 }
 
-/** QR via GS ( k — model 2, auto size/ECC, print. Raw data capped at 400 bytes. */
-function qrBytes(data: string): number[] {
+/** QR via GS ( k — model 2, auto size/ECC, print. Raw data capped at 400 bytes.
+ * `withMode` keeps the Epson `0x30` mode byte (python-escpos convention —
+ * required by real Epson hardware). Some emulators (escpresso) misrender it
+ * as a leading "0"; those printers set `qr_mode_byte: false`. */
+export function qrBytes(data: string, withMode = true): number[] {
   const raw = Buffer.from(data.slice(0, 400), "utf8");
   const out: number[] = [];
   const store = (fn: number, payload: number[]) => {
@@ -129,15 +132,22 @@ function qrBytes(data: string): number[] {
   store(0x43, [0x04]); // module size
   store(0x45, [0x31]); // ECC level M
   const d = [...raw];
-  const len = d.length + 3;
-  out.push(GS, 0x28, 0x6b, len & 0xff, (len >> 8) & 0xff, 0x31, 0x50, 0x30, ...d); // store
+  const body = withMode ? [0x30, ...d] : d;
+  const len = body.length + 2;
+  out.push(GS, 0x28, 0x6b, len & 0xff, (len >> 8) & 0xff, 0x31, 0x50, ...body); // store
   const plen = 3;
   out.push(GS, 0x28, 0x6b, plen & 0xff, (plen >> 8) & 0xff, 0x31, 0x51, 0x30); // print
   return out;
 }
 
-/** PrintDoc -> ESC/POS byte array. `cols` overrides the paper default. */
-export function renderEscPos(doc: PrintDoc, paper: PaperSize, cols?: number): Uint8Array {
+/** PrintDoc -> ESC/POS byte array. `cols` overrides the paper default;
+ * `qrMode` keeps (true, default) or drops (false, escpresso) the QR mode byte. */
+export function renderEscPos(
+  doc: PrintDoc,
+  paper: PaperSize,
+  cols?: number,
+  qrMode = true,
+): Uint8Array {
   const text = renderText(doc, paper, cols);
   const width = cols ?? charsFor(paper);
   const out: number[] = [ESC, 0x40]; // init
@@ -179,7 +189,7 @@ export function renderEscPos(doc: PrintDoc, paper: PaperSize, cols?: number): Ui
       }
       case "qr": {
         out.push(ESC, 0x61, 0x01);
-        out.push(...qrBytes(line.data));
+        out.push(...qrBytes(line.data, qrMode));
         out.push(0x0a);
         if (line.label)
           pushText(align(sanitizeReceiptText(line.label), width, "center"), { align: "center" });
