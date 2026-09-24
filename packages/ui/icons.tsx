@@ -5,6 +5,7 @@ import {
   IconArmchair,
   IconArrowRight,
   IconBell,
+  IconBackspace,
   IconBold,
   IconBox,
   IconBrandGithub,
@@ -208,6 +209,7 @@ export const Icons = {
 
   // Commerce / Plans
   billing: IconCreditCard,
+  backspace: IconBackspace,
   creditCard: IconCreditCard,
   product: IconBox,
   pro: IconCrown,

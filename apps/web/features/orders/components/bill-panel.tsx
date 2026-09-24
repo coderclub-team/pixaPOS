@@ -35,6 +35,7 @@ import CheckoutDialog from "./checkout-dialog";
 import ReturnDialog, { type ReturnTarget } from "./return-dialog";
 import ReprintDialog from "@/features/print-studio/components/reprint-dialog";
 import BillPrintPreview from "@/features/print-studio/components/bill-print-preview";
+import AmountPad from "./amount-pad";
 import {
   paymentsByOrderQueryOptions,
   paymentKeys,
@@ -989,8 +990,8 @@ function DiscountDialog({
               {kind === "percent" ? "Percent (0–100)" : "Amount ₹"}
             </Label>
             <Input
-              type="number"
-              min={0}
+              type="text"
+              inputMode="decimal"
               value={value}
               onChange={(e) => setValue(e.target.value)}
               placeholder={kind === "percent" ? "10" : "50"}
@@ -1005,6 +1006,7 @@ function DiscountDialog({
             />
           </div>
         </div>
+        <AmountPad value={value} onChange={setValue} allowDecimal={kind !== "percent"} />
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
@@ -1044,6 +1046,7 @@ export function SplitSection({
   const [editing, setEditing] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
   const [removeReason, setRemoveReason] = useState("");
+  const [padCustom, setPadCustom] = useState<number | null>(null);
 
   const buildMut = useMutation({
     mutationFn: (p: Parameters<typeof computeSplits>[1]) => computeSplits(orderId, p as any),
@@ -1336,14 +1339,15 @@ export function SplitSection({
                 placeholder={`Guest ${i + 1}`}
               />
               <Input
-                type="number"
-                min={0}
+                type="text"
+                inputMode="decimal"
                 value={r.amount}
                 onChange={(e) =>
                   setCustomRows((rows) =>
                     rows.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)),
                   )
                 }
+                onFocus={() => setPadCustom(i)}
                 className="h-8 w-28"
                 placeholder="₹"
               />
@@ -1381,6 +1385,14 @@ export function SplitSection({
           <p className="text-[11px] text-muted-foreground">
             Shares must add up to {formatINR(order.grand_total_paise)}.
           </p>
+          <AmountPad
+            value={padCustom != null && customRows[padCustom] ? customRows[padCustom].amount : ""}
+            onChange={(v) => {
+              if (padCustom == null || !customRows[padCustom]) return;
+              const i = padCustom;
+              setCustomRows((rows) => rows.map((x, j) => (j === i ? { ...x, amount: v } : x)));
+            }}
+          />
         </div>
       )}
 
@@ -1441,6 +1453,10 @@ export function TenderPad({
     { method: "cash", amount: "", tendered: "" },
     { method: "upi", amount: "", tendered: "" },
   ]);
+  // Which field the shared pad drives (single mode + combined rows).
+  const [padTarget, setPadTarget] = useState<"amount" | "tendered">("amount");
+  const [padRow, setPadRow] = useState<{ i: number; field: "amount" | "tendered" } | null>(null);
+  const dueStr = (duePaise / 100).toFixed(2);
 
   const collectMut = useMutation({
     mutationFn: () =>
@@ -1555,10 +1571,11 @@ export function TenderPad({
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Amount ₹</Label>
               <Input
-                type="number"
-                min={0}
+                type="text"
+                inputMode="decimal"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
+                onFocus={() => setPadTarget("amount")}
                 placeholder={(duePaise / 100).toFixed(2)}
               />
             </div>
@@ -1566,23 +1583,23 @@ export function TenderPad({
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Tendered ₹</Label>
                 <Input
-                  type="number"
-                  min={0}
+                  type="text"
+                  inputMode="decimal"
                   value={tendered}
                   onChange={(e) => setTendered(e.target.value)}
+                  onFocus={() => setPadTarget("tendered")}
                   placeholder="Cash received"
                 />
               </div>
             )}
           </div>
+          <AmountPad
+            value={padTarget === "tendered" && method === "cash" ? tendered : amount}
+            onChange={padTarget === "tendered" && method === "cash" ? setTendered : setAmount}
+            showDenominations={method === "cash"}
+            dueAmount={dueStr}
+          />
           <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setAmount((duePaise / 100).toFixed(2))}
-            >
-              Exact
-            </Button>
             {change > 0 && (
               <span className="text-xs text-muted-foreground">Change {formatINR(change)}</span>
             )}
@@ -1625,19 +1642,21 @@ export function TenderPad({
                 </SelectContent>
               </Select>
               <Input
-                type="number"
-                min={0}
+                type="text"
+                inputMode="decimal"
                 value={r.amount}
                 onChange={(e) => updateRow(i, { amount: e.target.value })}
+                onFocus={() => setPadRow({ i, field: "amount" })}
                 className="h-8"
                 placeholder="₹ amount"
               />
               {r.method === "cash" && (
                 <Input
-                  type="number"
-                  min={0}
+                  type="text"
+                  inputMode="decimal"
                   value={r.tendered}
                   onChange={(e) => updateRow(i, { tendered: e.target.value })}
+                  onFocus={() => setPadRow({ i, field: "tendered" })}
                   className="h-8 w-24"
                   placeholder="Tendered"
                 />
@@ -1684,6 +1703,21 @@ export function TenderPad({
               {collectCombinedMut.isPending ? "Collecting…" : `Collect ${formatINR(rowsTotal)}`}
             </Button>
           </div>
+          <AmountPad
+            value={
+              padRow && rows[padRow.i]
+                ? padRow.field === "tendered" && rows[padRow.i].method === "cash"
+                  ? rows[padRow.i].tendered
+                  : rows[padRow.i].amount
+                : ""
+            }
+            onChange={(v) => {
+              if (!padRow || !rows[padRow.i]) return;
+              updateRow(padRow.i, { [padRow.field]: v });
+            }}
+            showDenominations={!!padRow && rows[padRow.i]?.method === "cash"}
+            dueAmount={dueStr}
+          />
         </>
       )}
     </div>
