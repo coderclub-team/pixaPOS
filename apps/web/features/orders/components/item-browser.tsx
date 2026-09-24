@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Image from "next/image";
 import { Button } from "@pixa/ui/base-ui/button";
-import { Badge } from "@pixa/ui/base-ui/badge";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
 import { DataTablePagination } from "@pixa/ui/base-ui/table/data-table-pagination";
 import {
@@ -68,6 +67,36 @@ function isDefaultConfigLine(item: MenuItem, line: OrderItemSnapshot): boolean {
 
 function priceOf(item: MenuItem): number {
   return toPaise(defaultVariantOf(item)?.selling_price ?? 0);
+}
+
+/** Lowest variant price (paise) — "From ₹X" label for variant parents. */
+function minPriceOf(item: MenuItem): number {
+  const prices = (item.variants ?? []).map((v) => v.selling_price ?? 0);
+  if (prices.length === 0) return priceOf(item);
+  return toPaise(Math.min(...prices));
+}
+
+/** Variant products expand inline (Odoo/Zoho pattern): one sub-row per
+ * variant with its own price + stepper, instead of overloading one row. */
+function hasVariantOptions(item: MenuItem): boolean {
+  return (
+    item.product_type === "variant" &&
+    (item.variants ?? []).filter((v) => v.is_active !== false).length > 1
+  );
+}
+
+function isVariantConfigLine(
+  item: MenuItem,
+  variantId: string | undefined,
+  line: OrderItemSnapshot,
+): boolean {
+  return (
+    !line.kot_id &&
+    line.menu_item_id === item.id &&
+    (line.variant_id ?? undefined) === variantId &&
+    (line.modifiers?.length ?? 0) === 0 &&
+    !line.instructions
+  );
 }
 
 function imageOf(item: MenuItem): string | null {
@@ -211,66 +240,6 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
     addMut.mutate({ menu_item_id: item.id, variant_id: dv?.id, modifier_ids: [], qty: 1 });
   };
 
-  /** Variant-scoped line match (plain config, no modifiers/instructions). */
-  const variantLineFor = (item: MenuItem, variantId: string) =>
-    draftLines.find(
-      (l) =>
-        !l.kot_id &&
-        l.menu_item_id === item.id &&
-        (l.variant_id ?? undefined) === variantId &&
-        (l.modifiers?.length ?? 0) === 0 &&
-        !l.instructions,
-    );
-
-  const quickAddVariant = (item: MenuItem, variantId: string) => {
-    const existing = variantLineFor(item, variantId);
-    if (existing) {
-      qtyMut.mutate({ lineId: existing.id, qty: existing.qty + 1 });
-      return;
-    }
-    addMut.mutate({ menu_item_id: item.id, variant_id: variantId, modifier_ids: [], qty: 1 });
-  };
-
-  const stepVariant = (item: MenuItem, variantId: string, delta: number) => {
-    const existing = variantLineFor(item, variantId);
-    if (!existing) {
-      if (delta > 0) quickAddVariant(item, variantId);
-      return;
-    }
-    const next = existing.qty + delta;
-    if (next <= 0) removeMut.mutate(existing.id);
-    else qtyMut.mutate({ lineId: existing.id, qty: next });
-  };
-
-  const draftQtyForVariant = (item: MenuItem, variantId: string) =>
-    draftLines
-      .filter(
-        (l) =>
-          !l.kot_id &&
-          l.menu_item_id === item.id &&
-          (l.variant_id ?? undefined) === variantId &&
-          (l.modifiers?.length ?? 0) === 0 &&
-          !l.instructions,
-      )
-      .reduce((s, l) => s + l.qty, 0);
-
-  const draftQtyTotal = (item: MenuItem) =>
-    draftLines
-      .filter((l) => !l.kot_id && l.menu_item_id === item.id)
-      .reduce((s, l) => s + l.qty, 0);
-
-  const hasVariants = (item: MenuItem) =>
-    item.product_type === "variant" &&
-    (item.variants ?? []).filter((v) => v.is_active !== false).length > 1;
-
-  const priceRangeOf = (item: MenuItem): string => {
-    const prices = (item.variants ?? [])
-      .filter((v) => v.is_active !== false)
-      .map((v) => v.selling_price);
-    if (prices.length === 0) return formatINR(0);
-    return `From ${formatINR(toPaise(Math.min(...prices)))}`;
-  };
-
   const stepDefault = (item: MenuItem, delta: number) => {
     const existing = draftLines.find((l) => isDefaultConfigLine(item, l));
     if (!existing) {
@@ -285,6 +254,32 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
   const draftQtyFor = (item: MenuItem) =>
     draftLines.filter((l) => isDefaultConfigLine(item, l)).reduce((s, l) => s + l.qty, 0);
 
+  /** Variant-aware stepping for table sub-rows (any single variant). */
+  const stepVariant = (item: MenuItem, variantId: string | undefined, delta: number) => {
+    const existing = draftLines.find((l) => isVariantConfigLine(item, variantId, l));
+    if (!existing) {
+      if (delta <= 0) return;
+      addMut.mutate({ menu_item_id: item.id, variant_id: variantId, modifier_ids: [], qty: 1 });
+      return;
+    }
+    const next = existing.qty + delta;
+    if (next <= 0) removeMut.mutate(existing.id);
+    else qtyMut.mutate({ lineId: existing.id, qty: next });
+  };
+
+  const draftQtyForVariant = (item: MenuItem, variantId: string | undefined) =>
+    draftLines
+      .filter((l) => isVariantConfigLine(item, variantId, l))
+      .reduce((s, l) => s + l.qty, 0);
+
+  /** Total drafted units across all plain variants of an item. */
+  const draftTotalFor = (item: MenuItem) =>
+    draftLines
+      .filter(
+        (l) => l.menu_item_id === item.id && (l.modifiers?.length ?? 0) === 0 && !l.instructions,
+      )
+      .reduce((s, l) => s + l.qty, 0);
+
   const allItems = items ?? [];
 
   const activeCategories = useMemo(
@@ -297,7 +292,7 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
     return activeCategories.filter((c) => c.name.toLowerCase().includes(q));
   }, [activeCategories, categorySearch]);
 
-  const stepper = (item: MenuItem, staged: number) => (
+  const stepper = (item: MenuItem, staged: number, variantId?: string) => (
     <span
       className={cn(
         "flex items-center rounded-full border tabular-nums",
@@ -311,7 +306,9 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
         size="icon-sm"
         className="rounded-full max-lg:h-9 max-lg:w-9"
         disabled={staged <= 0 || qtyMut.isPending || removeMut.isPending}
-        onClick={() => stepDefault(item, -1)}
+        onClick={() =>
+          variantId !== undefined ? stepVariant(item, variantId, -1) : stepDefault(item, -1)
+        }
         aria-label={`Remove one ${item.name}`}
       >
         <Icons.minus className="size-3.5" />
@@ -329,7 +326,9 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
         size="icon-sm"
         className="rounded-full max-lg:h-9 max-lg:w-9"
         disabled={addMut.isPending || qtyMut.isPending}
-        onClick={() => stepDefault(item, 1)}
+        onClick={() =>
+          variantId !== undefined ? stepVariant(item, variantId, 1) : stepDefault(item, 1)
+        }
         aria-label={`Add one ${item.name}`}
       >
         <Icons.add className="size-3.5" />
@@ -460,17 +459,7 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
                     className="cursor-pointer rounded-xl border bg-card p-3 transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-primary"
                   >
                     <MenuImage item={item} size="lg" />
-                    <p className="mt-2 flex items-center gap-1.5">
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                        {item.name}
-                      </span>
-                      {hasVariants(item) && (
-                        <Badge variant="outline" className="shrink-0 text-[11px]">
-                          {(item.variants ?? []).filter((v) => v.is_active !== false).length}{" "}
-                          options
-                        </Badge>
-                      )}
-                    </p>
+                    <p className="mt-2 truncate text-sm font-medium">{item.name}</p>
                     <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
                       <span
                         className={cn(
@@ -510,13 +499,11 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
               autoSize={pageSizeOverride == null ? autoPageSize : null}
               resetKey={`${search}|${categoryId ?? "all"}|${allItems.length}`}
               draftQtyFor={draftQtyFor}
-              draftQtyTotal={draftQtyTotal}
               draftQtyForVariant={draftQtyForVariant}
-              hasVariants={hasVariants}
-              priceRangeOf={priceRangeOf}
+              draftTotalFor={draftTotalFor}
               stepper={stepper}
-              stepVariant={stepVariant}
               onAdd={quickAdd}
+              onAddVariant={(item, variantId) => stepVariant(item, variantId, 1)}
               listRef={listRef}
             />
           )}
@@ -547,13 +534,11 @@ function PickerListTable({
   autoSize,
   resetKey,
   draftQtyFor,
-  draftQtyTotal,
   draftQtyForVariant,
-  hasVariants,
-  priceRangeOf,
+  draftTotalFor,
   stepper,
-  stepVariant,
   onAdd,
+  onAddVariant,
   listRef,
 }: {
   items: MenuItem[];
@@ -562,20 +547,16 @@ function PickerListTable({
   autoSize: number | null;
   resetKey: string;
   draftQtyFor: (item: MenuItem) => number;
-  draftQtyTotal: (item: MenuItem) => number;
-  draftQtyForVariant: (item: MenuItem, variantId: string) => number;
-  hasVariants: (item: MenuItem) => boolean;
-  priceRangeOf: (item: MenuItem) => string;
-  stepper: (item: MenuItem, staged: number) => React.ReactNode;
-  stepVariant: (item: MenuItem, variantId: string, delta: number) => void;
+  draftQtyForVariant: (item: MenuItem, variantId: string | undefined) => number;
+  draftTotalFor: (item: MenuItem) => number;
+  stepper: (item: MenuItem, staged: number, variantId?: string) => React.ReactNode;
   onAdd: (item: MenuItem) => void;
+  onAddVariant: (item: MenuItem, variantId: string | undefined) => void;
   listRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [manualSize, setManualSize] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  const toggleRow = (id: string) => setExpandedId((prev) => (prev === id ? null : id));
 
   const columns = useMemo<ColumnDef<MenuItem>[]>(
     () => [
@@ -597,11 +578,19 @@ function PickerListTable({
         ),
         cell: ({ row }) => {
           const item = row.original;
+          const variant = hasVariantOptions(item);
           return (
             <span className="flex min-w-0 items-center gap-3">
               <MenuImage item={item} size="sm" />
               <span className="min-w-0">
-                <span className="block truncate text-sm font-medium">{item.name}</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="block truncate text-sm font-medium">{item.name}</span>
+                  {variant && (
+                    <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                      {(item.variants ?? []).length} options
+                    </span>
+                  )}
+                </span>
                 <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
                   <span
                     className={cn(
@@ -618,7 +607,7 @@ function PickerListTable({
       },
       {
         id: "price",
-        accessorFn: (item) => priceOf(item),
+        accessorFn: (item) => (hasVariantOptions(item) ? minPriceOf(item) : priceOf(item)),
         header: ({ column }) => (
           <span className="flex justify-end">
             <Button
@@ -634,11 +623,16 @@ function PickerListTable({
             </Button>
           </span>
         ),
-        cell: ({ row }) => (
-          <span className="block text-right text-sm font-semibold tabular-nums">
-            {formatINR(priceOf(row.original))}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <span className="block text-right text-sm font-semibold tabular-nums">
+              {hasVariantOptions(item)
+                ? `From ${formatINR(minPriceOf(item))}`
+                : formatINR(priceOf(item))}
+            </span>
+          );
+        },
       },
       {
         id: "qty",
@@ -675,9 +669,10 @@ function PickerListTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageSize]);
 
-  // New result set → first page.
+  // New result set → first page, collapse variant rows.
   useEffect(() => {
     table.setPageIndex(0);
+    setExpandedId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey]);
 
@@ -704,199 +699,116 @@ function PickerListTable({
             </TableHeader>
             <TableBody>
               {table.getRowModel().rows.length ? (
-                table.getRowModel().rows.flatMap((row) => {
+                table.getRowModel().rows.map((row) => {
                   const item = row.original;
-                  const variants = (item.variants ?? []).filter((v) => v.is_active !== false);
-                  if (!hasVariants(item)) {
-                    const staged = draftQtyFor(item);
-                    return [
+                  const variant = hasVariantOptions(item);
+                  const staged = variant ? draftTotalFor(item) : draftQtyFor(item);
+                  const expanded = expandedId === item.id;
+                  const toggle = () => setExpandedId((prev) => (prev === item.id ? null : item.id));
+                  const activate = () => {
+                    if (variant) toggle();
+                    else onAdd(item);
+                  };
+                  return (
+                    <Fragment key={row.id}>
                       <TableRow
-                        key={row.id}
                         tabIndex={0}
-                        aria-label={`${item.name} — tap to add, in draft ${staged}`}
-                        onClick={() => onAdd(item)}
+                        aria-expanded={variant ? expanded : undefined}
+                        aria-label={
+                          variant
+                            ? `${item.name} — ${expanded ? "hide" : "show"} ${(item.variants ?? []).length} options, ${staged} in draft`
+                            : `${item.name} — tap to add, in draft ${staged}`
+                        }
+                        onClick={activate}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault();
-                            onAdd(item);
+                            activate();
                           }
                         }}
-                        className="cursor-pointer transition-all duration-150 ease-out hover:bg-primary/[0.04] focus-visible:outline-2 focus-visible:outline-primary active:bg-primary/[0.08]"
+                        className={cn(
+                          "cursor-pointer transition-all duration-150 ease-out hover:bg-primary/[0.04] focus-visible:outline-2 focus-visible:outline-primary active:bg-primary/[0.08]",
+                          expanded && "bg-primary/[0.06]",
+                        )}
                       >
-                        <TableCell>
-                          <span className="flex min-w-0 items-center gap-3">
-                            <MenuImage item={item} size="sm" />
-                            <span className="min-w-0">
-                              <span className="block truncate text-sm font-medium">
-                                {item.name}
-                              </span>
-                              <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                                <span
+                        {row.getVisibleCells().map((cell) => (
+                          <TableCell key={cell.id}>
+                            {cell.column.id === "item" ? (
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                <Icons.chevronRight
                                   className={cn(
-                                    "inline-block size-2 rounded-full",
-                                    item.veg_type === "veg" ? "bg-green-600" : "bg-red-600",
+                                    "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+                                    expanded && "rotate-90",
+                                    !variant && "invisible",
                                   )}
                                 />
-                                {item.category_name}
+                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
                               </span>
-                            </span>
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right text-sm font-semibold tabular-nums">
-                          {formatINR(priceOf(item))}
-                        </TableCell>
-                        <TableCell
-                          onClick={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => e.stopPropagation()}
-                        >
-                          <span className="flex justify-end">{stepper(item, staged)}</span>
-                        </TableCell>
-                      </TableRow>,
-                    ];
-                  }
-                  const expanded = expandedId === item.id;
-                  const total = draftQtyTotal(item);
-                  return [
-                    <TableRow
-                      key={row.id}
-                      tabIndex={0}
-                      aria-expanded={expanded}
-                      aria-label={`${item.name}, ${variants.length} options — tap to ${expanded ? "collapse" : "expand"}`}
-                      onClick={() => toggleRow(item.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          toggleRow(item.id);
-                        }
-                      }}
-                      className={cn(
-                        "cursor-pointer transition-all duration-150 ease-out hover:bg-primary/[0.04] focus-visible:outline-2 focus-visible:outline-primary active:bg-primary/[0.08]",
-                        expanded && "bg-primary/[0.06] font-medium",
-                      )}
-                    >
-                      <TableCell>
-                        <span className="flex min-w-0 items-center gap-3">
-                          <Icons.chevronRight
-                            className={cn(
-                              "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
-                              expanded && "rotate-90",
-                            )}
-                          />
-                          <MenuImage item={item} size="sm" />
-                          <span className="min-w-0">
-                            <span className="flex items-center gap-2">
-                              <span className="block truncate text-sm font-medium">
-                                {item.name}
-                              </span>
-                              <Badge variant="outline" className="shrink-0 text-[11px]">
-                                {variants.length} options
-                              </Badge>
-                            </span>
-                            <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                            ) : cell.column.id === "qty" && variant ? (
                               <span
-                                className={cn(
-                                  "inline-block size-2 rounded-full",
-                                  item.veg_type === "veg" ? "bg-green-600" : "bg-red-600",
-                                )}
-                              />
-                              {item.category_name}
-                            </span>
-                          </span>
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right text-sm font-semibold tabular-nums">
-                        {priceRangeOf(item)}
-                      </TableCell>
-                      <TableCell>
-                        <span className="flex items-center justify-end gap-2">
-                          {total > 0 && (
-                            <span className="text-xs font-bold text-primary tabular-nums">
-                              {total}×
-                            </span>
-                          )}
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-8 text-xs"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleRow(item.id);
-                            }}
-                          >
-                            {expanded ? "Hide" : "Options"}
-                          </Button>
-                        </span>
-                      </TableCell>
-                    </TableRow>,
-                    ...(expanded
-                      ? [
-                          <TableRow
-                            key={`${row.id}-variants`}
-                            className="bg-muted/40 hover:bg-muted/40"
-                          >
-                            <TableCell colSpan={3} className="p-0">
-                              <div className="px-4 py-2 sm:px-10">
-                                <div className="overflow-hidden rounded-md border bg-background">
-                                  <Table>
-                                    <TableBody>
-                                      {variants.map((v) => {
-                                        const staged = draftQtyForVariant(item, v.id);
-                                        return (
-                                          <TableRow key={v.id} className="hover:bg-primary/[0.04]">
-                                            <TableCell className="py-2 text-sm font-medium">
-                                              {v.name}
-                                            </TableCell>
-                                            <TableCell className="py-2 text-right text-sm text-muted-foreground tabular-nums">
-                                              {formatINR(toPaise(v.selling_price))}
-                                            </TableCell>
-                                            <TableCell className="w-32 py-1.5">
-                                              <span className="flex items-center justify-end gap-1">
-                                                <Button
-                                                  type="button"
-                                                  variant="ghost"
-                                                  size="icon-sm"
-                                                  className="rounded-full"
-                                                  disabled={staged <= 0}
-                                                  onClick={() => stepVariant(item, v.id, -1)}
-                                                  aria-label={`Remove one ${item.name} ${v.name}`}
-                                                >
-                                                  <Icons.minus className="size-3.5" />
-                                                </Button>
-                                                <span
-                                                  className={cn(
-                                                    "min-w-6 text-center text-xs font-bold tabular-nums",
-                                                    staged > 0
-                                                      ? "text-primary"
-                                                      : "text-muted-foreground",
-                                                  )}
-                                                >
-                                                  {staged}
-                                                </span>
-                                                <Button
-                                                  type="button"
-                                                  variant="ghost"
-                                                  size="icon-sm"
-                                                  className="rounded-full"
-                                                  onClick={() => stepVariant(item, v.id, 1)}
-                                                  aria-label={`Add one ${item.name} ${v.name}`}
-                                                >
-                                                  <Icons.add className="size-3.5" />
-                                                </Button>
-                                              </span>
-                                            </TableCell>
-                                          </TableRow>
-                                        );
-                                      })}
-                                    </TableBody>
-                                  </Table>
-                                </div>
-                              </div>
-                            </TableCell>
-                          </TableRow>,
-                        ]
-                      : []),
-                  ];
+                                className="flex justify-end"
+                                onClick={(e) => e.stopPropagation()}
+                                onKeyDown={(e) => e.stopPropagation()}
+                              >
+                                <span className="text-xs font-semibold tabular-nums text-muted-foreground">
+                                  {staged > 0 ? `${staged}× in draft` : ""}
+                                </span>
+                              </span>
+                            ) : (
+                              flexRender(cell.column.columnDef.cell, cell.getContext())
+                            )}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                      {variant &&
+                        expanded &&
+                        (item.variants ?? [])
+                          .filter((v) => v.is_active !== false)
+                          .map((v) => {
+                            const vStaged = draftQtyForVariant(item, v.id);
+                            return (
+                              <TableRow
+                                key={`${row.id}-${v.id}`}
+                                tabIndex={0}
+                                aria-label={`${item.name} ${v.name} — tap to add, in draft ${vStaged}`}
+                                onClick={() => onAddVariant(item, v.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault();
+                                    onAddVariant(item, v.id);
+                                  }
+                                }}
+                                className="cursor-pointer bg-muted/40 transition-all duration-150 ease-out hover:bg-primary/[0.04] focus-visible:outline-2 focus-visible:outline-primary active:bg-primary/[0.08]"
+                              >
+                                <TableCell>
+                                  <span className="flex min-w-0 items-center gap-3 pl-8">
+                                    <span className="min-w-0">
+                                      <span className="block truncate text-sm font-medium">
+                                        {v.name}
+                                      </span>
+                                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                                        {v.qty ? `${v.qty}${v.unit ?? ""} · ` : ""}
+                                        {item.category_name}
+                                      </span>
+                                    </span>
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-right text-sm font-semibold tabular-nums">
+                                  {formatINR(toPaise(v.selling_price ?? 0))}
+                                </TableCell>
+                                <TableCell
+                                  onClick={(e) => e.stopPropagation()}
+                                  onKeyDown={(e) => e.stopPropagation()}
+                                >
+                                  <span className="flex justify-end">
+                                    {stepper(item, vStaged, v.id)}
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                    </Fragment>
+                  );
                 })
               ) : (
                 <TableRow>
