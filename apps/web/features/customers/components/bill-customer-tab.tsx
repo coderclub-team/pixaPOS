@@ -4,7 +4,6 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { FieldGroup } from "@pixa/ui/base-ui/field";
 import { useAppForm } from "@/lib/form";
-import { customerSchema } from "../schemas/customer";
 import { getCustomerById, updateCustomer } from "../api/service";
 import { customerKeys } from "../api/queries";
 import { orderKeys, orderQueryOptions } from "@/features/orders/api/queries";
@@ -12,6 +11,26 @@ import { getQueryClient } from "@/lib/query-client";
 import CustomerLinkBlock from "./customer-link-block";
 import AddressMap from "./address-map";
 import { toast } from "sonner";
+import * as z from "zod";
+
+const billCustomerSchema = z.object({
+  name: z.string().min(1, "Name required"),
+  phone: z.string().min(1, "Phone required"),
+  email: z.string().optional().or(z.literal("")),
+  notes: z.string().optional().or(z.literal("")),
+  address: z.object({
+    label: z.string(),
+    line1: z.string(),
+    line2: z.string().optional().or(z.literal("")),
+    locality: z.string(),
+    city: z.string(),
+    state: z.string(),
+    postal_code: z.string(),
+    country: z.string(),
+    latitude: z.number().optional(),
+    longitude: z.number().optional(),
+  }),
+});
 
 /**
  * Bill-panel Customer tab: link/create block, then full editor (contact +
@@ -89,7 +108,7 @@ function CustomerEditor({ customerId, orderId }: { customerId: string; orderId: 
       },
     },
     validators: {
-      onSubmit: customerSchema.pick({ name: true, phone: true, email: true, notes: true }),
+      onSubmit: billCustomerSchema,
     },
     onSubmit: async ({ value }) => {
       await mutation.mutateAsync(value);

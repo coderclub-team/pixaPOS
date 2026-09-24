@@ -728,14 +728,14 @@ export default function OrderBillPanel({
             <TabsTrigger value="payment" className="min-h-11 shrink-0 px-4 touch-manipulation">
               Payment{balance > 0 ? ` · ${formatINR(balance)}` : ""}
             </TabsTrigger>
-            <TabsTrigger value="more" className="min-h-11 shrink-0 px-4 touch-manipulation">
-              More
-            </TabsTrigger>
             {!!showCustomer && (
               <TabsTrigger value="customer" className="min-h-11 shrink-0 px-4 touch-manipulation">
                 Customer
               </TabsTrigger>
             )}
+            <TabsTrigger value="more" className="min-h-11 shrink-0 px-4 touch-manipulation">
+              More
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="kots" className="space-y-4 pt-2">
             <section aria-label="Kitchen tickets" className="space-y-2 rounded-xl border p-3">
@@ -881,6 +881,11 @@ export default function OrderBillPanel({
               )}
             </section>
           </TabsContent>
+          {!!showCustomer && (
+            <TabsContent value="customer" className="space-y-4 pt-2">
+              <BillCustomerTab orderId={orderId} />
+            </TabsContent>
+          )}
           <TabsContent value="more" className="space-y-4 pt-2">
             {showSeating && table && (
               <>
@@ -899,11 +904,6 @@ export default function OrderBillPanel({
             )}
             {showCancel && <CancelOrderBlock orderId={orderId} />}
           </TabsContent>
-          {!!showCustomer && (
-            <TabsContent value="customer" className="space-y-4 pt-2">
-              <BillCustomerTab orderId={orderId} />
-            </TabsContent>
-          )}
         </Tabs>
       </CardContent>
 
