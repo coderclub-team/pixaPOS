@@ -50,6 +50,23 @@ service commands may transition them, validate guards, perform side effects, and
 append business events. New order/payment amounts use integer paise; convert at
 legacy menu/inventory boundaries. `docs/workflows.md` is the source of truth.
 
+## Order modes (table vs counter)
+
+- `outlet_type` never decides ordering behavior. Order mode does:
+  `table | counter` now, extensible to `takeaway | delivery | online | kiosk`.
+- Outlet config owns availability: `table_orders_enabled`,
+  `counter_orders_enabled`, `default_order_mode` (defaults per outlet type,
+  owner-overridable). Terminal entry follows config: tables-only, products-only,
+  or a lightweight mode selector — never force counter flow through floors.
+- Counter orders are first-class: `table_id`/`occupancy_group_id` nullable, no
+  fake tables, same `createOrder` → items → KOT → KDS → payment → completion
+  pipeline. KOT derives from the order, never the table; KDS shows COUNTER
+  (never "Table —") for table-free tickets; surface `TABLE 12 | COUNTER |
+  TAKEAWAY | DELIVERY` labels, never internal enums or outlet-type names.
+- Payment timing is per-mode configurable (`before_kot | after_kot |
+  at_completion`); table defaults to after/at-completion, counter to
+  before/at-completion. Never assume KOT → Bill → Payment order.
+
 ## UI and accessibility
 
 Use existing `@pixa/ui` primitives before custom markup. Prefer semantic tokens,
