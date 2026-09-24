@@ -125,8 +125,9 @@ export default function OrderTerminalPage({
     onError: (e: Error) => toast.error(e.message),
   });
 
-  /** Tap: select + slide panel in; tap the selected table (or floor
-   * background) again to deselect and slide out. */
+  /** Tap: select a table (its bill loads into the always-visible panel).
+   * Tapping the selected table (or floor background) again deselects back to
+   * the empty placeholder; on mobile this also dismisses the bottom sheet. */
   const handleTap = (id: string | null) => {
     if (ensureMut.isPending) return;
     if (id == null || id === activeTableId) {
@@ -213,7 +214,8 @@ export default function OrderTerminalPage({
     );
   }
 
-  const panelMounted = activeTableId != null;
+  // Bill panel is always mounted (desktop static column + mobile sheet).
+  // Before any table selection it shows the empty placeholder below.
 
   return (
     <PageContainer
@@ -300,17 +302,18 @@ export default function OrderTerminalPage({
           </Tabs>
         </div>
 
-        {panelMounted && (
+        <>
           <div
             className={cn(
               "shrink-0 overflow-hidden transition-all duration-300 ease-out",
               // Mobile: bottom sheet sliding up from the screen edge.
               "fixed inset-x-0 bottom-0 z-50 max-h-[88dvh] rounded-t-2xl border-t bg-background shadow-2xl",
-              // Desktop: docked side panel sliding in from the right.
+              // Desktop: always-visible docked side column (no open/close).
               "sm:max-h-[82dvh] lg:static lg:z-auto lg:max-h-none lg:min-h-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:shadow-none lg:w-[420px] xl:w-[480px]",
+              // Mobile sheet hides until a table is tapped.
               panelOpen
-                ? "translate-y-0 opacity-100 lg:translate-x-0"
-                : "pointer-events-none translate-y-full opacity-0 lg:translate-x-8 lg:translate-y-0 lg:w-0",
+                ? "translate-y-0 opacity-100"
+                : "max-lg:pointer-events-none max-lg:translate-y-full max-lg:opacity-0",
             )}
           >
             <div className="max-h-[88dvh] scroll-pt-12 overflow-y-auto pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-h-[82dvh] lg:h-full lg:max-h-none lg:w-auto lg:overflow-visible lg:pb-0">
@@ -496,7 +499,7 @@ export default function OrderTerminalPage({
               )}
             </div>
           </div>
-        )}
+        </>
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] shadow-lg backdrop-blur lg:hidden">
