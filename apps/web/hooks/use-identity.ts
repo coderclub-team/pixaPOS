@@ -73,14 +73,15 @@ export function useIdentity() {
   const router = useRouter();
   const { data: baSession, isPending: baPending } = ba.useSession();
   const [better, setBetter] = useState<BetterState>(null);
-  // True once orgs + role resolve (or no user). Guards race where session is
-  // loaded but organizations is still [] — first-run redirect must wait.
-  const [resolved, setResolved] = useState(false);
+  // Org fetch settles separately from the session — consumers that branch on
+  // "zero organizations" (first-run redirect) must wait for this, otherwise
+  // users WITH orgs get bounced while the list is still loading.
+  const [orgsReady, setOrgsReady] = useState(false);
 
   useEffect(() => {
     if (!baSession?.user) {
       setBetter(null);
-      setResolved(true);
+      setOrgsReady(true);
       return;
     }
     let cancelled = false;
@@ -128,7 +129,7 @@ export function useIdentity() {
           : null,
         role,
       });
-      setResolved(true);
+      setOrgsReady(true);
     })();
     return () => {
       cancelled = true;
@@ -138,7 +139,7 @@ export function useIdentity() {
   return {
     source: (baSession?.user ? "better" : null) as IdentitySource,
     loaded: !baPending,
-    resolved,
+    orgsLoaded: orgsReady,
     user: baSession?.user
       ? (better?.user ?? toCompatUser(baSession.user.name, baSession.user.email))
       : null,
