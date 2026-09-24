@@ -105,6 +105,7 @@ export function MenuImage({ item, size }: { item: MenuItem; size: "sm" | "lg" })
  */
 export default function ItemBrowser({ orderId }: { orderId: string }) {
   const [search, setSearch] = useState("");
+  const [categorySearch, setCategorySearch] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [picked, setPicked] = useState<MenuItem | null>(null);
   const [view, setView] = useState<BrowserView>(() => {
@@ -221,6 +222,11 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
     () => (categories ?? []).filter((c) => c.is_active),
     [categories],
   );
+  const visibleCategories = useMemo(() => {
+    const q = categorySearch.trim().toLowerCase();
+    if (!q) return activeCategories;
+    return activeCategories.filter((c) => c.name.toLowerCase().includes(q));
+  }, [activeCategories, categorySearch]);
 
   const stepper = (item: MenuItem, staged: number) => (
     <span
@@ -263,69 +269,85 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-40 flex-1">
+    <div className="flex h-full min-h-0 gap-3">
+      <nav
+        aria-label="Menu categories"
+        className="flex w-44 shrink-0 flex-col gap-2 self-stretch rounded-xl border p-2 sm:w-52"
+      >
+        <div className="relative shrink-0">
           <Icons.search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search menu…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8"
+            placeholder="Search categories…"
+            value={categorySearch}
+            onChange={(e) => setCategorySearch(e.target.value)}
+            className="h-9 pl-8 text-xs"
           />
         </div>
-        <div className="flex rounded-lg border p-0.5" role="group" aria-label="Menu layout">
-          <Button
-            type="button"
-            variant={view === "card" ? "default" : "ghost"}
-            size="sm"
-            className="h-8 px-2.5 text-xs"
-            onClick={() => setView("card")}
-            title="Card view"
-          >
-            <Icons.cards className="size-4" />
-          </Button>
-          <Button
-            type="button"
-            variant={view === "list" ? "default" : "ghost"}
-            size="sm"
-            className="h-8 px-2.5 text-xs"
-            onClick={() => setView("list")}
-            title="List view"
-          >
-            <Icons.layoutList className="size-4" />
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex min-h-0 flex-1 gap-3">
-        <nav
-          aria-label="Menu categories"
-          className="flex w-28 shrink-0 flex-col gap-1 overflow-y-auto rounded-xl border p-1.5 sm:w-36"
-        >
+        <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
           <Button
             type="button"
             variant={categoryId == null ? "default" : "ghost"}
             size="sm"
-            className="h-9 justify-start text-xs"
+            className="h-9 shrink-0 justify-start text-xs"
             onClick={() => setCategoryId(null)}
           >
             All
           </Button>
-          {activeCategories.map((c) => (
+          {visibleCategories.map((c) => (
             <Button
               key={c.id}
               type="button"
               variant={categoryId === c.id ? "default" : "ghost"}
               size="sm"
-              className="h-9 justify-start truncate text-xs"
+              className="h-9 shrink-0 justify-start truncate text-xs"
               onClick={() => setCategoryId(categoryId === c.id ? null : c.id)}
               title={c.name}
             >
               {c.name}
             </Button>
           ))}
-        </nav>
+          {visibleCategories.length === 0 && (
+            <p className="px-2 py-4 text-center text-xs text-muted-foreground">
+              No categories match.
+            </p>
+          )}
+        </div>
+      </nav>
+
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-40 flex-1">
+            <Icons.search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search menu…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+          <div className="flex rounded-lg border p-0.5" role="group" aria-label="Menu layout">
+            <Button
+              type="button"
+              variant={view === "card" ? "default" : "ghost"}
+              size="sm"
+              className="h-8 px-2.5 text-xs"
+              onClick={() => setView("card")}
+              title="Card view"
+            >
+              <Icons.cards className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant={view === "list" ? "default" : "ghost"}
+              size="sm"
+              className="h-8 px-2.5 text-xs"
+              onClick={() => setView("list")}
+              title="List view"
+            >
+              <Icons.layoutList className="size-4" />
+            </Button>
+          </div>
+        </div>
 
         <div className="min-w-0 flex-1 overflow-y-auto pr-0.5">
           {isPending ? (
