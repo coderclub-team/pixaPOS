@@ -748,6 +748,70 @@ export async function ensureTableOrder(
 }
 
 /**
+ * Bare-single twin of ensureTableOrder: return the table's live order, or
+ * seat one silent 1-guest group (no seating ceremony, no guest-count step)
+ * and create + attach its order. Terminal taps land here; the explicit seat
+ * dialog stays the full party flow. Serialized per table like ensureTableOrder.
+ */
+export async function ensureBareTableOrder(
+  tableId: string,
+  params?: { by?: string },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-table-${tableId}`);
+  try {
+    await delay(200);
+    const findLive = () =>
+      mockOrders
+        .filter(
+          (o) =>
+            !o.deleted_at &&
+            o.table_id === tableId &&
+            o.status !== "COMPLETED" &&
+            o.status !== "CANCELLED",
+        )
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+    const existing = findLive();
+    if (existing) return enrichOrder(existing);
+
+    const table = await getTableById(tableId);
+    if (!table) throw new Error("Table not found");
+    if (table.status === "out_of_service") throw new Error("Table is out of service");
+    if (table.status === "cleaning")
+      throw new Error("Table is being cleaned. Mark it cleaned first.");
+
+    let groupId = table.active_groups[0]?.id;
+    if (!groupId) {
+      if (table.seated_seats >= table.capacity) throw new Error("Table is full");
+      const seated = await seatOccupancy({
+        table_id: tableId,
+        seats: 1,
+        created_by: params?.by ?? "staff",
+      });
+      groupId = seated.id;
+    }
+
+    const raced = findLive();
+    if (raced) return enrichOrder(raced);
+
+    const order = await createOrder({
+      outlet_id: table.outlet_id,
+      channel: "dine_in",
+      table_id: tableId,
+      occupancy_group_id: groupId,
+      created_by: params?.by ?? "staff",
+    });
+    try {
+      await attachOrder({ group_id: groupId, order_id: order.id });
+    } catch {
+      // Group may have transitioned (e.g. already ORDERING) — order stays linked by table_id.
+    }
+    return order;
+  } finally {
+    release();
+  }
+}
+
+/**
  * Party-scoped twin of ensureTableOrder: return the occupancy group's live
  * order, or create a CONFIRMED dine-in order and attach it to the group.
  * This is how shared tables serve one order per party — the press-and-hold

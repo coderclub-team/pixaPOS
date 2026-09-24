@@ -25,7 +25,7 @@ import { seatOccupancy } from "@/features/table/api/service";
 import { partyHex } from "@/features/table/api/utils";
 import type { OccupancyGroup } from "@/features/table/api/types";
 import { orderKeys, ordersQueryOptions } from "@/features/orders/api/queries";
-import { ensureGroupOrder, ensureTableOrder } from "@/features/orders/api/service";
+import { ensureBareTableOrder, ensureGroupOrder } from "@/features/orders/api/service";
 import { Button } from "@pixa/ui/base-ui/button";
 import ItemPicker from "@/features/orders/components/item-picker";
 import OrderBillPanel from "@/features/orders/components/bill-panel";
@@ -68,7 +68,9 @@ export default function OrderTerminalPage({
   );
 
   const ensureMut = useMutation({
-    mutationFn: (tableId: string) => ensureTableOrder(tableId),
+    // Bare-single flow: tap selects + ensures one silent 1-guest party order.
+    // The explicit seat dialog stays the full party flow.
+    mutationFn: (tableId: string) => ensureBareTableOrder(tableId),
     onSuccess: (order, tableId) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.all });
       queryClient.invalidateQueries({ queryKey: orderKeys.all });
