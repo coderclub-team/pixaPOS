@@ -789,7 +789,7 @@ export default function OrderBillPanel({
       </CardHeader>
       <CardContent className={fill ? "min-h-0 flex-1 space-y-4 overflow-y-auto pb-6" : "space-y-4"}>
         {drafts.length > 0 && !isTerminal && (
-          <div className="sticky top-0 z-[5] -mx-1 bg-background/95 px-1 py-2 backdrop-blur-sm">
+          <div className="px-1 py-1">
             <Button
               variant="secondary"
               className="h-11 w-full shrink-0 text-sm"
@@ -808,25 +808,27 @@ export default function OrderBillPanel({
           onValueChange={setTab}
           className="w-full"
         >
-          <TabsList className="max-w-full overflow-x-auto">
-            <TabsTrigger value="kots" className="min-h-11 shrink-0 px-4 touch-manipulation">
-              KOTs{(kots ?? []).length > 0 ? ` (${(kots ?? []).length})` : ""}
-            </TabsTrigger>
-            <TabsTrigger value="bill" className="min-h-11 shrink-0 px-4 touch-manipulation">
-              Bill
-            </TabsTrigger>
-            <TabsTrigger value="payment" className="min-h-11 shrink-0 px-4 touch-manipulation">
-              Payment{balance > 0 ? ` · ${formatINR(balance)}` : ""}
-            </TabsTrigger>
-            {!!showCustomer && (
-              <TabsTrigger value="customer" className="min-h-11 shrink-0 px-4 touch-manipulation">
-                Customer
+          <div className="sticky top-0 z-[5] -mx-1 bg-background/95 px-1 py-1.5 backdrop-blur-sm">
+            <TabsList className="w-full justify-start gap-1 overflow-x-auto overflow-y-hidden flex-nowrap">
+              <TabsTrigger value="kots" className="min-h-11 shrink-0 px-4 touch-manipulation">
+                KOTs{(kots ?? []).length > 0 ? ` (${(kots ?? []).length})` : ""}
               </TabsTrigger>
-            )}
-            <TabsTrigger value="more" className="min-h-11 shrink-0 px-4 touch-manipulation">
-              More
-            </TabsTrigger>
-          </TabsList>
+              <TabsTrigger value="bill" className="min-h-11 shrink-0 px-4 touch-manipulation">
+                Bill
+              </TabsTrigger>
+              <TabsTrigger value="payment" className="min-h-11 shrink-0 px-4 touch-manipulation">
+                Payment{balance > 0 ? ` · ${formatINR(balance)}` : ""}
+              </TabsTrigger>
+              {!!showCustomer && (
+                <TabsTrigger value="customer" className="min-h-11 shrink-0 px-4 touch-manipulation">
+                  Customer
+                </TabsTrigger>
+              )}
+              <TabsTrigger value="more" className="min-h-11 shrink-0 px-4 touch-manipulation">
+                More
+              </TabsTrigger>
+            </TabsList>
+          </div>
           <TabsContent value="kots" className="space-y-4 pt-2">
             <section aria-label="Kitchen tickets" className="space-y-2 rounded-xl border p-3">
               <p className="flex items-center justify-between text-xs font-medium uppercase text-muted-foreground">
