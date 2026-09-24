@@ -5,6 +5,14 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import Image from "next/image";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@pixa/ui/base-ui/table";
 import { Input } from "@pixa/ui/base-ui/input";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
@@ -346,48 +354,68 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
               })}
             </div>
           ) : (
-            <div className="space-y-1.5">
-              {items.slice(0, 60).map((item) => {
-                const staged = draftQtyFor(item);
-                return (
-                  <div
-                    key={item.id}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`${item.name} — tap to add, in draft ${staged}`}
-                    onClick={() => quickAdd(item)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        quickAdd(item);
-                      }
-                    }}
-                    className="flex cursor-pointer items-center gap-3 rounded-xl border bg-card p-2 transition-all duration-150 ease-out hover:border-primary/50 hover:bg-primary/[0.04] hover:shadow-[0_0_0_4px_var(--primary-ring,rgba(0,0,0,0.06))] focus-visible:outline-2 focus-visible:outline-primary active:scale-[0.99]"
-                  >
-                    <MenuImage item={item} size="sm" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{item.name}</span>
-                      <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                        <span
-                          className={cn(
-                            "inline-block size-2 rounded-full",
-                            item.veg_type === "veg" ? "bg-green-600" : "bg-red-600",
-                          )}
-                        />
-                        {item.category_name} · {formatINR(priceOf(item))}
-                      </span>
-                    </span>
-                    <span
-                      className="flex shrink-0 items-center gap-1"
-                      onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => e.stopPropagation()}
-                    >
-                      {stepper(item, staged)}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Item</TableHead>
+                      <TableHead className="w-24 text-right">Price</TableHead>
+                      <TableHead className="w-36 text-right">Qty</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {items.slice(0, 60).map((item) => {
+                      const staged = draftQtyFor(item);
+                      return (
+                        <TableRow
+                          key={item.id}
+                          tabIndex={0}
+                          aria-label={`${item.name} — tap to add, in draft ${staged}`}
+                          onClick={() => quickAdd(item)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              quickAdd(item);
+                            }
+                          }}
+                          className="cursor-pointer transition-all duration-150 ease-out hover:bg-primary/[0.04] focus-visible:outline-2 focus-visible:outline-primary active:bg-primary/[0.08]"
+                        >
+                          <TableCell>
+                            <span className="flex min-w-0 items-center gap-3">
+                              <MenuImage item={item} size="sm" />
+                              <span className="min-w-0">
+                                <span className="block truncate text-sm font-medium">
+                                  {item.name}
+                                </span>
+                                <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                                  <span
+                                    className={cn(
+                                      "inline-block size-2 rounded-full",
+                                      item.veg_type === "veg" ? "bg-green-600" : "bg-red-600",
+                                    )}
+                                  />
+                                  {item.category_name}
+                                </span>
+                              </span>
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right text-sm font-semibold tabular-nums">
+                            {formatINR(priceOf(item))}
+                          </TableCell>
+                          <TableCell
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
+                            <span className="flex justify-end">{stepper(item, staged)}</span>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           )}
           {items && items.length > 60 && (
             <p className="mt-3 text-xs text-muted-foreground">
