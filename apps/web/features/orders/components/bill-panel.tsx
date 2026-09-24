@@ -51,7 +51,9 @@ import {
   cancelOrder,
   computeSplits,
   clearSplit,
+  removeDraftItem,
   setDiscount,
+  updateDraftItemQty,
 } from "@/features/orders/api/service";
 import { collectPayment } from "@/features/payments/api/service";
 import { fireKOT, voidKOTLine } from "@/features/kitchen/api/service";
@@ -175,6 +177,26 @@ export function KOTAccordion({
 
   const draft = order?.items.filter((i) => !i.kot_id) ?? [];
 
+  const draftFireMut = useMutation({
+    mutationFn: () => fireKOT(orderId),
+    onSuccess: (kot) => {
+      invalidateBill(orderId, queryClient);
+      toast.success(`KOT #${kot.kot_number} fired to kitchen`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const draftQtyMut = useMutation({
+    mutationFn: ({ lineId, qty }: { lineId: string; qty: number }) =>
+      updateDraftItemQty(orderId, lineId, qty),
+    onSuccess: () => invalidateBill(orderId, queryClient),
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const draftRemoveMut = useMutation({
+    mutationFn: (lineId: string) => removeDraftItem(orderId, lineId),
+    onSuccess: () => invalidateBill(orderId, queryClient),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   if (kots.length === 0 && draft.length === 0) {
     return (
       <p className="py-2 text-center text-xs text-muted-foreground">
@@ -223,6 +245,74 @@ export function KOTAccordion({
 
   return (
     <div className="space-y-2.5">
+      {draft.length > 0 && (
+        <div className="rounded-xl border border-dashed border-primary/40 p-2">
+          <div className="flex items-center justify-between px-1 pb-1">
+            <p className="text-xs font-medium uppercase text-muted-foreground">
+              Draft KOT · {draft.reduce((s, l) => s + l.qty, 0)}×
+            </p>
+            <Button
+              size="sm"
+              className="h-8"
+              disabled={draftFireMut.isPending}
+              onClick={() => draftFireMut.mutate()}
+              title="Fire all draft lines to kitchen"
+            >
+              {draftFireMut.isPending ? "Firing…" : "Fire to kitchen"}
+            </Button>
+          </div>
+          <div className="space-y-1">
+            {draft.map((l) => (
+              <div
+                key={l.id}
+                className="flex items-center gap-2 rounded-lg border bg-card px-2 py-1 text-sm"
+              >
+                <span className="min-w-0 flex-1 truncate font-medium">
+                  {l.qty}× {l.item_name_snapshot}
+                  {l.variant_name_snapshot ? ` (${l.variant_name_snapshot})` : ""}
+                  {l.modifiers?.length
+                    ? ` +${l.modifiers.map((m) => m.name_snapshot).join(", ")}`
+                    : ""}
+                </span>
+                <span className="flex shrink-0 items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={draftQtyMut.isPending || draftRemoveMut.isPending}
+                    onClick={() =>
+                      l.qty <= 1
+                        ? draftRemoveMut.mutate(l.id)
+                        : draftQtyMut.mutate({ lineId: l.id, qty: l.qty - 1 })
+                    }
+                    aria-label={`Decrease ${l.item_name_snapshot}`}
+                  >
+                    <Icons.minus className="size-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={draftQtyMut.isPending}
+                    onClick={() => draftQtyMut.mutate({ lineId: l.id, qty: l.qty + 1 })}
+                    aria-label={`Increase ${l.item_name_snapshot}`}
+                  >
+                    <Icons.add className="size-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-destructive"
+                    disabled={draftRemoveMut.isPending}
+                    onClick={() => draftRemoveMut.mutate(l.id)}
+                    aria-label={`Remove ${l.item_name_snapshot}`}
+                  >
+                    <Icons.trash className="size-3.5" />
+                  </Button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {kots.map((kot) => {
         const open = openId === kot.id;
         return (

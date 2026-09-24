@@ -27,7 +27,7 @@ import type { OccupancyGroup } from "@/features/table/api/types";
 import { orderKeys, ordersQueryOptions } from "@/features/orders/api/queries";
 import { ensureBareTableOrder, ensureGroupOrder } from "@/features/orders/api/service";
 import { Button } from "@pixa/ui/base-ui/button";
-import ItemPicker from "@/features/orders/components/item-picker";
+import ItemBrowser from "@/features/orders/components/item-browser";
 import OrderBillPanel from "@/features/orders/components/bill-panel";
 import { useCrossTabSync } from "@/lib/use-cross-tab-sync";
 import { toast } from "sonner";
@@ -49,10 +49,12 @@ export default function OrderTerminalPage({
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [seatOpen, setSeatOpen] = useState(false);
   const [seatCount, setSeatCount] = useState(2);
   const [mobileView, setMobileView] = useState<"tables" | "order" | "items">("tables");
+  // Left region content: floor tables, or inline menu browser replacing the
+  // table panel in the exact same footprint (no modal anywhere).
+  const [leftView, setLeftView] = useState<"tables" | "items">("tables");
   const exitTimer = useRef<number | null>(null);
 
   const { data: activeTable } = useQuery({
@@ -104,7 +106,7 @@ export default function OrderTerminalPage({
       setActiveGroupId(groupId);
       setActiveOrderId(order.id);
       setPanelOpen(true);
-      setPickerOpen(true);
+      setLeftView("items");
       setMobileView("items");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -133,9 +135,9 @@ export default function OrderTerminalPage({
   const handleTap = (id: string | null) => {
     if (ensureMut.isPending) return;
     if (id == null || id === activeTableId) {
-      setPickerOpen(false);
       setPanelOpen(false);
       setMobileView("tables");
+      setLeftView("tables");
       exitTimer.current = window.setTimeout(() => {
         setActiveTableId(null);
         setActiveOrderId(null);
@@ -245,63 +247,91 @@ export default function OrderTerminalPage({
           className={cn(
             "min-h-0 min-w-0 lg:flex-1",
             "h-[calc(100dvh-170px)] sm:h-[calc(100dvh-175px)] lg:h-auto",
-            mobileView !== "tables" ? "hidden lg:block" : "block",
+            mobileView === "order" ? "hidden lg:block" : "block",
           )}
         >
-          <Tabs
-            value={currentFloorId}
-            onValueChange={(v) => {
-              setSelectedFloorId(v);
-              setPickerOpen(false);
-              setMobileView("tables");
-            }}
-            className="h-full"
-          >
-            <div className="mb-3 flex flex-wrap items-center gap-2 lg:mb-4 lg:flex-nowrap lg:justify-between">
-              <TabsList className="max-w-full overflow-x-auto">
-                {activeFloors.map((f) => (
-                  <TabsTrigger
-                    key={f.id}
-                    value={f.id}
-                    className="min-h-11 shrink-0 px-4 touch-manipulation"
-                  >
-                    {f.name}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              {activeTable ? (
-                <Badge variant="outline" className="gap-1 border-primary text-primary">
-                  <div className="h-2 w-2 rounded-full bg-primary" /> Taking order — Table{" "}
-                  {activeTable.number}
-                  {activeGroup ? ` · Party ${activeGroup.label ?? "?"}` : ""}
-                </Badge>
-              ) : (
-                <Badge
+          {leftView === "items" && activeOrderId ? (
+            <div className="flex h-full flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
                   variant="outline"
-                  className="gap-1 border-green-500 text-green-600"
-                  title="Tap a table to open its bill · tap the selected table again to deselect"
+                  size="sm"
+                  className="h-9 shrink-0"
+                  onClick={() => {
+                    setLeftView("tables");
+                    setMobileView("tables");
+                  }}
+                  title="Back to tables"
                 >
-                  <div className="h-2 w-2 rounded-full bg-green-500" /> Tap a table for bill &
-                  seating
-                </Badge>
-              )}
+                  <Icons.chevronLeft className="size-4" /> Tables
+                </Button>
+                <p className="min-w-0 flex-1 truncate text-sm font-medium">
+                  Add items
+                  {activeTable ? ` — Table ${activeTable.number}` : ""}
+                  {activeGroup ? ` · Party ${activeGroup.label ?? "?"}` : ""}
+                </p>
+              </div>
+              <div className="min-h-0 flex-1 overflow-hidden rounded-xl border bg-background p-3">
+                <ItemBrowser orderId={activeOrderId} />
+              </div>
             </div>
-            {activeFloors.map((f) => (
-              <TabsContent key={f.id} value={f.id} className="h-[calc(100%-60px)]">
-                <Suspense fallback={<Skeleton className="h-full w-full rounded-xl" />}>
-                  <FloorPlanCanvas
-                    floorId={f.id}
-                    mode="operations"
-                    selectedTableId={activeTableId ?? undefined}
-                    onSelectTable={handleTap}
-                    activeGroupId={activeGroupId ?? undefined}
-                    onSelectParty={handleSelectParty}
-                    onHoldParty={handleHoldParty}
-                  />
-                </Suspense>
-              </TabsContent>
-            ))}
-          </Tabs>
+          ) : (
+            <Tabs
+              value={currentFloorId}
+              onValueChange={(v) => {
+                setSelectedFloorId(v);
+                setLeftView("tables");
+                setMobileView("tables");
+              }}
+              className="h-full"
+            >
+              <div className="mb-3 flex flex-wrap items-center gap-2 lg:mb-4 lg:flex-nowrap lg:justify-between">
+                <TabsList className="max-w-full overflow-x-auto">
+                  {activeFloors.map((f) => (
+                    <TabsTrigger
+                      key={f.id}
+                      value={f.id}
+                      className="min-h-11 shrink-0 px-4 touch-manipulation"
+                    >
+                      {f.name}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                {activeTable ? (
+                  <Badge variant="outline" className="gap-1 border-primary text-primary">
+                    <div className="h-2 w-2 rounded-full bg-primary" /> Taking order — Table{" "}
+                    {activeTable.number}
+                    {activeGroup ? ` · Party ${activeGroup.label ?? "?"}` : ""}
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant="outline"
+                    className="gap-1 border-green-500 text-green-600"
+                    title="Tap a table to open its bill · tap the selected table again to deselect"
+                  >
+                    <div className="h-2 w-2 rounded-full bg-green-500" /> Tap a table for bill &
+                    seating
+                  </Badge>
+                )}
+              </div>
+              {activeFloors.map((f) => (
+                <TabsContent key={f.id} value={f.id} className="h-[calc(100%-60px)]">
+                  <Suspense fallback={<Skeleton className="h-full w-full rounded-xl" />}>
+                    <FloorPlanCanvas
+                      floorId={f.id}
+                      mode="operations"
+                      selectedTableId={activeTableId ?? undefined}
+                      onSelectTable={handleTap}
+                      activeGroupId={activeGroupId ?? undefined}
+                      onSelectParty={handleSelectParty}
+                      onHoldParty={handleHoldParty}
+                    />
+                  </Suspense>
+                </TabsContent>
+              ))}
+            </Tabs>
+          )}
         </div>
 
         <>
@@ -440,16 +470,17 @@ export default function OrderTerminalPage({
                   showSeating
                   showCustomer
                   onAddItems={() => {
-                    setPickerOpen(true);
+                    setLeftView("items");
                     setMobileView("items");
+                    setPanelOpen(true);
                   }}
                   fit="fill"
                   onCompleted={() => {
                     queryClient.invalidateQueries({ queryKey: tableKeys.all });
                     queryClient.invalidateQueries({ queryKey: orderKeys.all });
-                    setPickerOpen(false);
                     setPanelOpen(false);
                     setMobileView("tables");
+                    setLeftView("tables");
                     exitTimer.current = window.setTimeout(() => {
                       setActiveTableId(null);
                       setActiveOrderId(null);
@@ -509,9 +540,9 @@ export default function OrderTerminalPage({
           <button
             type="button"
             onClick={() => {
-              setPickerOpen(false);
               setPanelOpen(false);
               setMobileView("tables");
+              setLeftView("tables");
             }}
             className={cn(
               "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium touch-manipulation",
@@ -537,8 +568,9 @@ export default function OrderTerminalPage({
             type="button"
             onClick={() => {
               if (activeOrderId) {
-                setPickerOpen(true);
+                setPanelOpen(true);
                 setMobileView("items");
+                setLeftView("items");
               }
             }}
             disabled={!activeOrderId}
@@ -552,24 +584,6 @@ export default function OrderTerminalPage({
           </button>
         </div>
       </div>
-
-      {activeOrderId && (
-        <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
-          <DialogContent className="h-[100dvh] max-h-[100dvh] w-full max-w-none overflow-hidden rounded-none p-0 sm:h-auto sm:max-h-[92dvh] sm:w-[calc(100%-2rem)] sm:max-w-4xl sm:rounded-lg sm:p-6">
-            <DialogHeader className="shrink-0">
-              <DialogTitle>
-                Add items{activeTable ? ` — Table ${activeTable.number}` : ""}
-                {activeGroup ? ` · Party ${activeGroup.label ?? "?"}` : ""}
-              </DialogTitle>
-              <DialogDescription>
-                Pick products below — they collect as a draft. Nothing fires to the kitchen until
-                Fire to kitchen.
-              </DialogDescription>
-            </DialogHeader>
-            <ItemPicker orderId={activeOrderId} stayOpen onClose={() => setPickerOpen(false)} />
-          </DialogContent>
-        </Dialog>
-      )}
 
       {activeTableDerived && (
         <Dialog open={seatOpen} onOpenChange={setSeatOpen}>

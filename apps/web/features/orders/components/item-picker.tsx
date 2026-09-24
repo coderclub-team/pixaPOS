@@ -449,7 +449,7 @@ export default function ItemPicker({
   );
 }
 
-function PickItemDialog({
+export function PickItemDialog({
   item,
   pending,
   onClose,

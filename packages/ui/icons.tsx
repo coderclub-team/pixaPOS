@@ -55,6 +55,7 @@ import {
   IconLayoutDashboard,
   IconLayoutGrid,
   IconLayoutKanban,
+  IconLayoutList,
   IconLayoutSidebar,
   IconLoader2,
   IconLock,
@@ -146,6 +147,7 @@ export const Icons = {
   // Layout
   dashboard: IconLayoutDashboard,
   cards: IconLayoutGrid,
+  layoutList: IconLayoutList,
   kanban: IconLayoutKanban,
   panelLeft: IconLayoutSidebar,
 
