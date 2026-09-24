@@ -656,6 +656,7 @@ export default function OrderBillPanel({
                 className="h-8 px-2"
                 onClick={onAddItems}
                 title="Add items — fires straight to kitchen"
+                aria-label="Add items"
               >
                 <Icons.add className="size-4" />
                 <Icons.pizza className="size-4" />
@@ -663,19 +664,19 @@ export default function OrderBillPanel({
             )}
             <Button
               variant="ghost"
-              size="sm"
-              className="h-8 gap-1 px-2 text-xs"
+              size="icon-sm"
               onClick={() => setPreviewOpen(true)}
               title="Print preview"
+              aria-label="Print preview"
             >
               <Icons.receipt className="size-4" />
-              Preview
             </Button>
             {(kots?.length ?? 0) > 0 && (
               <ReprintDialog
                 purpose="BILL"
                 refId={orderId}
                 refLabel={`Bill ${order.order_number}`}
+                triggerLabel=""
               />
             )}
             <Badge variant="outline" className={cn("gap-1", stamp.className)}>
