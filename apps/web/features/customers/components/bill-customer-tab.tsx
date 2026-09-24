@@ -8,6 +8,7 @@ import { getCustomerById, updateCustomer } from "../api/service";
 import { customerKeys } from "../api/queries";
 import { orderKeys, orderQueryOptions } from "@/features/orders/api/queries";
 import { getQueryClient } from "@/lib/query-client";
+import { Input } from "@pixa/ui/base-ui/input";
 import CustomerLinkBlock from "./customer-link-block";
 import AddressMap from "./address-map";
 import { toast } from "sonner";
@@ -194,9 +195,8 @@ function AddressEditor({
       <label className="text-xs text-muted-foreground" htmlFor={`cust-${k}`}>
         {label}
       </label>
-      <input
+      <Input
         id={`cust-${k}`}
-        className="h-9 w-full rounded-lg border px-2 text-sm"
         value={(v[k] as string) ?? ""}
         placeholder={placeholder}
         onChange={(e) => onChange({ [k]: e.target.value })}

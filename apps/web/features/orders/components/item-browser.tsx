@@ -24,6 +24,14 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { Input } from "@pixa/ui/base-ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@pixa/ui/base-ui/select";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { formatINR, toPaise } from "@/lib/money";
@@ -307,9 +315,13 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
             </Button>
           ))}
           {visibleCategories.length === 0 && (
-            <p className="px-2 py-4 text-center text-xs text-muted-foreground">
-              No categories match.
-            </p>
+            <div className="mx-auto flex max-w-md flex-col items-center gap-2 px-2 py-8 text-center">
+              <div className="rounded-full border border-dashed p-2.5">
+                <Icons.search className="size-5 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-medium">No categories match</p>
+              <p className="text-xs text-muted-foreground">Try another search.</p>
+            </div>
           )}
         </div>
       </nav>
@@ -354,8 +366,14 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
             <p className="py-8 text-center text-sm text-muted-foreground">Loading menu…</p>
           ) : !items?.length ? (
             <Card>
-              <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                No menu items match. Try another search or category.
+              <CardContent className="py-12 text-center">
+                <div className="mx-auto flex max-w-md flex-col items-center gap-3">
+                  <div className="rounded-full border border-dashed p-3">
+                    <Icons.pizza className="size-6 text-muted-foreground" />
+                  </div>
+                  <p className="font-medium">No menu items match</p>
+                  <p className="text-sm text-muted-foreground">Try another search or category.</p>
+                </div>
               </CardContent>
             </Card>
           ) : view === "card" ? (
@@ -637,29 +655,37 @@ function PickerListTable({
             {autoSize != null ? ` · auto (${autoSize}/page)` : ""}
           </p>
           <div className="flex items-center gap-1">
-            <select
-              aria-label="Rows per page"
-              className="h-8 rounded-md border bg-background px-1 text-xs"
+            <Select
               value={manualSize ? String(table.getState().pagination.pageSize) : "auto"}
-              onChange={(e) => {
-                if (e.target.value === "auto") {
+              onValueChange={(value) => {
+                if (value === "auto") {
                   setManualSize(false);
                   onPageSizeChange(null);
                 } else {
                   setManualSize(true);
-                  const n = Number(e.target.value);
+                  const n = Number(value);
                   table.setPageSize(n);
                   onPageSizeChange(n);
                 }
               }}
             >
-              <option value="auto">Auto</option>
-              {[5, 10, 15, 20, 30].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger
+                className="h-8 w-[5.5rem] text-xs [&[data-size]]:h-8"
+                aria-label="Rows per page"
+              >
+                <SelectValue placeholder="Auto" />
+              </SelectTrigger>
+              <SelectContent side="top">
+                <SelectGroup>
+                  <SelectItem value="auto">Auto</SelectItem>
+                  {[5, 10, 15, 20, 30].map((n) => (
+                    <SelectItem key={n} value={`${n}`}>
+                      {n}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
             <Button
               type="button"
               variant="outline"
