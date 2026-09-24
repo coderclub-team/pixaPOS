@@ -297,7 +297,7 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
         <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
           <button
             type="button"
-            data-active={categoryId == null}
+            data-active={categoryId == null ? true : undefined}
             onClick={() => setCategoryId(null)}
             className="flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm ring-sidebar-ring outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate"
           >
@@ -308,7 +308,7 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
             <button
               key={c.id}
               type="button"
-              data-active={categoryId === c.id}
+              data-active={categoryId === c.id ? true : undefined}
               onClick={() => setCategoryId(categoryId === c.id ? null : c.id)}
               title={c.name}
               className="flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm ring-sidebar-ring outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate"
