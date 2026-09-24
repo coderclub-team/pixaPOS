@@ -13,6 +13,7 @@ import {
 } from "@pixa/ui/base-ui/dropdown-menu";
 import { Icons } from "@pixa/ui/icons";
 import { UserAvatarProfile } from "@pixa/ui/user-avatar-profile";
+import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
 import { useIdentity } from "@/hooks/use-identity";
 import { getQueryClient } from "@/lib/query-client";
 import { tableKeys } from "@/features/table/api/queries";
@@ -52,6 +53,7 @@ export default function KotShell() {
           </span>
         </Link>
         <span className="flex items-center gap-1.5">
+          <ThemeModeToggle />
           <Button
             variant="outline"
             size="sm"

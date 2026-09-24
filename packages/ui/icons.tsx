@@ -92,6 +92,7 @@ import {
   IconStar,
   IconSun,
   IconTable,
+  IconTag,
   IconToolsKitchen2,
   IconTrash,
   IconTrendingDown,
@@ -256,6 +257,7 @@ export const Icons = {
   moreHorizontal: IconDots,
   layers: IconStack3,
   table: IconTable,
+  tag: IconTag,
 
   // Inventory
   warehouse: IconBuildingWarehouse,

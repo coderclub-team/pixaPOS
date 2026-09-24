@@ -280,7 +280,7 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
     <div className="flex h-full min-h-0 gap-3">
       <nav
         aria-label="Menu categories"
-        className="flex w-44 shrink-0 flex-col gap-2 self-stretch rounded-xl border p-2 sm:w-52"
+        className="flex w-44 shrink-0 flex-col self-stretch rounded-xl border bg-sidebar p-2 text-sidebar-foreground sm:w-52"
       >
         <div className="relative shrink-0">
           <Icons.search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -288,31 +288,34 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
             placeholder="Search categories…"
             value={categorySearch}
             onChange={(e) => setCategorySearch(e.target.value)}
-            className="h-9 pl-8 text-xs"
+            className="h-9 bg-sidebar pl-8 text-xs"
           />
         </div>
-        <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
-          <Button
+        <p className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70">
+          Categories
+        </p>
+        <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
+          <button
             type="button"
-            variant={categoryId == null ? "default" : "ghost"}
-            size="sm"
-            className="h-9 shrink-0 justify-start text-xs"
+            data-active={categoryId == null}
             onClick={() => setCategoryId(null)}
+            className="flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm ring-sidebar-ring outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate"
           >
-            All
-          </Button>
+            <Icons.layoutList />
+            <span>All</span>
+          </button>
           {visibleCategories.map((c) => (
-            <Button
+            <button
               key={c.id}
               type="button"
-              variant={categoryId === c.id ? "default" : "ghost"}
-              size="sm"
-              className="h-9 shrink-0 justify-start truncate text-xs"
+              data-active={categoryId === c.id}
               onClick={() => setCategoryId(categoryId === c.id ? null : c.id)}
               title={c.name}
+              className="flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm ring-sidebar-ring outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate"
             >
-              {c.name}
-            </Button>
+              <Icons.tag />
+              <span>{c.name}</span>
+            </button>
           ))}
           {visibleCategories.length === 0 && (
             <div className="mx-auto flex max-w-md flex-col items-center gap-2 px-2 py-8 text-center">
