@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import Image from "next/image";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
+import { DataTablePagination } from "@pixa/ui/base-ui/table/data-table-pagination";
 import {
   Table,
   TableBody,
@@ -13,6 +14,15 @@ import {
   TableHeader,
   TableRow,
 } from "@pixa/ui/base-ui/table";
+import {
+  type ColumnDef,
+  type SortingState,
+  flexRender,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
 import { Input } from "@pixa/ui/base-ui/input";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
@@ -125,7 +135,6 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
   const listRef = useRef<HTMLDivElement>(null);
   const [fitSize, setFitSize] = useState(10);
   const [pageSizeOverride, setPageSizeOverride] = useState<number | null>(null);
-  const [page, setPage] = useState(0);
 
   useEffect(() => {
     const el = listRef.current;
@@ -207,14 +216,7 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
     draftLines.filter((l) => isDefaultConfigLine(item, l)).reduce((s, l) => s + l.qty, 0);
 
   const allItems = items ?? [];
-  const pageCount = Math.max(1, Math.ceil(allItems.length / pageSize));
-  const safePage = Math.min(page, pageCount - 1);
-  const pageItems = allItems.slice(safePage * pageSize, safePage * pageSize + pageSize);
-
-  // Reset to first page when the result set or size changes.
-  useEffect(() => {
-    setPage(0);
-  }, [search, categoryId, pageSize, items?.length]);
+  const pageSize = pageSizeOverride ?? fitSize;
 
   const activeCategories = useMemo(
     () => (categories ?? []).filter((c) => c.is_active),
@@ -388,120 +390,17 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
               })}
             </div>
           ) : (
-            <Card>
-              <CardContent className="p-0">
-                <div ref={listRef} className="min-h-[200px]">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Item</TableHead>
-                        <TableHead className="w-24 text-right">Price</TableHead>
-                        <TableHead className="w-36 text-right">Qty</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {pageItems.map((item) => {
-                        const staged = draftQtyFor(item);
-                        return (
-                          <TableRow
-                            key={item.id}
-                            tabIndex={0}
-                            aria-label={`${item.name} — tap to add, in draft ${staged}`}
-                            onClick={() => quickAdd(item)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault();
-                                quickAdd(item);
-                              }
-                            }}
-                            className="cursor-pointer transition-all duration-150 ease-out hover:bg-primary/[0.04] focus-visible:outline-2 focus-visible:outline-primary active:bg-primary/[0.08]"
-                          >
-                            <TableCell>
-                              <span className="flex min-w-0 items-center gap-3">
-                                <MenuImage item={item} size="sm" />
-                                <span className="min-w-0">
-                                  <span className="block truncate text-sm font-medium">
-                                    {item.name}
-                                  </span>
-                                  <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                                    <span
-                                      className={cn(
-                                        "inline-block size-2 rounded-full",
-                                        item.veg_type === "veg" ? "bg-green-600" : "bg-red-600",
-                                      )}
-                                    />
-                                    {item.category_name}
-                                  </span>
-                                </span>
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-right text-sm font-semibold tabular-nums">
-                              {formatINR(priceOf(item))}
-                            </TableCell>
-                            <TableCell
-                              onClick={(e) => e.stopPropagation()}
-                              onKeyDown={(e) => e.stopPropagation()}
-                            >
-                              <span className="flex justify-end">{stepper(item, staged)}</span>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-                <div className="flex items-center justify-between gap-2 border-t px-3 py-2">
-                  <p className="text-xs text-muted-foreground tabular-nums">
-                    {allItems.length === 0
-                      ? "No items"
-                      : `${safePage * pageSize + 1}–${Math.min(allItems.length, safePage * pageSize + pageSize)} of ${allItems.length}`}
-                    {pageSizeOverride == null ? ` · auto (${pageSize}/page)` : ""}
-                  </p>
-                  <div className="flex items-center gap-1">
-                    <select
-                      aria-label="Rows per page"
-                      className="h-8 rounded-md border bg-background px-1 text-xs"
-                      value={pageSizeOverride ?? "auto"}
-                      onChange={(e) =>
-                        setPageSizeOverride(
-                          e.target.value === "auto" ? null : Number(e.target.value),
-                        )
-                      }
-                    >
-                      <option value="auto">Auto</option>
-                      {[5, 10, 15, 20, 30].map((n) => (
-                        <option key={n} value={n}>
-                          {n}
-                        </option>
-                      ))}
-                    </select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon-sm"
-                      onClick={() => setPage((p) => Math.max(0, p - 1))}
-                      disabled={safePage === 0}
-                      aria-label="Previous page"
-                    >
-                      <Icons.chevronLeft className="size-4" />
-                    </Button>
-                    <span className="min-w-14 text-center text-xs font-medium tabular-nums">
-                      {safePage + 1} / {pageCount}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon-sm"
-                      onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
-                      disabled={safePage >= pageCount - 1}
-                      aria-label="Next page"
-                    >
-                      <Icons.chevronRight className="size-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <PickerListTable
+              items={allItems}
+              pageSize={pageSize}
+              onPageSizeChange={setPageSizeOverride}
+              autoSize={pageSizeOverride == null ? pageSize : null}
+              resetKey={`${search}|${categoryId ?? "all"}|${allItems.length}`}
+              draftQtyFor={draftQtyFor}
+              stepper={stepper}
+              onAdd={quickAdd}
+              listRef={listRef}
+            />
           )}
         </div>
       </div>
@@ -515,5 +414,257 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * List view as a clean data table: sortable Item/Price headers, tap-row to
+ * add, stepper in Qty, shared pagination footer. Page size defaults to the
+ * measured viewport fit (`autoSize`); the footer select overrides manually.
+ */
+function PickerListTable({
+  items,
+  pageSize,
+  onPageSizeChange,
+  autoSize,
+  resetKey,
+  draftQtyFor,
+  stepper,
+  onAdd,
+  listRef,
+}: {
+  items: MenuItem[];
+  pageSize: number;
+  onPageSizeChange: (n: number | null) => void;
+  autoSize: number | null;
+  resetKey: string;
+  draftQtyFor: (item: MenuItem) => number;
+  stepper: (item: MenuItem, staged: number) => React.ReactNode;
+  onAdd: (item: MenuItem) => void;
+  listRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [manualSize, setManualSize] = useState(false);
+
+  const columns = useMemo<ColumnDef<MenuItem>[]>(
+    () => [
+      {
+        id: "item",
+        accessorFn: (item) => item.name,
+        header: ({ column }) => (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 px-1 text-xs font-medium"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            title="Sort by name"
+          >
+            Item
+            <Icons.chevronsUpDown className="size-3.5" />
+          </Button>
+        ),
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <span className="flex min-w-0 items-center gap-3">
+              <MenuImage item={item} size="sm" />
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium">{item.name}</span>
+                <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                  <span
+                    className={cn(
+                      "inline-block size-2 rounded-full",
+                      item.veg_type === "veg" ? "bg-green-600" : "bg-red-600",
+                    )}
+                  />
+                  {item.category_name}
+                </span>
+              </span>
+            </span>
+          );
+        },
+      },
+      {
+        id: "price",
+        accessorFn: (item) => priceOf(item),
+        header: ({ column }) => (
+          <span className="flex justify-end">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 px-1 text-xs font-medium"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+              title="Sort by price"
+            >
+              Price
+              <Icons.chevronsUpDown className="size-3.5" />
+            </Button>
+          </span>
+        ),
+        cell: ({ row }) => (
+          <span className="block text-right text-sm font-semibold tabular-nums">
+            {formatINR(priceOf(row.original))}
+          </span>
+        ),
+      },
+      {
+        id: "qty",
+        enableSorting: false,
+        header: () => <span className="block text-right text-xs font-medium">Qty</span>,
+        cell: ({ row }) => (
+          <span
+            className="flex justify-end"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            {stepper(row.original, draftQtyFor(row.original))}
+          </span>
+        ),
+      },
+    ],
+    [draftQtyFor, stepper],
+  );
+
+  const table = useReactTable({
+    data: items,
+    columns,
+    state: { sorting, pagination: { pageIndex: 0, pageSize } },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    autoResetPageIndex: true,
+  });
+
+  // Viewport-fit default: follow the measured size until the user overrides.
+  useEffect(() => {
+    if (!manualSize) table.setPageSize(pageSize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageSize]);
+
+  // New result set → first page.
+  useEffect(() => {
+    table.setPageIndex(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey]);
+
+  return (
+    <Card>
+      <CardContent className="p-0">
+        <div ref={listRef} className="min-h-[200px]">
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((hg) => (
+                <TableRow key={hg.id}>
+                  {hg.headers.map((h) => (
+                    <TableHead
+                      key={h.id}
+                      className={h.column.id !== "item" ? "text-right" : undefined}
+                    >
+                      {h.isPlaceholder
+                        ? null
+                        : flexRender(h.column.columnDef.header, h.getContext())}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows.length ? (
+                table.getRowModel().rows.map((row) => {
+                  const item = row.original;
+                  const staged = draftQtyFor(item);
+                  return (
+                    <TableRow
+                      key={row.id}
+                      tabIndex={0}
+                      aria-label={`${item.name} — tap to add, in draft ${staged}`}
+                      onClick={() => onAdd(item)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onAdd(item);
+                        }
+                      }}
+                      className="cursor-pointer transition-all duration-150 ease-out hover:bg-primary/[0.04] focus-visible:outline-2 focus-visible:outline-primary active:bg-primary/[0.08]"
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  );
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={columns.length} className="h-24 text-center">
+                    No menu items match. Try another search or category.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        <div className="flex items-center justify-between gap-2 border-t px-3 py-2">
+          <p className="text-xs text-muted-foreground tabular-nums">
+            {items.length === 0
+              ? "No items"
+              : `${table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}–${Math.min(items.length, (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize)} of ${items.length}`}
+            {autoSize != null ? ` · auto (${autoSize}/page)` : ""}
+          </p>
+          <div className="flex items-center gap-1">
+            <select
+              aria-label="Rows per page"
+              className="h-8 rounded-md border bg-background px-1 text-xs"
+              value={manualSize ? String(table.getState().pagination.pageSize) : "auto"}
+              onChange={(e) => {
+                if (e.target.value === "auto") {
+                  setManualSize(false);
+                  onPageSizeChange(null);
+                } else {
+                  setManualSize(true);
+                  const n = Number(e.target.value);
+                  table.setPageSize(n);
+                  onPageSizeChange(n);
+                }
+              }}
+            >
+              <option value="auto">Auto</option>
+              {[5, 10, 15, 20, 30].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              aria-label="Previous page"
+            >
+              <Icons.chevronLeft className="size-4" />
+            </Button>
+            <span className="min-w-14 text-center text-xs font-medium tabular-nums">
+              {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              aria-label="Next page"
+            >
+              <Icons.chevronRight className="size-4" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
