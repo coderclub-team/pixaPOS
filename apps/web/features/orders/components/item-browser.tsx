@@ -362,7 +362,7 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
                         quickAdd(item);
                       }
                     }}
-                    className="flex cursor-pointer items-center gap-3 rounded-xl border bg-card p-2 transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-primary"
+                    className="flex cursor-pointer items-center gap-3 rounded-xl border bg-card p-2 transition-all duration-150 ease-out hover:border-primary/50 hover:bg-primary/[0.04] hover:shadow-[0_0_0_4px_var(--primary-ring,rgba(0,0,0,0.06))] focus-visible:outline-2 focus-visible:outline-primary active:scale-[0.99]"
                   >
                     <MenuImage item={item} size="sm" />
                     <span className="min-w-0 flex-1">
@@ -383,16 +383,6 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
                       onKeyDown={(e) => e.stopPropagation()}
                     >
                       {stepper(item, staged)}
-                      <Button
-                        variant="default"
-                        size="icon-sm"
-                        className="max-lg:h-9 max-lg:w-9"
-                        onClick={() => quickAdd(item)}
-                        title={`Add ${item.name} to draft`}
-                        aria-label={`Add ${item.name} to cart`}
-                      >
-                        <Icons.cart className="size-4" />
-                      </Button>
                     </span>
                   </div>
                 );
