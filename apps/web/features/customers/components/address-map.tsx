@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { APIProvider, Map, AdvancedMarker, useMapsLibrary } from "@vis.gl/react-google-maps";
 import { Input } from "@pixa/ui/base-ui/input";
-import { Button } from "@pixa/ui/base-ui/button";
+import { Icons } from "@pixa/ui/icons";
 import { composeAddress, parseComponents, type MapAddress } from "../api/address-geo";
 
 const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
@@ -21,6 +21,8 @@ export default function AddressMap({
   value: MapAddress;
   onChange: (patch: Partial<MapAddress>) => void;
 }) {
+  const authError = useMapsAuthError();
+  const [loadError, setLoadError] = useState(false);
   if (!API_KEY) {
     return (
       <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">
@@ -29,11 +31,54 @@ export default function AddressMap({
       </div>
     );
   }
+  if (authError || loadError) {
+    return <MapsErrorPanel reason={authError ?? "load-failed"} />;
+  }
   return (
-    <APIProvider apiKey={API_KEY} libraries={["places", "geocoding"]}>
+    <APIProvider
+      apiKey={API_KEY}
+      libraries={["places", "geocoding"]}
+      onError={() => setLoadError(true)}
+    >
       <MapInner value={value} onChange={onChange} />
     </APIProvider>
   );
+}
+
+/**
+ * Google reports key/authorization failures through window.gm_authFailure
+ * (not through the loader error). Surfacing it turns the generic
+ * "can't load Google Maps correctly" banner into an actionable fix list.
+ */
+function MapsErrorPanel({ reason }: { reason: string }) {
+  return (
+    <div className="space-y-2 rounded-xl border border-destructive/40 p-4 text-sm">
+      <p className="font-medium">
+        Google Maps didn&apos;t load ({reason}). Fix in Google Cloud Console:
+      </p>
+      <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
+        <li>Enable billing on the project (Maps requires it, even within free quota).</li>
+        <li>Enable APIs: Maps JavaScript API, Places API, Geocoding API.</li>
+        <li>
+          Key restrictions → HTTP referrers must include this origin (e.g.{" "}
+          <code>http://localhost:3000/*</code> for local dev).
+        </li>
+        <li>Wait a minute and reload — key changes take time to propagate.</li>
+      </ol>
+    </div>
+  );
+}
+function useMapsAuthError(): string | null {
+  const [authError, setAuthError] = useState<string | null>(null);
+  useEffect(() => {
+    const w = window as unknown as { gm_authFailure?: () => void };
+    const prev = w.gm_authFailure;
+    w.gm_authFailure = () => setAuthError("auth-failure");
+    return () => {
+      if (w.gm_authFailure) w.gm_authFailure = prev;
+    };
+  }, []);
+  return authError;
 }
 
 function MapInner({
@@ -48,7 +93,6 @@ function MapInner({
   const searchRef = useRef<HTMLInputElement>(null);
   const [center, setCenter] = useState(DEFAULT_CENTER);
   const [marker, setMarker] = useState<{ lat: number; lng: number } | null>(null);
-  const [locating, setLocating] = useState(false);
   const valueRef = useRef(value);
   valueRef.current = value;
 
@@ -122,20 +166,6 @@ function MapInner({
     [geocoding, onChange],
   );
 
-  const locate = () => {
-    setLocating(true);
-    const q = composeAddress(valueRef.current);
-    if (!q || !geocoding) {
-      setLocating(false);
-      return;
-    }
-    new geocoding.Geocoder().geocode({ address: q }, (results, status) => {
-      setLocating(false);
-      const loc = status === "OK" && results?.[0]?.geometry?.location;
-      if (loc) applyPosition(loc.lat(), loc.lng());
-    });
-  };
-
   const position =
     marker ??
     (value.latitude != null && value.longitude != null
@@ -144,11 +174,9 @@ function MapInner({
 
   return (
     <div className="space-y-2">
-      <div className="flex gap-2">
-        <Input ref={searchRef} placeholder="Search place…" className="h-11" />
-        <Button type="button" variant="outline" onClick={locate} disabled={locating}>
-          {locating ? "…" : "Locate"}
-        </Button>
+      <div className="relative">
+        <Input ref={searchRef} placeholder="Search place…" className="h-11 pr-10" />
+        <Icons.search className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" />
       </div>
       <div className="h-56 w-full overflow-hidden rounded-xl border">
         <Map
