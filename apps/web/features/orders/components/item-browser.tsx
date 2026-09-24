@@ -151,7 +151,7 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
     return () => ro.disconnect();
   }, []);
 
-  const pageSize = pageSizeOverride ?? fitSize;
+  const autoPageSize = pageSizeOverride ?? fitSize;
 
   const draftLines = useMemo(() => (order?.items ?? []).filter((i) => !i.kot_id), [order?.items]);
 
@@ -216,7 +216,6 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
     draftLines.filter((l) => isDefaultConfigLine(item, l)).reduce((s, l) => s + l.qty, 0);
 
   const allItems = items ?? [];
-  const pageSize = pageSizeOverride ?? fitSize;
 
   const activeCategories = useMemo(
     () => (categories ?? []).filter((c) => c.is_active),
@@ -392,9 +391,9 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
           ) : (
             <PickerListTable
               items={allItems}
-              pageSize={pageSize}
+              pageSize={autoPageSize}
               onPageSizeChange={setPageSizeOverride}
-              autoSize={pageSizeOverride == null ? pageSize : null}
+              autoSize={pageSizeOverride == null ? autoPageSize : null}
               resetKey={`${search}|${categoryId ?? "all"}|${allItems.length}`}
               draftQtyFor={draftQtyFor}
               stepper={stepper}
