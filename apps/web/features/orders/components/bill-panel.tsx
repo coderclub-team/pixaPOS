@@ -808,8 +808,8 @@ export default function OrderBillPanel({
           onValueChange={setTab}
           className="w-full"
         >
-          <div className="sticky top-0 z-[5] -mx-1 bg-background/95 px-1 py-1.5 backdrop-blur-sm">
-            <TabsList className="w-full justify-start gap-1 overflow-x-auto overflow-y-hidden flex-nowrap">
+          <div className="sticky top-0 z-[5] -mx-1 px-1 pt-1">
+            <TabsList className="max-w-full gap-1 overflow-x-auto overflow-y-hidden flex-nowrap">
               <TabsTrigger value="kots" className="min-h-11 shrink-0 px-4 touch-manipulation">
                 KOTs{(kots ?? []).length > 0 ? ` (${(kots ?? []).length})` : ""}
               </TabsTrigger>
