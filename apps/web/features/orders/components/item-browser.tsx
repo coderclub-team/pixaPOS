@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Image from "next/image";
 import { Button } from "@pixa/ui/base-ui/button";
+import { Badge } from "@pixa/ui/base-ui/badge";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
 import { DataTablePagination } from "@pixa/ui/base-ui/table/data-table-pagination";
 import {
@@ -210,6 +211,66 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
     addMut.mutate({ menu_item_id: item.id, variant_id: dv?.id, modifier_ids: [], qty: 1 });
   };
 
+  /** Variant-scoped line match (plain config, no modifiers/instructions). */
+  const variantLineFor = (item: MenuItem, variantId: string) =>
+    draftLines.find(
+      (l) =>
+        !l.kot_id &&
+        l.menu_item_id === item.id &&
+        (l.variant_id ?? undefined) === variantId &&
+        (l.modifiers?.length ?? 0) === 0 &&
+        !l.instructions,
+    );
+
+  const quickAddVariant = (item: MenuItem, variantId: string) => {
+    const existing = variantLineFor(item, variantId);
+    if (existing) {
+      qtyMut.mutate({ lineId: existing.id, qty: existing.qty + 1 });
+      return;
+    }
+    addMut.mutate({ menu_item_id: item.id, variant_id: variantId, modifier_ids: [], qty: 1 });
+  };
+
+  const stepVariant = (item: MenuItem, variantId: string, delta: number) => {
+    const existing = variantLineFor(item, variantId);
+    if (!existing) {
+      if (delta > 0) quickAddVariant(item, variantId);
+      return;
+    }
+    const next = existing.qty + delta;
+    if (next <= 0) removeMut.mutate(existing.id);
+    else qtyMut.mutate({ lineId: existing.id, qty: next });
+  };
+
+  const draftQtyForVariant = (item: MenuItem, variantId: string) =>
+    draftLines
+      .filter(
+        (l) =>
+          !l.kot_id &&
+          l.menu_item_id === item.id &&
+          (l.variant_id ?? undefined) === variantId &&
+          (l.modifiers?.length ?? 0) === 0 &&
+          !l.instructions,
+      )
+      .reduce((s, l) => s + l.qty, 0);
+
+  const draftQtyTotal = (item: MenuItem) =>
+    draftLines
+      .filter((l) => !l.kot_id && l.menu_item_id === item.id)
+      .reduce((s, l) => s + l.qty, 0);
+
+  const hasVariants = (item: MenuItem) =>
+    item.product_type === "variant" &&
+    (item.variants ?? []).filter((v) => v.is_active !== false).length > 1;
+
+  const priceRangeOf = (item: MenuItem): string => {
+    const prices = (item.variants ?? [])
+      .filter((v) => v.is_active !== false)
+      .map((v) => v.selling_price);
+    if (prices.length === 0) return formatINR(0);
+    return `From ${formatINR(toPaise(Math.min(...prices)))}`;
+  };
+
   const stepDefault = (item: MenuItem, delta: number) => {
     const existing = draftLines.find((l) => isDefaultConfigLine(item, l));
     if (!existing) {
@@ -399,7 +460,17 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
                     className="cursor-pointer rounded-xl border bg-card p-3 transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-primary"
                   >
                     <MenuImage item={item} size="lg" />
-                    <p className="mt-2 truncate text-sm font-medium">{item.name}</p>
+                    <p className="mt-2 flex items-center gap-1.5">
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                        {item.name}
+                      </span>
+                      {hasVariants(item) && (
+                        <Badge variant="outline" className="shrink-0 text-[11px]">
+                          {(item.variants ?? []).filter((v) => v.is_active !== false).length}{" "}
+                          options
+                        </Badge>
+                      )}
+                    </p>
                     <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
                       <span
                         className={cn(
@@ -439,7 +510,12 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
               autoSize={pageSizeOverride == null ? autoPageSize : null}
               resetKey={`${search}|${categoryId ?? "all"}|${allItems.length}`}
               draftQtyFor={draftQtyFor}
+              draftQtyTotal={draftQtyTotal}
+              draftQtyForVariant={draftQtyForVariant}
+              hasVariants={hasVariants}
+              priceRangeOf={priceRangeOf}
               stepper={stepper}
+              stepVariant={stepVariant}
               onAdd={quickAdd}
               listRef={listRef}
             />
@@ -471,7 +547,12 @@ function PickerListTable({
   autoSize,
   resetKey,
   draftQtyFor,
+  draftQtyTotal,
+  draftQtyForVariant,
+  hasVariants,
+  priceRangeOf,
   stepper,
+  stepVariant,
   onAdd,
   listRef,
 }: {
@@ -481,12 +562,20 @@ function PickerListTable({
   autoSize: number | null;
   resetKey: string;
   draftQtyFor: (item: MenuItem) => number;
+  draftQtyTotal: (item: MenuItem) => number;
+  draftQtyForVariant: (item: MenuItem, variantId: string) => number;
+  hasVariants: (item: MenuItem) => boolean;
+  priceRangeOf: (item: MenuItem) => string;
   stepper: (item: MenuItem, staged: number) => React.ReactNode;
+  stepVariant: (item: MenuItem, variantId: string, delta: number) => void;
   onAdd: (item: MenuItem) => void;
   listRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [manualSize, setManualSize] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const toggleRow = (id: string) => setExpandedId((prev) => (prev === id ? null : id));
 
   const columns = useMemo<ColumnDef<MenuItem>[]>(
     () => [
@@ -615,30 +704,199 @@ function PickerListTable({
             </TableHeader>
             <TableBody>
               {table.getRowModel().rows.length ? (
-                table.getRowModel().rows.map((row) => {
+                table.getRowModel().rows.flatMap((row) => {
                   const item = row.original;
-                  const staged = draftQtyFor(item);
-                  return (
+                  const variants = (item.variants ?? []).filter((v) => v.is_active !== false);
+                  if (!hasVariants(item)) {
+                    const staged = draftQtyFor(item);
+                    return [
+                      <TableRow
+                        key={row.id}
+                        tabIndex={0}
+                        aria-label={`${item.name} — tap to add, in draft ${staged}`}
+                        onClick={() => onAdd(item)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onAdd(item);
+                          }
+                        }}
+                        className="cursor-pointer transition-all duration-150 ease-out hover:bg-primary/[0.04] focus-visible:outline-2 focus-visible:outline-primary active:bg-primary/[0.08]"
+                      >
+                        <TableCell>
+                          <span className="flex min-w-0 items-center gap-3">
+                            <MenuImage item={item} size="sm" />
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-medium">
+                                {item.name}
+                              </span>
+                              <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                                <span
+                                  className={cn(
+                                    "inline-block size-2 rounded-full",
+                                    item.veg_type === "veg" ? "bg-green-600" : "bg-red-600",
+                                  )}
+                                />
+                                {item.category_name}
+                              </span>
+                            </span>
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right text-sm font-semibold tabular-nums">
+                          {formatINR(priceOf(item))}
+                        </TableCell>
+                        <TableCell
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          <span className="flex justify-end">{stepper(item, staged)}</span>
+                        </TableCell>
+                      </TableRow>,
+                    ];
+                  }
+                  const expanded = expandedId === item.id;
+                  const total = draftQtyTotal(item);
+                  return [
                     <TableRow
                       key={row.id}
                       tabIndex={0}
-                      aria-label={`${item.name} — tap to add, in draft ${staged}`}
-                      onClick={() => onAdd(item)}
+                      aria-expanded={expanded}
+                      aria-label={`${item.name}, ${variants.length} options — tap to ${expanded ? "collapse" : "expand"}`}
+                      onClick={() => toggleRow(item.id)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          onAdd(item);
+                          toggleRow(item.id);
                         }
                       }}
-                      className="cursor-pointer transition-all duration-150 ease-out hover:bg-primary/[0.04] focus-visible:outline-2 focus-visible:outline-primary active:bg-primary/[0.08]"
+                      className={cn(
+                        "cursor-pointer transition-all duration-150 ease-out hover:bg-primary/[0.04] focus-visible:outline-2 focus-visible:outline-primary active:bg-primary/[0.08]",
+                        expanded && "bg-primary/[0.06] font-medium",
+                      )}
                     >
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  );
+                      <TableCell>
+                        <span className="flex min-w-0 items-center gap-3">
+                          <Icons.chevronRight
+                            className={cn(
+                              "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+                              expanded && "rotate-90",
+                            )}
+                          />
+                          <MenuImage item={item} size="sm" />
+                          <span className="min-w-0">
+                            <span className="flex items-center gap-2">
+                              <span className="block truncate text-sm font-medium">
+                                {item.name}
+                              </span>
+                              <Badge variant="outline" className="shrink-0 text-[11px]">
+                                {variants.length} options
+                              </Badge>
+                            </span>
+                            <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                              <span
+                                className={cn(
+                                  "inline-block size-2 rounded-full",
+                                  item.veg_type === "veg" ? "bg-green-600" : "bg-red-600",
+                                )}
+                              />
+                              {item.category_name}
+                            </span>
+                          </span>
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right text-sm font-semibold tabular-nums">
+                        {priceRangeOf(item)}
+                      </TableCell>
+                      <TableCell>
+                        <span className="flex items-center justify-end gap-2">
+                          {total > 0 && (
+                            <span className="text-xs font-bold text-primary tabular-nums">
+                              {total}×
+                            </span>
+                          )}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleRow(item.id);
+                            }}
+                          >
+                            {expanded ? "Hide" : "Options"}
+                          </Button>
+                        </span>
+                      </TableCell>
+                    </TableRow>,
+                    ...(expanded
+                      ? [
+                          <TableRow
+                            key={`${row.id}-variants`}
+                            className="bg-muted/40 hover:bg-muted/40"
+                          >
+                            <TableCell colSpan={3} className="p-0">
+                              <div className="px-4 py-2 sm:px-10">
+                                <div className="overflow-hidden rounded-md border bg-background">
+                                  <Table>
+                                    <TableBody>
+                                      {variants.map((v) => {
+                                        const staged = draftQtyForVariant(item, v.id);
+                                        return (
+                                          <TableRow key={v.id} className="hover:bg-primary/[0.04]">
+                                            <TableCell className="py-2 text-sm font-medium">
+                                              {v.name}
+                                            </TableCell>
+                                            <TableCell className="py-2 text-right text-sm text-muted-foreground tabular-nums">
+                                              {formatINR(toPaise(v.selling_price))}
+                                            </TableCell>
+                                            <TableCell className="w-32 py-1.5">
+                                              <span className="flex items-center justify-end gap-1">
+                                                <Button
+                                                  type="button"
+                                                  variant="ghost"
+                                                  size="icon-sm"
+                                                  className="rounded-full"
+                                                  disabled={staged <= 0}
+                                                  onClick={() => stepVariant(item, v.id, -1)}
+                                                  aria-label={`Remove one ${item.name} ${v.name}`}
+                                                >
+                                                  <Icons.minus className="size-3.5" />
+                                                </Button>
+                                                <span
+                                                  className={cn(
+                                                    "min-w-6 text-center text-xs font-bold tabular-nums",
+                                                    staged > 0
+                                                      ? "text-primary"
+                                                      : "text-muted-foreground",
+                                                  )}
+                                                >
+                                                  {staged}
+                                                </span>
+                                                <Button
+                                                  type="button"
+                                                  variant="ghost"
+                                                  size="icon-sm"
+                                                  className="rounded-full"
+                                                  onClick={() => stepVariant(item, v.id, 1)}
+                                                  aria-label={`Add one ${item.name} ${v.name}`}
+                                                >
+                                                  <Icons.add className="size-3.5" />
+                                                </Button>
+                                              </span>
+                                            </TableCell>
+                                          </TableRow>
+                                        );
+                                      })}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>,
+                        ]
+                      : []),
+                  ];
                 })
               ) : (
                 <TableRow>
