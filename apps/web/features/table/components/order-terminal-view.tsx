@@ -52,6 +52,7 @@ export default function OrderTerminalPage({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [seatOpen, setSeatOpen] = useState(false);
   const [seatCount, setSeatCount] = useState(2);
+  const [mobileView, setMobileView] = useState<"tables" | "order" | "items">("tables");
   const exitTimer = useRef<number | null>(null);
 
   const { data: activeTable } = useQuery({
@@ -80,6 +81,7 @@ export default function OrderTerminalPage({
       setActiveOrderId(order.id);
       setActiveGroupId(order.occupancy_group_id ?? null);
       setPanelOpen(true);
+      setMobileView("order");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -101,6 +103,7 @@ export default function OrderTerminalPage({
       setActiveOrderId(order.id);
       setPanelOpen(true);
       setPickerOpen(true);
+      setMobileView("items");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -116,6 +119,7 @@ export default function OrderTerminalPage({
       setActiveOrderId(group.order_id);
       setSeatOpen(false);
       setPanelOpen(true);
+      setMobileView("order");
       toast.success(`Party ${group.label ?? ""} seated — tap Start order or hold its chip`.trim());
     },
     onError: (e: Error) => toast.error(e.message),
@@ -128,6 +132,7 @@ export default function OrderTerminalPage({
     if (id == null || id === activeTableId) {
       setPickerOpen(false);
       setPanelOpen(false);
+      setMobileView("tables");
       exitTimer.current = window.setTimeout(() => {
         setActiveTableId(null);
         setActiveOrderId(null);
@@ -182,6 +187,7 @@ export default function OrderTerminalPage({
     setActiveGroupId(groupId);
     setActiveOrderId(liveOrderByGroup.get(groupId)?.id ?? null);
     setPanelOpen(true);
+    setMobileView("order");
   };
 
   /** Tap a detached open tab: focus its bill without any party. */
@@ -190,6 +196,7 @@ export default function OrderTerminalPage({
     setActiveGroupId(null);
     setActiveOrderId(orderId);
     setPanelOpen(true);
+    setMobileView("order");
   };
 
   /** Press-and-hold a party chip: ensure its order and open the picker. */
@@ -229,20 +236,31 @@ export default function OrderTerminalPage({
         )
       }
     >
-      <div className="flex flex-col gap-4 lg:h-[calc(100dvh-200px)] lg:flex-row lg:gap-6">
-        <div className="h-[52dvh] min-h-[320px] min-w-0 lg:h-auto lg:min-h-0 lg:flex-1">
+      <div className="relative flex min-h-0 flex-col gap-3 pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:h-[calc(100dvh-200px)] lg:flex-row lg:gap-4 lg:pb-0">
+        <div
+          className={cn(
+            "min-h-0 min-w-0 lg:flex-1",
+            "h-[calc(100dvh-170px)] sm:h-[calc(100dvh-175px)] lg:h-auto",
+            mobileView !== "tables" ? "hidden lg:block" : "block",
+          )}
+        >
           <Tabs
             value={currentFloorId}
             onValueChange={(v) => {
               setSelectedFloorId(v);
               setPickerOpen(false);
+              setMobileView("tables");
             }}
             className="h-full"
           >
             <div className="mb-3 flex flex-wrap items-center gap-2 lg:mb-4 lg:flex-nowrap lg:justify-between">
               <TabsList className="max-w-full overflow-x-auto">
                 {activeFloors.map((f) => (
-                  <TabsTrigger key={f.id} value={f.id} className="shrink-0">
+                  <TabsTrigger
+                    key={f.id}
+                    value={f.id}
+                    className="min-h-11 shrink-0 px-4 touch-manipulation"
+                  >
                     {f.name}
                   </TabsTrigger>
                 ))}
@@ -287,15 +305,15 @@ export default function OrderTerminalPage({
             className={cn(
               "shrink-0 overflow-hidden transition-all duration-300 ease-out",
               // Mobile: bottom sheet sliding up from the screen edge.
-              "fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] rounded-t-2xl border-t bg-background shadow-2xl",
+              "fixed inset-x-0 bottom-0 z-50 max-h-[88dvh] rounded-t-2xl border-t bg-background shadow-2xl",
               // Desktop: docked side panel sliding in from the right.
-              "lg:static lg:z-auto lg:max-h-none lg:min-h-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:shadow-none lg:w-[480px]",
+              "sm:max-h-[82dvh] lg:static lg:z-auto lg:max-h-none lg:min-h-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:shadow-none lg:w-[420px] xl:w-[480px]",
               panelOpen
                 ? "translate-y-0 opacity-100 lg:translate-x-0"
                 : "pointer-events-none translate-y-full opacity-0 lg:translate-x-8 lg:translate-y-0 lg:w-0",
             )}
           >
-            <div className="max-h-[85dvh] scroll-pt-12 overflow-y-auto pb-[max(1.5rem,env(safe-area-inset-bottom))] lg:h-full lg:max-h-none lg:w-[480px] lg:overflow-visible lg:pb-0">
+            <div className="max-h-[88dvh] scroll-pt-12 overflow-y-auto pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-h-[82dvh] lg:h-full lg:max-h-none lg:w-auto lg:overflow-visible lg:pb-0">
               {/* Mobile sheet grab handle + close */}
               <div className="sticky top-0 z-10 flex items-center justify-center bg-background/95 pt-2 pb-1 backdrop-blur-sm lg:hidden">
                 <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
@@ -303,11 +321,35 @@ export default function OrderTerminalPage({
                   type="button"
                   aria-label="Close bill panel"
                   onClick={() => handleTap(null)}
-                  className="absolute right-2 top-1 rounded-md p-2 text-muted-foreground"
+                  className="absolute right-2 top-1 flex size-11 items-center justify-center rounded-md text-muted-foreground touch-manipulation"
                 >
                   <Icons.close className="size-5" />
                 </button>
               </div>
+              <div className="sticky top-0 z-20 flex items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur lg:hidden">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-11 shrink-0 touch-manipulation"
+                  aria-label="Back to tables"
+                  onClick={() => {
+                    setPanelOpen(false);
+                    setMobileView("tables");
+                  }}
+                >
+                  <Icons.chevronLeft className="size-5" />
+                </Button>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold">
+                    {activeTable ? `Table ${activeTable.number}` : "Order"}
+                  </div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {activeGroup ? `Party ${activeGroup.label ?? "?"}` : "Current order"}
+                  </div>
+                </div>
+              </div>
+
               {/* Party strip: one tap-target per seated party + seat-new-party.
                   Shows whenever the table has parties or accepts sharing. */}
               {activeTableDerived &&
@@ -392,13 +434,17 @@ export default function OrderTerminalPage({
                   title={`Bill — Table ${activeTable.number}${activeGroup ? ` · Party ${activeGroup.label ?? "?"}` : openTabs.some((o) => o.id === activeOrderId) ? " · open tab" : ""}`}
                   showSeating
                   showCustomer
-                  onAddItems={() => setPickerOpen(true)}
+                  onAddItems={() => {
+                    setPickerOpen(true);
+                    setMobileView("items");
+                  }}
                   fit="fill"
                   onCompleted={() => {
                     queryClient.invalidateQueries({ queryKey: tableKeys.all });
                     queryClient.invalidateQueries({ queryKey: orderKeys.all });
                     setPickerOpen(false);
                     setPanelOpen(false);
+                    setMobileView("tables");
                     exitTimer.current = window.setTimeout(() => {
                       setActiveTableId(null);
                       setActiveOrderId(null);
@@ -453,10 +499,59 @@ export default function OrderTerminalPage({
         )}
       </div>
 
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] shadow-lg backdrop-blur lg:hidden">
+        <div className="mx-auto grid h-14 max-w-xl grid-cols-3">
+          <button
+            type="button"
+            onClick={() => {
+              setPickerOpen(false);
+              setPanelOpen(false);
+              setMobileView("tables");
+            }}
+            className={cn(
+              "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium touch-manipulation",
+              mobileView === "tables" ? "text-primary" : "text-muted-foreground",
+            )}
+          >
+            <Icons.table className="size-5" />
+            Tables
+          </button>
+          <button
+            type="button"
+            onClick={() => activeTableId && setMobileView("order")}
+            disabled={!activeTableId}
+            className={cn(
+              "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium touch-manipulation disabled:opacity-40",
+              mobileView === "order" ? "text-primary" : "text-muted-foreground",
+            )}
+          >
+            <Icons.orders className="size-5" />
+            Order
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (activeOrderId) {
+                setPickerOpen(true);
+                setMobileView("items");
+              }
+            }}
+            disabled={!activeOrderId}
+            className={cn(
+              "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium touch-manipulation disabled:opacity-40",
+              mobileView === "items" ? "text-primary" : "text-muted-foreground",
+            )}
+          >
+            <Icons.add className="size-5" />
+            Add items
+          </button>
+        </div>
+      </div>
+
       {activeOrderId && (
         <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
-          <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-4xl">
-            <DialogHeader>
+          <DialogContent className="h-[100dvh] max-h-[100dvh] w-full max-w-none overflow-hidden rounded-none p-0 sm:h-auto sm:max-h-[92dvh] sm:w-[calc(100%-2rem)] sm:max-w-4xl sm:rounded-lg sm:p-6">
+            <DialogHeader className="shrink-0">
               <DialogTitle>
                 Add items{activeTable ? ` — Table ${activeTable.number}` : ""}
                 {activeGroup ? ` · Party ${activeGroup.label ?? "?"}` : ""}

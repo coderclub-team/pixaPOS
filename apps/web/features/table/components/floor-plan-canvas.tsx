@@ -1470,29 +1470,20 @@ export default function FloorPlanCanvas({
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-xl border bg-zinc-50 dark:bg-zinc-950">
-      {((editable && paletteOpen) || !editable) && (
+      {editable && paletteOpen && (
         <div className="absolute left-4 top-12 z-10 flex max-w-[220px] flex-wrap gap-1.5 rounded-lg bg-background/80 p-2 backdrop-blur-sm">
-          {editable &&
-            SHAPE_PALETTE.map((spec) => (
-              <Button
-                key={spec.key}
-                variant={addingSpec?.key === spec.key ? "default" : "secondary"}
-                size="sm"
-                className="h-7 px-2 text-xs"
-                onClick={() => setAddingSpec((s) => (s?.key === spec.key ? null : spec))}
-                title={`Add ${spec.label} — then click where you want it placed`}
-              >
-                {spec.label}
-              </Button>
-            ))}
-          {!editable && (
-            <span className="px-1 text-xs text-muted-foreground">
-              Operations — tap a table to select
-              {onHoldParty
-                ? " · tap a party chip to focus it · press & hold a chip to take its order"
-                : " · tap a party chip to focus it"}
-            </span>
-          )}
+          {SHAPE_PALETTE.map((spec) => (
+            <Button
+              key={spec.key}
+              variant={addingSpec?.key === spec.key ? "default" : "secondary"}
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => setAddingSpec((s) => (s?.key === spec.key ? null : spec))}
+              title={`Add ${spec.label} — then click where you want it placed`}
+            >
+              {spec.label}
+            </Button>
+          ))}
         </div>
       )}
       <div className="absolute right-4 top-4 z-10 flex flex-col gap-2">
