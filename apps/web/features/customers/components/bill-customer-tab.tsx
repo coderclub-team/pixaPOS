@@ -16,12 +16,12 @@ import * as z from "zod";
 const billCustomerSchema = z.object({
   name: z.string().min(1, "Name required"),
   phone: z.string().min(1, "Phone required"),
-  email: z.string().optional().or(z.literal("")),
-  notes: z.string().optional().or(z.literal("")),
+  email: z.string(),
+  notes: z.string(),
   address: z.object({
-    label: z.string(),
+    label: z.enum(["home", "work", "other"]),
     line1: z.string(),
-    line2: z.string().optional().or(z.literal("")),
+    line2: z.string(),
     locality: z.string(),
     city: z.string(),
     state: z.string(),
@@ -106,7 +106,7 @@ function CustomerEditor({ customerId, orderId }: { customerId: string; orderId: 
         latitude: primary?.latitude,
         longitude: primary?.longitude,
       },
-    },
+    } as any,
     validators: {
       onSubmit: billCustomerSchema,
     },
