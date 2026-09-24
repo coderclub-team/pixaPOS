@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Image from "next/image";
 import { Button } from "@pixa/ui/base-ui/button";
@@ -120,6 +120,30 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
     } catch {}
   }, [view]);
 
+  // List pagination: default page size fits the visible list height
+  // (header + footer subtracted, ~64px per row), clamped 5–30.
+  const listRef = useRef<HTMLDivElement>(null);
+  const [fitSize, setFitSize] = useState(10);
+  const [pageSizeOverride, setPageSizeOverride] = useState<number | null>(null);
+  const [page, setPage] = useState(0);
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const compute = () => {
+      const h = el.clientHeight;
+      if (h <= 0) return;
+      const fit = Math.floor((h - 40 - 52) / 64);
+      setFitSize(Math.min(30, Math.max(5, fit || 10)));
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const pageSize = pageSizeOverride ?? fitSize;
+
   const draftLines = useMemo(() => (order?.items ?? []).filter((i) => !i.kot_id), [order?.items]);
 
   const invalidateOrder = () => {
@@ -181,6 +205,16 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
 
   const draftQtyFor = (item: MenuItem) =>
     draftLines.filter((l) => isDefaultConfigLine(item, l)).reduce((s, l) => s + l.qty, 0);
+
+  const allItems = items ?? [];
+  const pageCount = Math.max(1, Math.ceil(allItems.length / pageSize));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageItems = allItems.slice(safePage * pageSize, safePage * pageSize + pageSize);
+
+  // Reset to first page when the result set or size changes.
+  useEffect(() => {
+    setPage(0);
+  }, [search, categoryId, pageSize, items?.length]);
 
   const activeCategories = useMemo(
     () => (categories ?? []).filter((c) => c.is_active),
@@ -356,71 +390,118 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
           ) : (
             <Card>
               <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Item</TableHead>
-                      <TableHead className="w-24 text-right">Price</TableHead>
-                      <TableHead className="w-36 text-right">Qty</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {items.slice(0, 60).map((item) => {
-                      const staged = draftQtyFor(item);
-                      return (
-                        <TableRow
-                          key={item.id}
-                          tabIndex={0}
-                          aria-label={`${item.name} — tap to add, in draft ${staged}`}
-                          onClick={() => quickAdd(item)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              quickAdd(item);
-                            }
-                          }}
-                          className="cursor-pointer transition-all duration-150 ease-out hover:bg-primary/[0.04] focus-visible:outline-2 focus-visible:outline-primary active:bg-primary/[0.08]"
-                        >
-                          <TableCell>
-                            <span className="flex min-w-0 items-center gap-3">
-                              <MenuImage item={item} size="sm" />
-                              <span className="min-w-0">
-                                <span className="block truncate text-sm font-medium">
-                                  {item.name}
-                                </span>
-                                <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                                  <span
-                                    className={cn(
-                                      "inline-block size-2 rounded-full",
-                                      item.veg_type === "veg" ? "bg-green-600" : "bg-red-600",
-                                    )}
-                                  />
-                                  {item.category_name}
+                <div ref={listRef} className="min-h-[200px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Item</TableHead>
+                        <TableHead className="w-24 text-right">Price</TableHead>
+                        <TableHead className="w-36 text-right">Qty</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pageItems.map((item) => {
+                        const staged = draftQtyFor(item);
+                        return (
+                          <TableRow
+                            key={item.id}
+                            tabIndex={0}
+                            aria-label={`${item.name} — tap to add, in draft ${staged}`}
+                            onClick={() => quickAdd(item)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                quickAdd(item);
+                              }
+                            }}
+                            className="cursor-pointer transition-all duration-150 ease-out hover:bg-primary/[0.04] focus-visible:outline-2 focus-visible:outline-primary active:bg-primary/[0.08]"
+                          >
+                            <TableCell>
+                              <span className="flex min-w-0 items-center gap-3">
+                                <MenuImage item={item} size="sm" />
+                                <span className="min-w-0">
+                                  <span className="block truncate text-sm font-medium">
+                                    {item.name}
+                                  </span>
+                                  <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                                    <span
+                                      className={cn(
+                                        "inline-block size-2 rounded-full",
+                                        item.veg_type === "veg" ? "bg-green-600" : "bg-red-600",
+                                      )}
+                                    />
+                                    {item.category_name}
+                                  </span>
                                 </span>
                               </span>
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right text-sm font-semibold tabular-nums">
-                            {formatINR(priceOf(item))}
-                          </TableCell>
-                          <TableCell
-                            onClick={(e) => e.stopPropagation()}
-                            onKeyDown={(e) => e.stopPropagation()}
-                          >
-                            <span className="flex justify-end">{stepper(item, staged)}</span>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                            </TableCell>
+                            <TableCell className="text-right text-sm font-semibold tabular-nums">
+                              {formatINR(priceOf(item))}
+                            </TableCell>
+                            <TableCell
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => e.stopPropagation()}
+                            >
+                              <span className="flex justify-end">{stepper(item, staged)}</span>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+                <div className="flex items-center justify-between gap-2 border-t px-3 py-2">
+                  <p className="text-xs text-muted-foreground tabular-nums">
+                    {allItems.length === 0
+                      ? "No items"
+                      : `${safePage * pageSize + 1}–${Math.min(allItems.length, safePage * pageSize + pageSize)} of ${allItems.length}`}
+                    {pageSizeOverride == null ? ` · auto (${pageSize}/page)` : ""}
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <select
+                      aria-label="Rows per page"
+                      className="h-8 rounded-md border bg-background px-1 text-xs"
+                      value={pageSizeOverride ?? "auto"}
+                      onChange={(e) =>
+                        setPageSizeOverride(
+                          e.target.value === "auto" ? null : Number(e.target.value),
+                        )
+                      }
+                    >
+                      <option value="auto">Auto</option>
+                      {[5, 10, 15, 20, 30].map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      onClick={() => setPage((p) => Math.max(0, p - 1))}
+                      disabled={safePage === 0}
+                      aria-label="Previous page"
+                    >
+                      <Icons.chevronLeft className="size-4" />
+                    </Button>
+                    <span className="min-w-14 text-center text-xs font-medium tabular-nums">
+                      {safePage + 1} / {pageCount}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                      disabled={safePage >= pageCount - 1}
+                      aria-label="Next page"
+                    >
+                      <Icons.chevronRight className="size-4" />
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
-          )}
-          {items && items.length > 60 && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              Showing first 60 of {items.length} — refine your search.
-            </p>
           )}
         </div>
       </div>
