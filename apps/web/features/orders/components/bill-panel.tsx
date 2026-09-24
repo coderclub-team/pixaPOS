@@ -24,6 +24,7 @@ import {
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { formatINR, toPaise } from "@/lib/money";
+import { formatAge } from "@/lib/utils";
 import { orderKeys, orderQueryOptions } from "@/features/orders/api/queries";
 import { kotsByOrderQueryOptions, kitchenKeys } from "@/features/kitchen/api/queries";
 import { eventKeys } from "@/features/events/api/queries";
@@ -262,7 +263,7 @@ export function KOTAccordion({
                   {kot.status.toLowerCase()}
                 </span>
                 <span className="truncate text-xs font-normal text-muted-foreground">
-                  {kot.lines.length} item{KotLinesPlural(kot)} · {kot.age_minutes}m old
+                  {kot.lines.length} item{KotLinesPlural(kot)} · {formatAge(kot.fired_at)} old
                 </span>
               </span>
               <span className="flex items-center gap-1">

@@ -15,6 +15,7 @@ import { Input } from "@pixa/ui/base-ui/input";
 import { Label } from "@pixa/ui/base-ui/label";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
+import { formatAge } from "@/lib/utils";
 import { kitchenKeys, kitchenTicketsQueryOptions } from "@/features/kitchen/api/queries";
 import {
   acceptKOT,
@@ -321,7 +322,9 @@ function TicketCard({
           <span>
             KOT #{t.kot_number} · {t.order_number_snapshot}
           </span>
-          <span className="text-xs font-normal text-muted-foreground">{t.age_minutes}m ago</span>
+          <span className="text-xs font-normal text-muted-foreground">
+            {formatAge(t.fired_at)} ago
+          </span>
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           {t.table_number_snapshot ? `Table ${t.table_number_snapshot} · ` : ""}
