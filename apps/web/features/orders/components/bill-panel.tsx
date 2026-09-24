@@ -29,7 +29,7 @@ import { orderKeys, orderQueryOptions } from "@/features/orders/api/queries";
 import { kotsByOrderQueryOptions, kitchenKeys } from "@/features/kitchen/api/queries";
 import { eventKeys } from "@/features/events/api/queries";
 import { tableQueryOptions } from "@/features/table/api/queries";
-import CustomerLinkBlock from "@/features/customers/components/customer-link-block";
+import BillCustomerTab from "@/features/customers/components/bill-customer-tab";
 import TableStrip from "@/features/table/components/table-strip";
 import TableOpsDialog from "@/features/table/components/table-ops-dialog";
 import CheckoutDialog from "./checkout-dialog";
@@ -731,6 +731,11 @@ export default function OrderBillPanel({
             <TabsTrigger value="more" className="min-h-11 shrink-0 px-4 touch-manipulation">
               More
             </TabsTrigger>
+            {!!showCustomer && (
+              <TabsTrigger value="customer" className="min-h-11 shrink-0 px-4 touch-manipulation">
+                Customer
+              </TabsTrigger>
+            )}
           </TabsList>
           <TabsContent value="kots" className="space-y-4 pt-2">
             <section aria-label="Kitchen tickets" className="space-y-2 rounded-xl border p-3">
@@ -892,9 +897,13 @@ export default function OrderBillPanel({
                 />
               </>
             )}
-            {showCustomer && <CustomerLinkBlock orderId={orderId} />}
             {showCancel && <CancelOrderBlock orderId={orderId} />}
           </TabsContent>
+          {!!showCustomer && (
+            <TabsContent value="customer" className="space-y-4 pt-2">
+              <BillCustomerTab orderId={orderId} />
+            </TabsContent>
+          )}
         </Tabs>
       </CardContent>
 
