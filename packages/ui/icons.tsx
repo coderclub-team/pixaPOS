@@ -239,6 +239,7 @@ export const Icons = {
 
   // Misc
   orders: IconReceipt,
+  receipt: IconReceipt,
   refund: IconReceiptRefund,
   refresh: IconRefresh,
   printer: IconPrinter,

@@ -14,9 +14,8 @@ import { buildBillDoc } from "../api/docs";
 import ReceiptPreview from "./receipt-preview";
 import { cn } from "@pixa/ui/lib/utils";
 
-/** Collapsible live receipt preview for the order bill panel. */
-export default function BillPrintPreview({ orderId }: { orderId: string }) {
-  const [open, setOpen] = useState(false);
+/** Shared live-preview data for section + dialog renderings. */
+export function useBillPreviewDoc(orderId: string) {
   const { data: order } = useQuery(orderQueryOptions(orderId));
   const { data: payments } = useQuery(paymentsByOrderQueryOptions(orderId));
   const { data: outlet } = useQuery(outletQueryOptions);
@@ -56,8 +55,15 @@ export default function BillPrintPreview({ orderId }: { orderId: string }) {
       upiTr: order.order_number,
       qrAmountPaise: paid > 0 ? balance : order.grand_total_paise,
     });
-    return { doc, qrCaption };
+    return { doc, qrCaption, outlet, template };
   }, [order, payments, outlet, template, paid]);
+  return { preview, outlet, template };
+}
+
+/** Collapsible live receipt preview for the order bill panel. */
+export default function BillPrintPreview({ orderId }: { orderId: string }) {
+  const [open, setOpen] = useState(false);
+  const { preview, outlet, template } = useBillPreviewDoc(orderId);
   return (
     <section aria-label="Print preview" className="space-y-2 rounded-xl border p-3">
       <Button

@@ -34,8 +34,12 @@ import TableOpsDialog from "@/features/table/components/table-ops-dialog";
 import CheckoutDialog from "./checkout-dialog";
 import ReturnDialog, { type ReturnTarget } from "./return-dialog";
 import ReprintDialog from "@/features/print-studio/components/reprint-dialog";
-import BillPrintPreview from "@/features/print-studio/components/bill-print-preview";
+import BillPrintPreview, {
+  useBillPreviewDoc,
+} from "@/features/print-studio/components/bill-print-preview";
+import ReceiptPreview from "@/features/print-studio/components/receipt-preview";
 import AmountPad from "./amount-pad";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@pixa/ui/base-ui/tabs";
 import {
   paymentsByOrderQueryOptions,
   paymentKeys,
@@ -580,12 +584,17 @@ export default function OrderBillPanel({
   const [activePartition, setActivePartition] = useState<string | null>(null);
   const [opsOpen, setOpsOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const tenderAnchorId = `bill-tender-${orderId}`;
+  const [tab, setTab] = useState<string | null>(null);
   const focusTender = () => {
-    const el = document.getElementById(tenderAnchorId);
-    el?.scrollIntoView({ behavior: "smooth", block: "center" });
-    const input = el?.querySelector<HTMLInputElement>('input[type="number"], input');
-    if (input) window.setTimeout(() => input.focus({ preventScroll: true }), 350);
+    setTab("payment");
+    window.setTimeout(() => {
+      const el = document.getElementById(tenderAnchorId);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      const input = el?.querySelector<HTMLInputElement>("input");
+      if (input) input.focus({ preventScroll: true });
+    }, 100);
   };
   const fireMut = useMutation({
     mutationFn: () => fireKOT(orderId),
@@ -640,6 +649,16 @@ export default function OrderBillPanel({
         <CardTitle className="flex items-center justify-between text-lg">
           <span className="min-w-0 truncate">{title ?? "Bill"}</span>
           <span className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1 px-2 text-xs"
+              onClick={() => setPreviewOpen(true)}
+              title="Print preview"
+            >
+              <Icons.receipt className="size-4" />
+              Preview
+            </Button>
             {(kots?.length ?? 0) > 0 && (
               <ReprintDialog
                 purpose="BILL"
@@ -696,165 +715,193 @@ export default function OrderBillPanel({
             </div>
           </div>
         )}
-        {showSeating && table && (
-          <>
-            <TableStrip
-              table={table}
-              activeGroupId={order.occupancy_group_id}
-              onOpenOps={() => setOpsOpen(true)}
-            />
-            <TableOpsDialog
-              tableId={table.id}
-              floorId={table.floor_id}
-              open={opsOpen}
-              onOpenChange={setOpsOpen}
-            />
-          </>
-        )}
+        <Tabs
+          value={tab ?? (balance > 0 ? "payment" : "kots")}
+          onValueChange={setTab}
+          className="w-full"
+        >
+          <TabsList className="max-w-full overflow-x-auto">
+            <TabsTrigger value="kots" className="min-h-11 shrink-0 px-4 touch-manipulation">
+              KOTs{(kots ?? []).length > 0 ? ` (${(kots ?? []).length})` : ""}
+            </TabsTrigger>
+            <TabsTrigger value="bill" className="min-h-11 shrink-0 px-4 touch-manipulation">
+              Bill
+            </TabsTrigger>
+            <TabsTrigger value="payment" className="min-h-11 shrink-0 px-4 touch-manipulation">
+              Payment{balance > 0 ? ` · ${formatINR(balance)}` : ""}
+            </TabsTrigger>
+            <TabsTrigger value="more" className="min-h-11 shrink-0 px-4 touch-manipulation">
+              More
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="kots" className="space-y-4 pt-2">
+            <section aria-label="Kitchen tickets" className="space-y-2 rounded-xl border p-3">
+              <p className="flex items-center justify-between text-xs font-medium uppercase text-muted-foreground">
+                <span>Kitchen tickets</span>
+                {(kots ?? []).length > 0 && <span>{(kots ?? []).length}</span>}
+              </p>
+              <KOTAccordion kots={kots ?? []} orderId={orderId} editable />
+              <div data-kot-list-bottom />
+            </section>
 
-        {showCustomer && <CustomerLinkBlock orderId={orderId} />}
-
-        <section aria-label="Kitchen tickets" className="space-y-2 rounded-xl border p-3">
-          <p className="flex items-center justify-between text-xs font-medium uppercase text-muted-foreground">
-            <span>Kitchen tickets</span>
-            {(kots ?? []).length > 0 && <span>{(kots ?? []).length}</span>}
-          </p>
-          <KOTAccordion kots={kots ?? []} orderId={orderId} editable />
-          <div data-kot-list-bottom />
-        </section>
-
-        <CancelledItemsList kots={kots ?? []} />
-
-        <div className="space-y-1 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Subtotal</span>
-            <span>{formatINR(order.subtotal_paise)}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">
-              Discount
-              {order.discount_reason ? ` · ${order.discount_reason}` : ""}
-            </span>
-            <span className="flex items-center gap-1">
-              <span>−{formatINR(Math.max(0, order.total_paise - order.grand_total_paise))}</span>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                title="Edit discount"
-                onClick={() => setDiscountOpen(true)}
-              >
-                <Icons.edit className="size-3.5" />
-              </Button>
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">GST</span>
-            <span>{formatINR(order.tax_paise)}</span>
-          </div>
-          <div className="flex justify-between border-t pt-1 text-base font-bold">
-            <span>Total</span>
-            <span>{formatINR(order.grand_total_paise)}</span>
-          </div>
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Paid {formatINR(paidTotal)}</span>
-            <span>Balance {formatINR(balance)}</span>
-          </div>
-        </div>
-
-        {showSplit && (!isTerminal || order.split) && (
-          <SplitSection
-            orderId={orderId}
-            mode={splitMode}
-            onModeChange={(m) => {
-              setSplitMode(m);
-              setActivePartition(null);
-            }}
-            activePartition={activePartition}
-            onSelectPartition={setActivePartition}
-          />
-        )}
-
-        <section aria-label="Payment" className="space-y-2 rounded-xl border p-3">
-          <p className="text-xs font-medium uppercase text-muted-foreground">Payment</p>
-          {showTender && dueAmount > 0 && (
-            <div id={tenderAnchorId} className="scroll-mt-20">
-              <TenderPad orderId={orderId} duePaise={dueAmount} partitionLabel={activePartition} />
-            </div>
-          )}
-
-          {showPayments && paidList.length > 0 && (
-            <div className="space-y-1">
-              {paidList.map((p: Payment) => (
-                <div
-                  key={p.id}
-                  className="flex justify-between rounded-md border px-2 py-1 text-xs"
-                >
-                  <span className="capitalize">
-                    {p.method.replace("_", " ")}
-                    {p.partition_label ? ` · ${p.partition_label}` : ""}
-                    {p.change_paise ? ` · change ${formatINR(p.change_paise)}` : ""}
+            <CancelledItemsList kots={kots ?? []} />
+          </TabsContent>
+          <TabsContent value="bill" className="space-y-4 pt-2">
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span>{formatINR(order.subtotal_paise)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">
+                  Discount
+                  {order.discount_reason ? ` · ${order.discount_reason}` : ""}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span>
+                    −{formatINR(Math.max(0, order.total_paise - order.grand_total_paise))}
                   </span>
-                  <span className="font-medium">{formatINR(p.amount_paise)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {showPayments && (refunds ?? []).length > 0 && (
-            <div className="space-y-1">
-              {(refunds ?? []).map((r) => {
-                const method =
-                  paidList.find((p) => p.id === r.payment_id)?.method.replace("_", " ") ??
-                  "payment";
-                return (
-                  <div
-                    key={r.id}
-                    className="flex justify-between rounded-md border border-dashed px-2 py-1 text-xs"
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    title="Edit discount"
+                    onClick={() => setDiscountOpen(true)}
                   >
-                    <span className="flex items-center gap-1 capitalize text-muted-foreground">
-                      <Icons.refund className="size-3" />
-                      Refund → {method}
-                      {r.status === "REFUND_PENDING" ? " · gateway pending" : ""}
-                      {r.status === "REFUND_FAILED" ? " · failed" : ""}
-                      {r.qty ? ` · ${r.qty}×` : ""}
-                    </span>
-                    <span className="font-medium">−{formatINR(r.amount_paise)}</span>
-                  </div>
-                );
-              })}
+                    <Icons.edit className="size-3.5" />
+                  </Button>
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">GST</span>
+                <span>{formatINR(order.tax_paise)}</span>
+              </div>
+              <div className="flex justify-between border-t pt-1 text-base font-bold">
+                <span>Total</span>
+                <span>{formatINR(order.grand_total_paise)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Paid {formatINR(paidTotal)}</span>
+                <span>Balance {formatINR(balance)}</span>
+              </div>
             </div>
-          )}
 
-          {!isTerminal && (
-            <Button
-              className="h-11 w-full text-sm"
-              variant={balance > 0 ? "default" : "secondary"}
-              onClick={() => setCheckoutOpen(true)}
-              title={
-                balance > 0
-                  ? "Review the bill and collect the balance"
-                  : "Review the bill and complete the order"
-              }
-            >
-              {balance > 0 ? (
-                <>
-                  <Icons.billing className="mr-2 size-4" /> Settle · {formatINR(balance)}
-                </>
-              ) : (
-                <>
-                  <Icons.checks className="mr-2 size-4" /> Complete order
-                </>
+            {showSplit && (!isTerminal || order.split) && (
+              <SplitSection
+                orderId={orderId}
+                mode={splitMode}
+                onModeChange={(m) => {
+                  setSplitMode(m);
+                  setActivePartition(null);
+                }}
+                activePartition={activePartition}
+                onSelectPartition={setActivePartition}
+              />
+            )}
+          </TabsContent>
+          <TabsContent value="payment" className="space-y-4 pt-2">
+            <section aria-label="Payment" className="space-y-2 rounded-xl border p-3">
+              <p className="text-xs font-medium uppercase text-muted-foreground">Payment</p>
+              {showTender && dueAmount > 0 && (
+                <div id={tenderAnchorId} className="scroll-mt-20">
+                  <TenderPad
+                    orderId={orderId}
+                    duePaise={dueAmount}
+                    partitionLabel={activePartition}
+                  />
+                </div>
               )}
-            </Button>
-          )}
-        </section>
 
-        <BillPrintPreview orderId={orderId} />
+              {showPayments && paidList.length > 0 && (
+                <div className="space-y-1">
+                  {paidList.map((p: Payment) => (
+                    <div
+                      key={p.id}
+                      className="flex justify-between rounded-md border px-2 py-1 text-xs"
+                    >
+                      <span className="capitalize">
+                        {p.method.replace("_", " ")}
+                        {p.partition_label ? ` · ${p.partition_label}` : ""}
+                        {p.change_paise ? ` · change ${formatINR(p.change_paise)}` : ""}
+                      </span>
+                      <span className="font-medium">{formatINR(p.amount_paise)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-        {showCancel && <CancelOrderBlock orderId={orderId} />}
+              {showPayments && (refunds ?? []).length > 0 && (
+                <div className="space-y-1">
+                  {(refunds ?? []).map((r) => {
+                    const method =
+                      paidList.find((p) => p.id === r.payment_id)?.method.replace("_", " ") ??
+                      "payment";
+                    return (
+                      <div
+                        key={r.id}
+                        className="flex justify-between rounded-md border border-dashed px-2 py-1 text-xs"
+                      >
+                        <span className="flex items-center gap-1 capitalize text-muted-foreground">
+                          <Icons.refund className="size-3" />
+                          Refund → {method}
+                          {r.status === "REFUND_PENDING" ? " · gateway pending" : ""}
+                          {r.status === "REFUND_FAILED" ? " · failed" : ""}
+                          {r.qty ? ` · ${r.qty}×` : ""}
+                        </span>
+                        <span className="font-medium">−{formatINR(r.amount_paise)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {!isTerminal && (
+                <Button
+                  className="h-11 w-full text-sm"
+                  variant={balance > 0 ? "default" : "secondary"}
+                  onClick={() => setCheckoutOpen(true)}
+                  title={
+                    balance > 0
+                      ? "Review the bill and collect the balance"
+                      : "Review the bill and complete the order"
+                  }
+                >
+                  {balance > 0 ? (
+                    <>
+                      <Icons.billing className="mr-2 size-4" /> Settle · {formatINR(balance)}
+                    </>
+                  ) : (
+                    <>
+                      <Icons.checks className="mr-2 size-4" /> Complete order
+                    </>
+                  )}
+                </Button>
+              )}
+            </section>
+          </TabsContent>
+          <TabsContent value="more" className="space-y-4 pt-2">
+            {showSeating && table && (
+              <>
+                <TableStrip
+                  table={table}
+                  activeGroupId={order.occupancy_group_id}
+                  onOpenOps={() => setOpsOpen(true)}
+                />
+                <TableOpsDialog
+                  tableId={table.id}
+                  floorId={table.floor_id}
+                  open={opsOpen}
+                  onOpenChange={setOpsOpen}
+                />
+              </>
+            )}
+            {showCustomer && <CustomerLinkBlock orderId={orderId} />}
+            {showCancel && <CancelOrderBlock orderId={orderId} />}
+          </TabsContent>
+        </Tabs>
       </CardContent>
 
       <DiscountDialog orderId={orderId} open={discountOpen} onOpenChange={setDiscountOpen} />
+      <PreviewDialog orderId={orderId} open={previewOpen} onOpenChange={setPreviewOpen} />
       <CheckoutDialog
         orderId={orderId}
         open={checkoutOpen}
@@ -863,6 +910,46 @@ export default function OrderBillPanel({
         onCompleted={onCompleted}
       />
     </Card>
+  );
+}
+
+function PreviewDialog({
+  orderId,
+  open,
+  onOpenChange,
+}: {
+  orderId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { preview, outlet, template } = useBillPreviewDoc(orderId);
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Print preview</DialogTitle>
+          <DialogDescription>
+            Live receipt — same layout math as the printed bytes.
+          </DialogDescription>
+        </DialogHeader>
+        {preview && outlet && template ? (
+          <>
+            <p className="text-[11px] text-muted-foreground">{preview.qrCaption}</p>
+            <ReceiptPreview
+              doc={preview.doc}
+              title="Bill preview"
+              logoUrl={
+                template.show_logo && typeof outlet.logo_url === "string" && outlet.logo_url
+                  ? outlet.logo_url
+                  : undefined
+              }
+            />
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">Loading preview…</p>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
