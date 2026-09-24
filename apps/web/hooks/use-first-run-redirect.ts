@@ -13,13 +13,13 @@ import { useIdentity } from "@/hooks/use-identity";
 export function useFirstRunRedirect() {
   const router = useRouter();
   const pathname = usePathname();
-  const { loaded, user, organizations } = useIdentity();
+  const { loaded, resolved, user, organizations } = useIdentity();
 
   useEffect(() => {
-    if (!loaded || !user) return;
+    if (!loaded || !resolved || !user) return;
     if (organizations.length > 0) return;
     if (pathname === "/dashboard/workspaces") return;
     if (pathname === "/dashboard/profile") return;
     router.replace("/dashboard/workspaces?first=1");
-  }, [loaded, user, organizations, pathname, router]);
+  }, [loaded, resolved, user, organizations, pathname, router]);
 }
