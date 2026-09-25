@@ -29,6 +29,9 @@ export type Outlet = {
   currency: string;
   timezone: string;
   locale: string;
+  /** Ask for customer name/phone when starting counter/takeaway/delivery
+   * orders on /kot. Default false = skip straight to the menu. */
+  ask_customer_details: boolean;
   /** UPI VPAs for bill collect-QR (Print Studio). Exactly one may be default. */
   upi_ids: UpiAccount[];
   /** @deprecated single-VPA era; migrated into upi_ids on read. */

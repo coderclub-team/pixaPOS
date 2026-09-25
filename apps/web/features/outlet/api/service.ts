@@ -53,6 +53,7 @@ let mockOutlet: Outlet = {
   currency: "INR",
   timezone: "Asia/Kolkata",
   locale: "en-IN",
+  ask_customer_details: false,
   upi_id: "",
   upi_ids: [],
   is_active: true,

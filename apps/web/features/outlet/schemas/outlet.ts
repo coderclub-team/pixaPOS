@@ -128,6 +128,10 @@ export const timezoneSchema = z.object({
   is_active: z.boolean(),
 });
 
+export const orderSettingsSchema = z.object({
+  ask_customer_details: z.boolean(),
+});
+
 export type BasicInformationValues = z.infer<typeof basicInformationSchema>;
 export type ContactValues = z.infer<typeof contactSchema>;
 export type AddressValues = z.infer<typeof addressSchema>;
@@ -135,6 +139,7 @@ export type GSTValues = z.infer<typeof gstSchema>;
 export type FSSAIValues = z.infer<typeof fssaiSchema>;
 export type BusinessDetailsValues = z.infer<typeof businessDetailsSchema>;
 export type TimezoneValues = z.infer<typeof timezoneSchema>;
+export type OrderSettingsValues = z.infer<typeof orderSettingsSchema>;
 
 export const outletSchema = z.object({
   id: z.string().optional(),

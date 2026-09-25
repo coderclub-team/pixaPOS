@@ -26,6 +26,7 @@ import { partyHex } from "@/features/table/api/utils";
 import type { OccupancyGroup } from "@/features/table/api/types";
 import { orderKeys, ordersQueryOptions } from "@/features/orders/api/queries";
 import { createOrder, ensureBareTableOrder, ensureGroupOrder } from "@/features/orders/api/service";
+import { outletQueryOptions } from "@/features/outlet/api/queries";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Input } from "@pixa/ui/base-ui/input";
 import { Label } from "@pixa/ui/base-ui/label";
@@ -68,9 +69,12 @@ export default function OrderTerminalPage({
   const isDineIn = orderType === "dine_in";
   const orderTypeLabel = kotOrderTypeOptions.find((o) => o.value === orderType)?.label ?? "Counter";
   // Customer capture for table-free orders — name/phone is optional for
-  // every order type (anonymous tokens allowed).
+  // every order type (anonymous tokens allowed). The outlet's order settings
+  // decide whether the counter asks at all (default: skip straight to menu).
   const [custName, setCustName] = useState("");
   const [custPhone, setCustPhone] = useState("");
+  const { data: outlet } = useQuery(outletQueryOptions);
+  const askCustomer = outlet?.ask_customer_details ?? false;
   // Left region content: floor tables, or inline menu browser replacing the
   // table panel in the exact same footprint (no modal anywhere).
   const [leftView, setLeftView] = useState<"tables" | "items">("tables");
@@ -339,31 +343,40 @@ export default function OrderTerminalPage({
                     <Icons.orders className="size-6 text-muted-foreground" />
                   </div>
                   <p className="font-medium">New {orderTypeLabel} order</p>
-                  <p className="text-sm text-muted-foreground">
-                    Add a name or phone for the token (optional), then start picking items.
-                  </p>
+                  {!askCustomer && (
+                    <p className="text-sm text-muted-foreground">
+                      Start picking items — customer details stay optional at billing.
+                    </p>
+                  )}
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="kot-cust-name">Customer name</Label>
-                  <Input
-                    id="kot-cust-name"
-                    value={custName}
-                    onChange={(e) => setCustName(e.target.value)}
-                    placeholder="Walk-in"
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="kot-cust-phone">Customer phone</Label>
-                  <Input
-                    id="kot-cust-phone"
-                    value={custPhone}
-                    onChange={(e) => setCustPhone(e.target.value)}
-                    placeholder="98XXXXXXXX"
-                    inputMode="tel"
-                    autoComplete="off"
-                  />
-                </div>
+                {askCustomer && (
+                  <>
+                    <p className="text-center text-sm text-muted-foreground">
+                      Add a name or phone for the token (optional), then start picking items.
+                    </p>
+                    <div className="grid gap-2">
+                      <Label htmlFor="kot-cust-name">Customer name</Label>
+                      <Input
+                        id="kot-cust-name"
+                        value={custName}
+                        onChange={(e) => setCustName(e.target.value)}
+                        placeholder="Walk-in"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="kot-cust-phone">Customer phone</Label>
+                      <Input
+                        id="kot-cust-phone"
+                        value={custPhone}
+                        onChange={(e) => setCustPhone(e.target.value)}
+                        placeholder="98XXXXXXXX"
+                        inputMode="tel"
+                        autoComplete="off"
+                      />
+                    </div>
+                  </>
+                )}
                 <Button
                   className="h-11 w-full"
                   disabled={startCounterMut.isPending}
