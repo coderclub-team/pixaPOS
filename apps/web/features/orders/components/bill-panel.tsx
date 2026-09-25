@@ -715,47 +715,23 @@ export default function OrderBillPanel({
     onError: (e: Error) => toast.error(e.message),
   });
 
-  if (!order) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-          Preparing the bill…
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const paidList = (payments ?? []).filter((p) => p.status === "PAID");
-  const refundedTotal = (refunds ?? [])
-    .filter((r) => r.status === "REFUNDED")
-    .reduce((s, r) => s + r.amount_paise, 0);
-  const paidTotal = paidList.reduce((s, p) => s + p.amount_paise, 0) - refundedTotal;
-  const balance = Math.max(0, order.grand_total_paise - paidTotal);
-  const stamp = PAYMENT_STAMP[order.payment_status];
-  const partitions = order.split?.partitions ?? [];
-  const partitionDue = (label: string) => {
-    const p = partitions.find((x) => x.label === label);
-    if (!p) return balance;
-    const got = paidList
-      .filter((x) => x.partition_label === label)
-      .reduce((s, x) => s + x.amount_paise, 0);
-    return Math.max(0, p.amount_paise - got);
-  };
-  const dueAmount = activePartition ? partitionDue(activePartition) : balance;
-  const isTerminal = order.status === "COMPLETED" || order.status === "CANCELLED";
-  const fill = fit === "fill";
-  const drafts = order.items.filter((i) => !i.kot_id);
-
   // KOTs is always the default tab; collect/tender flows jump to Payment
   // explicitly via focusTender.
+  // NOTE: this block stays above the `if (!order)` early return — hooks
+  // cannot move after it (Rules of Hooks). Balance here is a tab-label
+  // estimate; the authoritative `balance` below is used everywhere else.
   const activeTab = tab ?? "kots";
+  const tabPaidTotal =
+    (payments ?? []).filter((p) => p.status === "PAID").reduce((s, p) => s + p.amount_paise, 0) -
+    (refunds ?? []).filter((r) => r.status === "REFUNDED").reduce((s, r) => s + r.amount_paise, 0);
+  const tabBalance = Math.max(0, (order?.grand_total_paise ?? 0) - tabPaidTotal);
   const tabDefs = [
     {
       value: "kots",
       label: `KOTs${(kots ?? []).length > 0 ? ` (${(kots ?? []).length})` : ""}`,
     },
     { value: "bill", label: "Bill" },
-    { value: "payment", label: `Payment${balance > 0 ? ` · ${formatINR(balance)}` : ""}` },
+    { value: "payment", label: `Payment${tabBalance > 0 ? ` · ${formatINR(tabBalance)}` : ""}` },
     ...(showCustomer ? [{ value: "customer", label: "Customer" }] : []),
     { value: "more", label: "More" },
   ];
@@ -812,6 +788,37 @@ export default function OrderBillPanel({
       overflowTabs = [last, ...overflowTabs.filter((d) => d.value !== activeTab)];
     }
   }
+
+  if (!order) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+          Preparing the bill…
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const paidList = (payments ?? []).filter((p) => p.status === "PAID");
+  const refundedTotal = (refunds ?? [])
+    .filter((r) => r.status === "REFUNDED")
+    .reduce((s, r) => s + r.amount_paise, 0);
+  const paidTotal = paidList.reduce((s, p) => s + p.amount_paise, 0) - refundedTotal;
+  const balance = Math.max(0, order.grand_total_paise - paidTotal);
+  const stamp = PAYMENT_STAMP[order.payment_status];
+  const partitions = order.split?.partitions ?? [];
+  const partitionDue = (label: string) => {
+    const p = partitions.find((x) => x.label === label);
+    if (!p) return balance;
+    const got = paidList
+      .filter((x) => x.partition_label === label)
+      .reduce((s, x) => s + x.amount_paise, 0);
+    return Math.max(0, p.amount_paise - got);
+  };
+  const dueAmount = activePartition ? partitionDue(activePartition) : balance;
+  const isTerminal = order.status === "COMPLETED" || order.status === "CANCELLED";
+  const fill = fit === "fill";
+  const drafts = order.items.filter((i) => !i.kot_id);
 
   return (
     <Card className={fill ? "flex h-full min-h-0 flex-col" : undefined}>
