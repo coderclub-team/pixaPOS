@@ -307,14 +307,16 @@ export default function OrderTerminalPage({
     >
       <div
         className={cn(
-          "relative flex min-h-0 flex-col gap-3 pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:flex-row lg:gap-4 lg:pb-0",
-          fillHeight ? "h-full lg:h-full" : "lg:h-[calc(100dvh-200px)]",
+          "relative flex min-h-0 flex-1 flex-col gap-3 px-3 pt-3 pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:flex-row lg:gap-4 lg:pb-3",
+          fillHeight ? "min-h-0 flex-1" : "lg:h-[calc(100dvh-200px)]",
         )}
       >
         <div
           className={cn(
             "min-h-0 min-w-0 lg:flex-1",
-            fillHeight ? "h-full" : "h-[calc(100dvh-170px)] sm:h-[calc(100dvh-175px)] lg:h-auto",
+            fillHeight
+              ? "min-h-0 flex-1"
+              : "h-[calc(100dvh-170px)] sm:h-[calc(100dvh-175px)] lg:h-auto",
             mobileView === "order" ? "hidden lg:block" : "block",
           )}
         >
@@ -458,7 +460,7 @@ export default function OrderTerminalPage({
               "fixed inset-x-0 bottom-0 z-50 max-h-[88dvh] rounded-t-2xl border-t bg-background shadow-2xl",
               // Desktop: always-visible docked side column (no open/close).
               "sm:max-h-[82dvh] lg:static lg:z-auto lg:max-h-none lg:min-h-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:shadow-none lg:w-[420px] xl:w-[480px]",
-              fillHeight && "lg:h-full",
+              fillHeight && "lg:flex lg:min-h-0 lg:flex-col",
               // Mobile sheet hides until a table is tapped.
               panelOpen
                 ? "translate-y-0 opacity-100"
