@@ -42,6 +42,12 @@ import ReceiptPreview from "@/features/print-studio/components/receipt-preview";
 import AmountPad from "./amount-pad";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@pixa/ui/base-ui/tabs";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@pixa/ui/base-ui/dropdown-menu";
+import {
   paymentsByOrderQueryOptions,
   paymentKeys,
   refundsByOrderQueryOptions,
@@ -678,6 +684,12 @@ export default function OrderBillPanel({
   const [previewOpen, setPreviewOpen] = useState(false);
   const tenderAnchorId = `bill-tender-${orderId}`;
   const [tab, setTab] = useState<string | null>(null);
+  // Bill tab-row overflow: collapse trailing tabs under an action-style
+  // 3-dot menu when the row runs out of width (measured, not fixed).
+  const [tabVisibleCount, setTabVisibleCount] = useState<number | null>(null);
+  const tabRowRef = useRef<HTMLDivElement>(null);
+  const tabWidthCache = useRef<Record<string, number>>({});
+  const tabEls = useRef<Record<string, HTMLElement | null>>({});
   const focusTender = () => {
     setTab("payment");
     window.setTimeout(() => {
@@ -733,6 +745,73 @@ export default function OrderBillPanel({
   const isTerminal = order.status === "COMPLETED" || order.status === "CANCELLED";
   const fill = fit === "fill";
   const drafts = order.items.filter((i) => !i.kot_id);
+
+  // KOTs is always the default tab; collect/tender flows jump to Payment
+  // explicitly via focusTender.
+  const activeTab = tab ?? "kots";
+  const tabDefs = [
+    {
+      value: "kots",
+      label: `KOTs${(kots ?? []).length > 0 ? ` (${(kots ?? []).length})` : ""}`,
+    },
+    { value: "bill", label: "Bill" },
+    { value: "payment", label: `Payment${balance > 0 ? ` · ${formatINR(balance)}` : ""}` },
+    ...(showCustomer ? [{ value: "customer", label: "Customer" }] : []),
+    { value: "more", label: "More" },
+  ];
+  const tabSig = tabDefs.map((d) => `${d.value}:${d.label}`).join("|");
+  useEffect(() => {
+    const row = tabRowRef.current;
+    if (!row) return;
+    let raf = 0;
+    const fit = () => {
+      const list = row.querySelector<HTMLElement>("[data-tab-list]");
+      const rowW = row.clientWidth;
+      if (!list || rowW === 0) return;
+      const widths = tabDefs.map((d) => {
+        const w = tabEls.current[d.value]?.offsetWidth ?? 0;
+        if (w > 0) tabWidthCache.current[d.value] = w;
+        return tabWidthCache.current[d.value] ?? 0;
+      });
+      // Not measured yet — keep everything visible until widths are known.
+      if (widths.some((w) => w === 0)) return;
+      const triggerW = 48;
+      let n = tabDefs.length;
+      for (; n > 1; n--) {
+        const avail = rowW - (n < tabDefs.length ? triggerW : 0);
+        const sum = widths.slice(0, n).reduce((a, b) => a + b, 0) + (n - 1) * 4;
+        if (sum <= avail) break;
+      }
+      setTabVisibleCount((prev) => {
+        const next = n >= tabDefs.length ? null : n;
+        return prev === next ? prev : next;
+      });
+    };
+    const schedule = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(fit);
+    };
+    schedule();
+    const ro = new ResizeObserver(schedule);
+    ro.observe(row);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabSig]);
+  const shownCount = tabVisibleCount ?? tabDefs.length;
+  let visibleTabs = tabDefs.slice(0, shownCount);
+  let overflowTabs = tabDefs.slice(shownCount);
+  // Keep the active tab visible — swap it in for the last visible one.
+  if (overflowTabs.length > 0 && !visibleTabs.some((d) => d.value === activeTab)) {
+    const active = tabDefs.find((d) => d.value === activeTab);
+    const last = visibleTabs[visibleTabs.length - 1];
+    if (active && last) {
+      visibleTabs = [...visibleTabs.slice(0, -1), active];
+      overflowTabs = [last, ...overflowTabs.filter((d) => d.value !== activeTab)];
+    }
+  }
 
   return (
     <Card className={fill ? "flex h-full min-h-0 flex-col" : undefined}>
@@ -803,31 +882,46 @@ export default function OrderBillPanel({
             </Button>
           </div>
         )}
-        <Tabs
-          value={tab ?? (balance > 0 ? "payment" : "kots")}
-          onValueChange={setTab}
-          className="w-full"
-        >
-          <div className="sticky top-0 z-[5] -mx-1 px-1 pt-1">
-            <TabsList className="max-w-full gap-1 overflow-x-auto overflow-y-hidden flex-nowrap">
-              <TabsTrigger value="kots" className="min-h-11 shrink-0 px-4 touch-manipulation">
-                KOTs{(kots ?? []).length > 0 ? ` (${(kots ?? []).length})` : ""}
-              </TabsTrigger>
-              <TabsTrigger value="bill" className="min-h-11 shrink-0 px-4 touch-manipulation">
-                Bill
-              </TabsTrigger>
-              <TabsTrigger value="payment" className="min-h-11 shrink-0 px-4 touch-manipulation">
-                Payment{balance > 0 ? ` · ${formatINR(balance)}` : ""}
-              </TabsTrigger>
-              {!!showCustomer && (
-                <TabsTrigger value="customer" className="min-h-11 shrink-0 px-4 touch-manipulation">
-                  Customer
+        <Tabs value={activeTab} onValueChange={setTab} className="w-full">
+          <div
+            ref={tabRowRef}
+            className="sticky top-0 z-[5] -mx-1 flex items-center gap-1 px-1 pt-1"
+          >
+            <TabsList data-tab-list className="min-w-0 flex-1 gap-1 overflow-hidden flex-nowrap">
+              {visibleTabs.map((d) => (
+                <TabsTrigger
+                  key={d.value}
+                  ref={(el) => {
+                    tabEls.current[d.value] = el;
+                  }}
+                  value={d.value}
+                  className="min-h-11 shrink-0 px-4 touch-manipulation"
+                >
+                  {d.label}
                 </TabsTrigger>
-              )}
-              <TabsTrigger value="more" className="min-h-11 shrink-0 px-4 touch-manipulation">
-                More
-              </TabsTrigger>
+              ))}
             </TabsList>
+            {overflowTabs.length > 0 && (
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger
+                  render={<Button variant="ghost" size="icon-sm" className="shrink-0" />}
+                >
+                  <Icons.ellipsis className="size-4" aria-label="More tabs" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {overflowTabs.map((d) => (
+                    <DropdownMenuItem
+                      key={d.value}
+                      onClick={() => setTab(d.value)}
+                      className="min-h-11"
+                    >
+                      {d.value === activeTab && <Icons.check className="mr-2 size-4" />}
+                      {d.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
           <TabsContent value="kots" className="space-y-4 pt-2">
             <section aria-label="Kitchen tickets" className="space-y-2 rounded-xl border p-3">
