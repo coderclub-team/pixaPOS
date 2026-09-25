@@ -25,10 +25,13 @@ import { seatOccupancy } from "@/features/table/api/service";
 import { partyHex } from "@/features/table/api/utils";
 import type { OccupancyGroup } from "@/features/table/api/types";
 import { orderKeys, ordersQueryOptions } from "@/features/orders/api/queries";
-import { ensureBareTableOrder, ensureGroupOrder } from "@/features/orders/api/service";
+import { createOrder, ensureBareTableOrder, ensureGroupOrder } from "@/features/orders/api/service";
 import { Button } from "@pixa/ui/base-ui/button";
+import { Input } from "@pixa/ui/base-ui/input";
+import { Label } from "@pixa/ui/base-ui/label";
 import ItemBrowser from "@/features/orders/components/item-browser";
 import { useCategorySelection } from "@/features/orders/components/category-selection";
+import { kotOrderTypeOptions, useOrderType } from "@/features/orders/components/order-type";
 import OrderBillPanel from "@/features/orders/components/bill-panel";
 import { useCrossTabSync } from "@/lib/use-cross-tab-sync";
 import { toast } from "sonner";
@@ -58,10 +61,36 @@ export default function OrderTerminalPage({
   const [seatOpen, setSeatOpen] = useState(false);
   const [seatCount, setSeatCount] = useState(2);
   const [mobileView, setMobileView] = useState<"tables" | "order" | "items">("tables");
+  // Order type comes from the /kot header picker; the dashboard terminal has
+  // no provider and stays dine-in (floor-first).
+  const orderTypeSel = useOrderType();
+  const orderType = orderTypeSel?.orderType ?? "dine_in";
+  const isDineIn = orderType === "dine_in";
+  const orderTypeLabel = kotOrderTypeOptions.find((o) => o.value === orderType)?.label ?? "Counter";
+  // Customer capture for table-free orders (counter allows anonymous tokens;
+  // takeaway/delivery require name or phone — enforced by the service too).
+  const [custName, setCustName] = useState("");
+  const [custPhone, setCustPhone] = useState("");
   // Left region content: floor tables, or inline menu browser replacing the
   // table panel in the exact same footprint (no modal anywhere).
   const [leftView, setLeftView] = useState<"tables" | "items">("tables");
   const exitTimer = useRef<number | null>(null);
+  // Switching order type resets the workspace to that type's entry panel.
+  useEffect(() => {
+    if (exitTimer.current != null) {
+      window.clearTimeout(exitTimer.current);
+      exitTimer.current = null;
+    }
+    setActiveTableId(null);
+    setActiveOrderId(null);
+    setActiveGroupId(null);
+    setCustName("");
+    setCustPhone("");
+    setPanelOpen(false);
+    setLeftView("tables");
+    setMobileView("tables");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderType]);
 
   const { data: activeTable } = useQuery({
     ...tableQueryOptions(activeTableId ?? ""),
@@ -113,6 +142,26 @@ export default function OrderTerminalPage({
       setActiveOrderId(order.id);
       setPanelOpen(true);
       setLeftView("items");
+      setMobileView("items");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  /** Start a table-free order (counter / takeaway / delivery): menu first,
+   * no floor. Counter allows anonymous tokens; the rest need name or phone. */
+  const startCounterMut = useMutation({
+    mutationFn: () =>
+      createOrder({
+        channel: orderType,
+        customer_name: custName.trim() || undefined,
+        customer_phone: custPhone.trim() || undefined,
+      }),
+    onSuccess: (order) => {
+      queryClient.invalidateQueries({ queryKey: orderKeys.all });
+      queryClient.invalidateQueries({ queryKey: orderKeys.detail(order.id) });
+      setActiveOrderId(order.id);
+      setLeftView("items");
+      setPanelOpen(true);
       setMobileView("items");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -256,7 +305,7 @@ export default function OrderTerminalPage({
             mobileView === "order" ? "hidden lg:block" : "block",
           )}
         >
-          {leftView === "items" && activeOrderId ? (
+          {(leftView === "items" || !isDineIn) && activeOrderId ? (
             <div className="flex h-full flex-col gap-2">
               <div className="flex items-center gap-2">
                 <Button
@@ -266,15 +315,15 @@ export default function OrderTerminalPage({
                   className="h-9 shrink-0"
                   onClick={() => {
                     setLeftView("tables");
-                    setMobileView("tables");
+                    setMobileView(isDineIn ? "tables" : "order");
                   }}
-                  title="Back to tables"
+                  title={isDineIn ? "Back to tables" : "Back"}
                 >
-                  <Icons.chevronLeft className="size-4" /> Tables
+                  <Icons.chevronLeft className="size-4" /> {isDineIn ? "Tables" : "Back"}
                 </Button>
                 <p className="min-w-0 flex-1 truncate text-sm font-medium">
                   Add items
-                  {activeTable ? ` — Table ${activeTable.number}` : ""}
+                  {activeTable ? ` — Table ${activeTable.number}` : ` — ${orderTypeLabel}`}
                   {activeGroup ? ` · Party ${activeGroup.label ?? "?"}` : ""}
                 </p>
               </div>
@@ -282,6 +331,51 @@ export default function OrderTerminalPage({
                 <ItemBrowser orderId={activeOrderId} />
               </div>
             </div>
+          ) : !isDineIn && !activeOrderId ? (
+            <Card className="flex h-full items-center justify-center">
+              <CardContent className="flex w-full max-w-sm flex-col gap-3 py-8">
+                <div className="flex flex-col items-center gap-2 text-center">
+                  <div className="rounded-full border border-dashed p-3">
+                    <Icons.orders className="size-6 text-muted-foreground" />
+                  </div>
+                  <p className="font-medium">New {orderTypeLabel} order</p>
+                  <p className="text-sm text-muted-foreground">
+                    {orderType === "counter"
+                      ? "Add a name or phone (optional) for the token, then start picking items."
+                      : "Customer name or phone is required for takeaway and delivery."}
+                  </p>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="kot-cust-name">Customer name</Label>
+                  <Input
+                    id="kot-cust-name"
+                    value={custName}
+                    onChange={(e) => setCustName(e.target.value)}
+                    placeholder="Walk-in"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="kot-cust-phone">Customer phone</Label>
+                  <Input
+                    id="kot-cust-phone"
+                    value={custPhone}
+                    onChange={(e) => setCustPhone(e.target.value)}
+                    placeholder="98XXXXXXXX"
+                    inputMode="tel"
+                    autoComplete="off"
+                  />
+                </div>
+                <Button
+                  className="h-11 w-full"
+                  disabled={startCounterMut.isPending}
+                  onClick={() => startCounterMut.mutate()}
+                >
+                  <Icons.add className="mr-2 size-4" />
+                  {startCounterMut.isPending ? "Starting…" : `Start ${orderTypeLabel} order`}
+                </Button>
+              </CardContent>
+            </Card>
           ) : (
             <Tabs
               value={currentFloorId}
@@ -469,10 +563,14 @@ export default function OrderTerminalPage({
                     })()}
                   </div>
                 )}
-              {activeOrderId && activeTable ? (
+              {activeOrderId && (activeTable || !isDineIn) ? (
                 <OrderBillPanel
                   orderId={activeOrderId}
-                  title={`Bill — Table ${activeTable.number}${activeGroup ? ` · Party ${activeGroup.label ?? "?"}` : openTabs.some((o) => o.id === activeOrderId) ? " · open tab" : ""}`}
+                  title={
+                    activeTable
+                      ? `Bill — Table ${activeTable.number}${activeGroup ? ` · Party ${activeGroup.label ?? "?"}` : openTabs.some((o) => o.id === activeOrderId) ? " · open tab" : ""}`
+                      : `Bill — ${orderTypeLabel}`
+                  }
                   showSeating
                   showCustomer
                   onAddItems={() => {
@@ -555,13 +653,22 @@ export default function OrderTerminalPage({
               mobileView === "tables" ? "text-primary" : "text-muted-foreground",
             )}
           >
-            <Icons.table className="size-5" />
-            Tables
+            {isDineIn ? (
+              <>
+                <Icons.table className="size-5" />
+                Tables
+              </>
+            ) : (
+              <>
+                <Icons.add className="size-5" />
+                New
+              </>
+            )}
           </button>
           <button
             type="button"
-            onClick={() => activeTableId && setMobileView("order")}
-            disabled={!activeTableId}
+            onClick={() => (activeTableId || activeOrderId) && setMobileView("order")}
+            disabled={!activeTableId && !activeOrderId}
             className={cn(
               "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium touch-manipulation disabled:opacity-40",
               mobileView === "order" ? "text-primary" : "text-muted-foreground",

@@ -1,4 +1,11 @@
-export type OrderChannel = "dine_in" | "takeaway" | "delivery" | "zomato" | "swiggy" | "own_online";
+export type OrderChannel =
+  | "dine_in"
+  | "counter"
+  | "takeaway"
+  | "delivery"
+  | "zomato"
+  | "swiggy"
+  | "own_online";
 
 export type OrderStatus =
   | "DRAFT"

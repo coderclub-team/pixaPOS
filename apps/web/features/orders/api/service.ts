@@ -266,7 +266,7 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
       const table = await getTableById(input.table_id);
       if (!table) throw new Error("Table not found");
       if (table.outlet_id !== outletId) throw new Error("Table belongs to another outlet");
-    } else {
+    } else if (input.channel !== "counter") {
       if (!input.customer_name?.trim() && !input.customer_phone?.trim()) {
         throw new Error("Takeaway, delivery and online orders require a customer name or phone");
       }
@@ -412,7 +412,7 @@ export async function addOrderItem(
 function orderChannelToMenuChannel(
   channel: CreateOrderInput["channel"],
 ): "dine_in" | "pickup" | "delivery" | "zomato" | "swiggy" | "ondc" {
-  if (channel === "takeaway") return "pickup";
+  if (channel === "takeaway" || channel === "counter") return "pickup";
   if (channel === "own_online") return "delivery";
   return channel;
 }

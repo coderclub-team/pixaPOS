@@ -11,6 +11,19 @@ import { floorKeys } from "@/features/floor/api/queries";
 import OrderTerminalPage from "@/features/table/components/order-terminal-view";
 import CategorySidebar from "@/features/orders/components/category-sidebar";
 import { CategorySelectionProvider } from "@/features/orders/components/category-selection";
+import {
+  OrderTypeProvider,
+  kotOrderTypeOptions,
+  useOrderType,
+  type KotOrderType,
+} from "@/features/orders/components/order-type";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@pixa/ui/base-ui/select";
 
 /**
  * Standalone KOT counter: dashboard shell pattern (app sidebar with brand,
@@ -21,15 +34,39 @@ import { CategorySelectionProvider } from "@/features/orders/components/category
 export default function KotShell() {
   return (
     <SidebarProvider defaultOpen={false}>
-      <CategorySelectionProvider>
-        <Sidebar collapsible="icon">
-          <CategorySidebar />
-        </Sidebar>
-        <SidebarInset>
-          <KotShellMain />
-        </SidebarInset>
-      </CategorySelectionProvider>
+      <OrderTypeProvider>
+        <CategorySelectionProvider>
+          <Sidebar collapsible="icon">
+            <CategorySidebar />
+          </Sidebar>
+          <SidebarInset>
+            <KotShellMain />
+          </SidebarInset>
+        </CategorySelectionProvider>
+      </OrderTypeProvider>
     </SidebarProvider>
+  );
+}
+
+function OrderTypePicker() {
+  const selection = useOrderType();
+  if (!selection) return null;
+  return (
+    <Select
+      value={selection.orderType}
+      onValueChange={(v) => selection.setOrderType(v as KotOrderType)}
+    >
+      <SelectTrigger aria-label="Order type" className="h-8 w-32">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {kotOrderTypeOptions.map((o) => (
+          <SelectItem key={o.value} value={o.value}>
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -54,6 +91,7 @@ function KotShellMain() {
           </span>
         </span>
         <span className="flex items-center gap-1.5">
+          <OrderTypePicker />
           <ThemeModeToggle />
           <Button
             variant="outline"
