@@ -344,12 +344,27 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
   );
 
   return (
-    <div className="flex h-full min-h-0 gap-3">
+    <div className="relative flex h-full min-h-0 gap-3">
+      {/* Mobile backdrop for the category drawer. */}
+      {sidebarOpen && (
+        <button
+          type="button"
+          aria-label="Close categories"
+          onClick={() => {
+            setCatTouched(true);
+            setCatOpenManual(false);
+          }}
+          className="absolute inset-0 z-20 bg-black/40 lg:hidden"
+        />
+      )}
       <nav
         aria-label="Menu categories"
         className={cn(
           "shrink-0 flex-col self-stretch rounded-xl border bg-sidebar p-2 text-sidebar-foreground",
-          sidebarOpen ? "flex w-44 sm:w-52" : "hidden lg:flex lg:w-14 lg:items-center",
+          // Mobile: overlay drawer; sm-lg: inline panel; lg+: rail when collapsed.
+          sidebarOpen
+            ? "absolute inset-y-0 left-0 z-30 flex w-64 max-w-[82%] shadow-xl sm:w-56 lg:static lg:z-auto lg:w-44 lg:shadow-none xl:w-52"
+            : "hidden lg:flex lg:w-14 lg:items-center",
         )}
       >
         {sidebarOpen ? (
@@ -372,7 +387,13 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
           <button
             type="button"
             data-active={categoryId == null ? true : undefined}
-            onClick={() => setCategoryId(null)}
+            onClick={() => {
+              setCategoryId(null);
+              if (isMobile) {
+                setCatTouched(true);
+                setCatOpenManual(false);
+              }
+            }}
             title="All categories"
             className="flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm ring-sidebar-ring outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate"
           >
@@ -384,7 +405,13 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
               key={c.id}
               type="button"
               data-active={categoryId === c.id ? true : undefined}
-              onClick={() => setCategoryId(categoryId === c.id ? null : c.id)}
+              onClick={() => {
+                setCategoryId(categoryId === c.id ? null : c.id);
+                if (isMobile) {
+                  setCatTouched(true);
+                  setCatOpenManual(false);
+                }
+              }}
               title={c.name}
               className="flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm ring-sidebar-ring outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate"
             >
@@ -470,7 +497,7 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
               </CardContent>
             </Card>
           ) : view === "card" ? (
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3">
               {items.slice(0, 60).map((item) => {
                 const staged = draftQtyFor(item);
                 return (
@@ -709,8 +736,8 @@ function PickerListTable({
   return (
     <Card>
       <CardContent className="p-0">
-        <div ref={listRef} className="min-h-[200px]">
-          <Table>
+        <div ref={listRef} className="min-h-[200px] overflow-x-auto">
+          <Table className="min-w-[520px]">
             <TableHeader>
               {table.getHeaderGroups().map((hg) => (
                 <TableRow key={hg.id}>
