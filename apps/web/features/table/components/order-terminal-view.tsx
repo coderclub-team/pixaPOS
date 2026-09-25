@@ -113,7 +113,8 @@ export default function OrderTerminalPage({
   );
 
   const ensureMut = useMutation({
-    // Bare-single flow: tap selects + ensures one silent 1-guest party order.
+    // Bare-single flow: tap selects + ensures one silent 1-guest party order,
+    // and lands straight on the menu — no extra "Add items" tap needed.
     // The explicit seat dialog stays the full party flow.
     mutationFn: (tableId: string) => ensureBareTableOrder(tableId),
     onSuccess: (order, tableId) => {
@@ -128,7 +129,8 @@ export default function OrderTerminalPage({
       setActiveOrderId(order.id);
       setActiveGroupId(order.occupancy_group_id ?? null);
       setPanelOpen(true);
-      setMobileView("order");
+      setLeftView("items");
+      setMobileView("items");
     },
     onError: (e: Error) => toast.error(e.message),
   });
