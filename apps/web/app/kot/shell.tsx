@@ -79,7 +79,7 @@ function KotShellMain() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col bg-background">
+    <div className="flex h-dvh flex-col overflow-hidden bg-background">
       <header className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur-sm">
         <span className="flex items-center gap-2">
           <SidebarTrigger className="-ml-1" />
@@ -103,8 +103,8 @@ function KotShellMain() {
           </Button>
         </span>
       </header>
-      <main className="flex-1 overflow-y-auto p-3">
-        <OrderTerminalPage hideDescription hideTitle />
+      <main className="min-h-0 flex-1 overflow-hidden p-3">
+        <OrderTerminalPage hideDescription hideTitle fillHeight />
       </main>
     </div>
   );

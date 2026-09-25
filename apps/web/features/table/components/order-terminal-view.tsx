@@ -42,9 +42,13 @@ const PANEL_EXIT_MS = 300;
 export default function OrderTerminalPage({
   hideDescription = false,
   hideTitle = false,
+  fillHeight = false,
 }: {
   hideDescription?: boolean;
   hideTitle?: boolean;
+  /** /kot app layout: fill the shell's available height instead of guessing
+   * viewport chrome with calc() heights. Dashboard keeps the default. */
+  fillHeight?: boolean;
 }) {
   useCrossTabSync();
   const queryClient = useQueryClient();
@@ -301,11 +305,16 @@ export default function OrderTerminalPage({
         )
       }
     >
-      <div className="relative flex min-h-0 flex-col gap-3 pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:h-[calc(100dvh-200px)] lg:flex-row lg:gap-4 lg:pb-0">
+      <div
+        className={cn(
+          "relative flex min-h-0 flex-col gap-3 pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:flex-row lg:gap-4 lg:pb-0",
+          fillHeight ? "h-full lg:h-full" : "lg:h-[calc(100dvh-200px)]",
+        )}
+      >
         <div
           className={cn(
             "min-h-0 min-w-0 lg:flex-1",
-            "h-[calc(100dvh-170px)] sm:h-[calc(100dvh-175px)] lg:h-auto",
+            fillHeight ? "h-full" : "h-[calc(100dvh-170px)] sm:h-[calc(100dvh-175px)] lg:h-auto",
             mobileView === "order" ? "hidden lg:block" : "block",
           )}
         >
@@ -449,13 +458,20 @@ export default function OrderTerminalPage({
               "fixed inset-x-0 bottom-0 z-50 max-h-[88dvh] rounded-t-2xl border-t bg-background shadow-2xl",
               // Desktop: always-visible docked side column (no open/close).
               "sm:max-h-[82dvh] lg:static lg:z-auto lg:max-h-none lg:min-h-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:shadow-none lg:w-[420px] xl:w-[480px]",
+              fillHeight && "lg:h-full",
               // Mobile sheet hides until a table is tapped.
               panelOpen
                 ? "translate-y-0 opacity-100"
                 : "max-lg:pointer-events-none max-lg:translate-y-full max-lg:opacity-0",
             )}
           >
-            <div className="max-h-[88dvh] scroll-pt-12 overflow-y-auto pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-h-[82dvh] lg:h-full lg:max-h-none lg:w-auto lg:overflow-visible lg:pb-0">
+            <div
+              className={cn(
+                "scroll-pt-12 overflow-y-auto pb-[max(1.25rem,env(safe-area-inset-bottom))] max-lg:max-h-[88dvh] sm:max-h-[82dvh] lg:h-full lg:max-h-none lg:w-auto lg:pb-0",
+                // /kot desktop: the bill card itself scrolls — no clip.
+                fillHeight ? "lg:overflow-y-auto" : "lg:overflow-visible",
+              )}
+            >
               {/* Mobile sheet grab handle + close */}
               <div className="sticky top-0 z-10 flex items-center justify-center bg-background/95 pt-2 pb-1 backdrop-blur-sm lg:hidden">
                 <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
