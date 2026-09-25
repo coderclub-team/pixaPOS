@@ -25,6 +25,13 @@ import {
 } from "@tanstack/react-table";
 import { Input } from "@pixa/ui/base-ui/input";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@pixa/ui/base-ui/dialog";
+import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupLabel,
@@ -181,6 +188,8 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
   const categoryId = sharedSelection?.categoryId ?? localCategoryId;
   const setCategoryId = sharedSelection?.setCategoryId ?? setLocalCategoryId;
   const pageSidebar = sharedSelection != null;
+  // Multi-variant card tap target — opens the variant picker dialog.
+  const [variantPick, setVariantPick] = useState<MenuItem | null>(null);
   const [view, setView] = useState<BrowserView>(() => {
     try {
       return (localStorage.getItem(VIEW_KEY) as BrowserView | null) ?? "card";
@@ -587,13 +596,18 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
               </CardContent>
             </Card>
           ) : effectiveView === "card" ? (
-            <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
               {items.slice(0, 60).map((item) => {
-                // Variant products list every option inline (list-view
-                // pattern) so each variant is one tap away — no dialog hop.
+                // Multi-variant products open the variant dialog on tap —
+                // cards stay clean no matter how many options an item has.
+                // Single-variant items behave as default (tap adds straight).
                 const variable = hasVariantOptions(item);
                 const staged = variable ? draftTotalFor(item) : draftQtyFor(item);
                 const activeVariants = (item.variants ?? []).filter((v) => v.is_active !== false);
+                const activate = () => {
+                  if (variable) setVariantPick(item);
+                  else quickAdd(item);
+                };
                 return (
                   <div
                     key={item.id}
@@ -604,18 +618,15 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
                         ? `${item.name} — ${activeVariants.length} options, ${staged} in draft`
                         : `${item.name} — tap to add, in draft ${staged}`
                     }
-                    onClick={() => {
-                      if (!variable) quickAdd(item);
-                    }}
+                    onClick={activate}
                     onKeyDown={(e) => {
-                      if ((e.key === "Enter" || e.key === " ") && !variable) {
+                      if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        quickAdd(item);
+                        activate();
                       }
                     }}
                     className={cn(
-                      "relative min-h-60 overflow-hidden rounded-xl border bg-muted transition-colors focus-visible:outline-2 focus-visible:outline-primary",
-                      !variable && "cursor-pointer hover:border-primary",
+                      "relative aspect-square cursor-pointer overflow-hidden rounded-xl border bg-muted transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-primary",
                     )}
                   >
                     <MenuImage item={item} size="fill" />
@@ -640,28 +651,6 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
                           ? `From ${formatINR(minPriceOf(item))}`
                           : formatINR(priceOf(item))}
                       </p>
-                      {variable && (
-                        <div
-                          className="mt-2 max-h-44 space-y-1.5 overflow-y-auto"
-                          onClick={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => e.stopPropagation()}
-                        >
-                          {activeVariants.map((v) => (
-                            <div
-                              key={v.id}
-                              className="flex items-center gap-1.5 rounded-lg bg-white/15 px-2 py-1 backdrop-blur-[2px]"
-                            >
-                              <span className="min-w-0 flex-1 truncate text-xs font-medium">
-                                {v.name}
-                              </span>
-                              <span className="shrink-0 text-xs font-semibold tabular-nums">
-                                {formatINR(toPaise(v.selling_price ?? 0))}
-                              </span>
-                              {stepper(item, draftQtyForVariant(item, v.id), v.id)}
-                            </div>
-                          ))}
-                        </div>
-                      )}
                       <div
                         className="mt-2 flex items-center justify-between gap-1"
                         onClick={(e) => e.stopPropagation()}
@@ -698,7 +687,112 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
           )}
         </div>
       </div>
+
+      {variantPick && (
+        <VariantPickerDialog
+          item={variantPick}
+          total={draftTotalFor(variantPick)}
+          qtyFor={(variantId) => draftQtyForVariant(variantPick, variantId)}
+          onStep={(variantId, delta) => stepVariant(variantPick, variantId, delta)}
+          onClose={() => setVariantPick(null)}
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * Variant picker dialog for multi-variant cards: one row per active variant
+ * with its own live stepper (adds land as draft lines immediately, like the
+ * list-view sub-rows). Stays open across picks; Done closes. No modifiers or
+ * instructions — the /kot flow keeps those out by design.
+ */
+function VariantPickerDialog({
+  item,
+  total,
+  qtyFor,
+  onStep,
+  onClose,
+}: {
+  item: MenuItem;
+  total: number;
+  qtyFor: (variantId: string | undefined) => number;
+  onStep: (variantId: string | undefined, delta: number) => void;
+  onClose: () => void;
+}) {
+  const variants = (item.variants ?? []).filter((v) => v.is_active !== false);
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{item.name}</DialogTitle>
+          <DialogDescription>
+            {item.category_name} · {item.veg_type === "veg" ? "Veg" : "Non-veg"} — pick variants,
+            each lands in the draft
+          </DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[60dvh] space-y-1.5 overflow-y-auto">
+          {variants.map((v) => {
+            const staged = qtyFor(v.id);
+            return (
+              <div key={v.id} className="flex items-center gap-2 rounded-xl border px-3 py-2">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{v.name}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {v.qty ? `${v.qty}${v.unit ?? ""} · ` : ""}
+                    {formatINR(toPaise(v.selling_price ?? 0))}
+                  </span>
+                </span>
+                <span
+                  className={cn(
+                    "flex items-center rounded-full border tabular-nums",
+                    staged > 0 ? "border-primary/40 bg-primary/10" : "border-border bg-muted",
+                  )}
+                  aria-live="polite"
+                  aria-label={`${item.name} ${v.name} draft quantity: ${staged}`}
+                >
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="rounded-full max-lg:h-11 max-lg:w-11"
+                    disabled={staged <= 0}
+                    onClick={() => onStep(v.id, -1)}
+                    aria-label={`Remove one ${item.name} ${v.name}`}
+                  >
+                    <Icons.minus className="size-4" />
+                  </Button>
+                  <span
+                    className={cn(
+                      "min-w-7 text-center text-sm font-bold",
+                      staged > 0 ? "text-primary" : "text-muted-foreground",
+                    )}
+                  >
+                    {staged}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="rounded-full max-lg:h-11 max-lg:w-11"
+                    onClick={() => onStep(v.id, 1)}
+                    aria-label={`Add one ${item.name} ${v.name}`}
+                  >
+                    <Icons.add className="size-4" />
+                  </Button>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground tabular-nums">
+            {total > 0 ? `${total}× in draft` : "Nothing picked yet"}
+          </p>
+          <Button onClick={onClose} className="min-h-11">
+            Done
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
