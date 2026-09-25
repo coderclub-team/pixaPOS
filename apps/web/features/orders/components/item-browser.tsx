@@ -651,18 +651,10 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
                           ? `From ${formatINR(minPriceOf(item))}`
                           : formatINR(priceOf(item))}
                       </p>
-                      <div
-                        className="mt-2 flex items-center justify-between gap-1"
-                        onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => e.stopPropagation()}
-                      >
-                        {variable ? (
-                          <span className="text-xs font-semibold tabular-nums text-white/75">
-                            {staged > 0 ? `${staged}× in draft` : ""}
-                          </span>
-                        ) : (
-                          stepper(item, staged)
-                        )}
+                      <div className="mt-2 flex items-center justify-between gap-1">
+                        <span className="text-xs font-semibold tabular-nums text-white/75">
+                          {staged > 0 ? `${staged}× in draft` : ""}
+                        </span>
                       </div>
                     </div>
                   </div>
