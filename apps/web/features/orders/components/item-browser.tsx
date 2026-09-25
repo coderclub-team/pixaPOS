@@ -52,7 +52,7 @@ import { menuCategoriesQueryOptions, menuItemsQueryOptions } from "@/features/me
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import { useMediaQuery } from "@pixa/ui/hooks/use-media-query";
-import type { MenuItem } from "@/features/menu/api/types";
+import type { MenuItem, VegType } from "@/features/menu/api/types";
 import type { OrderItemSnapshot } from "@/features/orders/api/types";
 import { useCategorySelection } from "./category-selection";
 import { PickItemDialog } from "./item-picker";
@@ -155,6 +155,7 @@ export function MenuImage({ item, size }: { item: MenuItem; size: "sm" | "lg" })
  */
 export default function ItemBrowser({ orderId }: { orderId: string }) {
   const [search, setSearch] = useState("");
+  const [vegType, setVegType] = useState<VegType | null>(null);
   const [categorySearch, setCategorySearch] = useState("");
   // Page-level selection (kot app sidebar) wins when provided; otherwise the
   // browser keeps its own internal sidebar selection (dashboard usage).
@@ -185,6 +186,7 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
     menuItemsQueryOptions({
       search: search || undefined,
       category_id: categoryId ?? undefined,
+      veg_type: vegType ?? undefined,
       is_active: true,
     }),
   );
@@ -497,6 +499,34 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
             />
           </div>
           <div
+            className="flex rounded-lg border p-0.5"
+            role="group"
+            aria-label="Dietary preference"
+          >
+            {(
+              [
+                { label: "All", value: null, dot: null },
+                { label: "Veg", value: "veg", dot: "bg-green-600" },
+                { label: "Non-veg", value: "nonveg", dot: "bg-destructive" },
+                { label: "Egg", value: "egg", dot: "bg-amber-500" },
+              ] as const
+            ).map((o) => (
+              <Button
+                key={o.label}
+                type="button"
+                variant={vegType === o.value ? "default" : "ghost"}
+                size="sm"
+                className="h-9 min-h-9 px-2.5 text-xs touch-manipulation"
+                onClick={() => setVegType(o.value)}
+                title={`${o.label} — dietary preference`}
+                aria-pressed={vegType === o.value}
+              >
+                {o.dot && <span className={cn("size-2 rounded-full", o.dot)} />}
+                {o.label}
+              </Button>
+            ))}
+          </div>
+          <div
             className="hidden rounded-lg border p-0.5 sm:flex"
             role="group"
             aria-label="Menu layout"
@@ -535,7 +565,9 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
                     <Icons.pizza className="size-6 text-muted-foreground" />
                   </div>
                   <p className="font-medium">No menu items match</p>
-                  <p className="text-sm text-muted-foreground">Try another search or category.</p>
+                  <p className="text-sm text-muted-foreground">
+                    Try another search, category or diet.
+                  </p>
                 </div>
               </CardContent>
             </Card>
