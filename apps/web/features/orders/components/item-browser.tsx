@@ -25,6 +25,16 @@ import {
 } from "@tanstack/react-table";
 import { Input } from "@pixa/ui/base-ui/input";
 import {
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+} from "@pixa/ui/base-ui/sidebar";
+import {
   Select,
   SelectContent,
   SelectGroup,
@@ -160,6 +170,8 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
   const [catTouched, setCatTouched] = useState(false);
   const [catOpenManual, setCatOpenManual] = useState(true);
   const sidebarOpen = catTouched ? catOpenManual : !isMobile;
+  // Card view is the only layout on phones; larger screens keep the toggle.
+  const effectiveView: BrowserView = isMobile ? "card" : view;
   const { data: order } = useQuery(orderQueryOptions(orderId));
   const { data: categories } = useQuery(menuCategoriesQueryOptions({}));
   const { data: items, isPending } = useQuery(
@@ -357,79 +369,91 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
           className="absolute inset-0 z-20 bg-black/40 lg:hidden"
         />
       )}
-      <nav
-        aria-label="Menu categories"
-        className={cn(
-          "shrink-0 flex-col self-stretch rounded-xl border bg-sidebar p-2 text-sidebar-foreground",
-          // Mobile: overlay drawer; sm-lg: inline panel; lg+: rail when collapsed.
-          sidebarOpen
-            ? "absolute inset-y-0 left-0 z-30 flex w-64 max-w-[82%] shadow-xl sm:w-56 lg:static lg:z-auto lg:w-44 lg:shadow-none xl:w-52"
-            : "hidden lg:flex lg:w-14 lg:items-center",
-        )}
+      {/* Category sidebar: the exact dashboard sidebar primitives
+          (provider + header + group + menu + buttons) in a panel-embedded
+          container. group-data collapse selectors work exactly like /dashboard;
+          the viewport-fixed Sidebar shell itself stays app-level only. */}
+      <SidebarProvider
+        open={sidebarOpen}
+        onOpenChange={(open) => {
+          setCatTouched(true);
+          setCatOpenManual(open);
+        }}
       >
-        {sidebarOpen ? (
-          <>
-            <div className="relative shrink-0">
-              <Icons.search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search categories…"
-                value={categorySearch}
-                onChange={(e) => setCategorySearch(e.target.value)}
-                className="h-9 bg-sidebar pl-8 text-xs"
-              />
-            </div>
-            <p className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70">
-              Categories
-            </p>
-          </>
-        ) : null}
-        <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
-          <button
-            type="button"
-            data-active={categoryId == null ? true : undefined}
-            onClick={() => {
-              setCategoryId(null);
-              if (isMobile) {
-                setCatTouched(true);
-                setCatOpenManual(false);
-              }
-            }}
-            title="All categories"
-            className="flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm ring-sidebar-ring outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate"
-          >
-            <Icons.layoutList />
-            {sidebarOpen && <span>All</span>}
-          </button>
-          {visibleCategories.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              data-active={categoryId === c.id ? true : undefined}
-              onClick={() => {
-                setCategoryId(categoryId === c.id ? null : c.id);
-                if (isMobile) {
-                  setCatTouched(true);
-                  setCatOpenManual(false);
-                }
-              }}
-              title={c.name}
-              className="flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm ring-sidebar-ring outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate"
-            >
-              <Icons.tag />
-              {sidebarOpen && <span>{c.name}</span>}
-            </button>
-          ))}
-          {sidebarOpen && visibleCategories.length === 0 && (
-            <div className="mx-auto flex max-w-md flex-col items-center gap-2 px-2 py-8 text-center">
-              <div className="rounded-full border border-dashed p-2.5">
-                <Icons.search className="size-5 text-muted-foreground" />
-              </div>
-              <p className="text-sm font-medium">No categories match</p>
-              <p className="text-xs text-muted-foreground">Try another search.</p>
-            </div>
+        <nav
+          aria-label="Menu categories"
+          className={cn(
+            "group shrink-0 flex-col self-stretch rounded-xl border bg-sidebar text-sidebar-foreground",
+            sidebarOpen
+              ? "flex w-64 max-w-[82%] sm:w-56 lg:w-44 xl:w-52"
+              : "hidden lg:flex lg:w-14 lg:items-center",
+            // Mobile open state renders as an overlay drawer.
+            sidebarOpen &&
+              "absolute inset-y-0 left-0 z-30 shadow-xl lg:static lg:z-auto lg:shadow-none",
           )}
-        </div>
-      </nav>
+          data-collapsible={sidebarOpen ? "" : "icon"}
+        >
+          {sidebarOpen ? (
+            <SidebarHeader>
+              <div className="relative">
+                <Icons.search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search categories…"
+                  value={categorySearch}
+                  onChange={(e) => setCategorySearch(e.target.value)}
+                  className="h-9 bg-sidebar pl-8 text-xs"
+                />
+              </div>
+            </SidebarHeader>
+          ) : null}
+          <SidebarContent>
+            <SidebarGroup>
+              {sidebarOpen ? <SidebarGroupLabel>Categories</SidebarGroupLabel> : null}
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={categoryId == null}
+                    onClick={() => setCategoryId(null)}
+                    tooltip="All categories"
+                    className="group-data-[collapsible=icon]:justify-center"
+                  >
+                    <Icons.layoutList />
+                    <span className="group-data-[collapsible=icon]:hidden">All</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                {visibleCategories.map((c) => (
+                  <SidebarMenuItem key={c.id}>
+                    <SidebarMenuButton
+                      isActive={categoryId === c.id}
+                      onClick={() => {
+                        setCategoryId(categoryId === c.id ? null : c.id);
+                        if (isMobile) {
+                          setCatTouched(true);
+                          setCatOpenManual(false);
+                        }
+                      }}
+                      tooltip={c.name}
+                      className="group-data-[collapsible=icon]:justify-center"
+                    >
+                      <Icons.tag />
+                      <span className="group-data-[collapsible=icon]:hidden">{c.name}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroup>
+            {sidebarOpen && visibleCategories.length === 0 && (
+              <div className="mx-auto flex max-w-md flex-col items-center gap-2 px-2 py-8 text-center">
+                <div className="rounded-full border border-dashed p-2.5">
+                  <Icons.search className="size-5 text-muted-foreground" />
+                </div>
+                <p className="text-sm font-medium">No categories match</p>
+                <p className="text-xs text-muted-foreground">Try another search.</p>
+              </div>
+            )}
+          </SidebarContent>
+        </nav>
+      </SidebarProvider>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -457,7 +481,11 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
               className="pl-8"
             />
           </div>
-          <div className="flex rounded-lg border p-0.5" role="group" aria-label="Menu layout">
+          <div
+            className="hidden rounded-lg border p-0.5 sm:flex"
+            role="group"
+            aria-label="Menu layout"
+          >
             <Button
               type="button"
               variant={view === "card" ? "default" : "ghost"}
@@ -496,7 +524,7 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
                 </div>
               </CardContent>
             </Card>
-          ) : view === "card" ? (
+          ) : effectiveView === "card" ? (
             <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3">
               {items.slice(0, 60).map((item) => {
                 const staged = draftQtyFor(item);
