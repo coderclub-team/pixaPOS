@@ -30,6 +30,7 @@ import { outletQueryOptions } from "@/features/outlet/api/queries";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Input } from "@pixa/ui/base-ui/input";
 import { Label } from "@pixa/ui/base-ui/label";
+import { formatINR } from "@/lib/money";
 import ItemBrowser from "@/features/orders/components/item-browser";
 import { useCategorySelection } from "@/features/orders/components/category-selection";
 import { kotOrderTypeOptions, useOrderType } from "@/features/orders/components/order-type";
@@ -243,6 +244,18 @@ export default function OrderTerminalPage({
     (o) => !o.occupancy_group_id || !groupIds.has(o.occupancy_group_id),
   );
 
+  // Open bills for table-free flows (counter / takeaway / delivery): live
+  // orders of the selected type with no table — the dine-in open-tabs
+  // equivalent. Scoped to the picked type so each flow sees its own bills.
+  const { data: counterOrders } = useQuery({
+    ...ordersQueryOptions({ channel: isDineIn ? undefined : orderType }),
+    enabled: !isDineIn,
+  });
+  const openBills = (counterOrders ?? []).filter(
+    (o) =>
+      o.status !== "COMPLETED" && o.status !== "CANCELLED" && o.status !== "DRAFT" && !o.table_id,
+  );
+
   /** Tap a party chip: focus that party's bill. Never creates an order. */
   const handleSelectParty = (tableId: string, groupId: string) => {
     if (ensureMut.isPending || ensureGroupMut.isPending) return;
@@ -267,6 +280,17 @@ export default function OrderTerminalPage({
     setActiveOrderId(orderId);
     setPanelOpen(true);
     setMobileView("order");
+  };
+
+  /** Reopen a table-free bill: jump straight into its menu + bill. */
+  const handleSelectBill = (orderId: string) => {
+    if (startCounterMut.isPending) return;
+    setActiveTableId(null);
+    setActiveGroupId(null);
+    setActiveOrderId(orderId);
+    setLeftView("items");
+    setPanelOpen(true);
+    setMobileView("items");
   };
 
   /** Press-and-hold a party chip: ensure its order and open the picker. */
@@ -645,6 +669,42 @@ export default function OrderTerminalPage({
                     >
                       <Icons.add className="mr-2 size-4" /> Start order
                     </Button>
+                  </CardContent>
+                </Card>
+              ) : !isDineIn && !activeOrderId && openBills.length > 0 ? (
+                <Card className="flex h-full min-h-0 flex-col">
+                  <CardContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
+                    <p className="flex items-center gap-1.5 px-1 pt-1 text-xs font-medium uppercase text-muted-foreground">
+                      <Icons.orders className="size-3.5" />
+                      Open {orderTypeLabel} bills · {openBills.length}
+                    </p>
+                    {openBills.map((o) => (
+                      <button
+                        key={o.id}
+                        type="button"
+                        onClick={() => handleSelectBill(o.id)}
+                        aria-label={`Reopen ${o.order_number}`}
+                        title={`${o.order_number} — tap to reopen`}
+                        className="flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2 text-left text-sm transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-primary touch-manipulation"
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium">
+                            {o.order_number}
+                            {o.customer_name?.trim() ? ` · ${o.customer_name.trim()}` : ""}
+                          </span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {o.items.length} item{o.items.length === 1 ? "" : "s"} ·{" "}
+                            {o.payment_status === "PAID" ? "paid" : "unsettled"}
+                            {o.status !== "CONFIRMED"
+                              ? ` · ${o.status.toLowerCase().replace("_", " ")}`
+                              : ""}
+                          </span>
+                        </span>
+                        <span className="shrink-0 font-semibold tabular-nums">
+                          {formatINR(o.grand_total_paise)}
+                        </span>
+                      </button>
+                    ))}
                   </CardContent>
                 </Card>
               ) : (
