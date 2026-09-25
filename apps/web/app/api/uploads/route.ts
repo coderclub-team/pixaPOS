@@ -6,8 +6,9 @@ const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 /**
  * POST /api/uploads — multipart `file` + `kind` (menu-item, category,
- * recipe, waste). Validates type/size server-side, stores to the Neon
- * `menu-images` bucket, returns the durable object key.
+ * recipe, waste). Validates type/size server-side, stores to the public-read
+ * Neon `outlet-assets` bucket, returns the durable public URL. Callers
+ * persist that URL string — no expiring presigned URLs in stored rows.
  */
 export async function POST(req: Request) {
   let form: FormData;
@@ -28,8 +29,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Max 5MB per image" }, { status: 400 });
   }
   try {
-    const key = await uploadMenuImage(kind, file);
-    return NextResponse.json({ key }, { status: 201 });
+    const url = await uploadMenuImage(kind, file);
+    return NextResponse.json({ url }, { status: 201 });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Upload failed" },
@@ -39,8 +40,9 @@ export async function POST(req: Request) {
 }
 
 /**
- * GET /api/uploads?key=… — presigned read URL for a stored key (the bucket
- * is private, so rows store keys and readers presign on demand).
+ * GET /api/uploads?key=… — legacy presigned read URL for keys stored when the
+ * bucket was private. New uploads return durable public URLs from POST, so
+ * this is only a fallback for old rows.
  */
 export async function GET(req: Request) {
   const key = new URL(req.url).searchParams.get("key");

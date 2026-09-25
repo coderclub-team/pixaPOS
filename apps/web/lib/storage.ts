@@ -37,6 +37,28 @@ function logoFiles() {
   return logoCached;
 }
 
+function publicUrl(key: string): string {
+  const endpoint = process.env.AWS_ENDPOINT_URL_S3?.replace(/\/$/, "");
+  if (!endpoint) throw new Error("storage endpoint not configured");
+  return `${endpoint}/${LOGO_BUCKET}/${key}`;
+}
+
+/**
+ * Menu/category/recipe/waste image upload (server-only). The old private
+ * `menu-images` bucket forced 1-hour presigned URLs into menu rows, so
+ * product images broke an hour after upload. Uploads now go to the
+ * public-read `outlet-assets` bucket (`menu-images/<kind>/…`) and return a
+ * durable public URL — same pattern as the outlet logo. Keys are versioned
+ * per upload (`<kind>/<uuid>.<ext>`) so cached objects never go stale.
+ */
+export async function uploadMenuImage(kind: string, file: File): Promise<string> {
+  const safeKind = /^[a-z-]+$/.test(kind) ? kind : "misc";
+  const ext = (file.name.split(".").pop() ?? "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const key = `menu-images/${safeKind}/${crypto.randomUUID()}.${ext || "jpg"}`;
+  await logoFiles().upload(key, file, { contentType: file.type || "image/jpeg" });
+  return publicUrl(key);
+}
+
 /**
  * Outlet logo upload (server-only): validates logo constraints and stores to
  * the public-read `outlet-assets` bucket. Keys are versioned per upload
@@ -48,7 +70,5 @@ export async function uploadOutletLogo(outletId: string, file: File): Promise<st
   const ext = (file.name.split(".").pop() ?? "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
   const key = `logos/${safeOutlet}/${crypto.randomUUID()}.${ext || "jpg"}`;
   await logoFiles().upload(key, file, { contentType: file.type || "image/jpeg" });
-  const endpoint = process.env.AWS_ENDPOINT_URL_S3?.replace(/\/$/, "");
-  if (!endpoint) throw new Error("storage endpoint not configured");
-  return `${endpoint}/${LOGO_BUCKET}/${key}`;
+  return publicUrl(key);
 }

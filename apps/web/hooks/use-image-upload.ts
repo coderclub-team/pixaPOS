@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 /**
  * Upload a File to Neon Object Storage via /api/uploads. Returns the durable
- * object key, or null on failure (caller keeps any existing URL). Shows an
+ * public URL, or null on failure (caller keeps any existing URL). Shows an
  * instant blob preview URL through onPreview while the upload runs.
  */
 export function useImageUpload(kind: string) {
@@ -25,8 +25,10 @@ export function useImageUpload(kind: string) {
       const res = await fetch("/api/uploads", { method: "POST", body: form });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? "Upload failed");
+      // New route returns a durable public URL. Fall back to presigning when
+      // an old-style key comes back (legacy servers).
+      if (typeof body.url === "string" && body.url) return body.url;
       const key: string = body.key;
-      // Resolve to a viewable URL now so callers store a working URL, not a key.
       const view = await fetch(`/api/uploads?key=${encodeURIComponent(key)}`).then((r) => r.json());
       return (view.url as string) ?? null;
     } catch (e) {
