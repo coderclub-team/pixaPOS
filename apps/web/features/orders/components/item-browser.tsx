@@ -5,7 +5,6 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import Image from "next/image";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
-import { DataTablePagination } from "@pixa/ui/base-ui/table/data-table-pagination";
 import {
   Table,
   TableBody,
@@ -64,6 +63,9 @@ import type { OrderItemSnapshot } from "@/features/orders/api/types";
 import { useCategorySelection } from "./category-selection";
 
 const VIEW_KEY = "pixaItemBrowserView";
+
+/** Fixed card page size — a multiple of the 2/3/4-column grids. */
+const CARD_PAGE_SIZE = 24;
 
 type BrowserView = "card" | "list";
 
@@ -189,8 +191,11 @@ export function MenuImage({
 export default function ItemBrowser({ orderId }: { orderId: string }) {
   const [search, setSearch] = useState("");
   const [vegType, setVegType] = useState<VegType | null>(null);
-  // Card view scroll pagination: render in pages of 60, append on scroll.
-  const [cardLimit, setCardLimit] = useState(60);
+  // Shared pagination state: single page index for card + list views (the
+  // API returns the full filtered set, so both views paginate client-side
+  // over the same query data). Card pages are fixed at 24 (a multiple of
+  // the 2/3/4-column grids); the list keeps its viewport-fit/manual size.
+  const [pageIndex, setPageIndex] = useState(0);
   const [categorySearch, setCategorySearch] = useState("");
   // Page-level selection (kot app sidebar) wins when provided; otherwise the
   // browser keeps its own internal sidebar selection (dashboard usage).
@@ -233,21 +238,14 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
     } catch {}
   }, [view]);
 
-  // New result set → back to the first card page.
+  // New result set → back to the first page (both views share pageIndex).
+  // Menu data never changes when items land in the order draft, so adding
+  // items preserves the page.
   const resultKey = `${search}|${vegType ?? "all"}|${categoryId ?? "all"}|${(items ?? []).length}`;
   useEffect(() => {
-    setCardLimit(60);
+    setPageIndex(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resultKey]);
-
-  const onCardScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const el = e.currentTarget;
-    if (el.scrollTop + el.clientHeight < el.scrollHeight - 400) return;
-    setCardLimit((n) => {
-      const total = items?.length ?? 0;
-      return total > n ? Math.min(total, n + 60) : n;
-    });
-  };
 
   // List pagination: default page size fits the visible list height
   // (header + footer subtracted, ~64px per row), clamped 5–30.
@@ -360,6 +358,17 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
       .reduce((s, l) => s + l.qty, 0);
 
   const allItems = items ?? [];
+
+  // Card pages over the same query data. Indices are clamped per view so a
+  // page valid in one view's size never renders empty in the other.
+  const cardPageCount = Math.max(1, Math.ceil(allItems.length / CARD_PAGE_SIZE));
+  const cardSafeIndex = Math.min(pageIndex, cardPageCount - 1);
+  const cardPage = allItems.slice(
+    cardSafeIndex * CARD_PAGE_SIZE,
+    (cardSafeIndex + 1) * CARD_PAGE_SIZE,
+  );
+  const listPageCount = Math.max(1, Math.ceil(allItems.length / autoPageSize));
+  const listSafeIndex = Math.min(pageIndex, listPageCount - 1);
 
   const activeCategories = useMemo(
     () => (categories ?? []).filter((c) => c.is_active),
@@ -605,7 +614,7 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
           </div>
         </div>
 
-        <div className="min-w-0 flex-1 overflow-y-auto pr-0.5" onScroll={onCardScroll}>
+        <div className="min-w-0 flex-1 overflow-y-auto pr-0.5">
           {isPending ? (
             <p className="py-8 text-center text-sm text-muted-foreground">Loading menu…</p>
           ) : !items?.length ? (
@@ -625,7 +634,7 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
           ) : effectiveView === "card" ? (
             <>
               <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
-                {items.slice(0, cardLimit).map((item) => {
+                {cardPage.map((item) => {
                   // Multi-variant products open the variant dialog on tap —
                   // cards stay clean no matter how many options an item has.
                   // Single-variant items behave as default (tap adds straight).
@@ -689,16 +698,13 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
                   );
                 })}
               </div>
-              {allItems.length > cardLimit && (
-                <p className="py-3 text-center text-xs text-muted-foreground tabular-nums">
-                  Showing {cardLimit} of {allItems.length} — scroll for more
-                </p>
-              )}
             </>
           ) : (
             <PickerListTable
               items={allItems}
               pageSize={autoPageSize}
+              pageIndex={listSafeIndex}
+              onPageIndexChange={setPageIndex}
               onPageSizeChange={setPageSizeOverride}
               autoSize={pageSizeOverride == null ? autoPageSize : null}
               resetKey={`${search}|${categoryId ?? "all"}|${vegType ?? "all"}|${allItems.length}`}
@@ -712,6 +718,17 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
             />
           )}
         </div>
+        {/* Card-view pager lives outside the scroll container so it stays
+            usable; the list carries its own footer inside its Card. */}
+        {!isPending && (items?.length ?? 0) > 0 && effectiveView === "card" && (
+          <CardPager
+            pageIndex={cardSafeIndex}
+            pageCount={cardPageCount}
+            rangeLabel={`${cardSafeIndex * CARD_PAGE_SIZE + 1}–${Math.min(allItems.length, (cardSafeIndex + 1) * CARD_PAGE_SIZE)} of ${allItems.length}`}
+            onPrev={() => setPageIndex((i) => Math.max(0, i - 1))}
+            onNext={() => setPageIndex((i) => Math.min(cardPageCount - 1, i + 1))}
+          />
+        )}
       </div>
 
       {variantPick && (
@@ -823,6 +840,56 @@ function VariantPickerDialog({
 }
 
 /**
+ * Compact pager footer shared by the card view (the list keeps its richer
+ * footer with the rows-per-page select). Rendered outside the scroll
+ * container so the controls never scroll away.
+ */
+function CardPager({
+  pageIndex,
+  pageCount,
+  rangeLabel,
+  onPrev,
+  onNext,
+}: {
+  pageIndex: number;
+  pageCount: number;
+  rangeLabel: string;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="flex shrink-0 items-center justify-between gap-2 border-t px-1 pt-2">
+      <p className="text-xs text-muted-foreground tabular-nums">{rangeLabel}</p>
+      <div className="flex items-center gap-1">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          onClick={onPrev}
+          disabled={pageIndex <= 0}
+          aria-label="Previous page"
+        >
+          <Icons.chevronLeft className="size-4" />
+        </Button>
+        <span className="min-w-14 text-center text-xs font-medium tabular-nums">
+          {pageIndex + 1} / {pageCount}
+        </span>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          onClick={onNext}
+          disabled={pageIndex >= pageCount - 1}
+          aria-label="Next page"
+        >
+          <Icons.chevronRight className="size-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
  * List view as a clean data table: sortable Item/Price headers, tap-row to
  * add, stepper in Qty, shared pagination footer. Page size defaults to the
  * measured viewport fit (`autoSize`); the footer select overrides manually.
@@ -830,6 +897,8 @@ function VariantPickerDialog({
 function PickerListTable({
   items,
   pageSize,
+  pageIndex,
+  onPageIndexChange,
   onPageSizeChange,
   autoSize,
   resetKey,
@@ -843,6 +912,8 @@ function PickerListTable({
 }: {
   items: MenuItem[];
   pageSize: number;
+  pageIndex: number;
+  onPageIndexChange: (n: number) => void;
   onPageSizeChange: (n: number | null) => void;
   autoSize: number | null;
   resetKey: string;
@@ -959,12 +1030,20 @@ function PickerListTable({
   const table = useReactTable({
     data: items,
     columns,
-    state: { sorting, pagination: { pageIndex: 0, pageSize } },
+    state: { sorting, pagination: { pageIndex, pageSize } },
     onSortingChange: setSorting,
+    // Pagination is controlled by the parent (shared with card view) — page
+    // changes feed back through onPageIndexChange instead of dying inside.
+    onPaginationChange: (updater) => {
+      const next = typeof updater === "function" ? updater({ pageIndex, pageSize }) : updater;
+      if (next.pageIndex !== pageIndex) onPageIndexChange(next.pageIndex);
+    },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    autoResetPageIndex: true,
+    // Explicit reset effect below owns page resets (category/search/filter);
+    // auto-reset would also fire on background refetches and yank the page.
+    autoResetPageIndex: false,
   });
 
   // Viewport-fit default: follow the measured size until the user overrides.
@@ -973,9 +1052,9 @@ function PickerListTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageSize]);
 
-  // New result set → first page, collapse variant rows.
+  // New result set → collapse variant rows (page reset is owned by the
+  // parent's shared pageIndex state).
   useEffect(() => {
-    table.setPageIndex(0);
     setExpandedId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey]);
