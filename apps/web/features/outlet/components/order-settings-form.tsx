@@ -51,7 +51,7 @@ export default function OrderSettingsForm({ initialData }: { initialData: OrderS
               children={(field) => (
                 <field.SwitchField
                   label="Ask customer details"
-                  description="Ask for name/phone when starting counter, takeaway and delivery orders. Off skips straight to the menu."
+                  description="When on, counter, takeaway and delivery orders need a name or phone before starting. Off lets staff start empty — the form still shows for optional capture."
                 />
               )}
             />

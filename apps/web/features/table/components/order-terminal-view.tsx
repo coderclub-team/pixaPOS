@@ -343,43 +343,39 @@ export default function OrderTerminalPage({
                     <Icons.orders className="size-6 text-muted-foreground" />
                   </div>
                   <p className="font-medium">New {orderTypeLabel} order</p>
-                  {!askCustomer && (
-                    <p className="text-sm text-muted-foreground">
-                      Start picking items — customer details stay optional at billing.
-                    </p>
-                  )}
+                  <p className="text-sm text-muted-foreground">
+                    {askCustomer
+                      ? "Customer name or phone is required to start."
+                      : "Add a name or phone for the token (optional), then start picking items."}
+                  </p>
                 </div>
-                {askCustomer && (
-                  <>
-                    <p className="text-center text-sm text-muted-foreground">
-                      Add a name or phone for the token (optional), then start picking items.
-                    </p>
-                    <div className="grid gap-2">
-                      <Label htmlFor="kot-cust-name">Customer name</Label>
-                      <Input
-                        id="kot-cust-name"
-                        value={custName}
-                        onChange={(e) => setCustName(e.target.value)}
-                        placeholder="Walk-in"
-                        autoComplete="off"
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="kot-cust-phone">Customer phone</Label>
-                      <Input
-                        id="kot-cust-phone"
-                        value={custPhone}
-                        onChange={(e) => setCustPhone(e.target.value)}
-                        placeholder="98XXXXXXXX"
-                        inputMode="tel"
-                        autoComplete="off"
-                      />
-                    </div>
-                  </>
-                )}
+                <div className="grid gap-2">
+                  <Label htmlFor="kot-cust-name">Customer name</Label>
+                  <Input
+                    id="kot-cust-name"
+                    value={custName}
+                    onChange={(e) => setCustName(e.target.value)}
+                    placeholder="Walk-in"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="kot-cust-phone">Customer phone</Label>
+                  <Input
+                    id="kot-cust-phone"
+                    value={custPhone}
+                    onChange={(e) => setCustPhone(e.target.value)}
+                    placeholder="98XXXXXXXX"
+                    inputMode="tel"
+                    autoComplete="off"
+                  />
+                </div>
                 <Button
                   className="h-11 w-full"
-                  disabled={startCounterMut.isPending}
+                  disabled={
+                    startCounterMut.isPending ||
+                    (askCustomer && !custName.trim() && !custPhone.trim())
+                  }
                   onClick={() => startCounterMut.mutate()}
                 >
                   <Icons.add className="mr-2 size-4" />
