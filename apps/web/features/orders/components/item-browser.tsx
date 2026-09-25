@@ -531,7 +531,7 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
       )}
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           {pageSidebar ? null : (
             <Button
               type="button"

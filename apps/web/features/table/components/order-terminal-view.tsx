@@ -313,11 +313,11 @@ export default function OrderTerminalPage({
       >
         <div
           className={cn(
-            "min-h-0 min-w-0 lg:flex-1",
+            "flex min-h-0 min-w-0 flex-col lg:flex-1",
             fillHeight
               ? "min-h-0 flex-1"
               : "h-[calc(100dvh-170px)] sm:h-[calc(100dvh-175px)] lg:h-auto",
-            mobileView === "order" ? "hidden lg:block" : "block",
+            mobileView === "order" ? "hidden lg:flex" : "flex",
           )}
         >
           {(leftView === "items" || !isDineIn) && activeOrderId ? (
@@ -342,7 +342,7 @@ export default function OrderTerminalPage({
                   {activeGroup ? ` · Party ${activeGroup.label ?? "?"}` : ""}
                 </p>
               </div>
-              <div className="min-h-0 flex-1 overflow-hidden rounded-xl border bg-background p-3">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-background p-3">
                 <ItemBrowser orderId={activeOrderId} />
               </div>
             </div>
