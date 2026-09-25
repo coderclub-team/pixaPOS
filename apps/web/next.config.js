@@ -7,6 +7,8 @@ const nextConfig = {
       // Neon object storage endpoints are branch-scoped
       // (<branch>.storage.c-4.<region>.aws.neon.tech).
       { protocol: "https", hostname: "*.neon.tech" },
+      // Dev menu seed photos (Unsplash CDN).
+      { protocol: "https", hostname: "images.unsplash.com" },
     ],
   },
 };
