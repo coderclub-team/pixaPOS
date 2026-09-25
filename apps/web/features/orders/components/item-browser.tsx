@@ -614,7 +614,7 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
           </div>
         </div>
 
-        <div className="min-w-0 flex-1 overflow-y-auto pr-0.5">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-0.5">
           {isPending ? (
             <p className="py-8 text-center text-sm text-muted-foreground">Loading menu…</p>
           ) : !items?.length ? (
