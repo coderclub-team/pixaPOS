@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@pixa/ui/base-ui/input";
 import {
@@ -53,6 +53,19 @@ export default function CategorySidebar() {
     if (!q) return activeCategories;
     return activeCategories.filter((c) => c.name.toLowerCase().includes(q));
   }, [activeCategories, search]);
+
+  // Scroll-to-fetch: render in pages of 20, append near the bottom so the
+  // first paint stays light even with 50+ categories.
+  const [catLimit, setCatLimit] = useState(20);
+  useEffect(() => {
+    setCatLimit(20);
+  }, [search, activeCategories.length]);
+  const shown = visible.slice(0, catLimit);
+  const onCatScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    if (el.scrollTop + el.clientHeight < el.scrollHeight - 300) return;
+    setCatLimit((n) => (visible.length > n ? Math.min(visible.length, n + 20) : n));
+  };
 
   const categoryId = selection?.categoryId ?? null;
   const select = (id: string | null) => selection?.setCategoryId(id);
@@ -128,9 +141,11 @@ export default function CategorySidebar() {
           />
         </div>
       </SidebarHeader>
-      <SidebarContent className="overflow-x-hidden">
+      <SidebarContent className="overflow-x-hidden" onScroll={onCatScroll}>
         <SidebarGroup className="py-0">
-          <SidebarGroupLabel>Categories</SidebarGroupLabel>
+          <SidebarGroupLabel>
+            Categories{visible.length > shown.length ? ` (${shown.length}/${visible.length})` : ""}
+          </SidebarGroupLabel>
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
@@ -142,7 +157,7 @@ export default function CategorySidebar() {
                 <span>All</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
-            {visible.map((c) => (
+            {shown.map((c) => (
               <SidebarMenuItem key={c.id}>
                 <SidebarMenuButton
                   isActive={categoryId === c.id}

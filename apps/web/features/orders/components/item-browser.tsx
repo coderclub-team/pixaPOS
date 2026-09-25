@@ -189,6 +189,8 @@ export function MenuImage({
 export default function ItemBrowser({ orderId }: { orderId: string }) {
   const [search, setSearch] = useState("");
   const [vegType, setVegType] = useState<VegType | null>(null);
+  // Card view scroll pagination: render in pages of 60, append on scroll.
+  const [cardLimit, setCardLimit] = useState(60);
   const [categorySearch, setCategorySearch] = useState("");
   // Page-level selection (kot app sidebar) wins when provided; otherwise the
   // browser keeps its own internal sidebar selection (dashboard usage).
@@ -230,6 +232,22 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
       localStorage.setItem(VIEW_KEY, view);
     } catch {}
   }, [view]);
+
+  // New result set → back to the first card page.
+  const resultKey = `${search}|${vegType ?? "all"}|${categoryId ?? "all"}|${(items ?? []).length}`;
+  useEffect(() => {
+    setCardLimit(60);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resultKey]);
+
+  const onCardScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    if (el.scrollTop + el.clientHeight < el.scrollHeight - 400) return;
+    setCardLimit((n) => {
+      const total = items?.length ?? 0;
+      return total > n ? Math.min(total, n + 60) : n;
+    });
+  };
 
   // List pagination: default page size fits the visible list height
   // (header + footer subtracted, ~64px per row), clamped 5–30.
@@ -587,7 +605,7 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
           </div>
         </div>
 
-        <div className="min-w-0 flex-1 overflow-y-auto pr-0.5">
+        <div className="min-w-0 flex-1 overflow-y-auto pr-0.5" onScroll={onCardScroll}>
           {isPending ? (
             <p className="py-8 text-center text-sm text-muted-foreground">Loading menu…</p>
           ) : !items?.length ? (
@@ -605,71 +623,78 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
               </CardContent>
             </Card>
           ) : effectiveView === "card" ? (
-            <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
-              {items.slice(0, 60).map((item) => {
-                // Multi-variant products open the variant dialog on tap —
-                // cards stay clean no matter how many options an item has.
-                // Single-variant items behave as default (tap adds straight).
-                const variable = hasVariantOptions(item);
-                const staged = variable ? draftTotalFor(item) : draftQtyFor(item);
-                const activeVariants = (item.variants ?? []).filter((v) => v.is_active !== false);
-                const activate = () => {
-                  if (variable) setVariantPick(item);
-                  else quickAdd(item);
-                };
-                return (
-                  <div
-                    key={item.id}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={
-                      variable
-                        ? `${item.name} — ${activeVariants.length} options, ${staged} in draft`
-                        : `${item.name} — tap to add, in draft ${staged}`
-                    }
-                    onClick={activate}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        activate();
+            <>
+              <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
+                {items.slice(0, cardLimit).map((item) => {
+                  // Multi-variant products open the variant dialog on tap —
+                  // cards stay clean no matter how many options an item has.
+                  // Single-variant items behave as default (tap adds straight).
+                  const variable = hasVariantOptions(item);
+                  const staged = variable ? draftTotalFor(item) : draftQtyFor(item);
+                  const activeVariants = (item.variants ?? []).filter((v) => v.is_active !== false);
+                  const activate = () => {
+                    if (variable) setVariantPick(item);
+                    else quickAdd(item);
+                  };
+                  return (
+                    <div
+                      key={item.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={
+                        variable
+                          ? `${item.name} — ${activeVariants.length} options, ${staged} in draft`
+                          : `${item.name} — tap to add, in draft ${staged}`
                       }
-                    }}
-                    className={cn(
-                      "relative aspect-square cursor-pointer overflow-hidden rounded-xl border bg-muted transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-primary",
-                    )}
-                  >
-                    <MenuImage item={item} size="fill" />
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/60 to-transparent p-3 pt-8 text-white">
-                      <p className="truncate text-sm font-medium">{item.name}</p>
-                      <p className="mt-0.5 flex items-center gap-1 text-xs text-white/75">
-                        <span
-                          className={cn(
-                            "inline-block size-2 rounded-full",
-                            item.veg_type === "veg"
-                              ? "bg-green-500"
-                              : item.veg_type === "egg"
-                                ? "bg-amber-400"
-                                : "bg-red-500",
-                          )}
-                        />
-                        {item.category_name}
-                        {variable && <span> · {activeVariants.length} options</span>}
-                      </p>
-                      <p className="mt-1 text-sm font-semibold">
-                        {variable
-                          ? `From ${formatINR(minPriceOf(item))}`
-                          : formatINR(priceOf(item))}
-                      </p>
-                      <div className="mt-2 flex items-center justify-between gap-1">
-                        <span className="text-xs font-semibold tabular-nums text-white/75">
-                          {staged > 0 ? `${staged}× in draft` : ""}
-                        </span>
+                      onClick={activate}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          activate();
+                        }
+                      }}
+                      className={cn(
+                        "relative aspect-square cursor-pointer overflow-hidden rounded-xl border bg-muted transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-primary",
+                      )}
+                    >
+                      <MenuImage item={item} size="fill" />
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/60 to-transparent p-3 pt-8 text-white">
+                        <p className="truncate text-sm font-medium">{item.name}</p>
+                        <p className="mt-0.5 flex items-center gap-1 text-xs text-white/75">
+                          <span
+                            className={cn(
+                              "inline-block size-2 rounded-full",
+                              item.veg_type === "veg"
+                                ? "bg-green-500"
+                                : item.veg_type === "egg"
+                                  ? "bg-amber-400"
+                                  : "bg-red-500",
+                            )}
+                          />
+                          {item.category_name}
+                          {variable && <span> · {activeVariants.length} options</span>}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold">
+                          {variable
+                            ? `From ${formatINR(minPriceOf(item))}`
+                            : formatINR(priceOf(item))}
+                        </p>
+                        <div className="mt-2 flex items-center justify-between gap-1">
+                          <span className="text-xs font-semibold tabular-nums text-white/75">
+                            {staged > 0 ? `${staged}× in draft` : ""}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+              {allItems.length > cardLimit && (
+                <p className="py-3 text-center text-xs text-muted-foreground tabular-nums">
+                  Showing {cardLimit} of {allItems.length} — scroll for more
+                </p>
+              )}
+            </>
           ) : (
             <PickerListTable
               items={allItems}
