@@ -55,7 +55,6 @@ import { useMediaQuery } from "@pixa/ui/hooks/use-media-query";
 import type { MenuItem, VegType } from "@/features/menu/api/types";
 import type { OrderItemSnapshot } from "@/features/orders/api/types";
 import { useCategorySelection } from "./category-selection";
-import { PickItemDialog } from "./item-picker";
 
 const VIEW_KEY = "pixaItemBrowserView";
 
@@ -115,7 +114,13 @@ function imageOf(item: MenuItem): string | null {
   return item.image_url ?? item.images?.[0]?.url ?? item.image_urls?.[0] ?? null;
 }
 
-export function MenuImage({ item, size }: { item: MenuItem; size: "sm" | "lg" | "cover" }) {
+export function MenuImage({
+  item,
+  size,
+}: {
+  item: MenuItem;
+  size: "sm" | "lg" | "cover" | "fill";
+}) {
   const src = imageOf(item);
   const initials = item.name
     .split(/\s+/)
@@ -133,7 +138,9 @@ export function MenuImage({ item, size }: { item: MenuItem; size: "sm" | "lg" | 
             ? "h-24 w-full rounded-lg text-2xl"
             : size === "cover"
               ? "h-28 w-full text-2xl"
-              : "size-12 rounded-lg text-base",
+              : size === "fill"
+                ? "absolute inset-0 text-4xl"
+                : "size-12 rounded-lg text-base",
         )}
       >
         {initials}
@@ -148,7 +155,9 @@ export function MenuImage({ item, size }: { item: MenuItem; size: "sm" | "lg" | 
           ? "h-24 w-full rounded-lg"
           : size === "cover"
             ? "h-28 w-full"
-            : "size-12 rounded-lg",
+            : size === "fill"
+              ? "absolute inset-0"
+              : "size-12 rounded-lg",
       )}
     >
       <Image src={src} alt="" fill sizes="240px" className="object-cover" />
@@ -172,7 +181,6 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
   const categoryId = sharedSelection?.categoryId ?? localCategoryId;
   const setCategoryId = sharedSelection?.setCategoryId ?? setLocalCategoryId;
   const pageSidebar = sharedSelection != null;
-  const [picked, setPicked] = useState<MenuItem | null>(null);
   const [view, setView] = useState<BrowserView>(() => {
     try {
       return (localStorage.getItem(VIEW_KEY) as BrowserView | null) ?? "card";
@@ -247,7 +255,6 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
     }) => addOrderItem(orderId, v),
     onSuccess: () => {
       invalidateOrder();
-      setPicked(null);
       toast.success("Added to draft KOT");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -607,22 +614,22 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
                       }
                     }}
                     className={cn(
-                      "overflow-hidden rounded-xl border bg-card transition-colors focus-visible:outline-2 focus-visible:outline-primary",
+                      "relative min-h-60 overflow-hidden rounded-xl border bg-muted transition-colors focus-visible:outline-2 focus-visible:outline-primary",
                       !variable && "cursor-pointer hover:border-primary",
                     )}
                   >
-                    <MenuImage item={item} size="cover" />
-                    <div className="p-3">
+                    <MenuImage item={item} size="fill" />
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/60 to-transparent p-3 pt-8 text-white">
                       <p className="truncate text-sm font-medium">{item.name}</p>
-                      <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                      <p className="mt-0.5 flex items-center gap-1 text-xs text-white/75">
                         <span
                           className={cn(
                             "inline-block size-2 rounded-full",
                             item.veg_type === "veg"
-                              ? "bg-green-600"
+                              ? "bg-green-500"
                               : item.veg_type === "egg"
-                                ? "bg-amber-500"
-                                : "bg-red-600",
+                                ? "bg-amber-400"
+                                : "bg-red-500",
                           )}
                         />
                         {item.category_name}
@@ -635,14 +642,14 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
                       </p>
                       {variable && (
                         <div
-                          className="mt-2 space-y-1.5"
+                          className="mt-2 max-h-44 space-y-1.5 overflow-y-auto"
                           onClick={(e) => e.stopPropagation()}
                           onKeyDown={(e) => e.stopPropagation()}
                         >
                           {activeVariants.map((v) => (
                             <div
                               key={v.id}
-                              className="flex items-center gap-1.5 rounded-lg bg-muted/50 px-2 py-1"
+                              className="flex items-center gap-1.5 rounded-lg bg-white/15 px-2 py-1 backdrop-blur-[2px]"
                             >
                               <span className="min-w-0 flex-1 truncate text-xs font-medium">
                                 {v.name}
@@ -661,22 +668,12 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
                         onKeyDown={(e) => e.stopPropagation()}
                       >
                         {variable ? (
-                          <span className="text-xs font-semibold tabular-nums text-muted-foreground">
+                          <span className="text-xs font-semibold tabular-nums text-white/75">
                             {staged > 0 ? `${staged}× in draft` : ""}
                           </span>
                         ) : (
                           stepper(item, staged)
                         )}
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="max-lg:h-9 max-lg:w-9"
-                          onClick={() => setPicked(item)}
-                          title="Customize — variants, add-ons, instructions"
-                          aria-label={`Customize ${item.name}`}
-                        >
-                          <Icons.edit className="size-3.5" />
-                        </Button>
                       </div>
                     </div>
                   </div>
@@ -701,15 +698,6 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
           )}
         </div>
       </div>
-
-      {picked && (
-        <PickItemDialog
-          item={picked}
-          pending={addMut.isPending}
-          onClose={() => setPicked(null)}
-          onAdd={(v) => addMut.mutate({ menu_item_id: picked.id, ...v })}
-        />
-      )}
     </div>
   );
 }
