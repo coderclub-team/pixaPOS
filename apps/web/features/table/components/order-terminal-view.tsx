@@ -28,6 +28,7 @@ import { orderKeys, ordersQueryOptions } from "@/features/orders/api/queries";
 import { ensureBareTableOrder, ensureGroupOrder } from "@/features/orders/api/service";
 import { Button } from "@pixa/ui/base-ui/button";
 import ItemBrowser from "@/features/orders/components/item-browser";
+import { useCategorySelection } from "@/features/orders/components/category-selection";
 import OrderBillPanel from "@/features/orders/components/bill-panel";
 import { useCrossTabSync } from "@/lib/use-cross-tab-sync";
 import { toast } from "sonner";
@@ -48,6 +49,11 @@ export default function OrderTerminalPage({
   const [activeTableId, setActiveTableId] = useState<string | null>(null);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  // Mirror the active order into the page sidebar (drives its placeholder).
+  const sharedSelection = useCategorySelection();
+  useEffect(() => {
+    sharedSelection?.setActiveOrderId(activeOrderId);
+  }, [activeOrderId, sharedSelection]);
   const [panelOpen, setPanelOpen] = useState(false);
   const [seatOpen, setSeatOpen] = useState(false);
   const [seatCount, setSeatCount] = useState(2);

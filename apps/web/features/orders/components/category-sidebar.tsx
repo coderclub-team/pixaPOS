@@ -56,6 +56,45 @@ export default function CategorySidebar() {
 
   const categoryId = selection?.categoryId ?? null;
   const select = (id: string | null) => selection?.setCategoryId(id);
+  // Before any table is tapped there is no menu to browse — show the same
+  // empty placeholder language as the bill panel.
+  if (!selection?.activeOrderId) {
+    return (
+      <>
+        <SidebarHeader className="group-data-[collapsible=icon]:pt-4">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                size="lg"
+                render={<Link href="/dashboard/overview" aria-label="pixaPOS home" />}
+                tooltip="pixaPOS"
+              >
+                <span className="flex aspect-square size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/icon.png" alt="pixaPOS" className="size-full object-cover" />
+                </span>
+                <span className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
+                  <span className="truncate font-bold">pixaPOS · KOT</span>
+                  <span className="truncate text-xs text-muted-foreground">Counter terminal</span>
+                </span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
+        <SidebarContent className="overflow-x-hidden">
+          <div className="mx-auto flex max-w-md flex-col items-center gap-3 px-4 py-12 text-center">
+            <div className="rounded-full border border-dashed p-3">
+              <Icons.orders className="size-6 text-muted-foreground" />
+            </div>
+            <p className="font-medium">No table selected</p>
+            <p className="text-sm text-muted-foreground">
+              Tap a table on the floor to open its bill — categories appear here.
+            </p>
+          </div>
+        </SidebarContent>
+      </>
+    );
+  }
 
   return (
     <>

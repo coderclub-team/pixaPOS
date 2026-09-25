@@ -5,6 +5,9 @@ import { createContext, useContext, useState, type ReactNode } from "react";
 type CategorySelection = {
   categoryId: string | null;
   setCategoryId: (id: string | null) => void;
+  /** Active terminal order — null until a table is tapped (drives sidebar placeholder). */
+  activeOrderId: string | null;
+  setActiveOrderId: (id: string | null) => void;
 };
 
 const CategorySelectionContext = createContext<CategorySelection | null>(null);
@@ -14,8 +17,11 @@ const CategorySelectionContext = createContext<CategorySelection | null>(null);
  * its own internal sidebar selection. */
 export function CategorySelectionProvider({ children }: { children: ReactNode }) {
   const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   return (
-    <CategorySelectionContext.Provider value={{ categoryId, setCategoryId }}>
+    <CategorySelectionContext.Provider
+      value={{ categoryId, setCategoryId, activeOrderId, setActiveOrderId }}
+    >
       {children}
     </CategorySelectionContext.Provider>
   );
