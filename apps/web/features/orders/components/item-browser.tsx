@@ -129,13 +129,15 @@ export function MenuImage({
   size: "sm" | "lg" | "cover" | "fill";
 }) {
   const src = imageOf(item);
+  // A dead CDN URL degrades to the initials block instead of a broken icon.
+  const [failed, setFailed] = useState(false);
   const initials = item.name
     .split(/\s+/)
     .slice(0, 2)
     .map((w) => w[0])
     .join("")
     .toUpperCase();
-  if (!src) {
+  if (!src || failed) {
     return (
       <span
         aria-hidden
@@ -167,7 +169,14 @@ export function MenuImage({
               : "size-12 rounded-lg",
       )}
     >
-      <Image src={src} alt="" fill sizes="240px" className="object-cover" />
+      <Image
+        src={src}
+        alt=""
+        fill
+        sizes="240px"
+        className="object-cover"
+        onError={() => setFailed(true)}
+      />
     </span>
   );
 }
@@ -667,7 +676,7 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
               pageSize={autoPageSize}
               onPageSizeChange={setPageSizeOverride}
               autoSize={pageSizeOverride == null ? autoPageSize : null}
-              resetKey={`${search}|${categoryId ?? "all"}|${allItems.length}`}
+              resetKey={`${search}|${categoryId ?? "all"}|${vegType ?? "all"}|${allItems.length}`}
               draftQtyFor={draftQtyFor}
               draftQtyForVariant={draftQtyForVariant}
               draftTotalFor={draftTotalFor}

@@ -1,4 +1,5 @@
 import { delay } from "@/constants/mock-api";
+import { MENU_SEED_VERSION, seedCategories, seedMenuItems } from "./seed-data";
 import type {
   MenuCategory,
   MenuCategoryFilters,
@@ -8,163 +9,9 @@ import type {
   MenuItemPayload,
 } from "./types";
 
-let mockCategories: MenuCategory[] = [
-  {
-    id: "mc_001",
-    name: "Starters",
-    slug: "starters",
-    sort_order: 1,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "mc_002",
-    name: "Biryani",
-    slug: "biryani",
-    sort_order: 2,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "mc_003",
-    name: "Beverages",
-    slug: "beverages",
-    sort_order: 3,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "mc_004",
-    name: "Main Course",
-    slug: "main-course",
-    sort_order: 4,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
+let mockCategories: MenuCategory[] = [...seedCategories];
 
-let mockMenuItems: MenuItem[] = [
-  {
-    id: "mi_001",
-    name: "Chicken Biryani",
-    slug: "chicken-biryani",
-    category_id: "mc_002",
-    category_name: "Biryani",
-    description: "Hyderabadi dum biryani",
-    item_type: "service",
-    product_type: "variant",
-    veg_type: "nonveg",
-    taxable: true,
-    tax_type: "GST",
-    tax_percent: 5,
-    hsn_code: "996331",
-    images: [],
-    image_urls: [],
-    available_channels: ["dine_in", "pickup", "delivery"],
-    modifier_group_ids: [],
-    variants: [
-      {
-        id: "mv_001",
-        menu_item_id: "mi_001",
-        name: "Half",
-        sku: "BIRY-CB-HALF",
-        selling_price: 199,
-        qty: 500,
-        unit: "gr",
-        is_active: true,
-      },
-      {
-        id: "mv_002",
-        menu_item_id: "mi_001",
-        name: "Full",
-        sku: "BIRY-CB-FULL",
-        selling_price: 349,
-        qty: 1000,
-        unit: "gr",
-        is_active: true,
-      },
-    ],
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "mi_002",
-    name: "Cold Coffee",
-    slug: "cold-coffee",
-    category_id: "mc_003",
-    category_name: "Beverages",
-    veg_type: "veg",
-    item_type: "service",
-    product_type: "simple",
-    taxable: false,
-    images: [],
-    image_urls: [],
-    available_channels: ["dine_in", "delivery", "zomato"],
-    modifier_group_ids: [],
-    variants: [
-      {
-        id: "mv_003",
-        menu_item_id: "mi_002",
-        name: "Regular",
-        sku: "BEV-CC-REG",
-        selling_price: 129,
-        is_active: true,
-      },
-    ],
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "mi_003",
-    name: "Butter Cookies",
-    slug: "butter-cookies",
-    category_id: "mc_003",
-    category_name: "Beverages",
-    description: "Premium biscuits — goods",
-    item_type: "goods",
-    product_type: "variant",
-    veg_type: "veg",
-    taxable: true,
-    tax_type: "GST",
-    tax_percent: 18,
-    hsn_code: "19059040",
-    images: [],
-    image_urls: [],
-    available_channels: ["dine_in", "pickup", "delivery", "zomato", "swiggy"],
-    modifier_group_ids: [],
-    variants: [
-      {
-        id: "mv_004",
-        menu_item_id: "mi_003",
-        name: "100gr",
-        sku: "BSC-BC-100",
-        selling_price: 99,
-        qty: 100,
-        unit: "gr",
-        is_active: true,
-      },
-      {
-        id: "mv_005",
-        menu_item_id: "mi_003",
-        name: "250gr",
-        sku: "BSC-BC-250",
-        selling_price: 199,
-        qty: 250,
-        unit: "gr",
-        is_active: true,
-      },
-    ],
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
+let mockMenuItems: MenuItem[] = [...seedMenuItems];
 
 // Modifiers skeleton — no raw material mapping this phase
 let mockModifierGroups: import("./types").ModifierGroup[] = [
@@ -211,6 +58,7 @@ function saveMenu() {
       localStorage.setItem(
         MENU_STORAGE_KEY,
         JSON.stringify({
+          version: MENU_SEED_VERSION,
           categories: mockCategories,
           items: mockMenuItems,
           modifierGroups: mockModifierGroups,
@@ -227,6 +75,14 @@ function loadMenu(): void {
       const raw = localStorage.getItem(MENU_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
+        // Stale dev cache (pre-seed or older version) → reseed with the
+        // current seed-data and persist, so code changes reach every tab.
+        if ((parsed?.version ?? 1) !== MENU_SEED_VERSION) {
+          mockCategories = [...seedCategories];
+          mockMenuItems = [...seedMenuItems];
+          saveMenu();
+          return;
+        }
         if (Array.isArray(parsed?.categories)) mockCategories = parsed.categories;
         if (Array.isArray(parsed?.items))
           // Backfill arrays for rows written before they were guaranteed.
