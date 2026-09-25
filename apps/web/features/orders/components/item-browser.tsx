@@ -425,7 +425,7 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
   );
 
   return (
-    <div className="relative flex h-full min-h-0 gap-3">
+    <div className="relative flex min-h-0 min-w-0 flex-1 gap-3">
       {/* Categories live in the page app sidebar when provided (/kot);
           otherwise the browser keeps its own panel-embedded sidebar. */}
       {pageSidebar ? null : (
