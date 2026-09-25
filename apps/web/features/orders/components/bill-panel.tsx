@@ -751,7 +751,11 @@ export default function OrderBillPanel({
       });
       // Not measured yet — keep everything visible until widths are known.
       if (widths.some((w) => w === 0)) return;
-      const triggerW = 48;
+      // The 3-dot button now lives inside the tab bar as the last item —
+      // measure it when rendered so the fit math accounts for its real size.
+      const btnW = list.querySelector<HTMLElement>("[data-overflow-btn]")?.offsetWidth ?? 0;
+      if (btnW > 0) tabWidthCache.current.__overflow = btnW;
+      const triggerW = tabWidthCache.current.__overflow ?? 48;
       let n = tabDefs.length;
       for (; n > 1; n--) {
         const avail = rowW - (n < tabDefs.length ? triggerW : 0);
@@ -907,28 +911,36 @@ export default function OrderBillPanel({
                   {d.label}
                 </TabsTrigger>
               ))}
+              {overflowTabs.length > 0 && (
+                <DropdownMenu modal={false}>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        data-overflow-btn
+                        aria-label="More tabs"
+                        className="min-h-11 shrink-0"
+                      />
+                    }
+                  >
+                    <Icons.ellipsis className="size-4" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {overflowTabs.map((d) => (
+                      <DropdownMenuItem
+                        key={d.value}
+                        onClick={() => setTab(d.value)}
+                        className="min-h-11"
+                      >
+                        {d.value === activeTab && <Icons.check className="mr-2 size-4" />}
+                        {d.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </TabsList>
-            {overflowTabs.length > 0 && (
-              <DropdownMenu modal={false}>
-                <DropdownMenuTrigger
-                  render={<Button variant="ghost" size="icon-sm" className="shrink-0" />}
-                >
-                  <Icons.ellipsis className="size-4" aria-label="More tabs" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {overflowTabs.map((d) => (
-                    <DropdownMenuItem
-                      key={d.value}
-                      onClick={() => setTab(d.value)}
-                      className="min-h-11"
-                    >
-                      {d.value === activeTab && <Icons.check className="mr-2 size-4" />}
-                      {d.label}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
           </div>
           <TabsContent value="kots" className="space-y-4 pt-2">
             <section aria-label="Kitchen tickets" className="space-y-2 rounded-xl border p-3">
