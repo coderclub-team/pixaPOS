@@ -60,7 +60,7 @@ export default function PageContainer({
   const hasHeader = pageTitle || pageHeaderAction;
 
   return (
-    <div className={cn("flex flex-1 flex-col px-4 pt-2 pb-4 md:px-6 md:pt-4", className)}>
+    <div className={cn("flex min-h-0 flex-1 flex-col px-4 pt-2 pb-4 md:px-6 md:pt-4", className)}>
       {hasHeader && (
         <div className="mb-4 flex items-start justify-between gap-4">
           <Heading

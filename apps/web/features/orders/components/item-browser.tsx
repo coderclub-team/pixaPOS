@@ -425,7 +425,7 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
   );
 
   return (
-    <div className="relative flex min-h-0 min-w-0 flex-1 gap-3">
+    <div className="relative flex min-h-0 min-w-0 flex-1 gap-3 overflow-hidden">
       {/* Categories live in the page app sidebar when provided (/kot);
           otherwise the browser keeps its own panel-embedded sidebar. */}
       {pageSidebar ? null : (
@@ -614,109 +614,113 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
           </div>
         </div>
 
-        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-0.5">
-          {isPending ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">Loading menu…</p>
-          ) : !items?.length ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <div className="mx-auto flex max-w-md flex-col items-center gap-3">
-                  <div className="rounded-full border border-dashed p-3">
-                    <Icons.pizza className="size-6 text-muted-foreground" />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pr-0.5">
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {isPending ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">Loading menu…</p>
+            ) : !items?.length ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <div className="mx-auto flex max-w-md flex-col items-center gap-3">
+                    <div className="rounded-full border border-dashed p-3">
+                      <Icons.pizza className="size-6 text-muted-foreground" />
+                    </div>
+                    <p className="font-medium">No menu items match</p>
+                    <p className="text-sm text-muted-foreground">
+                      Try another search, category or diet.
+                    </p>
                   </div>
-                  <p className="font-medium">No menu items match</p>
-                  <p className="text-sm text-muted-foreground">
-                    Try another search, category or diet.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          ) : effectiveView === "card" ? (
-            <>
-              <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
-                {cardPage.map((item) => {
-                  // Multi-variant products open the variant dialog on tap —
-                  // cards stay clean no matter how many options an item has.
-                  // Single-variant items behave as default (tap adds straight).
-                  const variable = hasVariantOptions(item);
-                  const staged = variable ? draftTotalFor(item) : draftQtyFor(item);
-                  const activeVariants = (item.variants ?? []).filter((v) => v.is_active !== false);
-                  const activate = () => {
-                    if (variable) setVariantPick(item);
-                    else quickAdd(item);
-                  };
-                  return (
-                    <div
-                      key={item.id}
-                      role="button"
-                      tabIndex={0}
-                      aria-label={
-                        variable
-                          ? `${item.name} — ${activeVariants.length} options, ${staged} in draft`
-                          : `${item.name} — tap to add, in draft ${staged}`
-                      }
-                      onClick={activate}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          activate();
+                </CardContent>
+              </Card>
+            ) : effectiveView === "card" ? (
+              <>
+                <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
+                  {cardPage.map((item) => {
+                    // Multi-variant products open the variant dialog on tap —
+                    // cards stay clean no matter how many options an item has.
+                    // Single-variant items behave as default (tap adds straight).
+                    const variable = hasVariantOptions(item);
+                    const staged = variable ? draftTotalFor(item) : draftQtyFor(item);
+                    const activeVariants = (item.variants ?? []).filter(
+                      (v) => v.is_active !== false,
+                    );
+                    const activate = () => {
+                      if (variable) setVariantPick(item);
+                      else quickAdd(item);
+                    };
+                    return (
+                      <div
+                        key={item.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={
+                          variable
+                            ? `${item.name} — ${activeVariants.length} options, ${staged} in draft`
+                            : `${item.name} — tap to add, in draft ${staged}`
                         }
-                      }}
-                      className={cn(
-                        "relative aspect-square cursor-pointer overflow-hidden rounded-xl border bg-muted transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-primary",
-                      )}
-                    >
-                      <MenuImage item={item} size="fill" />
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/60 to-transparent p-3 pt-8 text-white">
-                        <p className="truncate text-sm font-medium">{item.name}</p>
-                        <p className="mt-0.5 flex items-center gap-1 text-xs text-white/75">
-                          <span
-                            className={cn(
-                              "inline-block size-2 rounded-full",
-                              item.veg_type === "veg"
-                                ? "bg-green-500"
-                                : item.veg_type === "egg"
-                                  ? "bg-amber-400"
-                                  : "bg-red-500",
-                            )}
-                          />
-                          {item.category_name}
-                          {variable && <span> · {activeVariants.length} options</span>}
-                        </p>
-                        <p className="mt-1 text-sm font-semibold">
-                          {variable
-                            ? `From ${formatINR(minPriceOf(item))}`
-                            : formatINR(priceOf(item))}
-                        </p>
-                        <div className="mt-2 flex items-center justify-between gap-1">
-                          <span className="text-xs font-semibold tabular-nums text-white/75">
-                            {staged > 0 ? `${staged}× in draft` : ""}
-                          </span>
+                        onClick={activate}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            activate();
+                          }
+                        }}
+                        className={cn(
+                          "relative aspect-square cursor-pointer overflow-hidden rounded-xl border bg-muted transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-primary",
+                        )}
+                      >
+                        <MenuImage item={item} size="fill" />
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/60 to-transparent p-3 pt-8 text-white">
+                          <p className="truncate text-sm font-medium">{item.name}</p>
+                          <p className="mt-0.5 flex items-center gap-1 text-xs text-white/75">
+                            <span
+                              className={cn(
+                                "inline-block size-2 rounded-full",
+                                item.veg_type === "veg"
+                                  ? "bg-green-500"
+                                  : item.veg_type === "egg"
+                                    ? "bg-amber-400"
+                                    : "bg-red-500",
+                              )}
+                            />
+                            {item.category_name}
+                            {variable && <span> · {activeVariants.length} options</span>}
+                          </p>
+                          <p className="mt-1 text-sm font-semibold">
+                            {variable
+                              ? `From ${formatINR(minPriceOf(item))}`
+                              : formatINR(priceOf(item))}
+                          </p>
+                          <div className="mt-2 flex items-center justify-between gap-1">
+                            <span className="text-xs font-semibold tabular-nums text-white/75">
+                              {staged > 0 ? `${staged}× in draft` : ""}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          ) : (
-            <PickerListTable
-              items={allItems}
-              pageSize={autoPageSize}
-              pageIndex={listSafeIndex}
-              onPageIndexChange={setPageIndex}
-              onPageSizeChange={setPageSizeOverride}
-              autoSize={pageSizeOverride == null ? autoPageSize : null}
-              resetKey={`${search}|${categoryId ?? "all"}|${vegType ?? "all"}|${allItems.length}`}
-              draftQtyFor={draftQtyFor}
-              draftQtyForVariant={draftQtyForVariant}
-              draftTotalFor={draftTotalFor}
-              stepper={stepper}
-              onAdd={quickAdd}
-              onAddVariant={(item, variantId) => stepVariant(item, variantId, 1)}
-              listRef={listRef}
-            />
-          )}
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <PickerListTable
+                items={allItems}
+                pageSize={autoPageSize}
+                pageIndex={listSafeIndex}
+                onPageIndexChange={setPageIndex}
+                onPageSizeChange={setPageSizeOverride}
+                autoSize={pageSizeOverride == null ? autoPageSize : null}
+                resetKey={`${search}|${categoryId ?? "all"}|${vegType ?? "all"}|${allItems.length}`}
+                draftQtyFor={draftQtyFor}
+                draftQtyForVariant={draftQtyForVariant}
+                draftTotalFor={draftTotalFor}
+                stepper={stepper}
+                onAdd={quickAdd}
+                onAddVariant={(item, variantId) => stepVariant(item, variantId, 1)}
+                listRef={listRef}
+              />
+            )}
+          </div>
         </div>
         {/* Card-view pager lives outside the scroll container so it stays
             usable; the list carries its own footer inside its Card. */}
@@ -858,7 +862,7 @@ function CardPager({
   onNext: () => void;
 }) {
   return (
-    <div className="flex shrink-0 items-center justify-between gap-2 border-t px-1 pt-2">
+    <div className="flex shrink-0 items-center justify-between gap-2 border-t px-1 py-2">
       <p className="text-xs text-muted-foreground tabular-nums">{rangeLabel}</p>
       <div className="flex items-center gap-1">
         <Button
@@ -1060,9 +1064,9 @@ function PickerListTable({
   }, [resetKey]);
 
   return (
-    <Card>
-      <CardContent className="p-0">
-        <div ref={listRef} className="min-h-[200px] overflow-x-auto">
+    <Card className="flex h-full min-h-0 flex-col overflow-hidden">
+      <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+        <div ref={listRef} className="min-h-0 flex-1 overflow-auto">
           <Table className="min-w-[520px]">
             <TableHeader>
               {table.getHeaderGroups().map((hg) => (
@@ -1203,7 +1207,7 @@ function PickerListTable({
             </TableBody>
           </Table>
         </div>
-        <div className="flex items-center justify-between gap-2 border-t px-3 py-2">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-t px-3 py-2">
           <p className="text-xs text-muted-foreground tabular-nums">
             {items.length === 0
               ? "No items"

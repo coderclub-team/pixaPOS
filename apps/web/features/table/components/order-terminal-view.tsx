@@ -321,7 +321,7 @@ export default function OrderTerminalPage({
           )}
         >
           {(leftView === "items" || !isDineIn) && activeOrderId ? (
-            <div className="flex h-full flex-col gap-2">
+            <div className="flex h-full min-h-0 flex-col gap-2">
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
