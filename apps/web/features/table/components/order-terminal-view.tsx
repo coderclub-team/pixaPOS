@@ -67,8 +67,8 @@ export default function OrderTerminalPage({
   const orderType = orderTypeSel?.orderType ?? "dine_in";
   const isDineIn = orderType === "dine_in";
   const orderTypeLabel = kotOrderTypeOptions.find((o) => o.value === orderType)?.label ?? "Counter";
-  // Customer capture for table-free orders (counter allows anonymous tokens;
-  // takeaway/delivery require name or phone — enforced by the service too).
+  // Customer capture for table-free orders — name/phone is optional for
+  // every order type (anonymous tokens allowed).
   const [custName, setCustName] = useState("");
   const [custPhone, setCustPhone] = useState("");
   // Left region content: floor tables, or inline menu browser replacing the
@@ -340,9 +340,7 @@ export default function OrderTerminalPage({
                   </div>
                   <p className="font-medium">New {orderTypeLabel} order</p>
                   <p className="text-sm text-muted-foreground">
-                    {orderType === "counter"
-                      ? "Add a name or phone (optional) for the token, then start picking items."
-                      : "Customer name or phone is required for takeaway and delivery."}
+                    Add a name or phone for the token (optional), then start picking items.
                   </p>
                 </div>
                 <div className="grid gap-2">

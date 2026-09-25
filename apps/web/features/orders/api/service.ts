@@ -266,11 +266,9 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
       const table = await getTableById(input.table_id);
       if (!table) throw new Error("Table not found");
       if (table.outlet_id !== outletId) throw new Error("Table belongs to another outlet");
-    } else if (input.channel !== "counter") {
-      if (!input.customer_name?.trim() && !input.customer_phone?.trim()) {
-        throw new Error("Takeaway, delivery and online orders require a customer name or phone");
-      }
     }
+    // Table-free orders (counter / takeaway / delivery / online) allow
+    // anonymous tokens — customer name/phone is optional capture only.
 
     const dayOrders = mockOrders.filter(
       (o) =>
