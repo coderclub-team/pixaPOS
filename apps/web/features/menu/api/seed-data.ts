@@ -111,7 +111,7 @@ const CATS: CatDef[] = [
   {
     name: "Idli and Vada",
     slug: "idli-vada",
-    imgs: [U("1630383249896-424e482df9fd"), U("1589301760014-d929f3979dbc")],
+    imgs: [U("1613564834361-9436948817d1"), U("1589301760014-d929f3979dbc")],
     dishes: [
       ["Idli 2 pc", "veg", 79],
       ["Sambar Idli", "veg", 99],
@@ -126,7 +126,7 @@ const CATS: CatDef[] = [
   {
     name: "Dosa Classics",
     slug: "dosa-classics",
-    imgs: [U("1567188040759-fb8a883dc6d6"), U("1589301760014-d929f3979dbc")],
+    imgs: [U("1668236543090-82eba5ee5976"), U("1589301760014-d929f3979dbc")],
     dishes: [
       ["Plain Dosa", "veg", 99],
       ["Masala Dosa", "veg", 129],
@@ -141,7 +141,7 @@ const CATS: CatDef[] = [
   {
     name: "Dosa Specials",
     slug: "dosa-specials",
-    imgs: [U("1567188040759-fb8a883dc6d6"), U("1589301760014-d929f3979dbc")],
+    imgs: [U("1668236543090-82eba5ee5976"), U("1589301760014-d929f3979dbc")],
     dishes: [
       ["Paneer Dosa", "veg", 179],
       ["Cheese Dosa", "veg", 169],
@@ -156,7 +156,7 @@ const CATS: CatDef[] = [
   {
     name: "Uttapam and Paniyaram",
     slug: "uttapam",
-    imgs: [U("1567188040759-fb8a883dc6d6"), U("1589301760014-d929f3979dbc")],
+    imgs: [U("1668236543090-82eba5ee5976"), U("1589301760014-d929f3979dbc")],
     dishes: [
       ["Onion Uttapam", "veg", 129],
       ["Tomato Uttapam", "veg", 129],
@@ -216,7 +216,7 @@ const CATS: CatDef[] = [
   {
     name: "Paneer Specials",
     slug: "paneer-specials",
-    imgs: [U("1631452180519-c014fe946bc7"), U("1631515242808-497c3fbd61e5")],
+    imgs: [U("1631452180519-c014fe946bc7"), U("1585937421612-70a008356fbe")],
     dishes: [
       ["Paneer Butter Masala", "veg", 229],
       ["Paneer Tikka Masala", "veg", 239],
