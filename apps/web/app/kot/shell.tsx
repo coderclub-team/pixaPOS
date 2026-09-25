@@ -14,13 +14,13 @@ import { CategorySelectionProvider } from "@/features/orders/components/category
 
 /**
  * Standalone KOT counter: dashboard shell pattern (app sidebar with brand,
- * categories and profile footer + inset header/content). The sidebar is
- * always visible; before any table is tapped it shows a placeholder matching
- * the bill panel. Mount on a counter tablet, sign in once.
+ * categories and profile footer + inset header/content). The sidebar starts
+ * collapsed, is always visible, and shows a placeholder matching the bill
+ * panel until a table is tapped. Mount on a counter tablet, sign in once.
  */
 export default function KotShell() {
   return (
-    <SidebarProvider defaultOpen>
+    <SidebarProvider defaultOpen={false}>
       <CategorySelectionProvider>
         <Sidebar collapsible="icon">
           <CategorySidebar />
