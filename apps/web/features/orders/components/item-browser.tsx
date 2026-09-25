@@ -54,6 +54,7 @@ import { toast } from "sonner";
 import { useMediaQuery } from "@pixa/ui/hooks/use-media-query";
 import type { MenuItem } from "@/features/menu/api/types";
 import type { OrderItemSnapshot } from "@/features/orders/api/types";
+import { useCategorySelection } from "./category-selection";
 import { PickItemDialog } from "./item-picker";
 
 const VIEW_KEY = "pixaItemBrowserView";
@@ -155,7 +156,13 @@ export function MenuImage({ item, size }: { item: MenuItem; size: "sm" | "lg" })
 export default function ItemBrowser({ orderId }: { orderId: string }) {
   const [search, setSearch] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
-  const [categoryId, setCategoryId] = useState<string | null>(null);
+  // Page-level selection (kot app sidebar) wins when provided; otherwise the
+  // browser keeps its own internal sidebar selection (dashboard usage).
+  const sharedSelection = useCategorySelection();
+  const [localCategoryId, setLocalCategoryId] = useState<string | null>(null);
+  const categoryId = sharedSelection?.categoryId ?? localCategoryId;
+  const setCategoryId = sharedSelection?.setCategoryId ?? setLocalCategoryId;
+  const pageSidebar = sharedSelection != null;
   const [picked, setPicked] = useState<MenuItem | null>(null);
   const [view, setView] = useState<BrowserView>(() => {
     try {
@@ -357,121 +364,129 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
 
   return (
     <div className="relative flex h-full min-h-0 gap-3">
-      {/* Mobile backdrop for the category drawer. */}
-      {sidebarOpen && (
-        <button
-          type="button"
-          aria-label="Close categories"
-          onClick={() => {
-            setCatTouched(true);
-            setCatOpenManual(false);
-          }}
-          className="absolute inset-0 z-20 bg-black/40 lg:hidden"
-        />
-      )}
-      {/* Category sidebar: the exact dashboard sidebar primitives
+      {/* Categories live in the page app sidebar when provided (/kot);
+          otherwise the browser keeps its own panel-embedded sidebar. */}
+      {pageSidebar ? null : (
+        <>
+          {/* Mobile backdrop for the category drawer. */}
+          {sidebarOpen && (
+            <button
+              type="button"
+              aria-label="Close categories"
+              onClick={() => {
+                setCatTouched(true);
+                setCatOpenManual(false);
+              }}
+              className="absolute inset-0 z-20 bg-black/40 lg:hidden"
+            />
+          )}
+          {/* Category sidebar: the exact dashboard sidebar primitives
           (provider + header + group + menu + buttons) in a panel-embedded
           container. group-data collapse selectors work exactly like /dashboard;
           the viewport-fixed Sidebar shell itself stays app-level only. */}
-      <SidebarProvider
-        open={sidebarOpen}
-        onOpenChange={(open) => {
-          setCatTouched(true);
-          setCatOpenManual(open);
-        }}
-      >
-        <nav
-          aria-label="Menu categories"
-          className={cn(
-            "group shrink-0 flex-col self-stretch rounded-xl border bg-sidebar text-sidebar-foreground",
-            sidebarOpen
-              ? "flex w-64 max-w-[82%] sm:w-56 lg:w-44 xl:w-52"
-              : "hidden lg:flex lg:w-14 lg:items-center",
-            // Mobile open state renders as an overlay drawer.
-            sidebarOpen &&
-              "absolute inset-y-0 left-0 z-30 shadow-xl lg:static lg:z-auto lg:shadow-none",
-          )}
-          data-collapsible={sidebarOpen ? "" : "icon"}
-        >
-          {sidebarOpen ? (
-            <SidebarHeader>
-              <div className="relative">
-                <Icons.search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search categories…"
-                  value={categorySearch}
-                  onChange={(e) => setCategorySearch(e.target.value)}
-                  className="h-9 bg-sidebar pl-8 text-xs"
-                />
-              </div>
-            </SidebarHeader>
-          ) : null}
-          <SidebarContent>
-            <SidebarGroup>
-              {sidebarOpen ? <SidebarGroupLabel>Categories</SidebarGroupLabel> : null}
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    isActive={categoryId == null}
-                    onClick={() => setCategoryId(null)}
-                    tooltip="All categories"
-                    className="group-data-[collapsible=icon]:justify-center"
-                  >
-                    <Icons.layoutList />
-                    <span className="group-data-[collapsible=icon]:hidden">All</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                {visibleCategories.map((c) => (
-                  <SidebarMenuItem key={c.id}>
-                    <SidebarMenuButton
-                      isActive={categoryId === c.id}
-                      onClick={() => {
-                        setCategoryId(categoryId === c.id ? null : c.id);
-                        if (isMobile) {
-                          setCatTouched(true);
-                          setCatOpenManual(false);
-                        }
-                      }}
-                      tooltip={c.name}
-                      className="group-data-[collapsible=icon]:justify-center"
-                    >
-                      <Icons.tag />
-                      <span className="group-data-[collapsible=icon]:hidden">{c.name}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroup>
-            {sidebarOpen && visibleCategories.length === 0 && (
-              <div className="mx-auto flex max-w-md flex-col items-center gap-2 px-2 py-8 text-center">
-                <div className="rounded-full border border-dashed p-2.5">
-                  <Icons.search className="size-5 text-muted-foreground" />
-                </div>
-                <p className="text-sm font-medium">No categories match</p>
-                <p className="text-xs text-muted-foreground">Try another search.</p>
-              </div>
-            )}
-          </SidebarContent>
-        </nav>
-      </SidebarProvider>
+          <SidebarProvider
+            open={sidebarOpen}
+            onOpenChange={(open) => {
+              setCatTouched(true);
+              setCatOpenManual(open);
+            }}
+          >
+            <nav
+              aria-label="Menu categories"
+              className={cn(
+                "group shrink-0 flex-col self-stretch rounded-xl border bg-sidebar text-sidebar-foreground",
+                sidebarOpen
+                  ? "flex w-64 max-w-[82%] sm:w-56 lg:w-44 xl:w-52"
+                  : "hidden lg:flex lg:w-14 lg:items-center",
+                // Mobile open state renders as an overlay drawer.
+                sidebarOpen &&
+                  "absolute inset-y-0 left-0 z-30 shadow-xl lg:static lg:z-auto lg:shadow-none",
+              )}
+              data-collapsible={sidebarOpen ? "" : "icon"}
+            >
+              {sidebarOpen ? (
+                <SidebarHeader>
+                  <div className="relative">
+                    <Icons.search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search categories…"
+                      value={categorySearch}
+                      onChange={(e) => setCategorySearch(e.target.value)}
+                      className="h-9 bg-sidebar pl-8 text-xs"
+                    />
+                  </div>
+                </SidebarHeader>
+              ) : null}
+              <SidebarContent>
+                <SidebarGroup>
+                  {sidebarOpen ? <SidebarGroupLabel>Categories</SidebarGroupLabel> : null}
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        isActive={categoryId == null}
+                        onClick={() => setCategoryId(null)}
+                        tooltip="All categories"
+                        className="group-data-[collapsible=icon]:justify-center"
+                      >
+                        <Icons.layoutList />
+                        <span className="group-data-[collapsible=icon]:hidden">All</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    {visibleCategories.map((c) => (
+                      <SidebarMenuItem key={c.id}>
+                        <SidebarMenuButton
+                          isActive={categoryId === c.id}
+                          onClick={() => {
+                            setCategoryId(categoryId === c.id ? null : c.id);
+                            if (isMobile) {
+                              setCatTouched(true);
+                              setCatOpenManual(false);
+                            }
+                          }}
+                          tooltip={c.name}
+                          className="group-data-[collapsible=icon]:justify-center"
+                        >
+                          <Icons.tag />
+                          <span className="group-data-[collapsible=icon]:hidden">{c.name}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroup>
+                {sidebarOpen && visibleCategories.length === 0 && (
+                  <div className="mx-auto flex max-w-md flex-col items-center gap-2 px-2 py-8 text-center">
+                    <div className="rounded-full border border-dashed p-2.5">
+                      <Icons.search className="size-5 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm font-medium">No categories match</p>
+                    <p className="text-xs text-muted-foreground">Try another search.</p>
+                  </div>
+                )}
+              </SidebarContent>
+            </nav>
+          </SidebarProvider>
+        </>
+      )}
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-9 w-9 shrink-0 px-0"
-            onClick={() => {
-              setCatTouched(true);
-              setCatOpenManual((v) => !v);
-            }}
-            title={sidebarOpen ? "Hide categories" : "Show categories"}
-            aria-label={sidebarOpen ? "Hide categories" : "Show categories"}
-            aria-expanded={sidebarOpen}
-          >
-            <Icons.panelLeft className="size-4" />
-          </Button>
+          {pageSidebar ? null : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 w-9 shrink-0 px-0"
+              onClick={() => {
+                setCatTouched(true);
+                setCatOpenManual((v) => !v);
+              }}
+              title={sidebarOpen ? "Hide categories" : "Show categories"}
+              aria-label={sidebarOpen ? "Hide categories" : "Show categories"}
+              aria-expanded={sidebarOpen}
+            >
+              <Icons.panelLeft className="size-4" />
+            </Button>
+          )}
           <div className="relative min-w-40 flex-1">
             <Icons.search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
