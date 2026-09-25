@@ -115,7 +115,7 @@ function imageOf(item: MenuItem): string | null {
   return item.image_url ?? item.images?.[0]?.url ?? item.image_urls?.[0] ?? null;
 }
 
-export function MenuImage({ item, size }: { item: MenuItem; size: "sm" | "lg" }) {
+export function MenuImage({ item, size }: { item: MenuItem; size: "sm" | "lg" | "cover" }) {
   const src = imageOf(item);
   const initials = item.name
     .split(/\s+/)
@@ -128,8 +128,12 @@ export function MenuImage({ item, size }: { item: MenuItem; size: "sm" | "lg" })
       <span
         aria-hidden
         className={cn(
-          "flex shrink-0 items-center justify-center rounded-lg bg-primary/10 font-bold text-primary",
-          size === "lg" ? "h-24 w-full text-2xl" : "size-12 text-base",
+          "flex shrink-0 items-center justify-center bg-primary/10 font-bold text-primary",
+          size === "lg"
+            ? "h-24 w-full rounded-lg text-2xl"
+            : size === "cover"
+              ? "h-28 w-full text-2xl"
+              : "size-12 rounded-lg text-base",
         )}
       >
         {initials}
@@ -139,11 +143,15 @@ export function MenuImage({ item, size }: { item: MenuItem; size: "sm" | "lg" })
   return (
     <span
       className={cn(
-        "relative block shrink-0 overflow-hidden rounded-lg bg-muted",
-        size === "lg" ? "h-24 w-full" : "size-12",
+        "relative block shrink-0 overflow-hidden bg-muted",
+        size === "lg"
+          ? "h-24 w-full rounded-lg"
+          : size === "cover"
+            ? "h-28 w-full"
+            : "size-12 rounded-lg",
       )}
     >
-      <Image src={src} alt="" fill sizes="160px" className="object-cover" />
+      <Image src={src} alt="" fill sizes="240px" className="object-cover" />
     </span>
   );
 }
@@ -574,50 +582,102 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
           ) : effectiveView === "card" ? (
             <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3">
               {items.slice(0, 60).map((item) => {
-                const staged = draftQtyFor(item);
+                // Variant products list every option inline (list-view
+                // pattern) so each variant is one tap away — no dialog hop.
+                const variable = hasVariantOptions(item);
+                const staged = variable ? draftTotalFor(item) : draftQtyFor(item);
+                const activeVariants = (item.variants ?? []).filter((v) => v.is_active !== false);
                 return (
                   <div
                     key={item.id}
                     role="button"
                     tabIndex={0}
-                    aria-label={`${item.name} — tap to add, in draft ${staged}`}
-                    onClick={() => quickAdd(item)}
+                    aria-label={
+                      variable
+                        ? `${item.name} — ${activeVariants.length} options, ${staged} in draft`
+                        : `${item.name} — tap to add, in draft ${staged}`
+                    }
+                    onClick={() => {
+                      if (!variable) quickAdd(item);
+                    }}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
+                      if ((e.key === "Enter" || e.key === " ") && !variable) {
                         e.preventDefault();
                         quickAdd(item);
                       }
                     }}
-                    className="cursor-pointer rounded-xl border bg-card p-3 transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-primary"
+                    className={cn(
+                      "overflow-hidden rounded-xl border bg-card transition-colors focus-visible:outline-2 focus-visible:outline-primary",
+                      !variable && "cursor-pointer hover:border-primary",
+                    )}
                   >
-                    <MenuImage item={item} size="lg" />
-                    <p className="mt-2 truncate text-sm font-medium">{item.name}</p>
-                    <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                      <span
-                        className={cn(
-                          "inline-block size-2 rounded-full",
-                          item.veg_type === "veg" ? "bg-green-600" : "bg-red-600",
-                        )}
-                      />
-                      {item.category_name}
-                    </p>
-                    <p className="mt-1 text-sm font-semibold">{formatINR(priceOf(item))}</p>
-                    <div
-                      className="mt-2 flex items-center justify-between gap-1"
-                      onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => e.stopPropagation()}
-                    >
-                      {stepper(item, staged)}
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="max-lg:h-9 max-lg:w-9"
-                        onClick={() => setPicked(item)}
-                        title="Customize — variants, add-ons, instructions"
-                        aria-label={`Customize ${item.name}`}
+                    <MenuImage item={item} size="cover" />
+                    <div className="p-3">
+                      <p className="truncate text-sm font-medium">{item.name}</p>
+                      <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                        <span
+                          className={cn(
+                            "inline-block size-2 rounded-full",
+                            item.veg_type === "veg"
+                              ? "bg-green-600"
+                              : item.veg_type === "egg"
+                                ? "bg-amber-500"
+                                : "bg-red-600",
+                          )}
+                        />
+                        {item.category_name}
+                        {variable && <span> · {activeVariants.length} options</span>}
+                      </p>
+                      <p className="mt-1 text-sm font-semibold">
+                        {variable
+                          ? `From ${formatINR(minPriceOf(item))}`
+                          : formatINR(priceOf(item))}
+                      </p>
+                      {variable && (
+                        <div
+                          className="mt-2 space-y-1.5"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          {activeVariants.map((v) => (
+                            <div
+                              key={v.id}
+                              className="flex items-center gap-1.5 rounded-lg bg-muted/50 px-2 py-1"
+                            >
+                              <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                                {v.name}
+                              </span>
+                              <span className="shrink-0 text-xs font-semibold tabular-nums">
+                                {formatINR(toPaise(v.selling_price ?? 0))}
+                              </span>
+                              {stepper(item, draftQtyForVariant(item, v.id), v.id)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div
+                        className="mt-2 flex items-center justify-between gap-1"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
                       >
-                        <Icons.edit className="size-3.5" />
-                      </Button>
+                        {variable ? (
+                          <span className="text-xs font-semibold tabular-nums text-muted-foreground">
+                            {staged > 0 ? `${staged}× in draft` : ""}
+                          </span>
+                        ) : (
+                          stepper(item, staged)
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="max-lg:h-9 max-lg:w-9"
+                          onClick={() => setPicked(item)}
+                          title="Customize — variants, add-ons, instructions"
+                          aria-label={`Customize ${item.name}`}
+                        >
+                          <Icons.edit className="size-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -727,7 +787,11 @@ function PickerListTable({
                   <span
                     className={cn(
                       "inline-block size-2 rounded-full",
-                      item.veg_type === "veg" ? "bg-green-600" : "bg-red-600",
+                      item.veg_type === "veg"
+                        ? "bg-green-600"
+                        : item.veg_type === "egg"
+                          ? "bg-amber-500"
+                          : "bg-red-600",
                     )}
                   />
                   {item.category_name}
@@ -945,7 +1009,7 @@ function PickerListTable({
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
-                    No menu items match. Try another search or category.
+                    No menu items match. Try another search, category or diet.
                   </TableCell>
                 </TableRow>
               )}
