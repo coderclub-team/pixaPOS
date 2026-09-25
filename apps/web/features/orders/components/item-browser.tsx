@@ -41,6 +41,7 @@ import { eventKeys } from "@/features/events/api/queries";
 import { menuCategoriesQueryOptions, menuItemsQueryOptions } from "@/features/menu/api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
+import { useMediaQuery } from "@pixa/ui/hooks/use-media-query";
 import type { MenuItem } from "@/features/menu/api/types";
 import type { OrderItemSnapshot } from "@/features/orders/api/types";
 import { PickItemDialog } from "./item-picker";
@@ -153,6 +154,12 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
       return "card";
     }
   });
+  // Collapsible category sidebar (dashboard pattern): open on desktop,
+  // closed on mobile; manual toggle wins once touched.
+  const { isOpen: isMobile } = useMediaQuery();
+  const [catTouched, setCatTouched] = useState(false);
+  const [catOpenManual, setCatOpenManual] = useState(true);
+  const sidebarOpen = catTouched ? catOpenManual : !isMobile;
   const { data: order } = useQuery(orderQueryOptions(orderId));
   const { data: categories } = useQuery(menuCategoriesQueryOptions({}));
   const { data: items, isPending } = useQuery(
@@ -340,29 +347,37 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
     <div className="flex h-full min-h-0 gap-3">
       <nav
         aria-label="Menu categories"
-        className="flex w-44 shrink-0 flex-col self-stretch rounded-xl border bg-sidebar p-2 text-sidebar-foreground sm:w-52"
+        className={cn(
+          "shrink-0 flex-col self-stretch rounded-xl border bg-sidebar p-2 text-sidebar-foreground",
+          sidebarOpen ? "flex w-44 sm:w-52" : "hidden lg:flex lg:w-14 lg:items-center",
+        )}
       >
-        <div className="relative shrink-0">
-          <Icons.search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search categories…"
-            value={categorySearch}
-            onChange={(e) => setCategorySearch(e.target.value)}
-            className="h-9 bg-sidebar pl-8 text-xs"
-          />
-        </div>
-        <p className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70">
-          Categories
-        </p>
+        {sidebarOpen ? (
+          <>
+            <div className="relative shrink-0">
+              <Icons.search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search categories…"
+                value={categorySearch}
+                onChange={(e) => setCategorySearch(e.target.value)}
+                className="h-9 bg-sidebar pl-8 text-xs"
+              />
+            </div>
+            <p className="flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70">
+              Categories
+            </p>
+          </>
+        ) : null}
         <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
           <button
             type="button"
             data-active={categoryId == null ? true : undefined}
             onClick={() => setCategoryId(null)}
+            title="All categories"
             className="flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm ring-sidebar-ring outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate"
           >
             <Icons.layoutList />
-            <span>All</span>
+            {sidebarOpen && <span>All</span>}
           </button>
           {visibleCategories.map((c) => (
             <button
@@ -374,10 +389,10 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
               className="flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm ring-sidebar-ring outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate"
             >
               <Icons.tag />
-              <span>{c.name}</span>
+              {sidebarOpen && <span>{c.name}</span>}
             </button>
           ))}
-          {visibleCategories.length === 0 && (
+          {sidebarOpen && visibleCategories.length === 0 && (
             <div className="mx-auto flex max-w-md flex-col items-center gap-2 px-2 py-8 text-center">
               <div className="rounded-full border border-dashed p-2.5">
                 <Icons.search className="size-5 text-muted-foreground" />
@@ -391,6 +406,21 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 w-9 shrink-0 px-0"
+            onClick={() => {
+              setCatTouched(true);
+              setCatOpenManual((v) => !v);
+            }}
+            title={sidebarOpen ? "Hide categories" : "Show categories"}
+            aria-label={sidebarOpen ? "Hide categories" : "Show categories"}
+            aria-expanded={sidebarOpen}
+          >
+            <Icons.panelLeft className="size-4" />
+          </Button>
           <div className="relative min-w-40 flex-1">
             <Icons.search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
