@@ -58,6 +58,7 @@ import {
   cancelOrder,
   computeSplits,
   clearSplit,
+  deleteOrder,
   removeDraftItem,
   setDiscount,
   updateDraftItemQty,
@@ -1109,7 +1110,7 @@ export default function OrderBillPanel({
                 />
               </>
             )}
-            {showCancel && <CancelOrderBlock orderId={orderId} />}
+            {showCancel && <CancelOrderBlock orderId={orderId} onDeleted={onCompleted} />}
           </TabsContent>
         </Tabs>
       </CardContent>
@@ -1167,7 +1168,13 @@ function PreviewDialog({
   );
 }
 
-export function CancelOrderBlock({ orderId }: { orderId: string }) {
+export function CancelOrderBlock({
+  orderId,
+  onDeleted,
+}: {
+  orderId: string;
+  onDeleted?: (orderId: string) => void;
+}) {
   const queryClient = useQueryClient();
   const { data: order } = useQuery(orderQueryOptions(orderId));
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -1183,7 +1190,58 @@ export function CancelOrderBlock({ orderId }: { orderId: string }) {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Zero fired KOTs: the order never left the device — discard it outright
+  // (no reason, no cancel trail) instead of cancelling.
+  const discardMut = useMutation({
+    mutationFn: () => deleteOrder(orderId),
+    onSuccess: () => {
+      invalidateBill(orderId, queryClient);
+      toast.success("Draft discarded");
+      setCancelOpen(false);
+      onDeleted?.(orderId);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   if (!order || order.status === "COMPLETED" || order.status === "CANCELLED") return null;
+  const unfired = !order.items.some((i) => i.kot_id);
+
+  if (unfired) {
+    return (
+      <>
+        <Button
+          variant="outline"
+          className="w-full"
+          disabled={discardMut.isPending}
+          onClick={() => setCancelOpen(true)}
+        >
+          <Icons.trash className="mr-2 size-4" /> Discard draft
+        </Button>
+        <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Discard {order.order_number}?</DialogTitle>
+              <DialogDescription>
+                Nothing has fired to the kitchen — the draft is removed and never synced.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setCancelOpen(false)}>
+                Keep order
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={discardMut.isPending}
+                onClick={() => discardMut.mutate()}
+              >
+                {discardMut.isPending ? "Discarding…" : "Discard draft"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
 
   return (
     <>

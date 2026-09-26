@@ -180,6 +180,9 @@ export default function OrderTerminalPage({
         channel: orderType,
         customer_name: custName.trim() || undefined,
         customer_phone: custPhone.trim() || undefined,
+        // Counter carts start as local DRAFTs — deletable, never synced
+        // until the first fire walks them to IN_KITCHEN.
+        initial_status: "DRAFT",
       }),
     onSuccess: (order) => {
       queryClient.invalidateQueries({ queryKey: orderKeys.all });
@@ -266,8 +269,7 @@ export default function OrderTerminalPage({
     enabled: !isDineIn,
   });
   const openBills = (counterOrders ?? []).filter(
-    (o) =>
-      o.status !== "COMPLETED" && o.status !== "CANCELLED" && o.status !== "DRAFT" && !o.table_id,
+    (o) => o.status !== "COMPLETED" && o.status !== "CANCELLED" && !o.table_id,
   );
 
   /** Tap a party chip: focus that party's bill. Never creates an order. */

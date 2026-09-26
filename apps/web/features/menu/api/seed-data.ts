@@ -9,7 +9,7 @@ import type { MenuCategory, MenuItem, MenuItemVariant, VegType } from "./types";
  * Bump MENU_SEED_VERSION when this data changes — service.ts reseeds
  * localStorage-backed dev menus on version mismatch.
  */
-export const MENU_SEED_VERSION = 2;
+export const MENU_SEED_VERSION = 3;
 
 const U = (id: string) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=400&q=60`;
 
@@ -860,5 +860,12 @@ export const seedMenuItems: MenuItem[] = (() => {
       });
     });
   });
+  // Dev linkage so the KDS recipe dialog has a real card to show: the
+  // inventory seed recipe rec_001 (Chicken Biryani) covers both variants.
+  for (const item of items) {
+    if (item.name === "Chicken Dum Biryani") {
+      for (const v of item.variants) v.recipe_id = "rec_001";
+    }
+  }
   return items;
 })();

@@ -39,6 +39,7 @@ import { getQueryClient } from "@/lib/query-client";
 import { useCrossTabSync } from "@/lib/use-cross-tab-sync";
 import { useKitchenFeed } from "@/features/kitchen/api/use-kitchen-feed";
 import { toast } from "sonner";
+import { RecipeDialogButton } from "./recipe-dialog";
 
 type BoardFilter = KOTStatus | "ALL";
 type BoardView = "kanban" | "cards";
@@ -254,7 +255,7 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
           })}
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           {scoped.map((t) => (
             <TicketCard key={t.id} ticket={t} compact={compact} />
           ))}
@@ -338,7 +339,7 @@ function TicketCard({
   });
 
   return (
-    <Card className={cn(t.age_minutes >= 20 && "border-amber-500")}>
+    <Card className={cn("flex h-full flex-col", t.age_minutes >= 20 && "border-amber-500")}>
       <CardHeader className="pb-2">
         <CardTitle
           className={cn("flex items-center justify-between", compact ? "text-sm" : "text-base")}
@@ -356,89 +357,115 @@ function TicketCard({
           <span className="capitalize">{t.status.toLowerCase()}</span>
         </p>
       </CardHeader>
-      <CardContent className="space-y-1">
-        {t.lines.map((l) => (
-          <div
-            key={l.id}
-            className={cn(
-              "flex items-center justify-between gap-2 rounded-md px-2 text-sm",
-              compact ? "py-1" : "py-1.5",
-              l.status === "VOIDED" && "bg-destructive/10 text-destructive line-through",
-              l.status === "ACCEPTED" && "bg-sky-500/10",
-              l.status === "PREPARING" && "bg-amber-500/10",
-              l.status === "READY" && "bg-green-500/10",
-            )}
-          >
-            <span>
-              {l.qty - l.voided_qty}× {l.item_name_snapshot}
-              {l.variant_name_snapshot ? ` (${l.variant_name_snapshot})` : ""}
-              {l.modifiers_snapshot.length > 0 && (
-                <span className="text-xs text-muted-foreground">
-                  {" "}
-                  + {l.modifiers_snapshot.join(", ")}
-                </span>
-              )}
-              {l.instructions && <span className="block text-xs italic">“{l.instructions}”</span>}
-            </span>
-            {l.status === "PREPARING" && (
+      <CardContent className="flex min-h-0 flex-1 flex-col space-y-1">
+        {t.lines.map((l) => {
+          // Fixed action cluster: status action always sits in the same slot
+          // with the delete icon pinned after it — spacers hold both slots
+          // when a line has no action, so positions never shift with names.
+          const statusAction =
+            l.status === "PREPARING" ? (
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon-sm"
+                className="h-9 w-9"
                 disabled={lineMut.isPending}
                 onClick={() => lineMut.mutate(l.id)}
+                title="Mark ready"
+                aria-label={`Mark ${l.item_name_snapshot} ready`}
               >
-                <Icons.check className="mr-1 h-4 w-4" /> Ready
+                <Icons.check className="size-4" />
               </Button>
-            )}
-            {l.status === "ACCEPTED" && (
+            ) : l.status === "ACCEPTED" ? (
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon-sm"
+                className="h-9 w-9"
                 disabled={startLineMut.isPending}
                 onClick={() => startLineMut.mutate(l.id)}
                 title="Start preparing this item"
+                aria-label={`Start preparing ${l.item_name_snapshot}`}
               >
-                <Icons.kitchen className="mr-1 h-4 w-4" /> Start
+                <Icons.kitchen className="size-4" />
               </Button>
-            )}
-            {l.status === "PENDING" && t.status !== "SERVED" && t.status !== "CANCELLED" && (
+            ) : l.status === "PENDING" && t.status !== "SERVED" && t.status !== "CANCELLED" ? (
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon-sm"
+                className="h-9 w-9"
                 disabled={acceptLineMut.isPending}
                 onClick={() => acceptLineMut.mutate(l.id)}
                 title="Accept this item"
+                aria-label={`Accept ${l.item_name_snapshot}`}
               >
-                <Icons.check className="mr-1 h-4 w-4" /> Accept
+                <Icons.check className="size-4" />
               </Button>
-            )}
-            {(l.status === "PENDING" ||
+            ) : (
+              <span className="w-9" aria-hidden />
+            );
+          const canVoid =
+            (l.status === "PENDING" ||
               l.status === "ACCEPTED" ||
               l.status === "PREPARING" ||
               l.status === "READY") &&
-              t.status !== "SERVED" &&
-              t.status !== "CANCELLED" && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive"
-                  disabled={voidLineMut.isPending}
-                  onClick={() => {
-                    setLineVoidReason("");
-                    setLineVoidQty(l.qty - l.voided_qty);
-                    setLineVoid({
-                      lineId: l.id,
-                      name: l.item_name_snapshot,
-                      max: l.qty - l.voided_qty,
-                    });
-                  }}
-                  title="Void this item with a reason"
-                >
-                  <Icons.trash className="size-4" />
-                </Button>
+            t.status !== "SERVED" &&
+            t.status !== "CANCELLED";
+          return (
+            <div
+              key={l.id}
+              className={cn(
+                "flex items-center justify-between gap-1.5 rounded-md px-2 text-sm",
+                compact ? "py-1" : "py-1.5",
+                l.status === "VOIDED" && "bg-destructive/10 text-destructive line-through",
+                l.status === "ACCEPTED" && "bg-sky-500/10",
+                l.status === "PREPARING" && "bg-amber-500/10",
+                l.status === "READY" && "bg-green-500/10",
               )}
-          </div>
-        ))}
+            >
+              <span className="min-w-0 flex-1">
+                {l.qty - l.voided_qty}× {l.item_name_snapshot}
+                {l.variant_name_snapshot ? ` (${l.variant_name_snapshot})` : ""}
+                {l.modifiers_snapshot.length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {" "}
+                    + {l.modifiers_snapshot.join(", ")}
+                  </span>
+                )}
+                {l.instructions && <span className="block text-xs italic">“{l.instructions}”</span>}
+              </span>
+              <RecipeDialogButton
+                orderId={t.order_id}
+                orderLineId={l.order_line_id}
+                itemName={l.item_name_snapshot}
+              />
+              <span className="flex shrink-0 items-center">
+                {statusAction}
+                {canVoid ? (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="h-9 w-9 text-destructive"
+                    disabled={voidLineMut.isPending}
+                    onClick={() => {
+                      setLineVoidReason("");
+                      setLineVoidQty(l.qty - l.voided_qty);
+                      setLineVoid({
+                        lineId: l.id,
+                        name: l.item_name_snapshot,
+                        max: l.qty - l.voided_qty,
+                      });
+                    }}
+                    title="Void this item with a reason"
+                    aria-label={`Void ${l.item_name_snapshot}`}
+                  >
+                    <Icons.trash className="size-4" />
+                  </Button>
+                ) : (
+                  <span className="w-9" aria-hidden />
+                )}
+              </span>
+            </div>
+          );
+        })}
         {t.voids.length > 0 && (
           <div className="border-t pt-1">
             {t.voids.map((v) => (
@@ -448,7 +475,7 @@ function TicketCard({
             ))}
           </div>
         )}
-        <div className="flex flex-wrap gap-1.5 pt-2">
+        <div className="mt-auto flex flex-wrap gap-1.5 pt-2">
           {t.status === "NEW" && (
             <Button size="sm" disabled={acceptMut.isPending} onClick={() => acceptMut.mutate()}>
               Accept

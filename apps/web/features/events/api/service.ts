@@ -116,6 +116,36 @@ async function useSqlite(): Promise<boolean> {
   }
 }
 
+/**
+ * Outbox gate: zero-KOT orders never leave the device. Draft creation,
+ * edits and discards stay local-only (audited in SQLite, never synced) —
+ * only the first fire and everything after it enqueues. Fail-open: a
+ * lookup failure must never silently drop server data.
+ */
+async function appendOutboxGate(event: BusinessEvent): Promise<void> {
+  if (event.entity_type === "ORDER") {
+    try {
+      const { orderSyncEligible } = await import("@/features/orders/api/service");
+      if (!orderSyncEligible(event.entity_id)) return;
+    } catch {
+      // Fall through to sync — fail-open by design (see above).
+    }
+  }
+  await appendOutbox({
+    outlet_id: event.outlet_id,
+    entity_type: "event",
+    entity_id: event.id,
+    operation: "CREATE",
+    payload: { ...event },
+    actor_id: event.actor_id ?? "staff",
+  }).catch((e) => {
+    // The audit row above is already durable. A failed outbox write must
+    // never roll back the business mutation it audits — log loudly so the
+    // gap is visible, and let the outbox retry sweeper (pilot) pick it up.
+    console.error("[events] outbox append failed for", event.id, e);
+  });
+}
+
 export async function recordEvent(params: {
   outlet_id: string;
   entity_type: EntityType;
@@ -155,19 +185,7 @@ export async function recordEvent(params: {
         event.created_at,
       ],
     );
-    await appendOutbox({
-      outlet_id: event.outlet_id,
-      entity_type: "event",
-      entity_id: event.id,
-      operation: "CREATE",
-      payload: { ...event },
-      actor_id: event.actor_id ?? "staff",
-    }).catch((e) => {
-      // The audit row above is already durable. A failed outbox write must
-      // never roll back the business mutation it audits — log loudly so the
-      // gap is visible, and let the outbox retry sweeper (pilot) pick it up.
-      console.error("[events] outbox append failed for", event.id, e);
-    });
+    await appendOutboxGate(event);
     bumpTabs();
     return { ...event };
   }

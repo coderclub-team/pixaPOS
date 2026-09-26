@@ -680,8 +680,9 @@ export async function cancelOrder(
 }
 
 /**
- * Terminal capture: return the table's live order, or auto-create a CONFIRMED
- * dine-in order and attach it to the active occupancy group. Seats a default
+ * Terminal capture: return the table's live order, or auto-create a DRAFT
+ * dine-in order and attach it to the active occupancy group. Drafts stay
+ * local (deletable, never synced) until the first fire. Seats a default
  * party (table capacity) when the table has no active group. Serialized under
  * the order-write lock so double-taps can't create two drafts.
  */
@@ -733,6 +734,9 @@ export async function ensureTableOrder(
       table_id: tableId,
       occupancy_group_id: groupId,
       created_by: params?.by ?? "staff",
+      // Terminal carts start as local DRAFTs (zero KOTs, deletable, never
+      // synced) — the first fire walks DRAFT → IN_KITCHEN directly.
+      initial_status: "DRAFT",
     });
     try {
       await attachOrder({ group_id: groupId, order_id: order.id });
@@ -797,6 +801,9 @@ export async function ensureBareTableOrder(
       table_id: tableId,
       occupancy_group_id: groupId,
       created_by: params?.by ?? "staff",
+      // Terminal carts start as local DRAFTs (zero KOTs, deletable, never
+      // synced) — the first fire walks DRAFT → IN_KITCHEN directly.
+      initial_status: "DRAFT",
     });
     try {
       await attachOrder({ group_id: groupId, order_id: order.id });
@@ -863,6 +870,7 @@ export async function ensureGroupOrder(
       table_id: group.table_id,
       occupancy_group_id: groupId,
       created_by: params?.by ?? "staff",
+      initial_status: "DRAFT",
     });
     try {
       await attachOrder({ group_id: groupId, order_id: order.id });
@@ -873,6 +881,22 @@ export async function ensureGroupOrder(
   } finally {
     release();
   }
+}
+
+/**
+ * Sync eligibility for the server database: an order may leave the device
+ * only once at least one line has fired to a KOT. Zero-KOT drafts (any
+ * status) and deleted orders stay local-only — creatable and deletable
+ * freely, never synced. Synchronous, no delays: safe to call from the
+ * event/outbox path. Fired-then-cancelled orders stay eligible (the server
+ * needs the cancel and its waste impact).
+ */
+export function orderSyncEligible(orderId: string): boolean {
+  loadOrders();
+  const o = mockOrders.find((m) => m.id === orderId);
+  if (!o || o.deleted_at) return false;
+  if (o.status === "DRAFT") return false;
+  return o.items.some((i) => i.kot_id);
 }
 
 /**
