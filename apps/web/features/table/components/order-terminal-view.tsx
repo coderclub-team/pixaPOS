@@ -85,6 +85,7 @@ export default function OrderTerminalPage({
   // decide whether the counter asks at all (default: skip straight to menu).
   const [custName, setCustName] = useState("");
   const [custPhone, setCustPhone] = useState("");
+  const [custNotes, setCustNotes] = useState("");
   const { data: outlet } = useQuery(outletQueryOptions);
   const askCustomer = outlet?.ask_customer_details ?? false;
   // Left region content: floor tables, or inline menu browser replacing the
@@ -102,6 +103,7 @@ export default function OrderTerminalPage({
     setActiveGroupId(null);
     setCustName("");
     setCustPhone("");
+    setCustNotes("");
     setPanelOpen(false);
     setLeftView("tables");
     setMobileView("tables");
@@ -180,6 +182,7 @@ export default function OrderTerminalPage({
         channel: orderType,
         customer_name: custName.trim() || undefined,
         customer_phone: custPhone.trim() || undefined,
+        customer_notes: custNotes.trim() || undefined,
         // Counter carts start as local DRAFTs — deletable, never synced
         // until the first fire walks them to IN_KITCHEN.
         initial_status: "DRAFT",
@@ -403,7 +406,7 @@ export default function OrderTerminalPage({
             variant="outline"
             size="sm"
             nativeButton={false}
-            render={<Link href="/kot" target="_blank" />}
+            render={<Link href="/pos" target="_blank" />}
           >
             <Icons.externalLink className="mr-1 size-4" /> Open counter
           </Button>
@@ -483,6 +486,16 @@ export default function OrderTerminalPage({
                     onChange={(e) => setCustPhone(e.target.value)}
                     placeholder="98XXXXXXXX"
                     inputMode="tel"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="kot-cust-notes">Allergy / notes</Label>
+                  <Input
+                    id="kot-cust-notes"
+                    value={custNotes}
+                    onChange={(e) => setCustNotes(e.target.value)}
+                    placeholder="Nut allergy, no spicy…"
                     autoComplete="off"
                   />
                 </div>
@@ -791,6 +804,7 @@ export default function OrderTerminalPage({
                   }
                   showSeating
                   showCustomer
+                  showCancel
                   onAddItems={() => {
                     setLeftView("items");
                     setMobileView("items");

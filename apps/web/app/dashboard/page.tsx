@@ -13,7 +13,7 @@ import { useIdentity } from "@/hooks/use-identity";
 function targetForRole(role: string | null): string {
   const r = (role ?? "").replace(/^org:/, "");
   if (r === "kitchen") return "/kds";
-  if (r === "waiter" || r === "cashier") return "/kot";
+  if (r === "waiter" || r === "cashier") return "/pos";
   return "/dashboard/overview";
 }
 

@@ -41,7 +41,7 @@ type OrderTypeSelection = {
 
 const OrderTypeContext = createContext<OrderTypeSelection | null>(null);
 
-/** Provided by the /kot shell only — elsewhere (dashboard terminal) there is
+/** Provided by the /pos shell only — elsewhere (dashboard terminal) there is
  * no picker and consumers fall back to dine-in. */
 export function OrderTypeProvider({ children }: { children: ReactNode }) {
   const [orderType, setOrderType] = useState<KotOrderType>(() =>
@@ -56,7 +56,7 @@ export function OrderTypeProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** Null outside the /kot shell provider — callers must default to dine-in. */
+/** Null outside the /pos shell provider — callers must default to dine-in. */
 export function useOrderType(): OrderTypeSelection | null {
   return useContext(OrderTypeContext);
 }

@@ -68,6 +68,9 @@ export type RestaurantOrder = {
   customer_id?: string;
   customer_name?: string;
   customer_phone?: string;
+  /** Free-text customer notes — allergies, accessibility, special requests.
+   * Captured at order start, printed on KOTs so the kitchen sees them. */
+  customer_notes?: string;
   external_ref?: string;
   status: OrderStatus;
   items: OrderItemSnapshot[];
@@ -130,6 +133,7 @@ export type CreateOrderInput = {
   occupancy_group_id?: string;
   customer_name?: string;
   customer_phone?: string;
+  customer_notes?: string;
   external_ref?: string;
   created_by?: string;
   /** /new cart flow passes DRAFT; terminal/seed keep the CONFIRMED default. */

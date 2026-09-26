@@ -1,10 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Button } from "@pixa/ui/base-ui/button";
+import { Label } from "@pixa/ui/base-ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { FieldGroup } from "@pixa/ui/base-ui/field";
 import { useAppForm } from "@/lib/form";
 import { getCustomerById, updateCustomer } from "../api/service";
+import { setCustomerNotes } from "@/features/orders/api/service";
 import { customerKeys } from "../api/queries";
 import { orderKeys, orderQueryOptions } from "@/features/orders/api/queries";
 import { getQueryClient } from "@/lib/query-client";
@@ -48,6 +52,7 @@ export default function BillCustomerTab({ orderId }: { orderId: string }) {
   if (!order?.customer_id || !customer) {
     return (
       <div className="space-y-2">
+        <OrderNotesBlock orderId={orderId} />
         <CustomerLinkBlock orderId={orderId} />
         <p className="text-xs text-muted-foreground">
           Link or create a customer to edit details, address, and map pin.
@@ -55,7 +60,64 @@ export default function BillCustomerTab({ orderId }: { orderId: string }) {
       </div>
     );
   }
-  return <CustomerEditor key={customer.id} customerId={customer.id} orderId={orderId} />;
+  return (
+    <div className="space-y-2">
+      <OrderNotesBlock orderId={orderId} />
+      <CustomerEditor key={customer.id} customerId={customer.id} orderId={orderId} />
+    </div>
+  );
+}
+
+/**
+ * Order-level notes (allergies, accessibility, requests) — distinct from the
+ * customer record. Editable until the order completes; printed on every KOT
+ * so late allergy flags still reach the kitchen.
+ */
+function OrderNotesBlock({ orderId }: { orderId: string }) {
+  const { data: order } = useQuery(orderQueryOptions(orderId));
+  const [draft, setDraft] = useState<string | null>(null);
+  const locked = order?.status === "COMPLETED" || order?.status === "CANCELLED";
+  const value = draft ?? order?.customer_notes ?? "";
+
+  const mutation = useMutation({
+    mutationFn: (notes: string) => setCustomerNotes(orderId, notes),
+    onSuccess: () => {
+      getQueryClient().invalidateQueries({ queryKey: orderKeys.detail(orderId) });
+      getQueryClient().invalidateQueries({ queryKey: orderKeys.all });
+      setDraft(null);
+      toast.success("Order notes saved");
+    },
+    onError: (error: Error) => toast.error(error.message || "Couldn't save notes"),
+  });
+
+  return (
+    <Card>
+      <CardContent className="space-y-2 py-3">
+        <Label htmlFor={`order-notes-${orderId}`} className="text-xs text-muted-foreground">
+          Allergy / order notes
+        </Label>
+        <Input
+          id={`order-notes-${orderId}`}
+          value={value}
+          disabled={locked || mutation.isPending}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Nut allergy, no spicy…"
+          autoComplete="off"
+        />
+        {draft !== null && draft !== (order?.customer_notes ?? "") && (
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              disabled={mutation.isPending || locked}
+              onClick={() => mutation.mutate(value)}
+            >
+              {mutation.isPending ? "Saving…" : "Save notes"}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function CustomerEditor({ customerId, orderId }: { customerId: string; orderId: string }) {

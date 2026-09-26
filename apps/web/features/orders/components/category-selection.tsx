@@ -13,7 +13,7 @@ type CategorySelection = {
 const CategorySelectionContext = createContext<CategorySelection | null>(null);
 
 /** Page-level category state shared between the app sidebar and the menu
- * browser. Only the /kot shell provides it — elsewhere the browser keeps
+ * browser. Only the /pos shell provides it — elsewhere the browser keeps
  * its own internal sidebar selection. */
 export function CategorySelectionProvider({ children }: { children: ReactNode }) {
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -27,7 +27,7 @@ export function CategorySelectionProvider({ children }: { children: ReactNode })
   );
 }
 
-/** Null outside the /kot shell provider (dashboard keeps local selection). */
+/** Null outside the /pos shell provider (dashboard keeps local selection). */
 export function useCategorySelection(): CategorySelection | null {
   return useContext(CategorySelectionContext);
 }

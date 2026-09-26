@@ -227,8 +227,9 @@ export function buildKOTDoc(args: {
   tokenNo?: string;
   logoRows?: boolean[][];
   trackingUrl?: string;
+  customerNotes?: string;
 }): PrintDoc {
-  const { ticket, outlet, template, tokenNo, logoRows, trackingUrl } = args;
+  const { ticket, outlet, template, tokenNo, logoRows, trackingUrl, customerNotes } = args;
   const lines: DocLine[] = [
     ...(logoRows && logoRows.length > 0 ? [{ kind: "image" as const, rows: logoRows }] : []),
     {
@@ -257,6 +258,9 @@ export function buildKOTDoc(args: {
       : []),
     { kind: "text", text: `${stamp(ticket.fired_at)}  ${ticket.channel}` },
     { kind: "rule" },
+    ...(customerNotes
+      ? [{ kind: "text" as const, text: `!! ALLERGY/NOTES: ${customerNotes}`, bold: true }]
+      : []),
   ];
   for (const line of ticket.lines) {
     const liveQty = line.qty - line.voided_qty - line.returned_qty;

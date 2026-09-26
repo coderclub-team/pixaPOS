@@ -288,6 +288,7 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
       occupancy_group_id: input.occupancy_group_id,
       customer_name: input.customer_name?.trim() || undefined,
       customer_phone: input.customer_phone?.trim() || undefined,
+      customer_notes: input.customer_notes?.trim() || undefined,
       external_ref: input.external_ref?.trim() || undefined,
       status: input.initial_status ?? "CONFIRMED",
       items: [],
@@ -915,6 +916,16 @@ export async function deleteOrder(orderId: string, by?: string): Promise<void> {
     if (order.items.some((i) => i.kot_id)) {
       throw new Error("Order has fired items — cancel it instead");
     }
+    // Money guard: a prepaid-but-unfired order must go through cancel/refund
+    // so the payment trail survives — discarding would erase what the
+    // customer paid. Dynamic import: payments/service imports this module.
+    const { getPayments } = await import("@/features/payments/api/service");
+    const paid = (await getPayments({ order_id: orderId }))
+      .filter((p) => p.status === "PAID")
+      .reduce((s, p) => s + p.amount_paise, 0);
+    if (paid > 0) {
+      throw new Error("Order has payments — cancel and refund it instead");
+    }
     groupId = order.occupancy_group_id;
     const now = new Date().toISOString();
     mockOrders[idx] = {
@@ -1118,6 +1129,36 @@ export async function linkCustomer(orderId: string, customerId: string): Promise
  * link again). Clears the snapshot; the customer record itself is untouched.
  * Blocked on terminal states. Audited with the previous customer in metadata.
  */
+/**
+ * Set free-text customer notes (allergies, accessibility, requests) on a
+ * live order. Editable until COMPLETED/CANCELLED — the kitchen reads them
+ * off every KOT print, so late allergy flags still land safely.
+ */
+export async function setCustomerNotes(orderId: string, notes: string): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(300);
+    loadOrders();
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (order.status === "COMPLETED" || order.status === "CANCELLED") {
+      throw new Error(`Cannot edit notes on a ${order.status.toLowerCase()} order`);
+    }
+    if (notes.trim().length > 300) throw new Error("Notes must be 300 characters or less");
+    mockOrders[idx] = {
+      ...order,
+      customer_notes: notes.trim() || undefined,
+      updated_at: new Date().toISOString(),
+      version: order.version + 1,
+    };
+    saveOrders();
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
 export async function unlinkCustomer(
   orderId: string,
   params?: { reason?: string; by?: string },

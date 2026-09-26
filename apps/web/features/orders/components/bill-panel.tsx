@@ -878,6 +878,7 @@ export default function OrderBillPanel({
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           {order.order_number} · {order.items.length} item{order.items.length === 1 ? "" : "s"}
+          {order.customer_notes?.trim() ? ` · !! ${order.customer_notes.trim()}` : ""}
         </p>
       </CardHeader>
       <CardContent className={fill ? "min-h-0 flex-1 space-y-4 overflow-y-auto pb-6" : "space-y-4"}>

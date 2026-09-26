@@ -288,8 +288,19 @@ async function assembleDoc(
     const ticket = await getTicketById(ref_id);
     if (!ticket) throw new Error("KOT not found");
     const trackingUrl = trackingUrlFor(template, ticket.order_number_snapshot);
+    // Allergy/order notes ride on every KOT so the kitchen never misses a
+    // late-added flag — resolved live from the order at print time.
+    const ticketOrder = await getOrderById(ticket.order_id).catch(() => null);
+    const customerNotes = ticketOrder?.customer_notes?.trim() || undefined;
     return {
-      doc: buildKOTDoc({ ticket, outlet, template, logoRows: opts?.logoRows, trackingUrl }),
+      doc: buildKOTDoc({
+        ticket,
+        outlet,
+        template,
+        logoRows: opts?.logoRows,
+        trackingUrl,
+        customerNotes,
+      }),
       outlet_id: outlet.id,
       refLabel: `KOT-${ticket.kot_number}`,
       qr: trackingUrl ? "shown" : template.qr === "ORDER" ? "suppressed:no-tracking-url" : "n/a",

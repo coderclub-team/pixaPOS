@@ -26,20 +26,19 @@ import {
 } from "@pixa/ui/base-ui/select";
 
 /**
- * Standalone KOT counter: dashboard shell pattern (shared AppSidebar with
- * role-filtered nav + inset header/content). The sidebar is the same
- * component as /dashboard, so role-based links ship once for both — category
- * filtering lives in the menu toolbar dialog. Mount on a counter tablet,
- * sign in once.
+ * Standalone POS terminal: dashboard shell pattern (shared AppSidebar with
+ * role-filtered nav + inset header/content). Order types (dine-in, counter,
+ * takeaway, delivery) switch the workspace; category filtering lives in the
+ * menu toolbar dialog. Mount on a counter tablet, sign in once.
  */
-export default function KotShell() {
+export default function PosShell() {
   return (
     <SidebarProvider defaultOpen={false}>
       <OrderTypeProvider>
         <CategorySelectionProvider>
           <AppSidebar />
           <SidebarInset>
-            <KotShellMain />
+            <PosShellMain />
           </SidebarInset>
         </CategorySelectionProvider>
       </OrderTypeProvider>
@@ -69,7 +68,7 @@ function OrderTypePicker() {
   );
 }
 
-function KotShellMain() {
+function PosShellMain() {
   const refresh = () => {
     const qc = getQueryClient();
     qc.invalidateQueries({ queryKey: tableKeys.all });
