@@ -61,6 +61,7 @@ import { useMediaQuery } from "@pixa/ui/hooks/use-media-query";
 import type { MenuItem, VegType } from "@/features/menu/api/types";
 import type { OrderItemSnapshot } from "@/features/orders/api/types";
 import { useCategorySelection } from "./category-selection";
+import { CategorySearchDialog, useCategoryCounts } from "./category-sidebar";
 
 const VIEW_KEY = "pixaItemBrowserView";
 
@@ -191,6 +192,9 @@ export function MenuImage({
 export default function ItemBrowser({ orderId }: { orderId: string }) {
   const [search, setSearch] = useState("");
   const [vegType, setVegType] = useState<VegType | null>(null);
+  // Category search dialog (trigger sits before the item search).
+  const [catSearchOpen, setCatSearchOpen] = useState(false);
+  const catCounts = useCategoryCounts();
   // Shared pagination state: single page index for card + list views (the
   // API returns the full filtered set, so both views paginate client-side
   // over the same query data). Card pages are fixed at 24 (a multiple of
@@ -548,6 +552,28 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
             >
               <Icons.panelLeft className="size-4" />
             </Button>
+          )}
+          <Button
+            type="button"
+            variant={categoryId ? "default" : "outline"}
+            size="sm"
+            className="h-9 w-9 shrink-0 px-0"
+            onClick={() => setCatSearchOpen(true)}
+            title={`Search categories${categoryId ? ` — ${activeCategories.find((c) => c.id === categoryId)?.name ?? ""}` : ""}`}
+            aria-label="Search categories"
+            aria-pressed={categoryId != null}
+          >
+            <Icons.tag className="size-4" />
+          </Button>
+          {catSearchOpen && (
+            <CategorySearchDialog
+              open
+              onOpenChange={(o) => !o && setCatSearchOpen(false)}
+              categories={activeCategories}
+              counts={catCounts}
+              value={categoryId}
+              onSelect={setCategoryId}
+            />
           )}
           <div className="relative min-w-40 flex-1">
             <Icons.search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
