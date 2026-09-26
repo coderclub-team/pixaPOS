@@ -1,5 +1,6 @@
 "use client";
 import { Button } from "@pixa/ui/base-ui/button";
+import { Badge } from "@pixa/ui/base-ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@pixa/ui/base-ui/card";
 import { Field, FieldGroup, FieldLabel } from "@pixa/ui/base-ui/field";
 import { Input } from "@pixa/ui/base-ui/input";
@@ -12,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@pixa/ui/base-ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@pixa/ui/base-ui/collapsible";
 import { Popover, PopoverContent, PopoverTrigger } from "@pixa/ui/base-ui/popover";
 import {
   Command,
@@ -115,19 +117,26 @@ export default function MenuForm({
   );
   // Nutrition per serve (FSSAI 5(3) set) — strings in state, numbers on save.
   const NUTRI_FIELDS = [
-    ["serving_size", "Serving size", ""],
-    ["serving_unit", "Serving unit", ""],
-    ["energy_kcal", "Energy", "kcal"],
-    ["protein_g", "Protein", "g"],
-    ["carbs_g", "Carbs", "g"],
-    ["sugar_g", "Sugar", "g"],
-    ["fat_g", "Fat", "g"],
-    ["saturated_fat_g", "Sat. fat", "g"],
-    ["trans_fat_g", "Trans fat", "g"],
-    ["cholesterol_mg", "Cholesterol", "mg"],
-    ["sodium_mg", "Sodium", "mg"],
-    ["fiber_g", "Fiber", "g"],
+    ["serving_size", "Serving size", "", "250"],
+    ["energy_kcal", "Energy", "kcal", "450"],
+    ["protein_g", "Protein", "g", "12"],
+    ["carbs_g", "Carbs", "g", "30"],
+    ["sugar_g", "Sugar", "g", "8"],
+    ["fat_g", "Fat", "g", "15"],
+    ["saturated_fat_g", "Sat. fat", "g", "6"],
+    ["trans_fat_g", "Trans fat", "g", "0"],
+    ["cholesterol_mg", "Cholesterol", "mg", "45"],
+    ["sodium_mg", "Sodium", "mg", "600"],
+    ["fiber_g", "Fiber", "g", "3"],
   ] as const;
+  const UNIT_OPTIONS = ["g", "kg", "ml", "l", "pcs", "plate", "bowl", "cup", "slice", "serving"];
+  const [servingUnit, setServingUnit] = useState<string>(
+    (initialData as any)?.nutrition?.serving_unit ?? "",
+  );
+  // Collapsed when empty — nutrition is fully optional.
+  const [nutriOpen, setNutriOpen] = useState<boolean>(
+    Object.keys((initialData as any)?.nutrition ?? {}).length > 0,
+  );
   const [nutrition, setNutrition] = useState<Record<string, string>>(() => {
     const n = (initialData as any)?.nutrition ?? {};
     const out: Record<string, string> = {};
@@ -141,7 +150,11 @@ export default function MenuForm({
       const raw = (nutrition[k] ?? "").trim();
       if (!raw) continue;
       empty = false;
-      out[k] = k === "serving_unit" ? raw : Number(raw);
+      out[k] = Number(raw);
+    }
+    if (servingUnit.trim()) {
+      empty = false;
+      out.serving_unit = servingUnit.trim();
     }
     return empty ? undefined : out;
   };
@@ -1124,33 +1137,70 @@ export default function MenuForm({
           </CardContent>
         </Card>
 
-        <Card>
+        <Collapsible open={nutriOpen} onOpenChange={setNutriOpen} render={<Card />}>
           <CardHeader>
-            <CardTitle className="text-base">Nutrition · per serve</CardTitle>
-            <CardDescription>
-              FSSAI set — kcal shows on menu cards; full table feeds aggregators and the website.
-              Leave blank what you don&apos;t know.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-              {NUTRI_FIELDS.map(([key, label, unit]) => (
-                <div key={key} className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">
-                    {label}
-                    {unit ? ` (${unit})` : ""}
-                  </Label>
-                  <Input
-                    inputMode={key === "serving_unit" ? "text" : "decimal"}
-                    placeholder="—"
-                    value={nutrition[key] ?? ""}
-                    onChange={(e) => setNutrition((p) => ({ ...p, [key]: e.target.value }))}
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1 text-left">
+                <CardTitle className="text-base">Nutrition · per serve</CardTitle>
+                <CardDescription>
+                  FSSAI set — kcal shows on menu cards; full table feeds aggregators and the
+                  website. Optional — leave blank what you don&apos;t know.
+                </CardDescription>
+              </div>
+              <Badge variant="outline" className="shrink-0">
+                Optional
+              </Badge>
+              <CollapsibleTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={nutriOpen ? "Hide nutrition" : "Show nutrition"}
                   />
-                </div>
-              ))}
+                }
+              >
+                <Icons.chevronDown
+                  className={cn("size-4 transition-transform", nutriOpen && "rotate-180")}
+                />
+              </CollapsibleTrigger>
             </div>
-          </CardContent>
-        </Card>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Serving unit</Label>
+                  <Select value={servingUnit} onValueChange={setServingUnit}>
+                    <SelectTrigger aria-label="Serving unit" className="w-full">
+                      <SelectValue placeholder="Pick unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {UNIT_OPTIONS.map((u) => (
+                        <SelectItem key={u} value={u}>
+                          {u}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {NUTRI_FIELDS.map(([key, label, unit, example]) => (
+                  <div key={key} className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">
+                      {label}
+                      {unit ? ` (${unit})` : ""}
+                    </Label>
+                    <Input
+                      inputMode="decimal"
+                      placeholder={example}
+                      value={nutrition[key] ?? ""}
+                      onChange={(e) => setNutrition((p) => ({ ...p, [key]: e.target.value }))}
+                    />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
       </form>
     </div>
   );
