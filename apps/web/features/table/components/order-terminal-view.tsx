@@ -30,6 +30,12 @@ import { outletQueryOptions } from "@/features/outlet/api/queries";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Input } from "@pixa/ui/base-ui/input";
 import { Label } from "@pixa/ui/base-ui/label";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@pixa/ui/base-ui/dropdown-menu";
 import { formatINR } from "@/lib/money";
 import ItemBrowser from "@/features/orders/components/item-browser";
 import { useCategorySelection } from "@/features/orders/components/category-selection";
@@ -292,6 +298,69 @@ export default function OrderTerminalPage({
     setPanelOpen(true);
     setMobileView("items");
   };
+
+  // Bills-strip overflow: measure the row and collapse trailing bills under
+  // an action-style 3-dot menu when space runs out (same pattern as the
+  // bill-panel tabs). The focused bill always stays visible.
+  const [billVisibleCount, setBillVisibleCount] = useState<number | null>(null);
+  const stripRowRef = useRef<HTMLDivElement>(null);
+  const billWidthCache = useRef<Record<string, number>>({});
+  const billEls = useRef<Record<string, HTMLElement | null>>({});
+  const billSig = openBills.map((o) => o.id).join("|");
+  useEffect(() => {
+    const row = stripRowRef.current;
+    if (!row) return;
+    let raf = 0;
+    const fit = () => {
+      const rowW = row.clientWidth;
+      if (rowW === 0) return;
+      const widths = openBills.map((o) => {
+        const w = billEls.current[o.id]?.offsetWidth ?? 0;
+        if (w > 0) billWidthCache.current[o.id] = w;
+        return billWidthCache.current[o.id] ?? 0;
+      });
+      // Not measured yet — keep everything visible until widths are known.
+      if (widths.some((w) => w === 0)) return;
+      const btnW = row.querySelector<HTMLElement>("[data-overflow-btn]")?.offsetWidth ?? 0;
+      if (btnW > 0) billWidthCache.current.__overflow = btnW;
+      const triggerW = billWidthCache.current.__overflow ?? 44;
+      const leadW = 32;
+      let n = openBills.length;
+      for (; n > 1; n--) {
+        const avail = rowW - leadW - 16 - (n < openBills.length ? triggerW + 4 : 0);
+        const sum = widths.slice(0, n).reduce((a, b) => a + b, 0) + (n - 1) * 8;
+        if (sum <= avail) break;
+      }
+      setBillVisibleCount((prev) => {
+        const next = n >= openBills.length ? null : n;
+        return prev === next ? prev : next;
+      });
+    };
+    const schedule = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(fit);
+    };
+    schedule();
+    const ro = new ResizeObserver(schedule);
+    ro.observe(row);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billSig]);
+  const billsShownCount = billVisibleCount ?? openBills.length;
+  let visibleBills = openBills.slice(0, billsShownCount);
+  let overflowBills = openBills.slice(billsShownCount);
+  // Keep the focused bill visible — swap it in for the last visible one.
+  if (overflowBills.length > 0 && !visibleBills.some((o) => o.id === activeOrderId)) {
+    const active = openBills.find((o) => o.id === activeOrderId);
+    const last = visibleBills[visibleBills.length - 1];
+    if (active && last) {
+      visibleBills = [...visibleBills.slice(0, -1), active];
+      overflowBills = [last, ...overflowBills.filter((o) => o.id !== activeOrderId)];
+    }
+  }
 
   /** Press-and-hold a party chip: ensure its order and open the picker. */
   const handleHoldParty = (tableId: string, groupId: string) => {
@@ -615,11 +684,15 @@ export default function OrderTerminalPage({
                   </div>
                 )}
               {/* Counter/takeaway/delivery bills strip: the dine-in open-tabs
-                  equivalent — one tap-target per unsettled bill. */}
+                  equivalent — one tap-target per unsettled bill, trailing
+                  bills collapse under a 3-dot menu when space runs out. */}
               {!isDineIn && openBills.length > 0 && (
-                <div className="flex items-center gap-2 overflow-x-auto border-b bg-background/95 px-3 py-2 backdrop-blur-sm">
+                <div
+                  ref={stripRowRef}
+                  className="flex items-center gap-2 overflow-hidden border-b bg-background/95 px-3 py-2 backdrop-blur-sm"
+                >
                   <Icons.orders className="size-4 shrink-0 text-muted-foreground" />
-                  {openBills.map((o) => {
+                  {visibleBills.map((o) => {
                     const focused = o.id === activeOrderId;
                     const label = o.customer_name?.trim()
                       ? `${o.order_number} · ${o.customer_name.trim()}`
@@ -627,6 +700,9 @@ export default function OrderTerminalPage({
                     return (
                       <button
                         key={o.id}
+                        ref={(el) => {
+                          billEls.current[o.id] = el;
+                        }}
                         type="button"
                         onClick={() => handleSelectBill(o.id)}
                         aria-label={`Reopen ${label}`}
@@ -650,6 +726,48 @@ export default function OrderTerminalPage({
                       </button>
                     );
                   })}
+                  {overflowBills.length > 0 && (
+                    <DropdownMenu modal={false}>
+                      <DropdownMenuTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            data-overflow-btn
+                            aria-label={`${overflowBills.length} more bills`}
+                            title={`${overflowBills.length} more bills`}
+                            className="shrink-0"
+                          />
+                        }
+                      >
+                        <Icons.ellipsis className="size-4" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {overflowBills.map((o) => {
+                          const label = o.customer_name?.trim()
+                            ? `${o.order_number} · ${o.customer_name.trim()}`
+                            : o.order_number;
+                          return (
+                            <DropdownMenuItem
+                              key={o.id}
+                              onClick={() => handleSelectBill(o.id)}
+                              className="min-h-11"
+                            >
+                              {o.id === activeOrderId && <Icons.check className="mr-2 size-4" />}
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-medium">{label}</span>
+                                <span className="block text-xs text-muted-foreground tabular-nums">
+                                  {o.items.length} item{o.items.length === 1 ? "" : "s"} ·{" "}
+                                  {formatINR(o.grand_total_paise)} ·{" "}
+                                  {o.payment_status === "PAID" ? "paid" : "unsettled"}
+                                </span>
+                              </span>
+                            </DropdownMenuItem>
+                          );
+                        })}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
               )}
               {activeOrderId && (activeTable || !isDineIn) ? (
