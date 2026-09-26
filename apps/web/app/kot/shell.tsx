@@ -2,14 +2,14 @@
 
 import { Button } from "@pixa/ui/base-ui/button";
 import { Icons } from "@pixa/ui/icons";
-import { Sidebar, SidebarInset, SidebarProvider, SidebarTrigger } from "@pixa/ui/base-ui/sidebar";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@pixa/ui/base-ui/sidebar";
 import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
 import { getQueryClient } from "@/lib/query-client";
 import { tableKeys } from "@/features/table/api/queries";
 import { orderKeys } from "@/features/orders/api/queries";
 import { floorKeys } from "@/features/floor/api/queries";
 import OrderTerminalPage from "@/features/table/components/order-terminal-view";
-import CategorySidebar from "@/features/orders/components/category-sidebar";
+import AppSidebar from "@/components/layout/app-sidebar";
 import { CategorySelectionProvider } from "@/features/orders/components/category-selection";
 import {
   OrderTypeProvider,
@@ -26,19 +26,18 @@ import {
 } from "@pixa/ui/base-ui/select";
 
 /**
- * Standalone KOT counter: dashboard shell pattern (app sidebar with brand,
- * categories and profile footer + inset header/content). The sidebar starts
- * collapsed, is always visible, and shows a placeholder matching the bill
- * panel until a table is tapped. Mount on a counter tablet, sign in once.
+ * Standalone KOT counter: dashboard shell pattern (shared AppSidebar with
+ * role-filtered nav + inset header/content). The sidebar is the same
+ * component as /dashboard, so role-based links ship once for both — category
+ * filtering lives in the menu toolbar dialog. Mount on a counter tablet,
+ * sign in once.
  */
 export default function KotShell() {
   return (
     <SidebarProvider defaultOpen={false}>
       <OrderTypeProvider>
         <CategorySelectionProvider>
-          <Sidebar collapsible="icon">
-            <CategorySidebar />
-          </Sidebar>
+          <AppSidebar />
           <SidebarInset>
             <KotShellMain />
           </SidebarInset>
