@@ -37,6 +37,7 @@ import {
   DropdownMenuTrigger,
 } from "@pixa/ui/base-ui/dropdown-menu";
 import { formatINR } from "@/lib/money";
+import { formatAge } from "@/lib/utils";
 import ItemBrowser from "@/features/orders/components/item-browser";
 import { useCategorySelection } from "@/features/orders/components/category-selection";
 import { kotOrderTypeOptions, useOrderType } from "@/features/orders/components/order-type";
@@ -651,7 +652,7 @@ export default function OrderTerminalPage({
                         type="button"
                         onClick={() => handleSelectTab(o.id)}
                         aria-label={`Open tab ${o.order_number}, party released`}
-                        title={`${o.order_number} — party released, still payable`}
+                        title={`${o.order_number} — party released, still payable · ${formatAge(o.created_at)} old`}
                         className={cn(
                           "flex shrink-0 items-center gap-1.5 rounded-full border border-dashed py-1 px-2.5 text-xs font-medium transition-colors",
                           o.id === activeOrderId && !activeGroupId
@@ -706,7 +707,7 @@ export default function OrderTerminalPage({
                         type="button"
                         onClick={() => handleSelectBill(o.id)}
                         aria-label={`Reopen ${label}`}
-                        title={`${label} — tap to reopen · ${o.items.length} item${o.items.length === 1 ? "" : "s"} · ${formatINR(o.grand_total_paise)}`}
+                        title={`${label} — tap to reopen · ${o.items.length} item${o.items.length === 1 ? "" : "s"} · ${formatINR(o.grand_total_paise)} · ${formatAge(o.created_at)} old`}
                         className={cn(
                           "flex shrink-0 items-center gap-1.5 rounded-full border border-dashed py-1 px-2.5 text-xs font-medium transition-colors touch-manipulation",
                           focused
@@ -759,7 +760,8 @@ export default function OrderTerminalPage({
                                 <span className="block text-xs text-muted-foreground tabular-nums">
                                   {o.items.length} item{o.items.length === 1 ? "" : "s"} ·{" "}
                                   {formatINR(o.grand_total_paise)} ·{" "}
-                                  {o.payment_status === "PAID" ? "paid" : "unsettled"}
+                                  {o.payment_status === "PAID" ? "paid" : "unsettled"} ·{" "}
+                                  {formatAge(o.created_at)} old
                                 </span>
                               </span>
                             </DropdownMenuItem>

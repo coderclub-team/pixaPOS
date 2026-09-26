@@ -40,6 +40,7 @@ import {
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { formatINR } from "@/lib/money";
+import { formatAge } from "@/lib/utils";
 import { orderKeys, ordersQueryOptions } from "@/features/orders/api/queries";
 import { kitchenKeys } from "@/features/kitchen/api/queries";
 import { deleteOrder } from "@/features/orders/api/service";
@@ -196,6 +197,7 @@ export default function OrdersPage() {
                   <TableHead>Items</TableHead>
                   <TableHead>KOTs</TableHead>
                   <TableHead>Total</TableHead>
+                  <TableHead>Age</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -235,6 +237,12 @@ export default function OrdersPage() {
                     </TableCell>
                     <TableCell className="text-sm">{o.kot_count}</TableCell>
                     <TableCell className="font-medium">{formatINR(o.total_paise)}</TableCell>
+                    <TableCell
+                      className="text-sm text-muted-foreground tabular-nums"
+                      title={new Date(o.created_at).toLocaleString()}
+                    >
+                      {formatAge(o.created_at)}
+                    </TableCell>
                     <TableCell>
                       <OrderStatusPill order={o} />
                     </TableCell>

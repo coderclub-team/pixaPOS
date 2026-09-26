@@ -7,6 +7,7 @@ import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { Icons } from "@pixa/ui/icons";
 import { formatINR } from "@/lib/money";
+import { formatAge } from "@/lib/utils";
 import { orderKeys, orderQueryOptions } from "@/features/orders/api/queries";
 import { kitchenKeys } from "@/features/kitchen/api/queries";
 import { paymentKeys } from "@/features/payments/api/queries";
@@ -174,7 +175,7 @@ function OrderDetailsCard({ orderId }: { orderId: string }) {
           )}
           <InfoRow label="Placed">
             <span className="text-muted-foreground">
-              {new Date(order.created_at).toLocaleString()}
+              {new Date(order.created_at).toLocaleString()} · {formatAge(order.created_at)} old
             </span>
           </InfoRow>
           <InfoRow label="Items">
