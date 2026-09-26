@@ -1,5 +1,5 @@
 import { delay } from "@/constants/mock-api";
-import type { Outlet, OutletPayload } from "./types";
+import type { BusinessHours, DayHours, Outlet, OutletPayload } from "./types";
 
 const OUTLET_STORAGE_KEY = "pixaOutlet";
 
@@ -54,6 +54,7 @@ let mockOutlet: Outlet = {
   timezone: "Asia/Kolkata",
   locale: "en-IN",
   ask_customer_details: false,
+  business_hours: defaultBusinessHours(),
   upi_id: "",
   upi_ids: [],
   is_active: true,
@@ -63,6 +64,89 @@ let mockOutlet: Outlet = {
 
 // Restore persisted edits (logo, UPI IDs, details) after the base is defined.
 loadOutlet();
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+/** Default week: Mon–Sun 09:00–21:00, every channel inherits the base. */
+export function defaultBusinessHours(): BusinessHours {
+  const days: DayHours[] = Array.from({ length: 7 }, (_, day) => ({
+    day,
+    open: "09:00",
+    close: "21:00",
+    closed: false,
+  }));
+  return { days };
+}
+
+function toMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + (m || 0);
+}
+
+function dayPartsInTz(at: Date, timeZone: string): { day: number; minutes: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(at);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  const day = WEEKDAYS.indexOf(get("weekday").slice(0, 3) as (typeof WEEKDAYS)[number]);
+  return {
+    day: day === -1 ? at.getDay() : day,
+    minutes: Number(get("hour")) * 60 + Number(get("minute")),
+  };
+}
+
+/**
+ * Is the outlet open for a channel right now? Missing hours = always open
+ * (legacy outlets). close <= open spans midnight (e.g. 18:00–02:00 belongs
+ * to the opening day).
+ */
+export function isChannelOpen(
+  outlet: Pick<Outlet, "business_hours" | "timezone">,
+  channel: string,
+  at: Date = new Date(),
+): boolean {
+  const bh = outlet.business_hours;
+  if (!bh) return true;
+  const conf = bh.channels?.[channel as keyof NonNullable<BusinessHours["channels"]>];
+  const days =
+    conf && !conf.use_outlet_hours && conf.days && conf.days.length === 7 ? conf.days : bh.days;
+  if (!days || days.length !== 7) return true;
+  let tz = "Asia/Kolkata";
+  try {
+    tz = outlet.timezone || tz;
+    void new Intl.DateTimeFormat("en-US", { timeZone: tz }).format(at);
+  } catch {
+    tz = "Asia/Kolkata";
+  }
+  const { day, minutes } = dayPartsInTz(at, tz);
+  const today = days.find((d) => d.day === day);
+  if (!today || today.closed) return false;
+  const open = toMinutes(today.open);
+  const close = toMinutes(today.close);
+  if (close <= open) return minutes >= open || minutes < close;
+  return minutes >= open && minutes < close;
+}
+
+/** Next opening time today for a closed channel (null when open or closed all day). */
+export function nextOpeningToday(
+  outlet: Pick<Outlet, "business_hours" | "timezone">,
+  channel: string,
+  at: Date = new Date(),
+): string | null {
+  const bh = outlet.business_hours;
+  if (!bh || isChannelOpen(outlet, channel, at)) return null;
+  const conf = bh.channels?.[channel as keyof NonNullable<BusinessHours["channels"]>];
+  const days =
+    conf && !conf.use_outlet_hours && conf.days && conf.days.length === 7 ? conf.days : bh.days;
+  let tz = outlet.timezone || "Asia/Kolkata";
+  const { day } = dayPartsInTz(at, tz);
+  const today = days?.find((d) => d.day === day);
+  return today && !today.closed ? today.open : null;
+}
 
 export async function getOutlet(): Promise<Outlet> {
   await delay(500);

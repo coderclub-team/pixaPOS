@@ -1,10 +1,14 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Icons } from "@pixa/ui/icons";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@pixa/ui/base-ui/sidebar";
 import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
 import { getQueryClient } from "@/lib/query-client";
+import { useNow } from "@/lib/use-now";
+import { outletQueryOptions } from "@/features/outlet/api/queries";
+import { isChannelOpen } from "@/features/outlet/api/service";
 import { tableKeys } from "@/features/table/api/queries";
 import { orderKeys } from "@/features/orders/api/queries";
 import { floorKeys } from "@/features/floor/api/queries";
@@ -48,7 +52,10 @@ export default function PosShell() {
 
 function OrderTypePicker() {
   const selection = useOrderType();
+  const { data: outlet } = useQuery(outletQueryOptions);
+  const now = useNow();
   if (!selection) return null;
+  const closedFor = (value: string) => !!outlet && !isChannelOpen(outlet, value, new Date(now));
   return (
     <Select
       value={selection.orderType}
@@ -61,6 +68,7 @@ function OrderTypePicker() {
         {kotOrderTypeOptions.map((o) => (
           <SelectItem key={o.value} value={o.value}>
             {o.label}
+            {closedFor(o.value) ? " · Closed" : ""}
           </SelectItem>
         ))}
       </SelectContent>

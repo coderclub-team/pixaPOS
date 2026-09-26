@@ -270,6 +270,15 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
     // Table-free orders (counter / takeaway / delivery / online) allow
     // anonymous tokens — customer name/phone is optional capture only.
 
+    // Hours gate (single choke point for every channel): no new orders
+    // while the outlet is closed for that channel. Staff reopen by editing
+    // business hours, not by working around the terminal.
+    const { getOutletById, isChannelOpen } = await import("@/features/outlet/api/service");
+    const outlet = await getOutletById(outletId).catch(() => null);
+    if (outlet && !isChannelOpen(outlet, input.channel)) {
+      throw new Error(`Outlet is closed for ${input.channel.replace("_", " ")} orders right now`);
+    }
+
     const dayOrders = mockOrders.filter(
       (o) =>
         o.outlet_id === outletId &&

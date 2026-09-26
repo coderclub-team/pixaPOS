@@ -32,6 +32,8 @@ export type Outlet = {
   /** Ask for customer name/phone when starting counter/takeaway/delivery
    * orders on /kot. Default false = skip straight to the menu. */
   ask_customer_details: boolean;
+  /** Weekly hours: outlet base + per-channel overrides. Missing = always open. */
+  business_hours?: BusinessHours;
   /** UPI VPAs for bill collect-QR (Print Studio). Exactly one may be default. */
   upi_ids: UpiAccount[];
   /** @deprecated single-VPA era; migrated into upi_ids on read. */
@@ -42,6 +44,27 @@ export type Outlet = {
 };
 
 export type OutletPayload = Partial<Outlet>;
+
+/** One weekday's hours (day: 0 = Sunday). close <= open spans midnight. */
+export type DayHours = {
+  day: number;
+  open: string;
+  close: string;
+  closed: boolean;
+};
+
+export type OrderChannelKey = "dine_in" | "counter" | "takeaway" | "delivery" | "own_online";
+
+/** Per-channel override: inherit the outlet base, or keep own week grid. */
+export type ChannelHours = {
+  use_outlet_hours: boolean;
+  days?: DayHours[];
+};
+
+export type BusinessHours = {
+  days: DayHours[];
+  channels?: Partial<Record<OrderChannelKey, ChannelHours>>;
+};
 
 export type UpiAccount = {
   id: string;

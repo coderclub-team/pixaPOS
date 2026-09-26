@@ -128,6 +128,33 @@ export const timezoneSchema = z.object({
   is_active: z.boolean(),
 });
 
+const timeRe = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
+
+export const dayHoursSchema = z.object({
+  day: z.number().int().min(0).max(6),
+  open: z.string().regex(timeRe, "HH:MM"),
+  close: z.string().regex(timeRe, "HH:MM"),
+  closed: z.boolean(),
+});
+
+export const channelHoursSchema = z.object({
+  use_outlet_hours: z.boolean(),
+  days: z.array(dayHoursSchema).length(7).optional(),
+});
+
+export const businessHoursSchema = z.object({
+  days: z.array(dayHoursSchema).length(7),
+  channels: z
+    .object({
+      dine_in: channelHoursSchema.optional(),
+      counter: channelHoursSchema.optional(),
+      takeaway: channelHoursSchema.optional(),
+      delivery: channelHoursSchema.optional(),
+      own_online: channelHoursSchema.optional(),
+    })
+    .optional(),
+});
+
 export const orderSettingsSchema = z.object({
   ask_customer_details: z.boolean(),
 });
@@ -139,6 +166,7 @@ export type GSTValues = z.infer<typeof gstSchema>;
 export type FSSAIValues = z.infer<typeof fssaiSchema>;
 export type BusinessDetailsValues = z.infer<typeof businessDetailsSchema>;
 export type TimezoneValues = z.infer<typeof timezoneSchema>;
+export type BusinessHoursValues = z.infer<typeof businessHoursSchema>;
 export type OrderSettingsValues = z.infer<typeof orderSettingsSchema>;
 
 export const outletSchema = z.object({

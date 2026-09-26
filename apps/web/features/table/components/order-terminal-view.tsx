@@ -38,6 +38,8 @@ import {
 } from "@pixa/ui/base-ui/dropdown-menu";
 import { formatINR } from "@/lib/money";
 import { formatAge } from "@/lib/utils";
+import { useNow } from "@/lib/use-now";
+import { isChannelOpen, nextOpeningToday } from "@/features/outlet/api/service";
 import ItemBrowser from "@/features/orders/components/item-browser";
 import { useCategorySelection } from "@/features/orders/components/category-selection";
 import { kotOrderTypeOptions, useOrderType } from "@/features/orders/components/order-type";
@@ -88,6 +90,11 @@ export default function OrderTerminalPage({
   const [custNotes, setCustNotes] = useState("");
   const { data: outlet } = useQuery(outletQueryOptions);
   const askCustomer = outlet?.ask_customer_details ?? false;
+  // Channel open state (ticks every minute so the UI flips without reload).
+  const nowTick = useNow(60000);
+  const typeOpen = !outlet || isChannelOpen(outlet, orderType, new Date(nowTick));
+  const typeOpensAt =
+    !typeOpen && outlet ? nextOpeningToday(outlet, orderType, new Date(nowTick)) : null;
   // Left region content: floor tables, or inline menu browser replacing the
   // table panel in the exact same footprint (no modal anywhere).
   const [leftView, setLeftView] = useState<"tables" | "items">("tables");
@@ -503,12 +510,22 @@ export default function OrderTerminalPage({
                   className="h-11 w-full"
                   disabled={
                     startCounterMut.isPending ||
+                    !typeOpen ||
                     (askCustomer && !custName.trim() && !custPhone.trim())
+                  }
+                  title={
+                    typeOpen
+                      ? undefined
+                      : `Closed for ${orderTypeLabel}${typeOpensAt ? ` · opens ${typeOpensAt}` : ""}`
                   }
                   onClick={() => startCounterMut.mutate()}
                 >
                   <Icons.add className="mr-2 size-4" />
-                  {startCounterMut.isPending ? "Starting…" : `Start ${orderTypeLabel} order`}
+                  {startCounterMut.isPending
+                    ? "Starting…"
+                    : !typeOpen
+                      ? `Closed for ${orderTypeLabel}${typeOpensAt ? ` · opens ${typeOpensAt}` : ""}`
+                      : `Start ${orderTypeLabel} order`}
                 </Button>
               </CardContent>
             </Card>
