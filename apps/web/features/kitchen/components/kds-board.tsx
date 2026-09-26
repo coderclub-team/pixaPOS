@@ -43,8 +43,17 @@ import { RecipeDialogButton } from "./recipe-dialog";
 
 type BoardFilter = KOTStatus | "ALL";
 type BoardView = "kanban" | "cards";
+type BoardChannel = "ALL" | "dine_in" | "counter" | "takeaway" | "delivery";
 
 const VIEW_STORAGE_KEY = "pixa-kitchen-view";
+
+const CHANNELS: { channel: BoardChannel; label: string }[] = [
+  { channel: "ALL", label: "All types" },
+  { channel: "dine_in", label: "Dine-in" },
+  { channel: "counter", label: "Counter" },
+  { channel: "takeaway", label: "Takeaway" },
+  { channel: "delivery", label: "Delivery" },
+];
 
 const TABS: { status: BoardFilter; label: string }[] = [
   { status: "ALL", label: "Live" },
@@ -76,6 +85,7 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
   useCrossTabSync();
   const feed = useKitchenFeed();
   const [filter, setFilter] = useState<BoardFilter>("ALL");
+  const [channel, setChannel] = useState<BoardChannel>("ALL");
   const [view, setViewState] = useState<BoardView>(() => {
     if (typeof window === "undefined") return "kanban";
     try {
@@ -114,7 +124,10 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
   }
 
   const live = (tickets ?? []).filter((t) => t.status !== "SERVED" && t.status !== "CANCELLED");
-  const scoped = live.filter((t) => filter === "ALL" || t.status === filter);
+  const scoped = live.filter(
+    (t) =>
+      (filter === "ALL" || t.status === filter) && (channel === "ALL" || t.channel === channel),
+  );
   const countFor = (s: BoardFilter) =>
     s === "ALL" ? live.length : live.filter((t) => t.status === s).length;
 
@@ -199,8 +212,20 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
             {c.label} · {countFor(c.status)}
           </Button>
         ))}
+        <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden />
+        {CHANNELS.map((c) => (
+          <Button
+            key={c.channel}
+            variant={channel === c.channel ? "default" : "outline"}
+            size="sm"
+            onClick={() => setChannel(c.channel)}
+            title="Filter by order type"
+          >
+            {c.label}
+          </Button>
+        ))}
       </div>
-      <div className="mb-4 sm:hidden">
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:hidden">
         <Select value={filter} onValueChange={(v) => setFilter(v as BoardFilter)}>
           <SelectTrigger aria-label="Board status" className="min-h-11 w-full">
             <SelectValue />
@@ -209,6 +234,18 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
             {TABS.map((c) => (
               <SelectItem key={c.status} value={c.status}>
                 {c.label} · {countFor(c.status)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={channel} onValueChange={(v) => setChannel(v as BoardChannel)}>
+          <SelectTrigger aria-label="Order type" className="min-h-11 w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CHANNELS.map((c) => (
+              <SelectItem key={c.channel} value={c.channel}>
+                {c.label}
               </SelectItem>
             ))}
           </SelectContent>
