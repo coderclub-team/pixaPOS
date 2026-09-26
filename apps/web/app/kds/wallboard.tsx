@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Icons } from "@pixa/ui/icons";
-import { SidebarInset, SidebarProvider } from "@pixa/ui/base-ui/sidebar";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@pixa/ui/base-ui/sidebar";
 import AppSidebar from "@/components/layout/app-sidebar";
 import KdsBoard from "@/features/kitchen/components/kds-board";
 
@@ -102,6 +102,7 @@ export default function KdsWallboard() {
         <div className="flex h-dvh flex-col overflow-hidden bg-background">
           <header className="flex shrink-0 items-center justify-between gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur-sm">
             <span className="flex items-center gap-2">
+              <SidebarTrigger className="-ml-1" />
               <span className="leading-tight">
                 <span className="block text-sm font-bold">Kitchen</span>
                 <span className="block text-[11px] text-muted-foreground">
