@@ -13,6 +13,13 @@ import {
 } from "@pixa/ui/base-ui/dialog";
 import { Input } from "@pixa/ui/base-ui/input";
 import { Label } from "@pixa/ui/base-ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@pixa/ui/base-ui/select";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { formatAge } from "@/lib/utils";
@@ -180,7 +187,7 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
           {feed === "live" ? "Live" : "Polling"}
         </span>
       </div>
-      <div className="mb-4 flex flex-wrap items-center gap-1.5">
+      <div className="mb-4 hidden flex-wrap items-center gap-1.5 sm:flex">
         {TABS.map((c) => (
           <Button
             key={c.status}
@@ -191,6 +198,20 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
             {c.label} · {countFor(c.status)}
           </Button>
         ))}
+      </div>
+      <div className="mb-4 sm:hidden">
+        <Select value={filter} onValueChange={(v) => setFilter(v as BoardFilter)}>
+          <SelectTrigger aria-label="Board status" className="min-h-11 w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TABS.map((c) => (
+              <SelectItem key={c.status} value={c.status}>
+                {c.label} · {countFor(c.status)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       {scoped.length === 0 ? (
         <Card>
@@ -213,7 +234,10 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
             return (
               <div
                 key={s}
-                className={cn("shrink-0 space-y-2", compact ? "w-[260px]" : "w-[300px]")}
+                className={cn(
+                  "w-full shrink-0 space-y-2",
+                  compact ? "sm:w-[260px]" : "sm:w-[300px]",
+                )}
               >
                 <p className="px-1 text-xs font-medium uppercase text-muted-foreground">
                   {COLUMN_LABEL[s]} · {col.length}
