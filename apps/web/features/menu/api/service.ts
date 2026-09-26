@@ -271,6 +271,7 @@ export async function createMenuItem(payload: MenuItemPayload): Promise<MenuItem
     tax_percent: (payload as any).tax_percent,
     hsn_code: (payload as any).hsn_code,
     available_channels: (payload as any).available_channels ?? ["dine_in", "pickup", "delivery"],
+    nutrition: (payload as any).nutrition ?? undefined,
     variants,
     modifier_group_ids: (payload as any).modifier_group_ids ?? [],
     is_active: (payload as any).is_active ?? true,
@@ -348,12 +349,208 @@ export async function getModifierGroups(): Promise<import("./types").ModifierGro
   loadMenu();
   return [...mockModifierGroups];
 }
+export async function getModifierGroupById(
+  id: string,
+): Promise<import("./types").ModifierGroup | null> {
+  await delay(200);
+  loadMenu();
+  return mockModifierGroups.find((g) => g.id === id) ?? null;
+}
 export async function getModifiers(groupId?: string): Promise<import("./types").Modifier[]> {
   await delay(300);
   loadMenu();
   let r = [...mockModifiers];
   if (groupId) r = r.filter((m) => m.modifier_group_id === groupId);
-  return r;
+  return r.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+}
+
+function nextModifierSort(groupId: string): number {
+  const orders = mockModifiers
+    .filter((m) => m.modifier_group_id === groupId)
+    .map((m) => m.sort_order ?? 0);
+  return orders.length ? Math.max(...orders) + 1 : 0;
+}
+
+export async function createModifierGroup(payload: {
+  name: string;
+  selection_type?: "single" | "multiple";
+  min_selection?: number;
+  max_selection?: number;
+}): Promise<import("./types").ModifierGroup> {
+  await delay(400);
+  loadMenu();
+  const name = payload.name.trim();
+  if (name.length < 2) throw new Error("Group name must be at least 2 characters");
+  if (mockModifierGroups.some((g) => g.name.toLowerCase() === name.toLowerCase())) {
+    throw new Error("Add-on group already exists");
+  }
+  const min = Math.max(0, Math.floor(payload.min_selection ?? 0));
+  const max = Math.max(
+    1,
+    Math.floor(payload.max_selection ?? (payload.selection_type === "single" ? 1 : 3)),
+  );
+  if (max < min) throw new Error("Max must be greater than or equal to min");
+  const now = new Date().toISOString();
+  const group = {
+    id: `mg_${Date.now().toString(36)}`,
+    name,
+    selection_type: (max === 1 ? "single" : (payload.selection_type ?? "multiple")) as
+      | "single"
+      | "multiple",
+    min_selection: min,
+    max_selection: max,
+    is_active: true,
+    created_at: now,
+    updated_at: now,
+  };
+  mockModifierGroups.push(group);
+  saveMenu();
+  return { ...group };
+}
+
+export async function updateModifierGroup(
+  id: string,
+  payload: Partial<
+    Pick<
+      import("./types").ModifierGroup,
+      "name" | "selection_type" | "min_selection" | "max_selection" | "is_active"
+    >
+  >,
+): Promise<import("./types").ModifierGroup> {
+  await delay(400);
+  loadMenu();
+  const idx = mockModifierGroups.findIndex((g) => g.id === id);
+  if (idx === -1) throw new Error("Add-on group not found");
+  const current = mockModifierGroups[idx];
+  const min =
+    payload.min_selection !== undefined
+      ? Math.max(0, Math.floor(payload.min_selection))
+      : current.min_selection;
+  const max =
+    payload.max_selection !== undefined
+      ? Math.max(1, Math.floor(payload.max_selection))
+      : current.max_selection;
+  if (max < min) throw new Error("Max must be greater than or equal to min");
+  if (payload.name !== undefined) {
+    const name = payload.name.trim();
+    if (name.length < 2) throw new Error("Group name must be at least 2 characters");
+    if (
+      mockModifierGroups.some((g) => g.id !== id && g.name.toLowerCase() === name.toLowerCase())
+    ) {
+      throw new Error("Add-on group already exists");
+    }
+  }
+  mockModifierGroups[idx] = {
+    ...current,
+    ...(payload.name !== undefined ? { name: payload.name.trim() } : {}),
+    ...(payload.selection_type !== undefined ? { selection_type: payload.selection_type } : {}),
+    min_selection: min,
+    max_selection: max,
+    selection_type: max === 1 ? "single" : (payload.selection_type ?? current.selection_type),
+    ...(payload.is_active !== undefined ? { is_active: payload.is_active } : {}),
+    updated_at: new Date().toISOString(),
+  };
+  saveMenu();
+  return { ...mockModifierGroups[idx] };
+}
+
+export async function deleteModifierGroup(id: string): Promise<void> {
+  await delay(400);
+  loadMenu();
+  const idx = mockModifierGroups.findIndex((g) => g.id === id);
+  if (idx === -1) throw new Error("Add-on group not found");
+  if (mockMenuItems.some((m) => ((m as any).modifier_group_ids ?? []).includes(id))) {
+    throw new Error("Group is linked to menu items — unlink it first");
+  }
+  mockModifierGroups.splice(idx, 1);
+  mockModifiers = mockModifiers.filter((m) => m.modifier_group_id !== id);
+  saveMenu();
+}
+
+export async function createModifier(payload: {
+  modifier_group_id: string;
+  name: string;
+  alias?: string;
+  price?: number;
+}): Promise<import("./types").Modifier> {
+  await delay(400);
+  loadMenu();
+  const group = mockModifierGroups.find((g) => g.id === payload.modifier_group_id);
+  if (!group) throw new Error("Add-on group not found");
+  const name = payload.name.trim();
+  if (name.length < 2) throw new Error("Add-on name must be at least 2 characters");
+  const price = Number(payload.price ?? 0);
+  if (!Number.isFinite(price) || price < 0) throw new Error("Price must be 0 or more");
+  const now = new Date().toISOString();
+  const mod = {
+    id: `mod_${Date.now().toString(36)}`,
+    modifier_group_id: group.id,
+    name,
+    alias: payload.alias?.trim() || undefined,
+    price,
+    sort_order: nextModifierSort(group.id),
+    is_active: true,
+  };
+  mockModifiers.push(mod);
+  saveMenu();
+  return { ...mod };
+}
+
+export async function updateModifier(
+  id: string,
+  payload: Partial<Pick<import("./types").Modifier, "name" | "alias" | "price" | "is_active">>,
+): Promise<import("./types").Modifier> {
+  await delay(300);
+  loadMenu();
+  const idx = mockModifiers.findIndex((m) => m.id === id);
+  if (idx === -1) throw new Error("Add-on not found");
+  if (payload.name !== undefined && payload.name.trim().length < 2) {
+    throw new Error("Add-on name must be at least 2 characters");
+  }
+  if (
+    payload.price !== undefined &&
+    (!Number.isFinite(Number(payload.price)) || Number(payload.price) < 0)
+  ) {
+    throw new Error("Price must be 0 or more");
+  }
+  mockModifiers[idx] = {
+    ...mockModifiers[idx],
+    ...(payload.name !== undefined ? { name: payload.name.trim() } : {}),
+    alias:
+      payload.alias !== undefined ? payload.alias.trim() || undefined : mockModifiers[idx].alias,
+    ...(payload.price !== undefined ? { price: Number(payload.price) } : {}),
+    ...(payload.is_active !== undefined ? { is_active: payload.is_active } : {}),
+  };
+  saveMenu();
+  return { ...mockModifiers[idx] };
+}
+
+export async function deleteModifier(id: string): Promise<void> {
+  await delay(300);
+  loadMenu();
+  const idx = mockModifiers.findIndex((m) => m.id === id);
+  if (idx === -1) throw new Error("Add-on not found");
+  mockModifiers.splice(idx, 1);
+  saveMenu();
+}
+
+export async function moveModifier(id: string, direction: -1 | 1): Promise<void> {
+  await delay(200);
+  loadMenu();
+  const mod = mockModifiers.find((m) => m.id === id);
+  if (!mod) throw new Error("Add-on not found");
+  const siblings = mockModifiers
+    .filter((m) => m.modifier_group_id === mod.modifier_group_id)
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const pos = siblings.findIndex((m) => m.id === id);
+  const swapWith = siblings[pos + direction];
+  if (!swapWith) return;
+  const a = mockModifiers.find((m) => m.id === id)!;
+  const b = mockModifiers.find((m) => m.id === swapWith.id)!;
+  const tmp = a.sort_order ?? 0;
+  a.sort_order = b.sort_order ?? 0;
+  b.sort_order = tmp;
+  saveMenu();
 }
 export async function deleteMenuItem(id: string): Promise<void> {
   await delay(400);

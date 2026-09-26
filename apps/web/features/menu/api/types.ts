@@ -15,6 +15,26 @@ export type VegType = "veg" | "nonveg" | "egg";
 export type TaxTypeMenu = "GST" | "VAT";
 export type Channel = "dine_in" | "pickup" | "delivery" | "zomato" | "swiggy" | "ondc";
 
+/**
+ * Per-serve nutrition (FSSAI Labelling & Display Regs 2020, 5(3) core set:
+ * energy + macros + sodium, plus serving size). Displayed as kcal on menu
+ * surfaces; full table feeds aggregator/website listings.
+ */
+export type NutritionInfo = {
+  serving_size?: number;
+  serving_unit?: string;
+  energy_kcal?: number;
+  protein_g?: number;
+  carbs_g?: number;
+  sugar_g?: number;
+  fat_g?: number;
+  saturated_fat_g?: number;
+  trans_fat_g?: number;
+  cholesterol_mg?: number;
+  sodium_mg?: number;
+  fiber_g?: number;
+};
+
 export type MenuItemVariant = {
   id: string;
   menu_item_id: string;
@@ -55,6 +75,7 @@ export type MenuItem = {
   tax_percent?: number;
   hsn_code?: string; // HSN for goods (4-8 digits) or SAC for service (6 digits 9973/9997)
   available_channels: Channel[]; // dine_in, pickup, delivery, zomato, swiggy, ondc
+  nutrition?: NutritionInfo;
   variants: MenuItemVariant[];
   modifier_group_ids?: string[]; // skeleton, no raw material mapping this phase
   is_active: boolean;
@@ -76,7 +97,10 @@ export type Modifier = {
   id: string;
   modifier_group_id: string;
   name: string;
+  /** Kitchen/printer alias — shown on KOTs instead of the name when set. */
+  alias?: string;
   price: number;
+  sort_order?: number;
   is_active: boolean;
 };
 

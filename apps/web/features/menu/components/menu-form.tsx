@@ -113,6 +113,38 @@ export default function MenuForm({
   const [availableChannels, setAvailableChannels] = useState<string[]>(
     initialData?.available_channels ?? ["dine_in", "pickup", "delivery"],
   );
+  // Nutrition per serve (FSSAI 5(3) set) — strings in state, numbers on save.
+  const NUTRI_FIELDS = [
+    ["serving_size", "Serving size", ""],
+    ["serving_unit", "Serving unit", ""],
+    ["energy_kcal", "Energy", "kcal"],
+    ["protein_g", "Protein", "g"],
+    ["carbs_g", "Carbs", "g"],
+    ["sugar_g", "Sugar", "g"],
+    ["fat_g", "Fat", "g"],
+    ["saturated_fat_g", "Sat. fat", "g"],
+    ["trans_fat_g", "Trans fat", "g"],
+    ["cholesterol_mg", "Cholesterol", "mg"],
+    ["sodium_mg", "Sodium", "mg"],
+    ["fiber_g", "Fiber", "g"],
+  ] as const;
+  const [nutrition, setNutrition] = useState<Record<string, string>>(() => {
+    const n = (initialData as any)?.nutrition ?? {};
+    const out: Record<string, string> = {};
+    for (const [k] of NUTRI_FIELDS) if (n[k] !== undefined && n[k] !== null) out[k] = String(n[k]);
+    return out;
+  });
+  const cleanNutrition = () => {
+    const out: Record<string, number | string> = {};
+    let empty = true;
+    for (const [k] of NUTRI_FIELDS) {
+      const raw = (nutrition[k] ?? "").trim();
+      if (!raw) continue;
+      empty = false;
+      out[k] = k === "serving_unit" ? raw : Number(raw);
+    }
+    return empty ? undefined : out;
+  };
 
   const syncFromUploader = async (files: File[]) => {
     const remaining = 6 - images.length;
@@ -188,6 +220,7 @@ export default function MenuForm({
                 recipe_id: (x.recipe_id as string) || undefined,
               })),
         available_channels: availableChannels,
+        nutrition: cleanNutrition(),
       }),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: menuKeys.all });
@@ -233,6 +266,7 @@ export default function MenuForm({
                 recipe_id: (x.recipe_id as string) || undefined,
               })),
         available_channels: availableChannels,
+        nutrition: cleanNutrition(),
       }),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: menuKeys.all });
@@ -1086,6 +1120,34 @@ export default function MenuForm({
               <form.AppForm
                 children={<form.SubmitButton>{isEdit ? "Update" : "Create"}</form.SubmitButton>}
               />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Nutrition · per serve</CardTitle>
+            <CardDescription>
+              FSSAI set — kcal shows on menu cards; full table feeds aggregators and the website.
+              Leave blank what you don&apos;t know.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+              {NUTRI_FIELDS.map(([key, label, unit]) => (
+                <div key={key} className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">
+                    {label}
+                    {unit ? ` (${unit})` : ""}
+                  </Label>
+                  <Input
+                    inputMode={key === "serving_unit" ? "text" : "decimal"}
+                    placeholder="—"
+                    value={nutrition[key] ?? ""}
+                    onChange={(e) => setNutrition((p) => ({ ...p, [key]: e.target.value }))}
+                  />
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

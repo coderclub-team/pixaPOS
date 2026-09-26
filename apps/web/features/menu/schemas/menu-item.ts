@@ -12,6 +12,21 @@ export const menuVariantSchema = z.object({
   is_active: z.boolean().optional(),
 });
 
+export const nutritionSchema = z.object({
+  serving_size: z.number().min(0).optional(),
+  serving_unit: z.string().max(12).optional().or(z.literal("")),
+  energy_kcal: z.number().min(0).optional(),
+  protein_g: z.number().min(0).optional(),
+  carbs_g: z.number().min(0).optional(),
+  sugar_g: z.number().min(0).optional(),
+  fat_g: z.number().min(0).optional(),
+  saturated_fat_g: z.number().min(0).optional(),
+  trans_fat_g: z.number().min(0).optional(),
+  cholesterol_mg: z.number().min(0).optional(),
+  sodium_mg: z.number().min(0).optional(),
+  fiber_g: z.number().min(0).optional(),
+});
+
 export const menuItemSchema = z.object({
   name: z.string().min(2, "Name required").max(50),
   category_id: z.string().min(1, "Category required"),
@@ -29,6 +44,7 @@ export const menuItemSchema = z.object({
   available_channels: z
     .array(z.enum(["dine_in", "pickup", "delivery", "zomato", "swiggy", "ondc"]))
     .optional(),
+  nutrition: nutritionSchema.optional(),
   is_active: z.boolean().optional(),
   variants: z
     .array(menuVariantSchema)

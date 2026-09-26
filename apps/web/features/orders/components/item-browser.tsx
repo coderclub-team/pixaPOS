@@ -711,6 +711,9 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
                             />
                             {item.category_name}
                             {variable && <span> · {activeVariants.length} options</span>}
+                            {item.nutrition?.energy_kcal != null && (
+                              <span> · {item.nutrition.energy_kcal} kcal</span>
+                            )}
                           </p>
                           <p className="mt-1 text-sm font-semibold">
                             {variable
