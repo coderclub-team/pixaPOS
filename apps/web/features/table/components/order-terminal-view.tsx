@@ -614,6 +614,44 @@ export default function OrderTerminalPage({
                     })()}
                   </div>
                 )}
+              {/* Counter/takeaway/delivery bills strip: the dine-in open-tabs
+                  equivalent — one tap-target per unsettled bill. */}
+              {!isDineIn && openBills.length > 0 && (
+                <div className="flex items-center gap-2 overflow-x-auto border-b bg-background/95 px-3 py-2 backdrop-blur-sm">
+                  <Icons.orders className="size-4 shrink-0 text-muted-foreground" />
+                  {openBills.map((o) => {
+                    const focused = o.id === activeOrderId;
+                    const label = o.customer_name?.trim()
+                      ? `${o.order_number} · ${o.customer_name.trim()}`
+                      : o.order_number;
+                    return (
+                      <button
+                        key={o.id}
+                        type="button"
+                        onClick={() => handleSelectBill(o.id)}
+                        aria-label={`Reopen ${label}`}
+                        title={`${label} — tap to reopen · ${o.items.length} item${o.items.length === 1 ? "" : "s"} · ${formatINR(o.grand_total_paise)}`}
+                        className={cn(
+                          "flex shrink-0 items-center gap-1.5 rounded-full border border-dashed py-1 px-2.5 text-xs font-medium transition-colors touch-manipulation",
+                          focused
+                            ? "border-primary bg-primary/10 text-foreground"
+                            : "border-border text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        <Icons.orders className="size-3.5" />
+                        {o.order_number}
+                        <span
+                          className={cn(
+                            "size-1.5 rounded-full",
+                            o.payment_status === "PAID" ? "bg-emerald-500" : "bg-amber-500",
+                          )}
+                          title={o.payment_status === "PAID" ? "Paid" : "Unsettled"}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               {activeOrderId && (activeTable || !isDineIn) ? (
                 <OrderBillPanel
                   orderId={activeOrderId}
@@ -671,52 +709,21 @@ export default function OrderTerminalPage({
                     </Button>
                   </CardContent>
                 </Card>
-              ) : !isDineIn && !activeOrderId && openBills.length > 0 ? (
-                <Card className="flex h-full min-h-0 flex-col">
-                  <CardContent className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
-                    <p className="flex items-center gap-1.5 px-1 pt-1 text-xs font-medium uppercase text-muted-foreground">
-                      <Icons.orders className="size-3.5" />
-                      Open {orderTypeLabel} bills · {openBills.length}
-                    </p>
-                    {openBills.map((o) => (
-                      <button
-                        key={o.id}
-                        type="button"
-                        onClick={() => handleSelectBill(o.id)}
-                        aria-label={`Reopen ${o.order_number}`}
-                        title={`${o.order_number} — tap to reopen`}
-                        className="flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2 text-left text-sm transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-primary touch-manipulation"
-                      >
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-medium">
-                            {o.order_number}
-                            {o.customer_name?.trim() ? ` · ${o.customer_name.trim()}` : ""}
-                          </span>
-                          <span className="block truncate text-xs text-muted-foreground">
-                            {o.items.length} item{o.items.length === 1 ? "" : "s"} ·{" "}
-                            {o.payment_status === "PAID" ? "paid" : "unsettled"}
-                            {o.status !== "CONFIRMED"
-                              ? ` · ${o.status.toLowerCase().replace("_", " ")}`
-                              : ""}
-                          </span>
-                        </span>
-                        <span className="shrink-0 font-semibold tabular-nums">
-                          {formatINR(o.grand_total_paise)}
-                        </span>
-                      </button>
-                    ))}
-                  </CardContent>
-                </Card>
               ) : (
                 <Card className="flex h-full items-center justify-center">
                   <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
                     <div className="rounded-full border border-dashed p-3">
                       <Icons.orders className="size-6 text-muted-foreground" />
                     </div>
-                    <p className="font-medium">No table selected</p>
+                    <p className="font-medium">
+                      {isDineIn ? "No table selected" : `Select the ${orderTypeLabel} order`}
+                    </p>
                     <p className="max-w-xs text-sm text-muted-foreground">
-                      Tap a table on the floor to open its bill — add items, fire tickets, split and
-                      collect.
+                      {isDineIn
+                        ? "Tap a table on the floor to open its bill — add items, fire tickets, split and collect."
+                        : openBills.length > 0
+                          ? `Tap a bill above to reopen it — add items, fire tickets and collect.`
+                          : `Start a new ${orderTypeLabel} order from the menu — it stays here until settled.`}
                     </p>
                   </CardContent>
                 </Card>
