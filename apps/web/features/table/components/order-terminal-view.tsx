@@ -24,7 +24,7 @@ import { tableKeys, tableQueryOptions } from "@/features/table/api/queries";
 import { seatOccupancy } from "@/features/table/api/service";
 import { partyHex } from "@/features/table/api/utils";
 import type { OccupancyGroup } from "@/features/table/api/types";
-import { orderKeys, ordersQueryOptions } from "@/features/orders/api/queries";
+import { orderKeys, orderQueryOptions, ordersQueryOptions } from "@/features/orders/api/queries";
 import { createOrder, ensureBareTableOrder, ensureGroupOrder } from "@/features/orders/api/service";
 import { outletQueryOptions } from "@/features/outlet/api/queries";
 import { Button } from "@pixa/ui/base-ui/button";
@@ -111,6 +111,13 @@ export default function OrderTerminalPage({
   const { data: activeTable } = useQuery({
     ...tableQueryOptions(activeTableId ?? ""),
     enabled: !!activeTableId,
+  });
+
+  // Sticky mobile bill bar (/kot only): live totals for the active order.
+  // Shares the detail query cache with the bill panel — no new plumbing.
+  const { data: billBarOrder } = useQuery({
+    ...orderQueryOptions(activeOrderId ?? ""),
+    enabled: !!activeOrderId,
   });
 
   useEffect(
@@ -853,64 +860,101 @@ export default function OrderTerminalPage({
         </>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] shadow-lg backdrop-blur lg:hidden">
-        <div className="mx-auto grid h-14 max-w-xl grid-cols-3">
+      {/* Sticky mobile bill bar (/kot only): replaces the view-switcher tab
+          bar with bill access — Toast/Square/Petpooja pattern. Slides away
+          while the bill sheet is open. */}
+      {fillHeight && billBarOrder && (
+        <div
+          className={cn(
+            "fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] shadow-lg backdrop-blur transition-transform duration-300 lg:hidden",
+            panelOpen && "translate-y-full",
+          )}
+        >
           <button
             type="button"
-            onClick={() => {
-              setPanelOpen(false);
-              setMobileView("tables");
-              setLeftView("tables");
-            }}
-            className={cn(
-              "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium touch-manipulation",
-              mobileView === "tables" ? "text-primary" : "text-muted-foreground",
-            )}
+            onClick={() => setPanelOpen(true)}
+            aria-label={`Open bill, ${billBarOrder.items.length} items, ${formatINR(billBarOrder.grand_total_paise)}`}
+            className="mx-auto flex h-14 w-full max-w-xl items-center gap-2 px-4 text-left touch-manipulation"
           >
-            {isDineIn ? (
-              <>
-                <Icons.table className="size-5" />
-                Tables
-              </>
-            ) : (
-              <>
-                <Icons.add className="size-5" />
-                New
-              </>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => (activeTableId || activeOrderId) && setMobileView("order")}
-            disabled={!activeTableId && !activeOrderId}
-            className={cn(
-              "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium touch-manipulation disabled:opacity-40",
-              mobileView === "order" ? "text-primary" : "text-muted-foreground",
-            )}
-          >
-            <Icons.orders className="size-5" />
-            Order
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (activeOrderId) {
-                setPanelOpen(true);
-                setMobileView("items");
-                setLeftView("items");
-              }
-            }}
-            disabled={!activeOrderId}
-            className={cn(
-              "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium touch-manipulation disabled:opacity-40",
-              mobileView === "items" ? "text-primary" : "text-muted-foreground",
-            )}
-          >
-            <Icons.add className="size-5" />
-            Add items
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
+              <Icons.orders className="size-4 text-primary" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold">
+                {activeTable
+                  ? `Bill — Table ${activeTable.number}${activeGroup ? ` · Party ${activeGroup.label ?? "?"}` : ""}`
+                  : `Bill — ${orderTypeLabel}`}
+              </span>
+              <span className="block truncate text-xs text-muted-foreground tabular-nums">
+                {billBarOrder.items.length} item{billBarOrder.items.length === 1 ? "" : "s"} ·{" "}
+                {formatINR(billBarOrder.grand_total_paise)}
+              </span>
+            </span>
+            <Icons.chevronUp className="size-5 shrink-0 text-muted-foreground" />
           </button>
         </div>
-      </div>
+      )}
+
+      {!fillHeight && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] shadow-lg backdrop-blur lg:hidden">
+          <div className="mx-auto grid h-14 max-w-xl grid-cols-3">
+            <button
+              type="button"
+              onClick={() => {
+                setPanelOpen(false);
+                setMobileView("tables");
+                setLeftView("tables");
+              }}
+              className={cn(
+                "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium touch-manipulation",
+                mobileView === "tables" ? "text-primary" : "text-muted-foreground",
+              )}
+            >
+              {isDineIn ? (
+                <>
+                  <Icons.table className="size-5" />
+                  Tables
+                </>
+              ) : (
+                <>
+                  <Icons.add className="size-5" />
+                  New
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => (activeTableId || activeOrderId) && setMobileView("order")}
+              disabled={!activeTableId && !activeOrderId}
+              className={cn(
+                "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium touch-manipulation disabled:opacity-40",
+                mobileView === "order" ? "text-primary" : "text-muted-foreground",
+              )}
+            >
+              <Icons.orders className="size-5" />
+              Order
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (activeOrderId) {
+                  setPanelOpen(true);
+                  setMobileView("items");
+                  setLeftView("items");
+                }
+              }}
+              disabled={!activeOrderId}
+              className={cn(
+                "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium touch-manipulation disabled:opacity-40",
+                mobileView === "items" ? "text-primary" : "text-muted-foreground",
+              )}
+            >
+              <Icons.add className="size-5" />
+              Add items
+            </button>
+          </div>
+        </div>
+      )}
 
       {activeTableDerived && (
         <Dialog open={seatOpen} onOpenChange={setSeatOpen}>
