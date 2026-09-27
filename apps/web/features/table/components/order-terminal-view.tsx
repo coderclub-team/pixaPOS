@@ -25,7 +25,12 @@ import { seatOccupancy } from "@/features/table/api/service";
 import { partyHex } from "@/features/table/api/utils";
 import type { OccupancyGroup } from "@/features/table/api/types";
 import { orderKeys, orderQueryOptions, ordersQueryOptions } from "@/features/orders/api/queries";
-import { createOrder, ensureBareTableOrder, ensureGroupOrder } from "@/features/orders/api/service";
+import {
+  createOrder,
+  discardEmptyDrafts,
+  ensureBareTableOrder,
+  ensureGroupOrder,
+} from "@/features/orders/api/service";
 import { outletQueryOptions } from "@/features/outlet/api/queries";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Input } from "@pixa/ui/base-ui/input";
@@ -99,7 +104,8 @@ export default function OrderTerminalPage({
   // table panel in the exact same footprint (no modal anywhere).
   const [leftView, setLeftView] = useState<"tables" | "items">("tables");
   const exitTimer = useRef<number | null>(null);
-  // Switching order type resets the workspace to that type's entry panel.
+  // Switching order type resets the workspace to that type's entry panel —
+  // and sweeps abandoned empty drafts so ghost carts never linger in POS.
   useEffect(() => {
     if (exitTimer.current != null) {
       window.clearTimeout(exitTimer.current);
@@ -114,8 +120,19 @@ export default function OrderTerminalPage({
     setPanelOpen(false);
     setLeftView("tables");
     setMobileView("tables");
+    void discardEmptyDrafts().then((n) => {
+      if (n > 0) queryClient.invalidateQueries({ queryKey: orderKeys.all });
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderType]);
+
+  // Mount sweep: purge empties orphaned by crashed sessions (age-guarded).
+  useEffect(() => {
+    void discardEmptyDrafts().then((n) => {
+      if (n > 0) queryClient.invalidateQueries({ queryKey: orderKeys.all });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { data: activeTable } = useQuery({
     ...tableQueryOptions(activeTableId ?? ""),
@@ -236,6 +253,9 @@ export default function OrderTerminalPage({
         setActiveOrderId(null);
         setActiveGroupId(null);
         exitTimer.current = null;
+        void discardEmptyDrafts().then((n) => {
+          if (n > 0) queryClient.invalidateQueries({ queryKey: orderKeys.all });
+        });
       }, PANEL_EXIT_MS);
       return;
     }
@@ -267,8 +287,9 @@ export default function OrderTerminalPage({
   );
   const groupIds = new Set(groups.map((g) => g.id));
   // Detached open tabs: live orders whose party is gone — still payable.
+  // Zero-item drafts never render as bills (the sweep below deletes them).
   const openTabs = liveOrders.filter(
-    (o) => !o.occupancy_group_id || !groupIds.has(o.occupancy_group_id),
+    (o) => (!o.occupancy_group_id || !groupIds.has(o.occupancy_group_id)) && o.items.length > 0,
   );
 
   // Open bills for table-free flows (counter / takeaway / delivery): live
@@ -279,7 +300,8 @@ export default function OrderTerminalPage({
     enabled: !isDineIn,
   });
   const openBills = (counterOrders ?? []).filter(
-    (o) => o.status !== "COMPLETED" && o.status !== "CANCELLED" && !o.table_id,
+    (o) =>
+      o.status !== "COMPLETED" && o.status !== "CANCELLED" && !o.table_id && o.items.length > 0,
   );
 
   /** Tap a party chip: focus that party's bill. Never creates an order. */
@@ -839,6 +861,9 @@ export default function OrderTerminalPage({
                       setActiveOrderId(null);
                       setActiveGroupId(null);
                       exitTimer.current = null;
+                      void discardEmptyDrafts().then((n) => {
+                        if (n > 0) queryClient.invalidateQueries({ queryKey: orderKeys.all });
+                      });
                     }, PANEL_EXIT_MS);
                   }}
                 />

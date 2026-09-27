@@ -828,7 +828,7 @@ export async function ensureBareTableOrder(
 
 /**
  * Party-scoped twin of ensureTableOrder: return the occupancy group's live
- * order, or create a CONFIRMED dine-in order and attach it to the group.
+ * order, or create a DRAFT dine-in order and attach it to the group.
  * This is how shared tables serve one order per party — the press-and-hold
  * gesture on a party chip lands here. Serialized per group so double
  * holds can't create two orders.
@@ -909,6 +909,51 @@ export function orderSyncEligible(orderId: string): boolean {
   return o.items.some((i) => i.kot_id);
 }
 
+/**
+ * Sweep abandoned empty drafts: non-terminal orders that never received a
+ * single item line. Called when the terminal workspace resets (type switch,
+ * deselect, completion) and once on mount — never while the cart is being
+ * built. The 5-minute age guard protects a just-started cart (including one
+ * open in another tab); only genuinely abandoned empties go. No events are
+ * recorded (an empty cart is audit noise, and this keeps it out of the
+ * outbox entirely). Seated parties are detached, never released.
+ */
+export async function discardEmptyDrafts(outletId?: string): Promise<number> {
+  const release = await entityMutex.acquire("order-write");
+  const detached: { group_id: string; order_id: string }[] = [];
+  let count = 0;
+  try {
+    loadOrders();
+    const cutoff = Date.now() - 5 * 60 * 1000;
+    const now = new Date().toISOString();
+    for (const o of mockOrders) {
+      if (o.deleted_at) continue;
+      if (o.status === "COMPLETED" || o.status === "CANCELLED") continue;
+      if (o.items.length > 0) continue;
+      if (new Date(o.created_at).getTime() > cutoff) continue;
+      if (outletId && o.outlet_id !== outletId) continue;
+      o.deleted_at = now;
+      o.cancelled_reason = "Empty draft auto-discarded";
+      o.updated_at = now;
+      o.version += 1;
+      if (o.occupancy_group_id) {
+        detached.push({ group_id: o.occupancy_group_id, order_id: o.id });
+      }
+      count++;
+    }
+    if (count > 0) saveOrders();
+  } finally {
+    release();
+  }
+  for (const d of detached) {
+    try {
+      await detachOrder({ group_id: d.group_id, order_id: d.order_id });
+    } catch {
+      // Group already released/transferred — pointer is harmless.
+    }
+  }
+  return count;
+}
 /**
  * Delete an unfired order (soft-delete). Allowed iff no line has fired to a
  * KOT, regardless of status — anything fired must go through cancelOrder.
