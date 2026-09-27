@@ -5,6 +5,8 @@ import { Button } from "@pixa/ui/base-ui/button";
 import { Icons } from "@pixa/ui/icons";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@pixa/ui/base-ui/sidebar";
 import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
+import { useInstallPrompt } from "@/hooks/use-install-prompt";
+import { useServiceWorker } from "@/hooks/use-service-worker";
 import { getQueryClient } from "@/lib/query-client";
 import { useNow } from "@/lib/use-now";
 import { outletQueryOptions } from "@/features/outlet/api/queries";
@@ -83,6 +85,8 @@ function PosShellMain() {
     qc.invalidateQueries({ queryKey: orderKeys.all });
     qc.invalidateQueries({ queryKey: floorKeys.all });
   };
+  const { installEvt, installed, promptInstall } = useInstallPrompt();
+  useServiceWorker();
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background">
@@ -99,6 +103,17 @@ function PosShellMain() {
         <span className="flex items-center gap-1.5">
           <OrderTypePicker />
           <ThemeModeToggle />
+          {!installed && installEvt && (
+            <Button
+              variant="outline"
+              size="icon-sm"
+              onClick={promptInstall}
+              title="Install POS app"
+              aria-label="Install POS app"
+            >
+              <Icons.add className="size-4" />
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Kiosk",
   description: "Self-ordering kiosk — coming soon.",
+  manifest: "/kiosk/manifest.webmanifest",
 };
 
 /**

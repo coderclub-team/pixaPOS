@@ -1,7 +1,23 @@
 {
-  "name": "pixaPOS",
+  "name": "pixapos",
   "version": "0.1.0",
   "private": true,
+  "description": "pixaPOS is a Turborepo workspace for intuitive, resilient restaurant operations: POS order capture, KOT/KDS, tables, payments, inventory, customers, and reporting. The product target is a local-first POS and KDS that keeps staff productive during temporary connectivity loss while preserving an auditable operational history.",
+  "keywords": [],
+  "homepage": "https://github.com/coderclub-team/pixaPOS#readme",
+  "bugs": {
+    "url": "https://github.com/coderclub-team/pixaPOS/issues"
+  },
+  "license": "ISC",
+  "author": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/coderclub-team/pixaPOS.git"
+  },
+  "directories": {
+    "doc": "docs"
+  },
+  "main": "index.js",
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",

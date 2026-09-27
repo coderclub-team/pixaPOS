@@ -5,6 +5,7 @@ import PosShell from "./shell";
 
 export const metadata: Metadata = {
   title: "POS Terminal",
+  manifest: "/pos/manifest.webmanifest",
   description: "Standalone order terminal — dine-in, counter, takeaway and delivery.",
 };
 

@@ -1,14 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Icons } from "@pixa/ui/icons";
 import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@pixa/ui/base-ui/sidebar";
 import AppSidebar from "@/components/layout/app-sidebar";
+import { useInstallPrompt } from "@/hooks/use-install-prompt";
+import { useServiceWorker } from "@/hooks/use-service-worker";
 import KdsBoard from "@/features/kitchen/components/kds-board";
-
-type BIPEvent = Event & { prompt: () => Promise<void> };
 
 /**
  * Standalone KDS wallboard: shared AppSidebar (role-filtered nav, same as
@@ -17,51 +17,9 @@ type BIPEvent = Event & { prompt: () => Promise<void> };
  * Home Screen.
  */
 export default function KdsWallboard() {
-  const [installEvt, setInstallEvt] = useState<BIPEvent | null>(null);
-  const [installed, setInstalled] = useState(false);
-  const [swReady, setSwReady] = useState(false);
+  const { installEvt, installed, promptInstall: install } = useInstallPrompt();
+  const swReady = useServiceWorker();
   const [wake, setWake] = useState(false);
-
-  useEffect(() => {
-    const onBIP = (e: Event) => {
-      e.preventDefault();
-      setInstallEvt(e as BIPEvent);
-    };
-    const onInstalled = () => {
-      setInstalled(true);
-      setInstallEvt(null);
-    };
-    window.addEventListener("beforeinstallprompt", onBIP);
-    window.addEventListener("appinstalled", onInstalled);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onBIP);
-      window.removeEventListener("appinstalled", onInstalled);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
-    // Never register the caching worker on localhost: dev recompiles turn
-    // every transient failure into a permanently cached stall. Actively drop
-    // any worker a previous session registered, so a poisoned cache cannot
-    // survive into this load.
-    const host = window.location.hostname;
-    if (host === "localhost" || host === "127.0.0.1") {
-      navigator.serviceWorker
-        .getRegistrations()
-        .then((regs) => Promise.all(regs.map((r) => r.unregister())))
-        .catch(() => {});
-      return;
-    }
-    let cancelled = false;
-    navigator.serviceWorker
-      .register("/sw.js", { scope: "/" })
-      .then(() => !cancelled && setSwReady(true))
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     let lock: { release: () => Promise<void> } | null = null;
@@ -89,12 +47,6 @@ export default function KdsWallboard() {
       void lock?.release().catch(() => {});
     };
   }, []);
-
-  const install = useCallback(async () => {
-    if (!installEvt) return;
-    await installEvt.prompt();
-    setInstallEvt(null);
-  }, [installEvt]);
 
   return (
     <SidebarProvider defaultOpen={false}>
