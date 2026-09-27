@@ -58,6 +58,8 @@ export type MenuItem = {
   id: string;
   name: string;
   slug: string;
+  /** Item-level barcode for goods (packaged products) — scannable in search/POS. */
+  barcode?: string;
   category_id: string;
   category_name?: string;
   description?: string;

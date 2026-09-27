@@ -47,6 +47,7 @@ export const menuItemSchema = z.object({
   nutrition: nutritionSchema.optional(),
   pairs_well_with: z.array(z.string()).optional(),
   is_bestseller: z.boolean().optional(),
+  barcode: z.string().max(40).optional().or(z.literal("")),
   is_active: z.boolean().optional(),
   variants: z
     .array(menuVariantSchema)

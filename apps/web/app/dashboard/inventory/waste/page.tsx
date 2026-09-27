@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import PageContainer from "@/components/layout/page-container";
-import { WasteList } from "@/features/inventory/components/waste-list";
+import { WasteList, wasteExportColumns } from "@/features/inventory/components/waste-list";
 import { wasteQueryOptions } from "@/features/inventory/api/queries";
 import { useQuery } from "@tanstack/react-query";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
@@ -19,6 +19,7 @@ import { cn } from "@pixa/ui/lib/utils";
 import { can } from "@/lib/authz";
 import { useIdentity } from "@/hooks/use-identity";
 import Link from "next/link";
+import { ExportButton } from "@/features/system/components/io-dialog";
 
 const REASONS = [
   "spoilage",
@@ -116,6 +117,7 @@ export default function WastePage() {
             ))}
           </SelectContent>
         </Select>
+        <ExportButton filename="waste-log" rows={logs ?? []} columns={wasteExportColumns} />
       </div>
       <WasteList logs={logs ?? []} />
     </PageContainer>

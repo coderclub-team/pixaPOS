@@ -39,6 +39,16 @@ import { cn } from "@pixa/ui/lib/utils";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { SortTh, useSorting } from "@/components/sort-th";
+import { ExportButton, ImportDialog } from "@/features/system/components/io-dialog";
+import {
+  importModifierGroups,
+  importModifiers,
+  modifierColumns,
+  modifierGroupColumns,
+  modifierGroupSample,
+  modifierSample,
+} from "@/features/menu/lib/io-modifiers";
 
 export default function ModifiersPage() {
   const router = useRouter();
@@ -56,6 +66,19 @@ export default function ModifiersPage() {
   const visible = (groups ?? []).filter(
     (g) => !search || g.name.toLowerCase().includes(search.toLowerCase()),
   );
+  const groupNameById = React.useMemo(
+    () => new Map((groups ?? []).map((g) => [g.id, g.name])),
+    [groups],
+  );
+
+  const { sortKey, sortDir, toggle, sorted } = useSorting<(typeof visible)[number]>("name");
+  const rows = sorted(visible, {
+    name: (g) => g.name,
+    required: (g) => g.min_selection > 0,
+    min: (g) => g.min_selection,
+    max: (g) => g.max_selection,
+    active: (g) => g.is_active,
+  });
 
   const delMut = useMutation({
     mutationFn: (id: string) => deleteModifierGroup(id),
@@ -123,6 +146,26 @@ export default function ModifiersPage() {
           onChange={(e) => setInputValue(e.target.value)}
           className="max-w-sm"
         />
+        <span className="ml-auto flex gap-2">
+          <ExportButton filename="modifier-groups" rows={visible} columns={modifierGroupColumns} />
+          <ImportDialog
+            title="Bulk import add-on groups"
+            sampleFilename="modifier-groups"
+            columns={modifierGroupColumns}
+            sampleRows={modifierGroupSample}
+            onImport={importModifierGroups}
+            onDone={() => queryClient.invalidateQueries({ queryKey: menuKeys.all })}
+          />
+          <ImportDialog
+            title="Bulk import add-on options"
+            sampleFilename="modifier-options"
+            columns={modifierColumns(groupNameById)}
+            sampleRows={modifierSample}
+            onImport={importModifiers}
+            onDone={() => queryClient.invalidateQueries({ queryKey: menuKeys.all })}
+            triggerLabel="Import Options"
+          />
+        </span>
       </div>
 
       {visible.length === 0 ? (
@@ -140,15 +183,47 @@ export default function ModifiersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Group</TableHead>
-                  <TableHead>Rule</TableHead>
-                  <TableHead>Min–Max</TableHead>
-                  <TableHead>Active</TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Group"
+                      column="name"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Rule"
+                      column="required"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Min–Max"
+                      column="min"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Active"
+                      column="active"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visible.map((g) => (
+                {rows.map((g) => (
                   <TableRow key={g.id}>
                     <TableCell>
                       <span className="font-medium">{g.name}</span>

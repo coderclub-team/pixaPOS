@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import PageContainer from "@/components/layout/page-container";
-import { UserList } from "@/features/users/components/user-list";
+import { UserList, userExportColumns } from "@/features/users/components/user-list";
 import { usersQueryOptions } from "@/features/users/api/queries";
 import { useQuery } from "@tanstack/react-query";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
@@ -18,6 +18,7 @@ import { POS_ROLES } from "@/config/roles";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
+import { ExportButton } from "@/features/system/components/io-dialog";
 
 export default function UsersPage() {
   const [search, setSearch] = React.useState("");
@@ -76,6 +77,7 @@ export default function UsersPage() {
             ))}
           </SelectContent>
         </Select>
+        <ExportButton filename="users" rows={data?.users ?? []} columns={userExportColumns} />
       </div>
 
       <UserList users={data?.users ?? []} />

@@ -34,6 +34,8 @@ import {
 } from "@pixa/ui/base-ui/dialog";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { SortTh, useSorting } from "@/components/sort-th";
+import type { CsvColumn } from "@/features/system/lib/csv";
 
 function statusClass(s: string) {
   if (s === "approved") return "text-green-600";
@@ -41,8 +43,51 @@ function statusClass(s: string) {
   return "text-destructive";
 }
 
+export const purchaseReturnExportColumns: CsvColumn<PurchaseReturn>[] = [
+  { key: "return_number", label: "Return #", get: (r) => r.return_number },
+  { key: "purchase_number", label: "Original Purchase", get: (r) => r.purchase_number ?? "" },
+  { key: "supplier_name", label: "Supplier", get: (r) => r.supplier_name ?? "" },
+  { key: "bill_date", label: "Bill Date", get: (r) => r.bill_date },
+  {
+    key: "reason",
+    label: "Reason",
+    get: (r) => r.reason.replaceAll("_", " "),
+  },
+  { key: "restock", label: "Restock", get: (r) => (r.restock ? "yes" : "no") },
+  { key: "items_count", label: "Items Count", get: (r) => r.items.length },
+  {
+    key: "items_list",
+    label: "Items List",
+    get: (r) =>
+      r.items.map((it) => `${it.material_name} ${it.qty_returned}/${it.qty_original}`).join(", "),
+  },
+  {
+    key: "subtotal_refund",
+    label: "Subtotal Refund",
+    get: (r) => `₹${r.subtotal_refund.toFixed(2)}`,
+  },
+  { key: "tax_refund", label: "Tax Refund", get: (r) => `₹${r.tax_refund.toFixed(2)}` },
+  { key: "total_refund", label: "Total Refund", get: (r) => `₹${r.total_refund.toFixed(2)}` },
+  { key: "status", label: "Status", get: (r) => r.status },
+];
+
 export function PurchaseReturnList({ returns }: { returns: PurchaseReturn[] }) {
-  if (returns.length === 0)
+  const { sortKey, sortDir, toggle, sorted } = useSorting<PurchaseReturn>("bill_date", "desc");
+  const rows = sorted(returns, {
+    return_number: (r) => r.return_number,
+    purchase_number: (r) => r.purchase_number ?? "",
+    supplier_name: (r) => r.supplier_name ?? "",
+    bill_date: (r) => r.bill_date,
+    reason: (r) => r.reason,
+    restock: (r) => r.restock,
+    items_count: (r) => r.items.length,
+    subtotal_refund: (r) => r.subtotal_refund,
+    tax_refund: (r) => r.tax_refund,
+    total_refund: (r) => r.total_refund,
+    status: (r) => r.status,
+  });
+
+  if (rows.length === 0)
     return (
       <Card>
         <CardContent className="py-12 text-center">
@@ -65,17 +110,65 @@ export function PurchaseReturnList({ returns }: { returns: PurchaseReturn[] }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Return #</TableHead>
-              <TableHead>Original Purchase</TableHead>
-              <TableHead>Supplier</TableHead>
-              <TableHead>Items</TableHead>
-              <TableHead>Refund</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>
+                <SortTh
+                  label="Return #"
+                  column="return_number"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Original Purchase"
+                  column="purchase_number"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Supplier"
+                  column="supplier_name"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Items"
+                  column="items_count"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Refund"
+                  column="total_refund"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Status"
+                  column="status"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {returns.map((r) => (
+            {rows.map((r) => (
               <ReturnRow key={r.id} ret={r} />
             ))}
           </TableBody>

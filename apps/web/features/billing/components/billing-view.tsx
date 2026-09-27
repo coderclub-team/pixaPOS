@@ -33,6 +33,8 @@ import {
 import { cancelSubscription, ensureSubscription } from "../api/service";
 import { billingKeys, invoicesQueryOptions } from "../api/queries";
 import { openRazorpaySubscriptionCheckout } from "../checkout";
+import { SortTh, useSorting } from "@/components/sort-th";
+import type { SubscriptionInvoice } from "../api/types";
 
 const STATUS_STYLE: Record<SubscriptionStatus, string> = {
   trialing: "text-sky-600",
@@ -98,6 +100,21 @@ export default function BillingView({
   });
 
   const sub: SubscriptionView | null = subQuery.data ?? null;
+
+  const { sortKey, sortDir, toggle, sorted } = useSorting<SubscriptionInvoice>(
+    "created_at",
+    "desc",
+  );
+  const sortedInvoices = sorted(invoices ?? [], {
+    invoice_number: (inv) => inv.invoice_number,
+    created_at: (inv) => inv.created_at,
+    period_start: (inv) => inv.period_start,
+    period_end: (inv) => inv.period_end,
+    total: (inv) => inv.total_paise / 100,
+    gst: (inv) => inv.gst_paise / 100,
+    status: (inv) => inv.status,
+    reference: (inv) => inv.razorpay_invoice_id ?? "",
+  });
 
   const cancelMut = useMutation({
     mutationFn: () => cancelSubscription(organizationId, { atPeriodEnd: true }),
@@ -301,15 +318,57 @@ export default function BillingView({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Invoice</TableHead>
-                  <TableHead>Period</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Reference</TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Invoice"
+                      column="invoice_number"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Period"
+                      column="period_start"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <SortTh
+                      label="Amount"
+                      column="total"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                      className="ml-auto"
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Status"
+                      column="status"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <SortTh
+                      label="Reference"
+                      column="reference"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                      className="ml-auto"
+                    />
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invoices.map((inv) => (
+                {sortedInvoices.map((inv) => (
                   <TableRow key={inv.id}>
                     <TableCell>
                       <span className="font-medium">{inv.invoice_number}</span>

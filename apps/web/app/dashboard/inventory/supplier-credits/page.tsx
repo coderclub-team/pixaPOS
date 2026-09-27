@@ -1,7 +1,10 @@
 "use client";
 import * as React from "react";
 import PageContainer from "@/components/layout/page-container";
-import { SupplierAdjustmentList } from "@/features/inventory/components/supplier-adjustment-list";
+import {
+  SupplierAdjustmentList,
+  supplierAdjustmentExportColumns,
+} from "@/features/inventory/components/supplier-adjustment-list";
 import { supplierAdjustmentsQueryOptions } from "@/features/inventory/api/queries";
 import { useQuery } from "@tanstack/react-query";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
@@ -16,6 +19,7 @@ import {
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
+import { ExportButton } from "@/features/system/components/io-dialog";
 
 export default function SupplierCreditsPage() {
   const [search, setSearch] = React.useState("");
@@ -88,6 +92,11 @@ export default function SupplierCreditsPage() {
             <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>
         </Select>
+        <ExportButton
+          filename="supplier-adjustments"
+          rows={adjustments ?? []}
+          columns={supplierAdjustmentExportColumns}
+        />
       </div>
       <SupplierAdjustmentList adjustments={adjustments ?? []} />
     </PageContainer>

@@ -1,7 +1,10 @@
 "use client";
 import * as React from "react";
 import PageContainer from "@/components/layout/page-container";
-import { PurchaseOrderList } from "@/features/inventory/components/purchase-order-list";
+import {
+  PurchaseOrderList,
+  purchaseOrderExportColumns,
+} from "@/features/inventory/components/purchase-order-list";
 import { purchaseOrdersQueryOptions } from "@/features/inventory/api/queries";
 import { useQuery } from "@tanstack/react-query";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
@@ -16,6 +19,7 @@ import {
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
+import { ExportButton } from "@/features/system/components/io-dialog";
 
 export default function PurchaseOrdersPage() {
   const [search, setSearch] = React.useState("");
@@ -76,6 +80,11 @@ export default function PurchaseOrdersPage() {
             <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>
         </Select>
+        <ExportButton
+          filename="purchase-orders"
+          rows={orders ?? []}
+          columns={purchaseOrderExportColumns}
+        />
       </div>
       <PurchaseOrderList orders={orders ?? []} />
     </PageContainer>

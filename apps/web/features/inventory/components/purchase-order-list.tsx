@@ -34,6 +34,8 @@ import {
 } from "@pixa/ui/base-ui/dialog";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { SortTh, useSorting } from "@/components/sort-th";
+import type { CsvColumn } from "@/features/system/lib/csv";
 
 function statusClass(s: string) {
   if (s === "received") return "text-green-600";
@@ -42,8 +44,40 @@ function statusClass(s: string) {
   return "text-destructive";
 }
 
+export const purchaseOrderExportColumns: CsvColumn<PurchaseOrder>[] = [
+  { key: "po_number", label: "PO #", get: (po) => po.po_number },
+  { key: "supplier_name", label: "Supplier", get: (po) => po.supplier_name ?? "" },
+  { key: "po_date", label: "PO Date", get: (po) => po.po_date },
+  { key: "expected_at", label: "Expected Delivery", get: (po) => po.expected_at ?? "" },
+  { key: "reference", label: "Reference", get: (po) => po.reference ?? "" },
+  { key: "items_count", label: "Items Count", get: (po) => po.items.length },
+  {
+    key: "items_list",
+    label: "Items List",
+    get: (po) => po.items.map((it) => `${it.material_name} ×${it.qty} ${it.unit ?? ""}`).join(", "),
+  },
+  { key: "subtotal", label: "Subtotal", get: (po) => `₹${po.subtotal.toFixed(2)}` },
+  { key: "tax_amount", label: "Tax", get: (po) => `₹${po.tax_amount.toFixed(2)}` },
+  { key: "total_amount", label: "Total", get: (po) => `₹${po.total_amount.toFixed(2)}` },
+  { key: "status", label: "Status", get: (po) => po.status },
+];
+
 export function PurchaseOrderList({ orders }: { orders: PurchaseOrder[] }) {
-  if (orders.length === 0)
+  const { sortKey, sortDir, toggle, sorted } = useSorting<PurchaseOrder>("po_date", "desc");
+  const rows = sorted(orders, {
+    po_number: (po) => po.po_number,
+    supplier_name: (po) => po.supplier_name ?? "",
+    po_date: (po) => po.po_date,
+    expected_at: (po) => po.expected_at ?? "",
+    reference: (po) => po.reference ?? "",
+    items_count: (po) => po.items.length,
+    subtotal: (po) => po.subtotal,
+    tax_amount: (po) => po.tax_amount,
+    total_amount: (po) => po.total_amount,
+    status: (po) => po.status,
+  });
+
+  if (rows.length === 0)
     return (
       <Card>
         <CardContent className="py-12 text-center">
@@ -66,16 +100,56 @@ export function PurchaseOrderList({ orders }: { orders: PurchaseOrder[] }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>PO Number</TableHead>
-              <TableHead>Supplier</TableHead>
-              <TableHead>Items</TableHead>
-              <TableHead>Total</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>
+                <SortTh
+                  label="PO Number"
+                  column="po_number"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Supplier"
+                  column="supplier_name"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Items"
+                  column="items_count"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Total"
+                  column="total_amount"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Status"
+                  column="status"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {orders.map((po) => (
+            {rows.map((po) => (
               <PurchaseOrderRow key={po.id} po={po} />
             ))}
           </TableBody>

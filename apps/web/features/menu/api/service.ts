@@ -232,8 +232,12 @@ export async function getMenuItems(filters?: MenuItemFilters): Promise<MenuItem[
       (m) =>
         m.name.toLowerCase().includes(q) ||
         m.slug.includes(q) ||
+        (m as any).barcode?.toLowerCase().includes(q) ||
         (m.variants ?? []).some(
-          (v) => v.sku.toLowerCase().includes(q) || v.name.toLowerCase().includes(q),
+          (v) =>
+            v.sku.toLowerCase().includes(q) ||
+            v.name.toLowerCase().includes(q) ||
+            v.barcode?.toLowerCase().includes(q),
         ),
     );
   }
@@ -322,6 +326,7 @@ export async function createMenuItem(payload: MenuItemPayload): Promise<MenuItem
     image_urls,
     item_type: itemType,
     product_type: productType,
+    barcode: (payload as any).barcode?.trim() || undefined,
     veg_type: (payload as any).veg_type ?? "veg",
     spice_level: (payload as any).spice_level,
     prep_time_min: (payload as any).prep_time_min,

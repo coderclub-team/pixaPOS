@@ -34,8 +34,17 @@ import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { SortTh, useSorting } from "@/components/sort-th";
 
 export function MenuList({ items }: { items: MenuItem[] }) {
+  const { sortKey, sortDir, toggle, sorted } = useSorting<MenuItem>("name");
+  const rows = sorted(items, {
+    name: (m) => m.name,
+    category: (m) => m.category_name ?? "",
+    variants: (m) => m.variants.length,
+    price: (m) => Math.min(...m.variants.map((v) => v.selling_price)),
+    status: (m) => m.is_active,
+  });
   if (items.length === 0)
     return (
       <Card>
@@ -58,17 +67,58 @@ export function MenuList({ items }: { items: MenuItem[] }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Dish</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Variants</TableHead>
-              <TableHead className="text-right">Price</TableHead>
+              <TableHead>
+                <SortTh
+                  label="Dish"
+                  column="name"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Category"
+                  column="category"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Variants"
+                  column="variants"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead className="text-right">
+                <SortTh
+                  label="Price"
+                  column="price"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                  className="ml-auto"
+                />
+              </TableHead>
               <TableHead>Channels</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>
+                <SortTh
+                  label="Status"
+                  column="status"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {items.map((m) => (
+            {rows.map((m) => (
               <MenuRow key={m.id} item={m} />
             ))}
           </TableBody>

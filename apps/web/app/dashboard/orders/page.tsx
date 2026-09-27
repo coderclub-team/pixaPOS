@@ -49,6 +49,9 @@ import { OrderStatusPill } from "@/features/orders/components/order-kitchen-prog
 import { getQueryClient } from "@/lib/query-client";
 import { useCrossTabSync } from "@/lib/use-cross-tab-sync";
 import { toast } from "sonner";
+import { SortTh, useSorting } from "@/components/sort-th";
+import { ExportButton } from "@/features/system/components/io-dialog";
+import type { CsvColumn } from "@/features/system/lib/csv";
 
 const CHANNELS: { value: OrderChannel | "all"; label: string }[] = [
   { value: "all", label: "All channels" },
@@ -68,6 +71,20 @@ const STATUSES: { value: OrderStatus | "all"; label: string }[] = [
   { value: "SERVED", label: "Served" },
   { value: "COMPLETED", label: "Completed" },
   { value: "CANCELLED", label: "Cancelled" },
+];
+
+const orderExportColumns: CsvColumn<OrderWithDerived>[] = [
+  { key: "order_number", label: "Order #", get: (o) => o.order_number },
+  { key: "external_ref", label: "External Ref", get: (o) => o.external_ref ?? "" },
+  { key: "channel", label: "Channel", get: (o) => o.channel.replaceAll("_", " ") },
+  { key: "table_number", label: "Table", get: (o) => o.table_number_snapshot ?? "" },
+  { key: "customer_name", label: "Customer Name", get: (o) => o.customer_name ?? "" },
+  { key: "customer_phone", label: "Customer Phone", get: (o) => o.customer_phone ?? "" },
+  { key: "items", label: "Items", get: (o) => o.items.length },
+  { key: "kots", label: "KOTs", get: (o) => o.kot_count },
+  { key: "total", label: "Total", get: (o) => formatINR(o.total_paise) },
+  { key: "created_at", label: "Created At", get: (o) => o.created_at },
+  { key: "status", label: "Status", get: (o) => o.status },
 ];
 
 export default function OrdersPage() {
@@ -94,6 +111,20 @@ export default function OrdersPage() {
 
   // DRAFT carts never reach the list — an order appears only once fired.
   const visibleOrders = (orders ?? []).filter((o) => o.status !== "DRAFT");
+
+  const { sortKey, sortDir, toggle, sorted } = useSorting<OrderWithDerived>("created_at", "desc");
+  const rows = sorted(visibleOrders, {
+    order_number: (o) => o.order_number,
+    channel: (o) => o.channel,
+    table_number: (o) => o.table_number_snapshot ?? "",
+    customer_name: (o) => o.customer_name ?? "",
+    customer_phone: (o) => o.customer_phone ?? "",
+    items: (o) => o.items.length,
+    kots: (o) => o.kot_count,
+    total: (o) => o.total_paise / 100,
+    created_at: (o) => o.created_at,
+    status: (o) => o.status,
+  });
 
   if (isPending) {
     return (
@@ -169,9 +200,10 @@ export default function OrdersPage() {
             ))}
           </SelectContent>
         </Select>
+        <ExportButton filename="orders" rows={rows} columns={orderExportColumns} />
       </div>
 
-      {!visibleOrders.length ? (
+      {!rows.length ? (
         <Card>
           <CardContent className="py-12 text-center">
             <div className="mx-auto flex max-w-md flex-col items-center gap-3">
@@ -191,19 +223,83 @@ export default function OrdersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Order</TableHead>
-                  <TableHead>Channel</TableHead>
-                  <TableHead>Table / Customer</TableHead>
-                  <TableHead>Items</TableHead>
-                  <TableHead>KOTs</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Age</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Order"
+                      column="order_number"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Channel"
+                      column="channel"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Table / Customer"
+                      column="table_number"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Items"
+                      column="items"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="KOTs"
+                      column="kots"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Total"
+                      column="total"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Age"
+                      column="created_at"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Status"
+                      column="status"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visibleOrders.map((o) => (
+                {rows.map((o) => (
                   <TableRow key={o.id}>
                     <TableCell>
                       <span className="font-medium">{o.order_number}</span>

@@ -84,6 +84,8 @@ export default function MenuForm({
       (initialData && initialData.variants.length > 1 ? "variant" : "simple"),
   );
   const [itemType, setItemType] = useState<ItemType>((initialData as any)?.item_type ?? "service");
+  // Item-level barcode — goods (packaged products) only; services hide it.
+  const [itemBarcode, setItemBarcode] = useState((initialData as any)?.barcode ?? "");
   const initialImages: string[] =
     ((initialData as any)?.image_urls as string[]) ??
     ((initialData as any)?.images ? (initialData as any).images.map((i: any) => i.url) : []) ??
@@ -210,6 +212,7 @@ export default function MenuForm({
         ...v,
         item_type: itemType,
         product_type: productType,
+        barcode: itemType === "goods" ? itemBarcode.trim() || undefined : undefined,
         image_urls: images,
         images: images.map((url, i) => ({ url, sort_order: i })),
         variants:
@@ -259,6 +262,7 @@ export default function MenuForm({
         ...v,
         item_type: itemType,
         product_type: productType,
+        barcode: itemType === "goods" ? itemBarcode.trim() || undefined : undefined,
         image_urls: images,
         images: images.map((url, i) => ({ url, sort_order: i })),
         variants:
@@ -514,6 +518,16 @@ export default function MenuForm({
                       ? "Supply of Goods — 5% / 18% (HSN)"
                       : "Supply of Service — 5% (SAC 996331)"}
                   </p>
+                  {itemType === "goods" && (
+                    <div className="space-y-1.5 pt-1">
+                      <Label className="text-xs text-muted-foreground">Barcode (EAN/UPC)</Label>
+                      <Input
+                        placeholder="8901234567890"
+                        value={itemBarcode}
+                        onChange={(e) => setItemBarcode(e.target.value)}
+                      />
+                    </div>
+                  )}
                 </div>
                 <form.AppField
                   name="veg_type"

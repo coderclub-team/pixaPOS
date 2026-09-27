@@ -34,8 +34,18 @@ import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { SortTh, useSorting } from "@/components/sort-th";
 
 export function RawMaterialList({ materials }: { materials: RawMaterial[] }) {
+  const { sortKey, sortDir, toggle, sorted } = useSorting<RawMaterial>("name");
+  const rows = sorted(materials, {
+    name: (m) => m.name,
+    category: (m) => m.category,
+    stock: (m) => m.stock_qty,
+    valuation: (m) => m.stock_qty * m.avg_cost,
+    status: (m) => m.is_active,
+  });
+
   if (materials.length === 0) {
     return (
       <Card>
@@ -60,16 +70,57 @@ export function RawMaterialList({ materials }: { materials: RawMaterial[] }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Material</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Stock</TableHead>
-              <TableHead className="text-right">Valuation</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>
+                <SortTh
+                  label="Material"
+                  column="name"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Category"
+                  column="category"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Stock"
+                  column="stock"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead className="text-right">
+                <SortTh
+                  label="Valuation"
+                  column="valuation"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                  className="ml-auto"
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Status"
+                  column="status"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {materials.map((m) => (
+            {rows.map((m) => (
               <RawMaterialRow key={m.id} m={m} />
             ))}
           </TableBody>
