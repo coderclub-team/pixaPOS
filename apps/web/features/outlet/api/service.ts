@@ -165,6 +165,34 @@ export async function getOutletById(id: string): Promise<Outlet | null> {
   return mockOutlet.id === id ? { ...mockOutlet } : null;
 }
 
+/**
+ * Verify (or first-set, when unset) the kiosk PIN for device pairing.
+ * First-set requires the caller to have verified a manager out-of-band —
+ * the pair endpoint enforces outletManage before calling with allowSet.
+ * Returns true when the PIN is accepted.
+ */
+export async function checkKioskPin(
+  outletId: string,
+  pin: string,
+  opts?: { allowSet?: boolean },
+): Promise<boolean> {
+  await delay(200);
+  if (mockOutlet.id !== outletId) return false;
+  if (!/^[0-9]{4,8}$/.test(pin)) return false;
+  const { hashKioskPin } = await import("@/lib/device-token");
+  if (!mockOutlet.kiosk_pin_hash) {
+    if (!opts?.allowSet) return false;
+    mockOutlet = {
+      ...mockOutlet,
+      kiosk_pin_hash: await hashKioskPin(pin, outletId),
+      updated_at: new Date().toISOString(),
+    };
+    saveOutlet();
+    return true;
+  }
+  return (await hashKioskPin(pin, outletId)) === mockOutlet.kiosk_pin_hash;
+}
+
 const VPA_RE = /^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/;
 
 /** Add a UPI VPA. First account becomes the default automatically. */

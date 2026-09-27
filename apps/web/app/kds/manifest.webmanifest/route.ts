@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 
-/**
- * Installable KDS wallboard PWA: standalone kitchen app with its own icon
- * and start URL.
- */
+/** Installable kitchen display web manifest. */
 export async function GET() {
   return NextResponse.json({
     name: "pixaPOS — Kitchen Display",

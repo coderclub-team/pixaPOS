@@ -36,6 +36,8 @@ export type Outlet = {
   business_hours?: BusinessHours;
   /** UPI VPAs for bill collect-QR (Print Studio). Exactly one may be default. */
   upi_ids: UpiAccount[];
+  /** Salted kiosk PIN hash (see hashKioskPin). Absent = kiosk pairing unset. */
+  kiosk_pin_hash?: string;
   /** @deprecated single-VPA era; migrated into upi_ids on read. */
   upi_id?: string;
   is_active: boolean;

@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 
-/**
- * Installable self-ordering kiosk PWA: standalone customer app with its own
- * icon and start URL.
- */
+/** Installable self-ordering kiosk web manifest. */
 export async function GET() {
   return NextResponse.json({
     name: "pixaPOS — Self Order",

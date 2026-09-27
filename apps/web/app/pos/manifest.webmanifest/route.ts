@@ -1,14 +1,11 @@
 import { NextResponse } from "next/server";
 
-/**
- * Installable POS terminal PWA: standalone counter app with its own icon
- * and start URL, so it installs separately from the dashboard.
- */
+/** Installable POS terminal web manifest (start_url scope keeps it a separate app icon). */
 export async function GET() {
   return NextResponse.json({
     name: "pixaPOS — Counter Terminal",
     short_name: "POS",
-    description: "Counter terminal — dine-in, counter, takeaway and delivery orders.",
+    description: "Counter terminal — orders, bills and KOTs.",
     start_url: "/pos",
     scope: "/pos",
     id: "/pos",

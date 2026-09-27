@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 
-/**
- * Installable table QR-ordering PWA: opened from table QR codes (?table=),
- * standalone with its own icon and start URL.
- */
+/** Installable table QR-ordering web manifest. */
 export async function GET() {
   return NextResponse.json({
     name: "pixaPOS — Table Order",
