@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { ensureLocalMirror } from "@/lib/db/bootstrap";
 import { startSyncEngine } from "@/lib/db/sync-engine";
+import { maybeAutoSnapshot } from "@/features/system/api/service";
 import { useServiceWorker } from "@/hooks/use-service-worker";
 
 /**
@@ -15,6 +16,7 @@ export default function LocalMirrorBootstrap() {
   useServiceWorker();
   useEffect(() => {
     void ensureLocalMirror().finally(() => {});
+    maybeAutoSnapshot();
     const stop = startSyncEngine();
     return () => stop();
   }, []);

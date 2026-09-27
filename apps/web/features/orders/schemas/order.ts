@@ -17,6 +17,7 @@ export const createOrderSchema = z.object({
   customer_name: z.string().max(60).optional(),
   customer_phone: z.string().max(15).optional(),
   customer_notes: z.string().max(300).optional(),
+  scheduled_for: z.string().max(30).optional(),
   external_ref: z.string().max(40).optional(),
 });
 

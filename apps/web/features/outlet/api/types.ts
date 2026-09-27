@@ -55,12 +55,26 @@ export type DayHours = {
   closed: boolean;
 };
 
-export type OrderChannelKey = "dine_in" | "counter" | "takeaway" | "delivery" | "own_online";
+export type OrderChannelKey =
+  | "dine_in"
+  | "counter"
+  | "takeaway"
+  | "delivery"
+  | "own_online"
+  | "kiosk"
+  | "qr"
+  | "website"
+  | "zomato"
+  | "swiggy";
 
 /** Per-channel override: inherit the outlet base, or keep own week grid. */
 export type ChannelHours = {
   use_outlet_hours: boolean;
   days?: DayHours[];
+  /** open: normal hours; closed: block creation; scheduled: accept now, fire later manually. */
+  mode?: "open" | "closed" | "scheduled";
+  /** Stop ASAP orders this many minutes before close (Toast-style cut-off). */
+  cutoff_minutes?: number;
 };
 
 export type BusinessHours = {

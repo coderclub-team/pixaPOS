@@ -9,7 +9,7 @@ import { Switch } from "@pixa/ui/base-ui/switch";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { defaultBusinessHours, updateOutlet } from "../api/service";
 import { outletKeys } from "../api/queries";
-import type { BusinessHours, DayHours, OrderChannelKey } from "../api/types";
+import type { BusinessHours, ChannelHours, DayHours, OrderChannelKey } from "../api/types";
 import { businessHoursSchema } from "../schemas/outlet";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -130,6 +130,17 @@ export default function BusinessHoursForm({ initialData }: { initialData: Busine
         ? { use_outlet_hours: true }
         : { use_outlet_hours: false, days: c[key]?.days ?? cloneDays(days) },
     }));
+  const setChannelPatch = (key: OrderChannelKey, patch: Partial<ChannelHours>) =>
+    setChannels((c) => ({
+      ...c,
+      [key]: {
+        use_outlet_hours: false,
+        days: c[key]?.days ?? cloneDays(days),
+        mode: c[key]?.mode ?? "open",
+        cutoff_minutes: c[key]?.cutoff_minutes ?? 0,
+        ...patch,
+      },
+    }));
 
   const save = async () => {
     const payload: BusinessHours = { days, channels };
@@ -185,11 +196,69 @@ export default function BusinessHoursForm({ initialData }: { initialData: Busine
                 </div>
               </div>
               {!inherit && (
-                <WeekGrid
-                  days={conf?.days ?? cloneDays(days)}
-                  onChange={(next) => setChannelDays(ch.value, next)}
-                  idPrefix={ch.value}
-                />
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-muted-foreground">When closed hours hit:</span>
+                    <div
+                      className="flex rounded-lg border p-0.5"
+                      role="group"
+                      aria-label={`${ch.label} mode`}
+                    >
+                      {(
+                        [
+                          ["open", "Open"],
+                          ["closed", "Closed"],
+                          ["scheduled", "Scheduled"],
+                        ] as const
+                      ).map(([v, label]) => (
+                        <Button
+                          key={v}
+                          type="button"
+                          variant={(conf?.mode ?? "open") === v ? "default" : "ghost"}
+                          size="sm"
+                          className="h-8 px-2.5 text-xs"
+                          onClick={() => setChannelPatch(ch.value, { mode: v })}
+                          title={
+                            v === "open"
+                              ? "Take orders in hours"
+                              : v === "closed"
+                                ? "Block new orders"
+                                : "Accept now, fire later manually"
+                          }
+                        >
+                          {label}
+                        </Button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Label
+                        htmlFor={`cutoff-${ch.value}`}
+                        className="text-xs text-muted-foreground"
+                      >
+                        Cut-off (min)
+                      </Label>
+                      <Input
+                        id={`cutoff-${ch.value}`}
+                        type="number"
+                        min={0}
+                        max={240}
+                        value={conf?.cutoff_minutes ?? ""}
+                        placeholder="0"
+                        onChange={(e) =>
+                          setChannelPatch(ch.value, {
+                            cutoff_minutes: Math.max(0, Math.min(240, Number(e.target.value) || 0)),
+                          })
+                        }
+                        className="h-8 w-20"
+                      />
+                    </div>
+                  </div>
+                  <WeekGrid
+                    days={conf?.days ?? cloneDays(days)}
+                    onChange={(next) => setChannelDays(ch.value, next)}
+                    idPrefix={ch.value}
+                  />
+                </>
               )}
             </section>
           );

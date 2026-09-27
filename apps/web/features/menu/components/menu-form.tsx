@@ -29,7 +29,12 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createMenuItem, updateMenuItem } from "../api/service";
-import { menuKeys, menuCategoriesQueryOptions } from "../api/queries";
+import {
+  menuKeys,
+  menuCategoriesQueryOptions,
+  menuItemsQueryOptions,
+  modifierGroupsQueryOptions,
+} from "../api/queries";
 import { recipesQueryOptions } from "@/features/inventory/api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import type { MenuItem, ProductType, ItemType } from "../api/types";
@@ -115,6 +120,9 @@ export default function MenuForm({
   const [availableChannels, setAvailableChannels] = useState<string[]>(
     initialData?.available_channels ?? ["dine_in", "pickup", "delivery"],
   );
+  const [isBestseller, setIsBestseller] = useState(initialData?.is_bestseller ?? false);
+  const [pairIds, setPairIds] = useState<string[]>(initialData?.pairs_well_with ?? []);
+  const [pairSearch, setPairSearch] = useState("");
   // Nutrition per serve (FSSAI 5(3) set) — strings in state, numbers on save.
   const NUTRI_FIELDS = [
     ["serving_size", "Serving size", "", "250"],
@@ -233,7 +241,10 @@ export default function MenuForm({
                 recipe_id: (x.recipe_id as string) || undefined,
               })),
         available_channels: availableChannels,
+        modifier_group_ids: linkedGroups,
         nutrition: cleanNutrition(),
+        pairs_well_with: pairIds,
+        is_bestseller: isBestseller,
       }),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: menuKeys.all });
@@ -279,7 +290,10 @@ export default function MenuForm({
                 recipe_id: (x.recipe_id as string) || undefined,
               })),
         available_channels: availableChannels,
+        modifier_group_ids: linkedGroups,
         nutrition: cleanNutrition(),
+        pairs_well_with: pairIds,
+        is_bestseller: isBestseller,
       }),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: menuKeys.all });
@@ -392,6 +406,12 @@ export default function MenuForm({
     setAvailableChannels((prev) =>
       prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch],
     );
+  const { data: modifierGroups } = useQuery(modifierGroupsQueryOptions());
+  const [linkedGroups, setLinkedGroups] = useState<string[]>(
+    ((initialData as any)?.modifier_group_ids as string[]) ?? [],
+  );
+  const toggleGroup = (id: string) =>
+    setLinkedGroups((prev) => (prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id]));
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
@@ -1137,6 +1157,52 @@ export default function MenuForm({
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Add-ons</CardTitle>
+            <CardDescription>
+              Link add-on groups — required groups block firing until satisfied. Manage groups under
+              Menu → Add-ons.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {(modifierGroups ?? []).filter((g) => g.is_active).length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No add-on groups yet — create them under Menu → Add-ons first.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {(modifierGroups ?? [])
+                  .filter((g) => g.is_active)
+                  .map((g) => (
+                    <label
+                      key={g.id}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded border px-2 py-1 text-xs",
+                        linkedGroups.includes(g.id) &&
+                          "bg-primary text-primary-foreground border-primary",
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={linkedGroups.includes(g.id)}
+                        onChange={() => toggleGroup(g.id)}
+                        className="sr-only"
+                      />
+                      <span>
+                        {g.name}
+                        <span className="ml-1 opacity-70">
+                          {g.min_selection > 0 ? "req." : "opt."} {g.min_selection}–
+                          {g.max_selection}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <Collapsible open={nutriOpen} onOpenChange={setNutriOpen} render={<Card />}>
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -1201,7 +1267,90 @@ export default function MenuForm({
             </CardContent>
           </CollapsibleContent>
         </Collapsible>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Upsell · pairs well with</CardTitle>
+            <CardDescription>
+              Bestseller badge shows on menu cards; pair links feed picker suggestions and
+              aggregator payloads.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="bestseller">Bestseller</Label>
+              <Switch id="bestseller" checked={isBestseller} onCheckedChange={setIsBestseller} />
+            </div>
+            <PairPicker
+              selfId={initialData?.id}
+              pairIds={pairIds}
+              onChange={setPairIds}
+              search={pairSearch}
+              onSearchChange={setPairSearch}
+            />
+          </CardContent>
+        </Card>
       </form>
+    </div>
+  );
+}
+
+function PairPicker({
+  selfId,
+  pairIds,
+  onChange,
+  search,
+  onSearchChange,
+}: {
+  selfId?: string;
+  pairIds: string[];
+  onChange: (ids: string[]) => void;
+  search: string;
+  onSearchChange: (v: string) => void;
+}) {
+  const { data: items = [] } = useQuery(
+    menuItemsQueryOptions({ search: search.trim() || undefined }),
+  );
+  const selected = items.filter((i) => pairIds.includes(i.id));
+  const candidates = items.filter((i) => i.id !== selfId && !pairIds.includes(i.id)).slice(0, 8);
+  return (
+    <div className="space-y-2">
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selected.map((i) => (
+            <Badge key={i.id} variant="secondary" className="gap-1">
+              {i.name}
+              <button
+                type="button"
+                aria-label={`Remove ${i.name}`}
+                onClick={() => onChange(pairIds.filter((id) => id !== i.id))}
+              >
+                <Icons.close className="size-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+      <Input
+        placeholder="Search items to pair…"
+        value={search}
+        onChange={(e) => onSearchChange(e.target.value)}
+      />
+      {search.trim() && candidates.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {candidates.map((i) => (
+            <Button
+              key={i.id}
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onChange([...pairIds, i.id])}
+            >
+              <Icons.add className="size-3" /> {i.name}
+            </Button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

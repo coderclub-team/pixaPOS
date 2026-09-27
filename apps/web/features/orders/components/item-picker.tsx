@@ -23,7 +23,7 @@ import { kitchenKeys } from "@/features/kitchen/api/queries";
 import { eventKeys } from "@/features/events/api/queries";
 import { useFlyToKot } from "./use-fly-to-kot";
 import { menuCategoriesQueryOptions, menuItemsQueryOptions } from "@/features/menu/api/queries";
-import { getModifiers } from "@/features/menu/api/service";
+import { getModifierGroups, getModifiers } from "@/features/menu/api/service";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import type { MenuItem } from "@/features/menu/api/types";
@@ -419,6 +419,7 @@ export default function ItemPicker({
           pending={addMut.isPending}
           onClose={() => setPicked(null)}
           onAdd={(v) => addMut.mutate({ menu_item_id: picked.id, ...v })}
+          onPairAdd={(pairId) => addMut.mutate({ menu_item_id: pairId, qty: 1 })}
         />
       )}
 
@@ -454,6 +455,7 @@ export function PickItemDialog({
   pending,
   onClose,
   onAdd,
+  onPairAdd,
 }: {
   item: MenuItem;
   pending: boolean;
@@ -464,6 +466,7 @@ export function PickItemDialog({
     qty: number;
     instructions?: string;
   }) => void;
+  onPairAdd?: (menuItemId: string) => void;
 }) {
   // variants is optional on some rows (older seeds, form-created items) —
   // never let a missing array crash the dialog.
@@ -473,20 +476,46 @@ export function PickItemDialog({
   const [modifierIds, setModifierIds] = useState<string[]>([]);
   const [qty, setQty] = useState(1);
   const [instructions, setInstructions] = useState("");
+  const groupIds = item.modifier_group_ids ?? [];
   const { data: modifiers } = useQuery({
-    queryKey: ["menu", "modifiers", ...(item.modifier_group_ids ?? [])],
+    queryKey: ["menu", "modifiers", ...groupIds],
     queryFn: async () => {
-      const all: { id: string; name: string; price: number }[] = [];
-      for (const gid of item.modifier_group_ids ?? []) {
+      const all: { id: string; name: string; price: number; modifier_group_id: string }[] = [];
+      for (const gid of groupIds) {
         all.push(...(await getModifiers(gid)));
       }
       return all;
     },
-    enabled: (item.modifier_group_ids?.length ?? 0) > 0,
+    enabled: groupIds.length > 0,
+  });
+  const { data: linkedGroups } = useQuery({
+    queryKey: ["menu", "modifier-groups", ...groupIds],
+    queryFn: async () =>
+      (await getModifierGroups()).filter((g) => groupIds.includes(g.id) && g.is_active),
+    enabled: groupIds.length > 0,
   });
 
   const toggleModifier = (id: string) =>
     setModifierIds((prev) => (prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]));
+
+  // Required groups (min > 0) gate Add — mirrors the fireKOT server rule.
+  const unmetGroups = useMemo(
+    () =>
+      (linkedGroups ?? []).filter((g) => {
+        const picked = modifierIds.filter((id) =>
+          (modifiers ?? []).some((m) => m.id === id && m.modifier_group_id === g.id),
+        ).length;
+        return picked < g.min_selection;
+      }),
+    [linkedGroups, modifiers, modifierIds],
+  );
+
+  const pairIds = item.pairs_well_with ?? [];
+  const { data: pairItems } = useQuery({
+    ...menuItemsQueryOptions({}),
+    select: (all) => all.filter((i) => pairIds.includes(i.id) && i.is_active),
+    enabled: pairIds.length > 0 && !!onPairAdd,
+  });
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -518,18 +547,65 @@ export function PickItemDialog({
           </div>
         )}
         {(modifiers?.length ?? 0) > 0 && (
+          <div className="space-y-3">
+            {(linkedGroups ?? []).map((g) => {
+              const inGroup = (modifiers ?? []).filter((m) => m.modifier_group_id === g.id);
+              if (inGroup.length === 0) return null;
+              const picked = modifierIds.filter((id) => inGroup.some((m) => m.id === id)).length;
+              const unmet = picked < g.min_selection;
+              return (
+                <div key={g.id} className="space-y-1.5">
+                  <Label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    {g.name}
+                    {g.min_selection > 0 ? (
+                      <span
+                        className={
+                          unmet
+                            ? "rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                            : "rounded-full bg-green-100 px-2 py-0.5 font-semibold text-green-700 dark:bg-green-950 dark:text-green-300"
+                        }
+                      >
+                        Required · {picked}/{g.min_selection}
+                        {g.max_selection > 1 ? ` (max ${g.max_selection})` : ""}
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-muted px-2 py-0.5">
+                        Optional{g.max_selection > 1 ? ` · up to ${g.max_selection}` : ""}
+                      </span>
+                    )}
+                  </Label>
+                  <div className="flex flex-wrap gap-2">
+                    {inGroup.map((m) => (
+                      <Button
+                        key={m.id}
+                        type="button"
+                        variant={modifierIds.includes(m.id) ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => toggleModifier(m.id)}
+                      >
+                        {m.name} · +{formatINR(toPaise(m.price))}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {(pairItems?.length ?? 0) > 0 && (
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Add-ons</Label>
+            <Label className="text-xs text-muted-foreground">Pairs well with</Label>
             <div className="flex flex-wrap gap-2">
-              {modifiers!.map((m) => (
+              {pairItems!.map((p) => (
                 <Button
-                  key={m.id}
+                  key={p.id}
                   type="button"
-                  variant={modifierIds.includes(m.id) ? "default" : "outline"}
+                  variant="outline"
                   size="sm"
-                  onClick={() => toggleModifier(m.id)}
+                  disabled={pending}
+                  onClick={() => onPairAdd?.(p.id)}
                 >
-                  {m.name} · +{formatINR(toPaise(m.price))}
+                  <Icons.add className="size-3" /> {p.name}
                 </Button>
               ))}
             </div>
@@ -572,7 +648,12 @@ export function PickItemDialog({
               Cancel
             </Button>
             <Button
-              disabled={pending}
+              disabled={pending || unmetGroups.length > 0}
+              title={
+                unmetGroups.length > 0
+                  ? `Pick at least ${unmetGroups[0].min_selection} from ${unmetGroups[0].name}`
+                  : undefined
+              }
               onClick={() =>
                 onAdd({
                   variant_id: variantId,

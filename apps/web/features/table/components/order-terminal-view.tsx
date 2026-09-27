@@ -44,7 +44,12 @@ import {
 import { formatINR } from "@/lib/money";
 import { formatAge } from "@/lib/utils";
 import { useNow } from "@/lib/use-now";
-import { isChannelOpen, nextOpeningToday } from "@/features/outlet/api/service";
+import {
+  isChannelOpen,
+  minutesToClose,
+  channelCutoff,
+  nextOpeningToday,
+} from "@/features/outlet/api/service";
 import ItemBrowser from "@/features/orders/components/item-browser";
 import { useCategorySelection } from "@/features/orders/components/category-selection";
 import { kotOrderTypeOptions, useOrderType } from "@/features/orders/components/order-type";
@@ -100,6 +105,16 @@ export default function OrderTerminalPage({
   const typeOpen = !outlet || isChannelOpen(outlet, orderType, new Date(nowTick));
   const typeOpensAt =
     !typeOpen && outlet ? nextOpeningToday(outlet, orderType, new Date(nowTick)) : null;
+  // Cut-off: stop ASAP starts inside the closing window (Toast-style).
+  const cutoffHit =
+    !!outlet &&
+    typeOpen &&
+    (() => {
+      const cutoff = channelCutoff(outlet, orderType);
+      if (cutoff <= 0) return false;
+      const left = minutesToClose(outlet, orderType, new Date(nowTick));
+      return left != null && left < cutoff;
+    })();
   // Left region content: floor tables, or inline menu browser replacing the
   // table panel in the exact same footprint (no modal anywhere).
   const [leftView, setLeftView] = useState<"tables" | "items">("tables");
@@ -210,6 +225,7 @@ export default function OrderTerminalPage({
         // Counter carts start as local DRAFTs — deletable, never synced
         // until the first fire walks them to IN_KITCHEN.
         initial_status: "DRAFT",
+        staff_initiated: true,
       }),
     onSuccess: (order) => {
       queryClient.invalidateQueries({ queryKey: orderKeys.all });
@@ -533,11 +549,14 @@ export default function OrderTerminalPage({
                   disabled={
                     startCounterMut.isPending ||
                     !typeOpen ||
+                    cutoffHit ||
                     (askCustomer && !custName.trim() && !custPhone.trim())
                   }
                   title={
                     typeOpen
-                      ? undefined
+                      ? cutoffHit
+                        ? `Last ${orderTypeLabel} orders are over — kitchen closes soon`
+                        : undefined
                       : `Closed for ${orderTypeLabel}${typeOpensAt ? ` · opens ${typeOpensAt}` : ""}`
                   }
                   onClick={() => startCounterMut.mutate()}
@@ -547,7 +566,9 @@ export default function OrderTerminalPage({
                     ? "Starting…"
                     : !typeOpen
                       ? `Closed for ${orderTypeLabel}${typeOpensAt ? ` · opens ${typeOpensAt}` : ""}`
-                      : `Start ${orderTypeLabel} order`}
+                      : cutoffHit
+                        ? `Last orders over`
+                        : `Start ${orderTypeLabel} order`}
                 </Button>
               </CardContent>
             </Card>

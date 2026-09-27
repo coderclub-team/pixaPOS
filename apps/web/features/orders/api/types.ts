@@ -27,7 +27,12 @@ export type OrderItemSnapshot = {
   unit_price_paise: number;
   tax_percent_snapshot: number;
   recipe_id_snapshot?: string;
-  modifiers: { modifier_id: string; name_snapshot: string; price_paise: number }[];
+  modifiers: {
+    modifier_id: string;
+    name_snapshot: string;
+    alias_snapshot?: string;
+    price_paise: number;
+  }[];
   qty: number;
   line_total_paise: number;
   line_tax_paise: number;
@@ -71,6 +76,8 @@ export type RestaurantOrder = {
   /** Free-text customer notes — allergies, accessibility, special requests.
    * Captured at order start, printed on KOTs so the kitchen sees them. */
   customer_notes?: string;
+  /** Future fire slot (ISO) for scheduled-mode channels — fired manually. */
+  scheduled_for?: string;
   external_ref?: string;
   status: OrderStatus;
   items: OrderItemSnapshot[];
@@ -134,6 +141,10 @@ export type CreateOrderInput = {
   customer_name?: string;
   customer_phone?: string;
   customer_notes?: string;
+  scheduled_for?: string;
+  /** Staff-initiated creation (terminal, dashboard) bypasses the
+   * scheduled-mode slot requirement — customer surfaces must pass a slot. */
+  staff_initiated?: boolean;
   external_ref?: string;
   created_by?: string;
   /** /new cart flow passes DRAFT; terminal/seed keep the CONFIRMED default. */

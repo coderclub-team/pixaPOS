@@ -332,6 +332,8 @@ export async function createMenuItem(payload: MenuItemPayload): Promise<MenuItem
     hsn_code: (payload as any).hsn_code,
     available_channels: (payload as any).available_channels ?? ["dine_in", "pickup", "delivery"],
     nutrition: (payload as any).nutrition ?? undefined,
+    pairs_well_with: (payload as any).pairs_well_with ?? [],
+    is_bestseller: (payload as any).is_bestseller ?? false,
     variants,
     modifier_group_ids: (payload as any).modifier_group_ids ?? [],
     is_active: (payload as any).is_active ?? true,

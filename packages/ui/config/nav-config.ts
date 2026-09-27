@@ -122,6 +122,12 @@ export const navGroups: NavGroup[] = [
             shortcut: ["o", "z"],
           },
           {
+            title: "Data & Backups",
+            url: "/dashboard/settings/outlet/operations/data",
+            icon: "download",
+            shortcut: ["o", "b"],
+          },
+          {
             title: "Billing Templates",
             url: "/dashboard/settings/outlet/billing/invoice",
             icon: "billing",
@@ -199,6 +205,13 @@ export const navGroups: NavGroup[] = [
             url: "/dashboard/menu/items",
             icon: "pizza",
             shortcut: ["m", "i"],
+            access: { requireOrg: true },
+          },
+          {
+            title: "Add-ons",
+            url: "/dashboard/menu/modifiers",
+            icon: "layers",
+            shortcut: ["m", "a"],
             access: { requireOrg: true },
           },
         ],

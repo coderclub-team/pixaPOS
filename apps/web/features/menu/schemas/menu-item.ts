@@ -45,6 +45,8 @@ export const menuItemSchema = z.object({
     .array(z.enum(["dine_in", "pickup", "delivery", "zomato", "swiggy", "ondc"]))
     .optional(),
   nutrition: nutritionSchema.optional(),
+  pairs_well_with: z.array(z.string()).optional(),
+  is_bestseller: z.boolean().optional(),
   is_active: z.boolean().optional(),
   variants: z
     .array(menuVariantSchema)

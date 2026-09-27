@@ -102,7 +102,7 @@ function dayPartsInTz(at: Date, timeZone: string): { day: number; minutes: numbe
 /**
  * Is the outlet open for a channel right now? Missing hours = always open
  * (legacy outlets). close <= open spans midnight (e.g. 18:00–02:00 belongs
- * to the opening day).
+ * to the opening day). Mode is ignored here — see channelMode().
  */
 export function isChannelOpen(
   outlet: Pick<Outlet, "business_hours" | "timezone">,
@@ -146,6 +146,56 @@ export function nextOpeningToday(
   const { day } = dayPartsInTz(at, tz);
   const today = days?.find((d) => d.day === day);
   return today && !today.closed ? today.open : null;
+}
+
+/** Channel mode: open | closed | scheduled (inherit → open). */
+export function channelMode(
+  outlet: Pick<Outlet, "business_hours">,
+  channel: string,
+): "open" | "closed" | "scheduled" {
+  const conf =
+    outlet.business_hours?.channels?.[channel as keyof NonNullable<BusinessHours["channels"]>];
+  return conf && !conf.use_outlet_hours ? (conf.mode ?? "open") : "open";
+}
+
+/** Cut-off minutes for a channel (0 = none). */
+export function channelCutoff(outlet: Pick<Outlet, "business_hours">, channel: string): number {
+  const conf =
+    outlet.business_hours?.channels?.[channel as keyof NonNullable<BusinessHours["channels"]>];
+  if (!conf || conf.use_outlet_hours) return 0;
+  return Math.max(0, Math.min(240, Math.floor(conf.cutoff_minutes ?? 0)));
+}
+
+/** Minutes until close for an open channel (null when closed/unknown). */
+export function minutesToClose(
+  outlet: Pick<Outlet, "business_hours" | "timezone">,
+  channel: string,
+  at: Date = new Date(),
+): number | null {
+  const bh = outlet.business_hours;
+  if (!bh) return null;
+  if (!isChannelOpen(outlet, channel, at)) return null;
+  const conf = bh.channels?.[channel as keyof NonNullable<BusinessHours["channels"]>];
+  const days =
+    conf && !conf.use_outlet_hours && conf.days && conf.days.length === 7 ? conf.days : bh.days;
+  let tz = outlet.timezone || "Asia/Kolkata";
+  const { day, minutes } = dayPartsInTz(at, tz);
+  const today = days?.find((d) => d.day === day);
+  if (!today || today.closed) return null;
+  const open = toMinutes(today.open);
+  const close = toMinutes(today.close);
+  if (close <= open) {
+    if (minutes >= open) return 24 * 60 - minutes + close;
+    // Past midnight: attribute to yesterday's overnight span if it covers now.
+    const prev = days?.find((d) => d.day === (day + 6) % 7);
+    if (prev && !prev.closed) {
+      const pClose = toMinutes(prev.close);
+      const pOpen = toMinutes(prev.open);
+      if (pClose <= pOpen && minutes < pClose) return pClose - minutes;
+    }
+    return close - minutes;
+  }
+  return close - minutes;
 }
 
 export async function getOutlet(): Promise<Outlet> {

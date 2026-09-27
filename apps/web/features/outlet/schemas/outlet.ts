@@ -140,6 +140,8 @@ export const dayHoursSchema = z.object({
 export const channelHoursSchema = z.object({
   use_outlet_hours: z.boolean(),
   days: z.array(dayHoursSchema).length(7).optional(),
+  mode: z.enum(["open", "closed", "scheduled"]).optional(),
+  cutoff_minutes: z.number().int().min(0).max(240).optional(),
 });
 
 export const businessHoursSchema = z.object({
@@ -151,6 +153,11 @@ export const businessHoursSchema = z.object({
       takeaway: channelHoursSchema.optional(),
       delivery: channelHoursSchema.optional(),
       own_online: channelHoursSchema.optional(),
+      kiosk: channelHoursSchema.optional(),
+      qr: channelHoursSchema.optional(),
+      website: channelHoursSchema.optional(),
+      zomato: channelHoursSchema.optional(),
+      swiggy: channelHoursSchema.optional(),
     })
     .optional(),
 });

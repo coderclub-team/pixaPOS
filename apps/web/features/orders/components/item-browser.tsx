@@ -696,6 +696,11 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
                         )}
                       >
                         <MenuImage item={item} size="fill" />
+                        {item.is_bestseller && (
+                          <span className="absolute left-2 top-2 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black shadow">
+                            Bestseller
+                          </span>
+                        )}
                         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/60 to-transparent p-3 pt-8 text-white">
                           <p className="truncate text-sm font-medium">{item.name}</p>
                           <p className="mt-0.5 flex items-center gap-1 text-xs text-white/75">

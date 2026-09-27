@@ -269,6 +269,42 @@ export async function fireKOT(orderId: string, by?: string): Promise<KitchenTick
     const draftLines = order.items.filter((i) => !i.kot_id);
     if (draftLines.length === 0) throw new Error("No new items to fire");
 
+    // Required add-on groups block firing (Peblla pattern): every linked
+    // group with min > 0 needs at least min picks on the line; max caps it.
+    {
+      const { getMenuItemById, getModifierGroupById, getModifiers } =
+        await import("@/features/menu/api/service");
+      const groupCache = new Map<string, { name: string; min: number; max: number } | null>();
+      for (const line of draftLines) {
+        const item = await getMenuItemById(line.menu_item_id);
+        if (!item) continue;
+        for (const gid of item.modifier_group_ids ?? []) {
+          let g = groupCache.get(gid);
+          if (g === undefined) {
+            const full = await getModifierGroupById(gid);
+            g =
+              full && full.is_active
+                ? { name: full.name, min: full.min_selection, max: full.max_selection }
+                : null;
+            groupCache.set(gid, g);
+          }
+          if (!g) continue;
+          const inGroup = new Set((await getModifiers(gid)).map((m) => m.id));
+          const picked = line.modifiers.filter((m) => inGroup.has(m.modifier_id)).length;
+          if (picked < g.min) {
+            throw new Error(
+              `${line.item_name_snapshot} needs at least ${g.min} from ${g.name} (has ${picked})`,
+            );
+          }
+          if (picked > g.max) {
+            throw new Error(
+              `${line.item_name_snapshot} allows at most ${g.max} from ${g.name} (has ${picked})`,
+            );
+          }
+        }
+      }
+    }
+
     const now = new Date().toISOString();
     const kotNumber = mockTickets.filter((t) => t.order_id === orderId).length + 1;
     const ticket: KitchenTicket = {
@@ -285,7 +321,7 @@ export async function fireKOT(orderId: string, by?: string): Promise<KitchenTick
         order_line_id: l.id,
         item_name_snapshot: l.item_name_snapshot,
         variant_name_snapshot: l.variant_name_snapshot,
-        modifiers_snapshot: l.modifiers.map((m) => m.name_snapshot),
+        modifiers_snapshot: l.modifiers.map((m) => m.alias_snapshot ?? m.name_snapshot),
         instructions: l.instructions,
         qty: l.qty,
         voided_qty: 0,

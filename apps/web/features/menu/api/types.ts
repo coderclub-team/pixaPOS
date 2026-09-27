@@ -76,6 +76,9 @@ export type MenuItem = {
   hsn_code?: string; // HSN for goods (4-8 digits) or SAC for service (6 digits 9973/9997)
   available_channels: Channel[]; // dine_in, pickup, delivery, zomato, swiggy, ondc
   nutrition?: NutritionInfo;
+  /** Manual upsell links ("pairs well with") — surfaced in pickers and carts. */
+  pairs_well_with?: string[];
+  is_bestseller?: boolean;
   variants: MenuItemVariant[];
   modifier_group_ids?: string[]; // skeleton, no raw material mapping this phase
   is_active: boolean;

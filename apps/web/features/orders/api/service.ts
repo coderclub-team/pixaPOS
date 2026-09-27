@@ -328,13 +328,42 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
     // Table-free orders (counter / takeaway / delivery / online) allow
     // anonymous tokens — customer name/phone is optional capture only.
 
-    // Hours gate (single choke point for every channel): no new orders
-    // while the outlet is closed for that channel. Staff reopen by editing
-    // business hours, not by working around the terminal.
-    const { getOutletById, isChannelOpen } = await import("@/features/outlet/api/service");
+    // Hours gate (single choke point for every channel): closed channels
+    // block creation; cut-off blocks ASAP creation near close; scheduled
+    // channels accept with a future slot (fired manually later). Staff
+    // reopen by editing business hours, not by working around the terminal.
+    const { getOutletById, isChannelOpen, channelMode, channelCutoff, minutesToClose } =
+      await import("@/features/outlet/api/service");
     const outlet = await getOutletById(outletId).catch(() => null);
     if (outlet && !isChannelOpen(outlet, input.channel)) {
       throw new Error(`Outlet is closed for ${input.channel.replace("_", " ")} orders right now`);
+    }
+    if (outlet) {
+      const mode = channelMode(outlet, input.channel);
+      const slot = input.scheduled_for ? new Date(input.scheduled_for) : null;
+      if (mode === "closed") {
+        throw new Error(`Outlet is closed for ${input.channel.replace("_", " ")} orders right now`);
+      }
+      if (
+        mode === "scheduled" &&
+        (!slot || Number.isNaN(slot.getTime())) &&
+        !input.staff_initiated
+      ) {
+        throw new Error(
+          `${input.channel.replace("_", " ")} accepts scheduled orders only — pick a slot`,
+        );
+      }
+      if ((!slot || slot.getTime() <= Date.now()) && mode !== "scheduled") {
+        const cutoff = channelCutoff(outlet, input.channel);
+        if (cutoff > 0) {
+          const left = minutesToClose(outlet, input.channel);
+          if (left != null && left < cutoff) {
+            throw new Error(
+              `Last ${input.channel.replace("_", " ")} orders were taken — kitchen closes soon`,
+            );
+          }
+        }
+      }
     }
 
     const dayOrders = mockOrders.filter(
@@ -356,6 +385,10 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
       customer_name: input.customer_name?.trim() || undefined,
       customer_phone: input.customer_phone?.trim() || undefined,
       customer_notes: input.customer_notes?.trim() || undefined,
+      scheduled_for:
+        input.scheduled_for && !Number.isNaN(new Date(input.scheduled_for).getTime())
+          ? new Date(input.scheduled_for).toISOString()
+          : undefined,
       external_ref: input.external_ref?.trim() || undefined,
       status: input.initial_status ?? "CONFIRMED",
       items: [],
@@ -429,7 +462,12 @@ export async function addOrderItem(
     const modifiers = (input.modifier_ids ?? []).map((mid) => {
       const m = allModifiers.find((x) => x.id === mid && x.is_active);
       if (!m) throw new Error(`Modifier not available: ${mid}`);
-      return { modifier_id: m.id, name_snapshot: m.name, price_paise: toPaise(m.price) };
+      return {
+        modifier_id: m.id,
+        name_snapshot: m.name,
+        alias_snapshot: m.alias ?? undefined,
+        price_paise: toPaise(m.price),
+      };
     });
 
     const unitPrice =
@@ -805,6 +843,7 @@ export async function ensureTableOrder(
       // Terminal carts start as local DRAFTs (zero KOTs, deletable, never
       // synced) — the first fire walks DRAFT → IN_KITCHEN directly.
       initial_status: "DRAFT",
+      staff_initiated: true,
     });
     try {
       await attachOrder({ group_id: groupId, order_id: order.id });
@@ -872,6 +911,7 @@ export async function ensureBareTableOrder(
       // Terminal carts start as local DRAFTs (zero KOTs, deletable, never
       // synced) — the first fire walks DRAFT → IN_KITCHEN directly.
       initial_status: "DRAFT",
+      staff_initiated: true,
     });
     try {
       await attachOrder({ group_id: groupId, order_id: order.id });
@@ -939,6 +979,7 @@ export async function ensureGroupOrder(
       occupancy_group_id: groupId,
       created_by: params?.by ?? "staff",
       initial_status: "DRAFT",
+      staff_initiated: true,
     });
     try {
       await attachOrder({ group_id: groupId, order_id: order.id });
