@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import KioskShell from "./shell";
 
 export const metadata: Metadata = {
   title: "Kiosk",
@@ -13,11 +14,13 @@ export const metadata: Metadata = {
  */
 export default async function KioskPlaceholderPage() {
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
-      <p className="text-lg font-bold">Self-ordering — coming soon</p>
-      <p className="max-w-sm text-sm text-muted-foreground">
-        The customer kiosk will live here: browse the menu, build a cart and pay.
-      </p>
-    </div>
+    <KioskShell>
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
+        <p className="text-lg font-bold">Self-ordering — coming soon</p>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          The customer kiosk will live here: browse the menu, build a cart and pay.
+        </p>
+      </div>
+    </KioskShell>
   );
 }
