@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Icons } from "@pixa/ui/icons";
 import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
+import SyncStatus from "@/components/sync-status";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@pixa/ui/base-ui/sidebar";
 import AppSidebar from "@/components/layout/app-sidebar";
 import { useInstallPrompt } from "@/hooks/use-install-prompt";
@@ -65,6 +66,7 @@ export default function KdsWallboard() {
               </span>
             </span>
             <span className="flex items-center gap-1.5">
+              <SyncStatus />
               <ThemeModeToggle />
               {!installed && installEvt && (
                 <Button size="sm" onClick={install}>

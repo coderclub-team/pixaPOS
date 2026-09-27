@@ -430,10 +430,48 @@ let mockPurchaseOrders: PurchaseOrder[] = [
   },
 ];
 const PO_STORAGE_KEY = "pixaPOs";
+
+/** Durable SQLite mirror (fire-and-forget; repo never throws). Only
+ * purchase orders persist today — materials/recipes/ledger are seed-static
+ * and rehydrate from code. */
+function mirrorPOs() {
+  if (typeof window === "undefined") return;
+  import("@/lib/db/repo").then(({ writeScope }) => {
+    void writeScope(
+      "purchase_orders",
+      mockPurchaseOrders.map((p) => ({
+        id: (p as { id: string }).id,
+        outlet_id: (p as { outlet_id?: string }).outlet_id ?? null,
+        data: p,
+        version: (p as { version?: number }).version ?? 1,
+        updated_at: (p as { updated_at?: string }).updated_at ?? new Date().toISOString(),
+        deleted_at: (p as { deleted_at?: string | null }).deleted_at ?? null,
+      })),
+    );
+  });
+}
+
+/** Adopt the durable mirror on app startup — only when localStorage is
+ * missing/empty. Never overwrites existing localStorage. */
+export async function hydrateInventoryFromMirror(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(PO_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(parsed) && parsed.length > 0) return;
+    const { readScope } = await import("@/lib/db/repo");
+    const docs = await readScope("purchase_orders");
+    if (docs.length === 0) return;
+    localStorage.setItem(PO_STORAGE_KEY, JSON.stringify(docs.map((d) => d.data)));
+    loadPOs();
+  } catch {}
+}
+
 function savePOs() {
   if (typeof window !== "undefined") {
     try {
       localStorage.setItem(PO_STORAGE_KEY, JSON.stringify(mockPurchaseOrders));
+      mirrorPOs();
     } catch {}
   }
 }

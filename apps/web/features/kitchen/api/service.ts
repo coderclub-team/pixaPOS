@@ -22,10 +22,47 @@ const KOT_STORAGE_KEY = "pixaKOTs";
 
 let mockTickets: KitchenTicket[] = [];
 
+/** Durable SQLite mirror (fire-and-forget; repo never throws). */
+function mirrorTickets() {
+  if (typeof window === "undefined") return;
+  import("@/lib/db/repo").then(({ writeScope }) => {
+    void writeScope(
+      "kot_tickets",
+      mockTickets.map((t) => ({
+        id: t.id,
+        outlet_id: t.outlet_id ?? null,
+        data: t,
+        version: t.version ?? 1,
+        updated_at: t.updated_at ?? new Date().toISOString(),
+        deleted_at: (t as { deleted_at?: string | null }).deleted_at ?? null,
+      })),
+    );
+  });
+}
+
+/** Adopt the durable mirror on app startup — only when localStorage is
+ * missing/empty (fresh device or eviction recovery). Never overwrites
+ * existing localStorage: the mirror write lags it by design. */
+export async function hydrateTicketsFromMirror(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(KOT_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(parsed?.tickets) && parsed.tickets.length > 0) return;
+    const { readScope } = await import("@/lib/db/repo");
+    const docs = await readScope("kot_tickets");
+    if (docs.length > 0) {
+      localStorage.setItem(KOT_STORAGE_KEY, JSON.stringify({ tickets: docs.map((d) => d.data) }));
+      loadTickets();
+    }
+  } catch {}
+}
+
 function saveTickets() {
   if (typeof window !== "undefined") {
     try {
       localStorage.setItem(KOT_STORAGE_KEY, JSON.stringify({ tickets: mockTickets }));
+      mirrorTickets();
     } catch {}
   }
 }
@@ -49,6 +86,15 @@ function loadTickets(): void {
   }
 }
 loadTickets();
+
+/**
+ * Current ticket snapshot for sync envelopes. No delays, no enrichment —
+ * the outbox path must never slow business mutations.
+ */
+export function getTicketForSync(ticketId: string): KitchenTicket | null {
+  loadTickets();
+  return mockTickets.find((t) => t.id === ticketId) ?? null;
+}
 
 /**
  * Synchronous shared-source snapshot for cross-domain aggregation (order

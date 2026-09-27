@@ -34,10 +34,67 @@ const RETURN_STORAGE_KEY = "pixaReturns";
 let mockOrders: RestaurantOrder[] = [];
 let mockReturns: OrderReturn[] = [];
 
+function toDoc(o: {
+  id: string;
+  outlet_id?: string;
+  version?: number;
+  updated_at?: string;
+  deleted_at?: string | null;
+}) {
+  return {
+    id: o.id,
+    outlet_id: o.outlet_id ?? null,
+    data: o,
+    version: o.version ?? 1,
+    updated_at: o.updated_at ?? new Date().toISOString(),
+    deleted_at: o.deleted_at ?? null,
+  };
+}
+
+/** Durable SQLite mirror (fire-and-forget; repo never throws). */
+function mirrorOrders() {
+  if (typeof window === "undefined") return;
+  import("@/lib/db/repo").then(({ writeScope }) => {
+    void writeScope("orders", mockOrders.map(toDoc));
+    void writeScope("order_returns", mockReturns.map(toDoc));
+  });
+}
+
+/** Adopt the durable mirror on app startup — only when localStorage is
+ * missing/empty (fresh device or eviction recovery). Never overwrites
+ * existing localStorage: the mirror write lags it by design. */
+export async function hydrateOrdersFromMirror(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(ORDER_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(parsed?.orders) && parsed.orders.length > 0) return;
+    const rraw = localStorage.getItem(RETURN_STORAGE_KEY);
+    const rparsed = rraw ? JSON.parse(rraw) : null;
+    const { readScope } = await import("@/lib/db/repo");
+    const [orders, returns] = await Promise.all([readScope("orders"), readScope("order_returns")]);
+    if (orders.length > 0) {
+      localStorage.setItem(
+        ORDER_STORAGE_KEY,
+        JSON.stringify({ orders: orders.map((d) => d.data) }),
+      );
+      loadOrders();
+    }
+    if (returns.length > 0) {
+      localStorage.setItem(
+        RETURN_STORAGE_KEY,
+        JSON.stringify({ returns: returns.map((d) => d.data) }),
+      );
+      loadReturns();
+    }
+  } catch {}
+}
+
 function saveReturns() {
   if (typeof window !== "undefined") {
     try {
       localStorage.setItem(RETURN_STORAGE_KEY, JSON.stringify({ returns: mockReturns }));
+      mirrorOrders();
     } catch {}
   }
 }
@@ -59,6 +116,7 @@ function saveOrders() {
   if (typeof window !== "undefined") {
     try {
       localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify({ orders: mockOrders }));
+      mirrorOrders();
     } catch {}
   }
 }
@@ -907,6 +965,15 @@ export function orderSyncEligible(orderId: string): boolean {
   if (!o || o.deleted_at) return false;
   if (o.status === "DRAFT") return false;
   return o.items.some((i) => i.kot_id);
+}
+
+/**
+ * Current order snapshot for sync envelopes. No delays, no enrichment —
+ * the outbox path must never slow business mutations.
+ */
+export function getOrderForSync(orderId: string): RestaurantOrder | null {
+  loadOrders();
+  return mockOrders.find((m) => m.id === orderId && !m.deleted_at) ?? null;
 }
 
 /**

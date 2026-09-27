@@ -52,6 +52,65 @@ function slugify(s: string) {
 
 const MENU_STORAGE_KEY = "pixaMenu";
 
+function toDoc(o: {
+  id: string;
+  outlet_id?: string;
+  version?: number;
+  updated_at?: string;
+  deleted_at?: string | null;
+}) {
+  return {
+    id: o.id,
+    outlet_id: o.outlet_id ?? null,
+    data: o,
+    version: o.version ?? 1,
+    updated_at: o.updated_at ?? new Date().toISOString(),
+    deleted_at: o.deleted_at ?? null,
+  };
+}
+
+/** Durable SQLite mirror (fire-and-forget; repo never throws). */
+function mirrorMenu() {
+  if (typeof window === "undefined") return;
+  import("@/lib/db/repo").then(({ writeScope }) => {
+    void writeScope("menu_categories", mockCategories.map(toDoc));
+    void writeScope("menu_items", mockMenuItems.map(toDoc));
+    void writeScope("modifier_groups", mockModifierGroups.map(toDoc));
+    void writeScope("modifiers", mockModifiers.map(toDoc));
+  });
+}
+
+/** Adopt the durable mirror on app startup — only when localStorage is
+ * missing/empty. Never overwrites existing localStorage (the seed-version
+ * reseed in loadMenu stays authoritative for shape changes). */
+export async function hydrateMenuFromMirror(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(MENU_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (parsed && (parsed?.version ?? 1) === MENU_SEED_VERSION) return;
+    const { readScope } = await import("@/lib/db/repo");
+    const [cats, items, groups, mods] = await Promise.all([
+      readScope("menu_categories"),
+      readScope("menu_items"),
+      readScope("modifier_groups"),
+      readScope("modifiers"),
+    ]);
+    if (cats.length + items.length + groups.length + mods.length === 0) return;
+    localStorage.setItem(
+      MENU_STORAGE_KEY,
+      JSON.stringify({
+        version: MENU_SEED_VERSION,
+        categories: cats.map((d) => d.data),
+        items: items.map((d) => d.data),
+        modifierGroups: groups.map((d) => d.data),
+        modifiers: mods.map((d) => d.data),
+      }),
+    );
+    loadMenu();
+  } catch {}
+}
+
 function saveMenu() {
   if (typeof window !== "undefined") {
     try {
@@ -65,6 +124,7 @@ function saveMenu() {
           modifiers: mockModifiers,
         }),
       );
+      mirrorMenu();
     } catch {}
   }
 }

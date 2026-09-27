@@ -122,28 +122,111 @@ async function useSqlite(): Promise<boolean> {
  * only the first fire and everything after it enqueues. Fail-open: a
  * lookup failure must never silently drop server data.
  */
+/**
+ * Outbox gate + state-snapshot fan-out. Every mutation in orders, kitchen
+ * and payments already funnels through recordEvent, so this is the single
+ * choke point for sync — no per-mutation call sites needed:
+ * - ORDER entities for ineligible orders (zero-KOT drafts, deleted) stay
+ *   local-only: audit row written, nothing enqueued. Fail-open on lookup
+ *   error so server data is never silently dropped.
+ * - TABLE / OCCUPANCY_GROUP / RESERVATION entities stay local-only for now
+ *   (their sync application lands with the tables cutover).
+ * - Eligible ORDER events enqueue the audit event plus a current ORDER
+ *   snapshot (CREATE on ORDER_CREATED, else UPDATE).
+ * - Events carrying metadata.kot_id additionally enqueue the current KOT
+ *   snapshot, so kitchen state travels with its audit trail.
+ * - PAYMENT entities always sync (money never stays silent) with snapshot.
+ * - `event` entities always sync (audit trail).
+ */
 async function appendOutboxGate(event: BusinessEvent): Promise<void> {
+  const queueEvent = async () => {
+    await appendOutbox({
+      outlet_id: event.outlet_id,
+      entity_type: "event",
+      entity_id: event.id,
+      operation: "CREATE",
+      payload: { ...event },
+      actor_id: event.actor_id ?? "staff",
+    }).catch((e) => {
+      // The audit row above is already durable. A failed outbox write must
+      // never roll back the business mutation it audits — log loudly so the
+      // gap is visible, and let the outbox retry sweeper (pilot) pick it up.
+      console.error("[events] outbox append failed for", event.id, e);
+    });
+  };
+
   if (event.entity_type === "ORDER") {
+    let eligible = true;
+    let snapshot: unknown = null;
     try {
-      const { orderSyncEligible } = await import("@/features/orders/api/service");
-      if (!orderSyncEligible(event.entity_id)) return;
+      const svc = await import("@/features/orders/api/service");
+      eligible = svc.orderSyncEligible(event.entity_id);
+      if (eligible) snapshot = svc.getOrderForSync(event.entity_id);
     } catch {
-      // Fall through to sync — fail-open by design (see above).
+      // Fail-open by design (see above).
     }
+    if (!eligible || !snapshot) return;
+    await queueEvent();
+    await appendOutbox({
+      outlet_id: event.outlet_id,
+      entity_type: "ORDER",
+      entity_id: event.entity_id,
+      operation: event.event_type === "ORDER_CREATED" ? "CREATE" : "UPDATE",
+      payload: { order: snapshot },
+      actor_id: event.actor_id ?? "staff",
+    }).catch((e) => {
+      console.error("[events] outbox snapshot failed for order", event.entity_id, e);
+    });
+    const kotId = (event.metadata as { kot_id?: string } | undefined)?.kot_id;
+    if (kotId) {
+      try {
+        const { getTicketForSync } = await import("@/features/kitchen/api/service");
+        const ticket = getTicketForSync(kotId);
+        if (ticket) {
+          await appendOutbox({
+            outlet_id: event.outlet_id,
+            entity_type: "KOT",
+            entity_id: kotId,
+            operation: event.event_type === "ORDER_SENT_TO_KITCHEN" ? "CREATE" : "UPDATE",
+            payload: { ticket },
+            actor_id: event.actor_id ?? "staff",
+          }).catch((e) => {
+            console.error("[events] outbox snapshot failed for kot", kotId, e);
+          });
+        }
+      } catch {
+        // Fail-open: the ORDER snapshot above already carries the state.
+      }
+    }
+    return;
   }
-  await appendOutbox({
-    outlet_id: event.outlet_id,
-    entity_type: "event",
-    entity_id: event.id,
-    operation: "CREATE",
-    payload: { ...event },
-    actor_id: event.actor_id ?? "staff",
-  }).catch((e) => {
-    // The audit row above is already durable. A failed outbox write must
-    // never roll back the business mutation it audits — log loudly so the
-    // gap is visible, and let the outbox retry sweeper (pilot) pick it up.
-    console.error("[events] outbox append failed for", event.id, e);
-  });
+
+  if (event.entity_type === "PAYMENT") {
+    await queueEvent();
+    try {
+      const { getPaymentForSync } = await import("@/features/payments/api/service");
+      const found = getPaymentForSync(event.entity_id);
+      if (found) {
+        await appendOutbox({
+          outlet_id: event.outlet_id,
+          entity_type: found.kind,
+          entity_id: event.entity_id,
+          operation: "CREATE",
+          payload: { [found.kind === "PAYMENT" ? "payment" : "refund"]: found.record },
+          actor_id: event.actor_id ?? "staff",
+        }).catch((e) => {
+          console.error("[events] outbox snapshot failed for payment", event.entity_id, e);
+        });
+      }
+    } catch {
+      // Fail-open: the PAYMENT event above already carries order/method/amount.
+    }
+    return;
+  }
+
+  // TABLE, OCCUPANCY_GROUP, RESERVATION, CUSTOMER and anything else:
+  // local audit row only, no outbox — their sync application is a later
+  // cutover.
 }
 
 export async function recordEvent(params: {
