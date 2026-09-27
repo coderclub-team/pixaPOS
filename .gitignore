@@ -31,5 +31,9 @@ pnpm-debug.log*
 # Vercel
 .vercel
 
+# Local TLS / private keys (never commit secrets)
+*.pem
+apps/web/certificates/
+
 # Local override
 apps/template/.git
