@@ -111,7 +111,7 @@ function PosShellMain() {
               title="Install POS app"
               aria-label="Install POS app"
             >
-              <Icons.add className="size-4" />
+              <Icons.download className="size-4" />
             </Button>
           )}
           <Button

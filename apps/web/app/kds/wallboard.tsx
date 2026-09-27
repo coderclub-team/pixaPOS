@@ -68,7 +68,7 @@ export default function KdsWallboard() {
               <ThemeModeToggle />
               {!installed && installEvt && (
                 <Button size="sm" onClick={install}>
-                  <Icons.add className="mr-1 size-4" /> Install
+                  <Icons.download className="mr-1 size-4" /> Install
                 </Button>
               )}
             </span>
