@@ -25,6 +25,7 @@ import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { formatINR, toPaise } from "@/lib/money";
 import { formatAge } from "@/lib/utils";
+import { useIdentity } from "@/hooks/use-identity";
 import { useNow } from "@/lib/use-now";
 import { orderKeys, orderQueryOptions } from "@/features/orders/api/queries";
 import { kotsByOrderQueryOptions, kitchenKeys } from "@/features/kitchen/api/queries";
@@ -1180,9 +1181,14 @@ export function CancelOrderBlock({
   const { data: order } = useQuery(orderQueryOptions(orderId));
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const identity = useIdentity();
 
   const cancelMut = useMutation({
-    mutationFn: (r: string) => cancelOrder(orderId, { reason: r }),
+    mutationFn: (r: string) =>
+      cancelOrder(orderId, {
+        reason: r,
+        by: identity.user?.email ?? identity.user?.name ?? "staff",
+      }),
     onSuccess: () => {
       invalidateBill(orderId, queryClient);
       toast.success("Order cancelled");
@@ -1262,7 +1268,7 @@ export function CancelOrderBlock({
             <DialogTitle>Cancel order {order.order_number}?</DialogTitle>
             <DialogDescription>
               {["PREPARING", "READY", "SERVED"].includes(order.status)
-                ? "This order has fired KOTs — cancellation is authorized and audited."
+                ? "This order has fired KOTs — you are recorded as the authorizer with your reason."
                 : "The order and its unfired lines are removed."}
             </DialogDescription>
           </DialogHeader>

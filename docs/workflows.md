@@ -18,7 +18,7 @@ machines defined below.
 DRAFT → CONFIRMED → IN_KITCHEN → PREPARING → READY → SERVED → COMPLETED
 ```
 
-Cancellation: `DRAFT → CANCELLED`, `CONFIRMED → CANCELLED`, `IN_KITCHEN → CANCELLED`. Past `PREPARING`, cancellation needs authorization and records who/when/reason/previous-state/financial + inventory impact.
+Cancellation: any non-terminal state → `CANCELLED` with mandatory reason. Past `PREPARING`, the signed-in actor is recorded as authorizer (reason + who/when/previous-state/financial + inventory impact); anonymous calls are rejected.
 
 - **DRAFT**: internal pre-fire cart — created by `/new`, never shown (list hides drafts, every surface labels it "New order"). No CONFIRMED step in new flows: the first fire walks `DRAFT → IN_KITCHEN` (auto-seating dine-in tables); exiting with zero fired KOTs discards the cart. CONFIRMED remains in the union for stored history only. Carts that never receive an item line are not orders at all: the terminal sweeps them on workspace reset (type switch, deselect, completion) and once on mount, guarded to carts older than 5 minutes; seated parties are detached, never released.
 - **CONFIRMED**: order accepted — add items (each add fires a new KOT), send to kitchen, accept payment, policy-bound modify/cancel.

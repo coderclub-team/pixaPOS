@@ -89,15 +89,26 @@ UI (`snapshot-panel.tsx:36-204`), page
 (`dashboard/settings/outlet/operations/data/page.tsx`).
 Not Postgres/Neon backups — do not confuse with Drizzle snapshots.
 
-## 7. Bulk CSV IO + sorting — PARTIAL
+## 7. Bulk CSV IO + sorting — PARTIAL (verified per-table matrix, 2026-09-28)
 
 Infra DONE: `system/lib/csv.ts:7-112`, `io-dialog.tsx:16-156`
 (sample download, preview, missing-column check, `ExportButton`),
 `sort-th.tsx` shared sorting.
-Reality: export + sort universal; import only where `onImport` wired
-(menu items/categories/modifiers, customers, raw materials, suppliers,
-tables, floors). Transactional tables correctly export-only
-(correction #5: per-table matrix must replace "every table" claims).
+
+| Table | Import | Export | Sort |
+|---|---|---|---|
+| Menu items / categories / modifiers | ✅ | ✅ | ✅ |
+| Customers | ✅ | ✅ | ✅ |
+| Raw materials / suppliers | ✅ | ✅ | ✅ |
+| Tables / floors | ✅ | ✅ | ✅ |
+| Orders / refunds | — (transactional) | ✅ | ✅ |
+| Purchases / POs / returns / payments / credits | — | ✅ | ✅ |
+| Stock / supplier ledgers / waste / recipes | — | ✅ | ✅ |
+| Users | — (invite flow) | ✅ | ✅ |
+| Roles / billing history | — (sensitive) | — | ✅ |
+
+Rule: master data imports (upsert by natural key); transactional, user,
+and sensitive tables are export/sort-only by design.
 
 ## 8. Barcode — DONE
 
@@ -140,6 +151,14 @@ per `proxy.ts:8-9`). Clerk→Better Auth cutover runbook exists; expect residual
    Order Settings, guard in `createOrder` flags `off_hours` + `ORDER_OFF_HOURS`
    event, terminal shows amber reason banner instead of hard block.
    Bonus fix: `ensureGroupOrder` used out-of-scope `tableId` → `group.table_id`.
-4. [ ] Verify `cancelOrder` auth path past-PREPARING.
-5. [ ] Per-table import/export/sort matrix; fix over-broad claims.
-6. [ ] Honest sync status (`retrying`/`blocked`/`conflicted`).
+4. [x] `cancelOrder` auth path — VERIFIED + FIXED 2026-09-28: service required
+   `by` past-PREPARING but the bill-panel dialog never sent it (dead end).
+   Panel now attributes the signed-in session user; dialog copy corrected;
+   `workflows.md` cancel rule amended (actor + reason = authorization).
+5. [x] Import-coverage claims — CORRECTED 2026-09-28: §7 now carries the
+   verified per-table matrix (8 import tables; 13 export-only; roles/billing
+   sort-only). No code change — the scope was already correct by design.
+6. [x] Honest sync status — FIXED 2026-09-28: pill said "Synced" on mere
+   transport ack. Now says "Sent" with tooltip "Sent to server — server-side
+   apply lands next". Full `retrying/blocked/conflicted` states wait on
+   server-side application (out of scope, tracked).
