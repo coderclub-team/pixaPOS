@@ -13,6 +13,7 @@ export type RawMaterial = {
   sku: string;
   category: string;
   unit: "kg" | "g" | "l" | "ml" | "pcs" | "box"; // base (stock) unit — recipes, ledger, costing
+  manufacturer?: string; // goods maker (retail label + batch default)
   purchase_unit?: "kg" | "g" | "l" | "ml" | "pcs" | "box"; // buying unit (Odoo purchase UoM)
   purchase_to_base_rate?: number; // 1 purchase_unit = X base units (e.g. 1 box = 12 pcs)
   stock_qty: number;
@@ -284,7 +285,8 @@ export type StorageLocation = {
   outlet_id?: string;
   name: string; // Main Store, Kitchen, Cold Room…
   floor?: string; // Ground, First…
-  rack?: string; // A1, B2…
+  rack?: string; // A, B…
+  column?: string; // 1, 2… — rack + column pin the shelf (retail locator)
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -294,6 +296,7 @@ export type StorageLocationPayload = {
   name: string;
   floor?: string;
   rack?: string;
+  column?: string;
   is_active?: boolean;
 };
 
@@ -307,6 +310,7 @@ export type StockBatch = {
   material_id: string;
   material_name?: string;
   batch_no: string;
+  manufacturer?: string;
   mfg_date?: string;
   expiry_date?: string;
   qty_received: number;

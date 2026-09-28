@@ -7,7 +7,16 @@ export const outletTypeOptions = [
   { label: "Fine Dine", value: "fine_dine" },
   { label: "Cafe", value: "cafe" },
   { label: "Bakery", value: "bakery" },
+  { label: "Grocery", value: "grocery" },
+  { label: "Pharmacy", value: "pharmacy" },
+  { label: "Retail Store", value: "retail" },
+  { label: "Salon & Services", value: "salon" },
 ] as const;
+
+/** Retail (goods) outlets sell products off shelves; food outlets consume raw materials. */
+export function isRetailOutletType(type?: string): boolean {
+  return type === "grocery" || type === "pharmacy" || type === "retail";
+}
 
 export const basicInformationSchema = z.object({
   name: z.string().min(2, "Outlet name must be at least 2 characters"),

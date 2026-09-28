@@ -2581,6 +2581,7 @@ export async function createStorageLocation(
     name: payload.name.trim(),
     floor: payload.floor?.trim() || undefined,
     rack: payload.rack?.trim() || undefined,
+    column: payload.column?.trim() || undefined,
     is_active: payload.is_active ?? true,
     created_at: now,
     updated_at: now,
@@ -2604,6 +2605,29 @@ export async function updateStorageLocation(
   }
   saveBatches();
   return { ...mockLocations[idx] };
+}
+
+/** Delete a location — blocked while stocked batches live there. */
+export async function deleteStorageLocation(id: string): Promise<void> {
+  await delay(300);
+  loadBatches();
+  const idx = mockLocations.findIndex((l) => l.id === id);
+  if (idx === -1) throw new Error("Location not found");
+  const residents = mockBatches.filter((b) => b.location_id === id && b.qty_on_hand > 0);
+  if (residents.length > 0) {
+    const names = [...new Set(residents.map((b) => b.material_name ?? b.batch_no))].slice(0, 3);
+    throw new Error(
+      `Move stock out first — ${residents.length} batch${residents.length === 1 ? "" : "es"} live here (${names.join(", ")})`,
+    );
+  }
+  for (const b of mockBatches) {
+    if (b.location_id === id) {
+      b.location_id = undefined;
+      b.location_name = undefined;
+    }
+  }
+  mockLocations.splice(idx, 1);
+  saveBatches();
 }
 
 export async function getBatches(

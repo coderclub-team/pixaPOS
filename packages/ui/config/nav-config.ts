@@ -201,7 +201,7 @@ export const navGroups: NavGroup[] = [
             access: { requireOrg: true },
           },
           {
-            title: "Menu Items",
+            title: "Products",
             url: "/dashboard/menu/items",
             icon: "pizza",
             shortcut: ["m", "i"],

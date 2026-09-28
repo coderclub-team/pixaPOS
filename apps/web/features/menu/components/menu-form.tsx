@@ -251,7 +251,7 @@ export default function MenuForm({
       }),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: menuKeys.all });
-      toast.success("Menu item created");
+      toast.success("Product created");
       router.push("/dashboard/menu/items");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -301,7 +301,7 @@ export default function MenuForm({
       }),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: menuKeys.all });
-      toast.success("Menu item updated");
+      toast.success("Product updated");
       router.push("/dashboard/menu/items");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -430,9 +430,9 @@ export default function MenuForm({
         <Card>
           <CardHeader>
             <CardTitle className="text-left text-2xl font-bold">
-              {pageTitle ?? (isEdit ? "Update Menu Item" : "New Menu Item")}
+              {pageTitle ?? (isEdit ? "Update Product" : "New Product")}
             </CardTitle>
-            <CardDescription>Dish — category, veg type, description.</CardDescription>
+            <CardDescription>Product — category, veg type, description.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <FieldGroup>

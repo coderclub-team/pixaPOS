@@ -788,6 +788,10 @@ export async function markLinesFired(
       updated_at: new Date().toISOString(),
       version: base.version + 1,
     };
+    // Persist the marks BEFORE the fallible steps below (auto-seat,
+    // transition): a throw after this point must never leave marked lines
+    // only in memory while storage still calls them draft.
+    saveOrders();
     const order = mockOrders[idx];
     if (order.status === "DRAFT" || order.status === "CONFIRMED") {
       if (order.status === "DRAFT" && order.channel === "dine_in" && order.table_id) {

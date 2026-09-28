@@ -303,7 +303,7 @@ export default function CategoriesPage() {
           <DialogHeader>
             <DialogTitle>Delete category?</DialogTitle>
             <DialogDescription>
-              Are you sure? Menu items using it will block delete.
+              Are you sure? Products using it will block delete.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2">

@@ -307,6 +307,10 @@ export async function fireKOT(orderId: string, by?: string): Promise<KitchenTick
 
     const now = new Date().toISOString();
     const kotNumber = mockTickets.filter((t) => t.order_id === orderId).length + 1;
+    // Build the ticket WITHOUT publishing it yet: markLinesFired can throw
+    // (auto-seat, transition) — a ticket pushed before the marks succeed
+    // becomes a phantom KOT (visible in KDS, lines still draft). The push
+    // below happens only after the marks land.
     const ticket: KitchenTicket = {
       id: `kot_${Date.now().toString(36)}`,
       outlet_id: order.outlet_id,
@@ -336,14 +340,38 @@ export async function fireKOT(orderId: string, by?: string): Promise<KitchenTick
       version: 1,
     };
     mockTickets.push(ticket);
-    await markLinesFired(
-      orderId,
-      draftLines.map((l, i) => ({
-        line_id: l.id,
-        kot_id: ticket.id,
-        kot_line_id: ticket.lines[i].id,
-      })),
-    );
+    try {
+      await markLinesFired(
+        orderId,
+        draftLines.map((l, i) => ({
+          line_id: l.id,
+          kot_id: ticket.id,
+          kot_line_id: ticket.lines[i].id,
+        })),
+      );
+    } catch (e) {
+      // Roll back the unpublished ticket so a failed fire never leaves a
+      // phantom KOT behind the draft lines.
+      const ti = mockTickets.findIndex((t) => t.id === ticket.id);
+      if (ti !== -1) mockTickets.splice(ti, 1);
+      throw e;
+    }
+    // Post-fire verification: every targeted line must carry this ticket's
+    // id — otherwise the bill would show the items as draft AND in the KOT.
+    {
+      const { getOrderById: reloadOrder } = await import("@/features/orders/api/service");
+      const reloaded = await reloadOrder(orderId);
+      const unmarked = (reloaded?.items ?? []).filter(
+        (i) => draftLines.some((d) => d.id === i.id) && i.kot_id !== ticket.id,
+      );
+      if (unmarked.length > 0) {
+        const ti = mockTickets.findIndex((t) => t.id === ticket.id);
+        if (ti !== -1) mockTickets.splice(ti, 1);
+        throw new Error(
+          `Fire incomplete — ${unmarked.length} line${unmarked.length === 1 ? "" : "s"} not marked. Retry firing.`,
+        );
+      }
+    }
     saveTickets();
     publishTicket(ticket, { lines: ticket.lines.length });
     await recordEvent({

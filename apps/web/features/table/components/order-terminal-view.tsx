@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { Drawer as DrawerPrimitive } from "@base-ui/react/drawer";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import PageContainer from "@/components/layout/page-container";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@pixa/ui/base-ui/tabs";
@@ -16,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@pixa/ui/base-ui/dialog";
+import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@pixa/ui/base-ui/drawer";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { floorsQueryOptions } from "@/features/floor/api/queries";
@@ -31,6 +33,7 @@ import {
   ensureBareTableOrder,
   ensureGroupOrder,
 } from "@/features/orders/api/service";
+import type { OrderWithDerived } from "@/features/orders/api/types";
 import { outletQueryOptions } from "@/features/outlet/api/queries";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Input } from "@pixa/ui/base-ui/input";
@@ -86,6 +89,8 @@ export default function OrderTerminalPage({
   const [seatOpen, setSeatOpen] = useState(false);
   const [seatCount, setSeatCount] = useState(2);
   const [mobileView, setMobileView] = useState<"tables" | "order" | "items">("tables");
+  const SNAP_POINTS: DrawerPrimitive.Root.SnapPoint[] = ["200px", 0.5, 1];
+  const [snapPoint, setSnapPoint] = useState<DrawerPrimitive.Root.SnapPoint>(SNAP_POINTS[2]);
   // Order type comes from the /kot header picker; the dashboard terminal has
   // no provider and stays dine-in (floor-first).
   const orderTypeSel = useOrderType();
@@ -124,6 +129,24 @@ export default function OrderTerminalPage({
   // table panel in the exact same footprint (no modal anywhere).
   const [leftView, setLeftView] = useState<"tables" | "items">("tables");
   const exitTimer = useRef<number | null>(null);
+  // Consolidated mobile sheet helpers: panelOpen owns drawer visibility;
+  // mobileView follows the underlying left view when dismissed.
+  const openDrawerTo = (view: "order" | "items") => {
+    // Full-screen on mobile (owner call): bill fills the phone; staff pulls
+    // down to peek/half while working the floor.
+    setSnapPoint(SNAP_POINTS[2]);
+    setPanelOpen(true);
+    setMobileView(view);
+    if (view === "items") setLeftView("items");
+  };
+  const dismissDrawer = () => {
+    setPanelOpen(false);
+    setMobileView(leftView);
+  };
+  const handleDrawerOpenChange = (open: boolean) => {
+    if (!open) setMobileView(leftView);
+    setPanelOpen(open);
+  };
   // Switching order type resets the workspace to that type's entry panel —
   // and sweeps abandoned empty drafts so ghost carts never linger in POS.
   useEffect(() => {
@@ -153,6 +176,17 @@ export default function OrderTerminalPage({
       if (n > 0) queryClient.invalidateQueries({ queryKey: orderKeys.all });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The drawer is a mobile-only surface; close it when the viewport grows to desktop.
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const closeIfDesktop = () => {
+      if (mq.matches) setPanelOpen(false);
+    };
+    closeIfDesktop();
+    mq.addEventListener("change", closeIfDesktop);
+    return () => mq.removeEventListener("change", closeIfDesktop);
   }, []);
 
   const { data: activeTable } = useQuery({
@@ -191,9 +225,7 @@ export default function OrderTerminalPage({
       setActiveTableId(tableId);
       setActiveOrderId(order.id);
       setActiveGroupId(order.occupancy_group_id ?? null);
-      setPanelOpen(true);
-      setLeftView("items");
-      setMobileView("items");
+      openDrawerTo("items");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -213,9 +245,7 @@ export default function OrderTerminalPage({
       setActiveTableId(tableId);
       setActiveGroupId(groupId);
       setActiveOrderId(order.id);
-      setPanelOpen(true);
-      setLeftView("items");
-      setMobileView("items");
+      openDrawerTo("items");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -239,9 +269,7 @@ export default function OrderTerminalPage({
       queryClient.invalidateQueries({ queryKey: orderKeys.all });
       queryClient.invalidateQueries({ queryKey: orderKeys.detail(order.id) });
       setActiveOrderId(order.id);
-      setLeftView("items");
-      setPanelOpen(true);
-      setMobileView("items");
+      openDrawerTo("items");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -256,8 +284,7 @@ export default function OrderTerminalPage({
       setActiveGroupId(group.id);
       setActiveOrderId(group.order_id);
       setSeatOpen(false);
-      setPanelOpen(true);
-      setMobileView("order");
+      openDrawerTo("order");
       toast.success(`Party ${group.label ?? ""} seated — tap Start order or hold its chip`.trim());
     },
     onError: (e: Error) => toast.error(e.message),
@@ -341,8 +368,7 @@ export default function OrderTerminalPage({
     }
     setActiveGroupId(groupId);
     setActiveOrderId(liveOrderByGroup.get(groupId)?.id ?? null);
-    setPanelOpen(true);
-    setMobileView("order");
+    openDrawerTo("order");
   };
 
   /** Tap a detached open tab: focus its bill without any party. */
@@ -350,8 +376,7 @@ export default function OrderTerminalPage({
     if (ensureMut.isPending || ensureGroupMut.isPending) return;
     setActiveGroupId(null);
     setActiveOrderId(orderId);
-    setPanelOpen(true);
-    setMobileView("order");
+    openDrawerTo("order");
   };
 
   /** Reopen a table-free bill: jump straight into its menu + bill. */
@@ -360,73 +385,8 @@ export default function OrderTerminalPage({
     setActiveTableId(null);
     setActiveGroupId(null);
     setActiveOrderId(orderId);
-    setLeftView("items");
-    setPanelOpen(true);
-    setMobileView("items");
+    openDrawerTo("items");
   };
-
-  // Bills-strip overflow: measure the row and collapse trailing bills under
-  // an action-style 3-dot menu when space runs out (same pattern as the
-  // bill-panel tabs). The focused bill always stays visible.
-  const [billVisibleCount, setBillVisibleCount] = useState<number | null>(null);
-  const stripRowRef = useRef<HTMLDivElement>(null);
-  const billWidthCache = useRef<Record<string, number>>({});
-  const billEls = useRef<Record<string, HTMLElement | null>>({});
-  const billSig = openBills.map((o) => o.id).join("|");
-  useEffect(() => {
-    const row = stripRowRef.current;
-    if (!row) return;
-    let raf = 0;
-    const fit = () => {
-      const rowW = row.clientWidth;
-      if (rowW === 0) return;
-      const widths = openBills.map((o) => {
-        const w = billEls.current[o.id]?.offsetWidth ?? 0;
-        if (w > 0) billWidthCache.current[o.id] = w;
-        return billWidthCache.current[o.id] ?? 0;
-      });
-      // Not measured yet — keep everything visible until widths are known.
-      if (widths.some((w) => w === 0)) return;
-      const btnW = row.querySelector<HTMLElement>("[data-overflow-btn]")?.offsetWidth ?? 0;
-      if (btnW > 0) billWidthCache.current.__overflow = btnW;
-      const triggerW = billWidthCache.current.__overflow ?? 44;
-      const leadW = 32;
-      let n = openBills.length;
-      for (; n > 1; n--) {
-        const avail = rowW - leadW - 16 - (n < openBills.length ? triggerW + 4 : 0);
-        const sum = widths.slice(0, n).reduce((a, b) => a + b, 0) + (n - 1) * 8;
-        if (sum <= avail) break;
-      }
-      setBillVisibleCount((prev) => {
-        const next = n >= openBills.length ? null : n;
-        return prev === next ? prev : next;
-      });
-    };
-    const schedule = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(fit);
-    };
-    schedule();
-    const ro = new ResizeObserver(schedule);
-    ro.observe(row);
-    return () => {
-      cancelAnimationFrame(raf);
-      ro.disconnect();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [billSig]);
-  const billsShownCount = billVisibleCount ?? openBills.length;
-  let visibleBills = openBills.slice(0, billsShownCount);
-  let overflowBills = openBills.slice(billsShownCount);
-  // Keep the focused bill visible — swap it in for the last visible one.
-  if (overflowBills.length > 0 && !visibleBills.some((o) => o.id === activeOrderId)) {
-    const active = openBills.find((o) => o.id === activeOrderId);
-    const last = visibleBills[visibleBills.length - 1];
-    if (active && last) {
-      visibleBills = [...visibleBills.slice(0, -1), active];
-      overflowBills = [last, ...overflowBills.filter((o) => o.id !== activeOrderId)];
-    }
-  }
 
   /** Press-and-hold a party chip: ensure its order and open the picker. */
   const handleHoldParty = (tableId: string, groupId: string) => {
@@ -444,6 +404,168 @@ export default function OrderTerminalPage({
 
   // Bill panel is always mounted (desktop static column + mobile sheet).
   // Before any table selection it shows the empty placeholder below.
+
+  const partyStrip = activeTableDerived &&
+    (groups.length > 0 || openTabs.length > 0 || activeTableDerived.allows_sharing) && (
+      <div className="flex items-center gap-2 overflow-x-auto border-b bg-background/95 px-3 py-2 backdrop-blur-sm">
+        <Icons.party className="size-4 shrink-0 text-muted-foreground" />
+        {groups.map((g, i) => {
+          const live = liveOrderByGroup.has(g.id);
+          const focused = g.id === activeGroupId;
+          return (
+            <button
+              key={g.id}
+              type="button"
+              onClick={() => activeTableId && handleSelectParty(activeTableId, g.id)}
+              aria-label={`Party ${g.label ?? "?"}, ${g.seats} guests${live ? ", order open" : ""}`}
+              title={`Party ${g.label ?? "?"} — tap to focus${live ? "" : " · no order yet"}`}
+              className={cn(
+                "flex shrink-0 items-center gap-1.5 rounded-full border py-1 pr-2.5 pl-1 text-xs font-medium transition-colors",
+                focused
+                  ? "border-primary bg-primary/10 text-foreground"
+                  : "border-border text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <span
+                className="flex size-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                style={{ backgroundColor: partyHex(g.color_index ?? i) }}
+              >
+                {g.label ?? "?"}
+              </span>
+              {g.seats}
+              <span
+                className={cn(
+                  "size-1.5 rounded-full",
+                  live ? "bg-emerald-500" : "bg-zinc-300 dark:bg-zinc-600",
+                )}
+                title={live ? "Order open" : "No order yet"}
+              />
+            </button>
+          );
+        })}
+        {openTabs.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            onClick={() => handleSelectTab(o.id)}
+            aria-label={`Open tab ${o.order_number}, party released`}
+            title={`${o.order_number} — party released, still payable · ${formatAge(o.created_at)} old`}
+            className={cn(
+              "flex shrink-0 items-center gap-1.5 rounded-full border border-dashed py-1 px-2.5 text-xs font-medium transition-colors",
+              o.id === activeOrderId && !activeGroupId
+                ? "border-primary bg-primary/10 text-foreground"
+                : "border-border text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Icons.orders className="size-3.5" />
+            {o.order_number}
+          </button>
+        ))}
+        {(() => {
+          const free = activeTableDerived.capacity - (activeTableDerived.seated_seats ?? 0);
+          return free > 0 ? (
+            <button
+              type="button"
+              onClick={() => {
+                setSeatCount(Math.min(2, free));
+                setSeatOpen(true);
+              }}
+              aria-label={`Seat a new party, ${free} seats free`}
+              title={`Seat a new party (${free} free)`}
+              className="flex shrink-0 items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Icons.add className="size-3.5" /> Party
+            </button>
+          ) : null;
+        })()}
+      </div>
+    );
+
+  const counterBillsStrip = !isDineIn && openBills.length > 0 && (
+    <CounterBillsStrip
+      openBills={openBills}
+      activeOrderId={activeOrderId}
+      onSelectBill={handleSelectBill}
+    />
+  );
+
+  const orderArea =
+    activeOrderId && (activeTable || !isDineIn) ? (
+      <OrderBillPanel
+        orderId={activeOrderId}
+        title={
+          activeTable
+            ? `Bill — Table ${activeTable.number}${activeGroup ? ` · Party ${activeGroup.label ?? "?"}` : openTabs.some((o) => o.id === activeOrderId) ? " · open tab" : ""}`
+            : `Bill — ${orderTypeLabel}`
+        }
+        showSeating
+        showCustomer
+        showCancel
+        onAddItems={() => openDrawerTo("items")}
+        fit="fill"
+        onCompleted={() => {
+          queryClient.invalidateQueries({ queryKey: tableKeys.all });
+          queryClient.invalidateQueries({ queryKey: orderKeys.all });
+          setPanelOpen(false);
+          setMobileView("tables");
+          setLeftView("tables");
+          exitTimer.current = window.setTimeout(() => {
+            setActiveTableId(null);
+            setActiveOrderId(null);
+            setActiveGroupId(null);
+            exitTimer.current = null;
+            void discardEmptyDrafts().then((n) => {
+              if (n > 0) queryClient.invalidateQueries({ queryKey: orderKeys.all });
+            });
+          }, PANEL_EXIT_MS);
+        }}
+      />
+    ) : activeTableId && activeTable && activeGroup ? (
+      <Card className="flex h-full items-center justify-center">
+        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+          <div
+            className="flex size-12 items-center justify-center rounded-full text-lg font-bold text-white"
+            style={{ backgroundColor: partyHex(activeGroup.color_index ?? 0) }}
+          >
+            {activeGroup.label ?? "?"}
+          </div>
+          <p className="font-medium">
+            Party {activeGroup.label ?? "?"} — {activeGroup.seats} guest
+            {activeGroup.seats === 1 ? "" : "s"}
+          </p>
+          <p className="max-w-xs text-sm text-muted-foreground">
+            No order yet for this party. Start one to add items and fire tickets.
+          </p>
+          <Button
+            onClick={() =>
+              activeTableId &&
+              ensureGroupMut.mutate({ tableId: activeTableId, groupId: activeGroup.id })
+            }
+            disabled={ensureGroupMut.isPending}
+          >
+            <Icons.add className="mr-2 size-4" /> Start order
+          </Button>
+        </CardContent>
+      </Card>
+    ) : (
+      <Card className="flex h-full items-center justify-center">
+        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+          <div className="rounded-full border border-dashed p-3">
+            <Icons.orders className="size-6 text-muted-foreground" />
+          </div>
+          <p className="font-medium">
+            {isDineIn ? "No table selected" : `Select the ${orderTypeLabel} order`}
+          </p>
+          <p className="max-w-xs text-sm text-muted-foreground">
+            {isDineIn
+              ? "Tap a table on the floor to open its bill — add items, fire tickets, split and collect."
+              : openBills.length > 0
+                ? `Tap a bill above to reopen it — add items, fire tickets and collect.`
+                : `Start a new ${orderTypeLabel} order from the menu — it stays here until settled.`}
+          </p>
+        </CardContent>
+      </Card>
+    );
 
   return (
     <PageContainer
@@ -513,7 +635,11 @@ export default function OrderTerminalPage({
                   className="h-9 shrink-0"
                   onClick={() => {
                     setLeftView("tables");
-                    setMobileView(isDineIn ? "tables" : "order");
+                    if (isDineIn) {
+                      dismissDrawer();
+                    } else {
+                      openDrawerTo("order");
+                    }
                   }}
                   title={isDineIn ? "Back to tables" : "Back"}
                 >
@@ -620,7 +746,7 @@ export default function OrderTerminalPage({
               onValueChange={(v) => {
                 setSelectedFloorId(v);
                 setLeftView("tables");
-                setMobileView("tables");
+                dismissDrawer();
               }}
               className="h-full"
             >
@@ -672,313 +798,84 @@ export default function OrderTerminalPage({
           )}
         </div>
 
-        <>
+        {/* Desktop: docked side panel — unchanged layout, always mounted. */}
+        <div
+          className={cn(
+            "hidden shrink-0 overflow-hidden lg:flex",
+            "lg:w-[420px] xl:w-[480px]",
+            fillHeight ? "lg:min-h-0 lg:flex-col" : "lg:h-full",
+          )}
+        >
           <div
             className={cn(
-              "shrink-0 overflow-hidden transition-all duration-300 ease-out",
-              // Mobile: bottom sheet sliding up from the screen edge.
-              "fixed inset-x-0 bottom-0 z-50 max-h-[88dvh] rounded-t-2xl border-t bg-background shadow-2xl",
-              // Desktop: always-visible docked side column (no open/close).
-              "sm:max-h-[82dvh] lg:static lg:z-auto lg:max-h-none lg:min-h-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:shadow-none lg:w-[420px] xl:w-[480px]",
-              fillHeight && "lg:flex lg:min-h-0 lg:flex-col",
-              // Mobile sheet hides until a table is tapped.
-              panelOpen
-                ? "translate-y-0 opacity-100"
-                : "max-lg:pointer-events-none max-lg:translate-y-full max-lg:opacity-0",
+              "overflow-y-auto lg:h-full lg:w-auto lg:pb-0",
+              // /kot desktop: the bill card itself scrolls — no clip.
+              fillHeight ? "lg:overflow-y-auto" : "lg:overflow-visible",
             )}
           >
-            <div
-              className={cn(
-                "scroll-pt-12 overflow-y-auto pb-[max(1.25rem,env(safe-area-inset-bottom))] max-lg:max-h-[88dvh] sm:max-h-[82dvh] lg:h-full lg:max-h-none lg:w-auto lg:pb-0",
-                // /kot desktop: the bill card itself scrolls — no clip.
-                fillHeight ? "lg:overflow-y-auto" : "lg:overflow-visible",
-              )}
-            >
-              {/* Mobile sheet grab handle + close */}
-              <div className="sticky top-0 z-10 flex items-center justify-center bg-background/95 pt-2 pb-1 backdrop-blur-sm lg:hidden">
-                <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
-                <button
-                  type="button"
-                  aria-label="Close bill panel"
-                  onClick={() => handleTap(null)}
-                  className="absolute right-2 top-1 flex size-11 items-center justify-center rounded-md text-muted-foreground touch-manipulation"
-                >
-                  <Icons.close className="size-5" />
-                </button>
-              </div>
-              <div className="sticky top-0 z-20 flex items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur lg:hidden">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-11 shrink-0 touch-manipulation"
-                  aria-label="Back to tables"
-                  onClick={() => {
-                    setPanelOpen(false);
-                    setMobileView("tables");
-                  }}
-                >
-                  <Icons.chevronLeft className="size-5" />
-                </Button>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold">
-                    {activeTable ? `Table ${activeTable.number}` : "Order"}
-                  </div>
-                  <div className="truncate text-xs text-muted-foreground">
-                    {activeGroup ? `Party ${activeGroup.label ?? "?"}` : "Current order"}
-                  </div>
-                </div>
-              </div>
-
-              {/* Party strip: one tap-target per seated party + seat-new-party.
-                  Shows whenever the table has parties or accepts sharing. */}
-              {activeTableDerived &&
-                (groups.length > 0 || openTabs.length > 0 || activeTableDerived.allows_sharing) && (
-                  <div className="flex items-center gap-2 overflow-x-auto border-b bg-background/95 px-3 py-2 backdrop-blur-sm">
-                    <Icons.party className="size-4 shrink-0 text-muted-foreground" />
-                    {groups.map((g, i) => {
-                      const live = liveOrderByGroup.has(g.id);
-                      const focused = g.id === activeGroupId;
-                      return (
-                        <button
-                          key={g.id}
-                          type="button"
-                          onClick={() => activeTableId && handleSelectParty(activeTableId, g.id)}
-                          aria-label={`Party ${g.label ?? "?"}, ${g.seats} guests${live ? ", order open" : ""}`}
-                          title={`Party ${g.label ?? "?"} — tap to focus${live ? "" : " · no order yet"}`}
-                          className={cn(
-                            "flex shrink-0 items-center gap-1.5 rounded-full border py-1 pr-2.5 pl-1 text-xs font-medium transition-colors",
-                            focused
-                              ? "border-primary bg-primary/10 text-foreground"
-                              : "border-border text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          <span
-                            className="flex size-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                            style={{ backgroundColor: partyHex(g.color_index ?? i) }}
-                          >
-                            {g.label ?? "?"}
-                          </span>
-                          {g.seats}
-                          <span
-                            className={cn(
-                              "size-1.5 rounded-full",
-                              live ? "bg-emerald-500" : "bg-zinc-300 dark:bg-zinc-600",
-                            )}
-                            title={live ? "Order open" : "No order yet"}
-                          />
-                        </button>
-                      );
-                    })}
-                    {openTabs.map((o) => (
-                      <button
-                        key={o.id}
-                        type="button"
-                        onClick={() => handleSelectTab(o.id)}
-                        aria-label={`Open tab ${o.order_number}, party released`}
-                        title={`${o.order_number} — party released, still payable · ${formatAge(o.created_at)} old`}
-                        className={cn(
-                          "flex shrink-0 items-center gap-1.5 rounded-full border border-dashed py-1 px-2.5 text-xs font-medium transition-colors",
-                          o.id === activeOrderId && !activeGroupId
-                            ? "border-primary bg-primary/10 text-foreground"
-                            : "border-border text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        <Icons.orders className="size-3.5" />
-                        {o.order_number}
-                      </button>
-                    ))}
-                    {(() => {
-                      const free =
-                        activeTableDerived.capacity - (activeTableDerived.seated_seats ?? 0);
-                      return free > 0 ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSeatCount(Math.min(2, free));
-                            setSeatOpen(true);
-                          }}
-                          aria-label={`Seat a new party, ${free} seats free`}
-                          title={`Seat a new party (${free} free)`}
-                          className="flex shrink-0 items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-                        >
-                          <Icons.add className="size-3.5" /> Party
-                        </button>
-                      ) : null;
-                    })()}
-                  </div>
-                )}
-              {/* Counter/takeaway/delivery bills strip: the dine-in open-tabs
-                  equivalent — one tap-target per unsettled bill, trailing
-                  bills collapse under a 3-dot menu when space runs out. */}
-              {!isDineIn && openBills.length > 0 && (
-                <div
-                  ref={stripRowRef}
-                  className="flex items-center gap-2 overflow-hidden border-b bg-background/95 px-3 py-2 backdrop-blur-sm"
-                >
-                  <Icons.orders className="size-4 shrink-0 text-muted-foreground" />
-                  {visibleBills.map((o) => {
-                    const focused = o.id === activeOrderId;
-                    const label = o.customer_name?.trim()
-                      ? `${o.order_number} · ${o.customer_name.trim()}`
-                      : o.order_number;
-                    return (
-                      <button
-                        key={o.id}
-                        ref={(el) => {
-                          billEls.current[o.id] = el;
-                        }}
-                        type="button"
-                        onClick={() => handleSelectBill(o.id)}
-                        aria-label={`Reopen ${label}`}
-                        title={`${label} — tap to reopen · ${o.items.length} item${o.items.length === 1 ? "" : "s"} · ${formatINR(o.grand_total_paise)} · ${formatAge(o.created_at)} old`}
-                        className={cn(
-                          "flex shrink-0 items-center gap-1.5 rounded-full border border-dashed py-1 px-2.5 text-xs font-medium transition-colors touch-manipulation",
-                          focused
-                            ? "border-primary bg-primary/10 text-foreground"
-                            : "border-border text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        <Icons.orders className="size-3.5" />
-                        {o.order_number}
-                        <span
-                          className={cn(
-                            "size-1.5 rounded-full",
-                            o.payment_status === "PAID" ? "bg-emerald-500" : "bg-amber-500",
-                          )}
-                          title={o.payment_status === "PAID" ? "Paid" : "Unsettled"}
-                        />
-                      </button>
-                    );
-                  })}
-                  {overflowBills.length > 0 && (
-                    <DropdownMenu modal={false}>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            data-overflow-btn
-                            aria-label={`${overflowBills.length} more bills`}
-                            title={`${overflowBills.length} more bills`}
-                            className="shrink-0"
-                          />
-                        }
-                      >
-                        <Icons.ellipsis className="size-4" />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {overflowBills.map((o) => {
-                          const label = o.customer_name?.trim()
-                            ? `${o.order_number} · ${o.customer_name.trim()}`
-                            : o.order_number;
-                          return (
-                            <DropdownMenuItem
-                              key={o.id}
-                              onClick={() => handleSelectBill(o.id)}
-                              className="min-h-11"
-                            >
-                              {o.id === activeOrderId && <Icons.check className="mr-2 size-4" />}
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate text-sm font-medium">{label}</span>
-                                <span className="block text-xs text-muted-foreground tabular-nums">
-                                  {o.items.length} item{o.items.length === 1 ? "" : "s"} ·{" "}
-                                  {formatINR(o.grand_total_paise)} ·{" "}
-                                  {o.payment_status === "PAID" ? "paid" : "unsettled"} ·{" "}
-                                  {formatAge(o.created_at)} old
-                                </span>
-                              </span>
-                            </DropdownMenuItem>
-                          );
-                        })}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                </div>
-              )}
-              {activeOrderId && (activeTable || !isDineIn) ? (
-                <OrderBillPanel
-                  orderId={activeOrderId}
-                  title={
-                    activeTable
-                      ? `Bill — Table ${activeTable.number}${activeGroup ? ` · Party ${activeGroup.label ?? "?"}` : openTabs.some((o) => o.id === activeOrderId) ? " · open tab" : ""}`
-                      : `Bill — ${orderTypeLabel}`
-                  }
-                  showSeating
-                  showCustomer
-                  showCancel
-                  onAddItems={() => {
-                    setLeftView("items");
-                    setMobileView("items");
-                    setPanelOpen(true);
-                  }}
-                  fit="fill"
-                  onCompleted={() => {
-                    queryClient.invalidateQueries({ queryKey: tableKeys.all });
-                    queryClient.invalidateQueries({ queryKey: orderKeys.all });
-                    setPanelOpen(false);
-                    setMobileView("tables");
-                    setLeftView("tables");
-                    exitTimer.current = window.setTimeout(() => {
-                      setActiveTableId(null);
-                      setActiveOrderId(null);
-                      setActiveGroupId(null);
-                      exitTimer.current = null;
-                      void discardEmptyDrafts().then((n) => {
-                        if (n > 0) queryClient.invalidateQueries({ queryKey: orderKeys.all });
-                      });
-                    }, PANEL_EXIT_MS);
-                  }}
-                />
-              ) : activeTableId && activeTable && activeGroup ? (
-                <Card className="flex h-full items-center justify-center">
-                  <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-                    <div
-                      className="flex size-12 items-center justify-center rounded-full text-lg font-bold text-white"
-                      style={{ backgroundColor: partyHex(activeGroup.color_index ?? 0) }}
-                    >
-                      {activeGroup.label ?? "?"}
-                    </div>
-                    <p className="font-medium">
-                      Party {activeGroup.label ?? "?"} — {activeGroup.seats} guest
-                      {activeGroup.seats === 1 ? "" : "s"}
-                    </p>
-                    <p className="max-w-xs text-sm text-muted-foreground">
-                      No order yet for this party. Start one to add items and fire tickets.
-                    </p>
-                    <Button
-                      onClick={() =>
-                        activeTableId &&
-                        ensureGroupMut.mutate({ tableId: activeTableId, groupId: activeGroup.id })
-                      }
-                      disabled={ensureGroupMut.isPending}
-                    >
-                      <Icons.add className="mr-2 size-4" /> Start order
-                    </Button>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card className="flex h-full items-center justify-center">
-                  <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-                    <div className="rounded-full border border-dashed p-3">
-                      <Icons.orders className="size-6 text-muted-foreground" />
-                    </div>
-                    <p className="font-medium">
-                      {isDineIn ? "No table selected" : `Select the ${orderTypeLabel} order`}
-                    </p>
-                    <p className="max-w-xs text-sm text-muted-foreground">
-                      {isDineIn
-                        ? "Tap a table on the floor to open its bill — add items, fire tickets, split and collect."
-                        : openBills.length > 0
-                          ? `Tap a bill above to reopen it — add items, fire tickets and collect.`
-                          : `Start a new ${orderTypeLabel} order from the menu — it stays here until settled.`}
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+            {partyStrip}
+            {counterBillsStrip}
+            {orderArea}
           </div>
-        </>
+        </div>
+
+        {/* Mobile: native-like bottom sheet with snap points. */}
+        <div className="lg:hidden">
+          <Drawer
+            open={panelOpen}
+            onOpenChange={handleDrawerOpenChange}
+            snapPoints={SNAP_POINTS}
+            snapPoint={snapPoint}
+            onSnapPointChange={setSnapPoint}
+            defaultSnapPoint={SNAP_POINTS[1]}
+            showSwipeHandle
+          >
+            <DrawerContent
+              keepMounted
+              className="rounded-t-2xl border-t bg-background shadow-2xl motion-reduce:transition-none motion-reduce:duration-0 lg:hidden"
+              overlayClassName="lg:hidden"
+            >
+              <div className="flex max-h-full min-h-0 flex-1 flex-col overflow-hidden">
+                <div className="flex-1 overflow-y-auto overscroll-contain pb-[max(1.25rem,env(safe-area-inset-bottom))] [touch-action:pan-y] motion-reduce:scroll-auto">
+                  {/* Back to products / accessible title / close */}
+                  <div className="sticky top-0 z-20 flex shrink-0 items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-11 shrink-0 touch-manipulation"
+                      aria-label="Back to products"
+                      onClick={dismissDrawer}
+                    >
+                      <Icons.chevronLeft className="size-5" />
+                    </Button>
+                    <div className="min-w-0 flex-1">
+                      <DrawerTitle className="truncate text-sm font-semibold">
+                        {activeTable ? `Table ${activeTable.number}` : "Order"}
+                      </DrawerTitle>
+                      <DrawerDescription className="truncate text-xs text-muted-foreground">
+                        {activeGroup ? `Party ${activeGroup.label ?? "?"}` : "Current order"}
+                      </DrawerDescription>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-11 shrink-0 touch-manipulation"
+                      aria-label="Close bill panel"
+                      onClick={() => handleTap(null)}
+                    >
+                      <Icons.close className="size-5" />
+                    </Button>
+                  </div>
+                  {partyStrip}
+                  {counterBillsStrip}
+                  {orderArea}
+                </div>
+              </div>
+            </DrawerContent>
+          </Drawer>
+        </div>
       </div>
 
       {/* Sticky mobile bill bar (/kot only): replaces the view-switcher tab
@@ -993,7 +890,7 @@ export default function OrderTerminalPage({
         >
           <button
             type="button"
-            onClick={() => setPanelOpen(true)}
+            onClick={() => openDrawerTo("order")}
             aria-label={`Open bill, ${billBarOrder.items.length} items, ${formatINR(billBarOrder.grand_total_paise)}`}
             className="mx-auto flex h-14 w-full max-w-xl items-center gap-2 px-4 text-left touch-manipulation"
           >
@@ -1022,9 +919,8 @@ export default function OrderTerminalPage({
             <button
               type="button"
               onClick={() => {
-                setPanelOpen(false);
-                setMobileView("tables");
                 setLeftView("tables");
+                dismissDrawer();
               }}
               className={cn(
                 "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium touch-manipulation",
@@ -1045,7 +941,7 @@ export default function OrderTerminalPage({
             </button>
             <button
               type="button"
-              onClick={() => (activeTableId || activeOrderId) && setMobileView("order")}
+              onClick={() => (activeTableId || activeOrderId) && openDrawerTo("order")}
               disabled={!activeTableId && !activeOrderId}
               className={cn(
                 "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium touch-manipulation disabled:opacity-40",
@@ -1057,13 +953,7 @@ export default function OrderTerminalPage({
             </button>
             <button
               type="button"
-              onClick={() => {
-                if (activeOrderId) {
-                  setPanelOpen(true);
-                  setMobileView("items");
-                  setLeftView("items");
-                }
-              }}
+              onClick={() => activeOrderId && openDrawerTo("items")}
               disabled={!activeOrderId}
               className={cn(
                 "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium touch-manipulation disabled:opacity-40",
@@ -1135,6 +1025,170 @@ export default function OrderTerminalPage({
         </Dialog>
       )}
     </PageContainer>
+  );
+}
+
+/**
+ * Counter/takeaway/delivery bills strip: one tap-target per unsettled bill,
+ * trailing bills collapse under an action-style 3-dot menu when space runs out.
+ * Self-contained overflow measurement so multiple instances (desktop panel +
+ * mobile drawer) do not share refs.
+ */
+function CounterBillsStrip({
+  openBills,
+  activeOrderId,
+  onSelectBill,
+}: {
+  openBills: OrderWithDerived[];
+  activeOrderId: string | null;
+  onSelectBill: (orderId: string) => void;
+}) {
+  const [visibleCount, setVisibleCount] = useState<number | null>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const widthCache = useRef<Record<string, number>>({});
+  const billEls = useRef<Record<string, HTMLElement | null>>({});
+  const billSig = openBills.map((o) => o.id).join("|");
+
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    let raf = 0;
+    const fit = () => {
+      const rowW = row.clientWidth;
+      if (rowW === 0) return;
+      const widths = openBills.map((o) => {
+        const w = billEls.current[o.id]?.offsetWidth ?? 0;
+        if (w > 0) widthCache.current[o.id] = w;
+        return widthCache.current[o.id] ?? 0;
+      });
+      // Not measured yet — keep everything visible until widths are known.
+      if (widths.some((w) => w === 0)) return;
+      const btnW = row.querySelector<HTMLElement>("[data-overflow-btn]")?.offsetWidth ?? 0;
+      if (btnW > 0) widthCache.current.__overflow = btnW;
+      const triggerW = widthCache.current.__overflow ?? 44;
+      const leadW = 32;
+      let n = openBills.length;
+      for (; n > 1; n--) {
+        const avail = rowW - leadW - 16 - (n < openBills.length ? triggerW + 4 : 0);
+        const sum = widths.slice(0, n).reduce((a, b) => a + b, 0) + (n - 1) * 8;
+        if (sum <= avail) break;
+      }
+      setVisibleCount((prev) => {
+        const next = n >= openBills.length ? null : n;
+        return prev === next ? prev : next;
+      });
+    };
+    const schedule = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(fit);
+    };
+    schedule();
+    const ro = new ResizeObserver(schedule);
+    ro.observe(row);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billSig]);
+
+  const billsShownCount = visibleCount ?? openBills.length;
+  let visibleBills = openBills.slice(0, billsShownCount);
+  let overflowBills = openBills.slice(billsShownCount);
+  // Keep the focused bill visible — swap it in for the last visible one.
+  if (overflowBills.length > 0 && !visibleBills.some((o) => o.id === activeOrderId)) {
+    const active = openBills.find((o) => o.id === activeOrderId);
+    const last = visibleBills[visibleBills.length - 1];
+    if (active && last) {
+      visibleBills = [...visibleBills.slice(0, -1), active];
+      overflowBills = [last, ...overflowBills.filter((o) => o.id !== activeOrderId)];
+    }
+  }
+
+  return (
+    <div
+      ref={rowRef}
+      className="flex items-center gap-2 overflow-hidden border-b bg-background/95 px-3 py-2 backdrop-blur-sm"
+    >
+      <Icons.orders className="size-4 shrink-0 text-muted-foreground" />
+      {visibleBills.map((o) => {
+        const focused = o.id === activeOrderId;
+        const label = o.customer_name?.trim()
+          ? `${o.order_number} · ${o.customer_name.trim()}`
+          : o.order_number;
+        return (
+          <button
+            key={o.id}
+            ref={(el) => {
+              billEls.current[o.id] = el;
+            }}
+            type="button"
+            onClick={() => onSelectBill(o.id)}
+            aria-label={`Reopen ${label}`}
+            title={`${label} — tap to reopen · ${o.items.length} item${o.items.length === 1 ? "" : "s"} · ${formatINR(o.grand_total_paise)} · ${formatAge(o.created_at)} old`}
+            className={cn(
+              "flex shrink-0 items-center gap-1.5 rounded-full border border-dashed py-1 px-2.5 text-xs font-medium transition-colors touch-manipulation",
+              focused
+                ? "border-primary bg-primary/10 text-foreground"
+                : "border-border text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Icons.orders className="size-3.5" />
+            {o.order_number}
+            <span
+              className={cn(
+                "size-1.5 rounded-full",
+                o.payment_status === "PAID" ? "bg-emerald-500" : "bg-amber-500",
+              )}
+              title={o.payment_status === "PAID" ? "Paid" : "Unsettled"}
+            />
+          </button>
+        );
+      })}
+      {overflowBills.length > 0 && (
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                data-overflow-btn
+                aria-label={`${overflowBills.length} more bills`}
+                title={`${overflowBills.length} more bills`}
+                className="shrink-0"
+              />
+            }
+          >
+            <Icons.ellipsis className="size-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {overflowBills.map((o) => {
+              const label = o.customer_name?.trim()
+                ? `${o.order_number} · ${o.customer_name.trim()}`
+                : o.order_number;
+              return (
+                <DropdownMenuItem
+                  key={o.id}
+                  onClick={() => onSelectBill(o.id)}
+                  className="min-h-11"
+                >
+                  {o.id === activeOrderId && <Icons.check className="mr-2 size-4" />}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{label}</span>
+                    <span className="block text-xs text-muted-foreground tabular-nums">
+                      {o.items.length} item{o.items.length === 1 ? "" : "s"} ·{" "}
+                      {formatINR(o.grand_total_paise)} ·{" "}
+                      {o.payment_status === "PAID" ? "paid" : "unsettled"} ·{" "}
+                      {formatAge(o.created_at)} old
+                    </span>
+                  </span>
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
   );
 }
 

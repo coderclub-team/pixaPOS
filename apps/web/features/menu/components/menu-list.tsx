@@ -53,7 +53,7 @@ export function MenuList({ items }: { items: MenuItem[] }) {
             <div className="rounded-full border border-dashed p-3">
               <Icons.pizza className="size-6 text-muted-foreground" />
             </div>
-            <p className="font-medium">No menu items</p>
+            <p className="font-medium">No products</p>
             <p className="text-sm text-muted-foreground">
               Add dishes — e.g., Biryani, Cold Coffee with variants Small/Large/250ml.
             </p>
@@ -69,7 +69,7 @@ export function MenuList({ items }: { items: MenuItem[] }) {
             <TableRow>
               <TableHead>
                 <SortTh
-                  label="Dish"
+                  label="Product"
                   column="name"
                   sortKey={sortKey}
                   sortDir={sortDir}
@@ -135,7 +135,7 @@ function MenuRow({ item }: { item: MenuItem }) {
     mutationFn: () => deleteMenuItem(item.id),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: menuKeys.all });
-      toast.success("Menu item deleted");
+      toast.success("Product deleted");
       setDeleteOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),

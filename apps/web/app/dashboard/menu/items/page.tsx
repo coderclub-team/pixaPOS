@@ -49,20 +49,20 @@ export default function MenuItemsPage() {
   );
   if (isPending)
     return (
-      <PageContainer pageTitle="Menu Items" pageDescription="Menu — Catalog" isLoading>
+      <PageContainer pageTitle="Products" pageDescription="Catalog — Products" isLoading>
         <div />
       </PageContainer>
     );
   return (
     <PageContainer
-      pageTitle="Menu Items"
-      pageDescription="Dishes — list like other inventory pages. Pricing per variant, GST optional, recipe link."
+      pageTitle="Products"
+      pageDescription="Products — pricing per variant, GST optional, recipe link."
       pageHeaderAction={
         <Link
           href="/dashboard/menu/items/new"
           className={cn(buttonVariants(), "text-xs md:text-sm")}
         >
-          <Icons.add className="mr-2 h-4 w-4" /> Add Dish
+          <Icons.add className="mr-2 h-4 w-4" /> Add Product
         </Link>
       }
     >
