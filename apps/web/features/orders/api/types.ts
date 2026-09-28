@@ -92,6 +92,10 @@ export type RestaurantOrder = {
   discount_percent?: number;
   discount_paise?: number;
   discount_reason?: string;
+  /** Applied promo code (discount_reason = `PROMO:<CODE>`). Promo and manual
+   * discounts are mutually exclusive — last write wins. */
+  promo_code?: string;
+  promo_id?: string;
   grand_total_paise: number;
   payment_status: PaymentState;
   split?: BillSplit;

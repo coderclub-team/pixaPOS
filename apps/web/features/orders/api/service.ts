@@ -1493,10 +1493,16 @@ export async function setDiscount(
       discount_percent: params.percent,
       discount_paise: params.amount_paise,
       discount_reason: params.reason.trim(),
+      promo_code: undefined,
+      promo_id: undefined,
       split: undefined,
       updated_at: new Date().toISOString(),
       version: order.version + 1,
     });
+    // Manual discount replaces any promo — void its redemption so limits
+    // count only promos live at completion.
+    const { voidRedemptionsForOrder } = await import("@/features/promos/api/service");
+    await voidRedemptionsForOrder(orderId);
     saveOrders();
     await recordEvent({
       outlet_id: order.outlet_id,
@@ -1506,6 +1512,125 @@ export async function setDiscount(
       actor_id: params.by ?? "staff",
       reason_text: params.reason.trim(),
       metadata: { percent: params.percent, amount_paise: params.amount_paise },
+    });
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
+/**
+ * Apply a promo code to a draft bill. The evaluated amount lands in
+ * discount_paise (pre-tax, like manual discounts) with
+ * discount_reason = `PROMO:<CODE>`; promo and manual discounts are mutually
+ * exclusive. Limits enforced; redemption recorded per apply and voided if
+ * the promo is replaced/removed before completion.
+ */
+export async function applyPromo(
+  orderId: string,
+  code: string,
+  params?: { by?: string },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(300);
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (order.status === "COMPLETED" || order.status === "CANCELLED") {
+      throw new Error("Promo cannot change on a completed or cancelled order");
+    }
+    const {
+      getPromoByCode,
+      evaluatePromo,
+      checkPromoLimits,
+      recordRedemption,
+      voidRedemptionsForOrder,
+    } = await import("@/features/promos/api/service");
+    const promo = await getPromoByCode(code);
+    if (!promo) throw new Error(`Promo ${code.trim().toUpperCase() || "code"} not found`);
+    // Category matching needs catalog category_ids on the view lines.
+    const catByItem = new Map<string, string>();
+    if (promo.scope === "category") {
+      const { getMenuItems } = await import("@/features/menu/api/service");
+      const menu = await getMenuItems().catch(() => []);
+      for (const m of menu) catByItem.set(m.id, (m as any).category_id ?? "");
+    }
+    const subtotal = order.items.reduce((s, i) => s + i.line_total_paise, 0);
+    const { amount_paise } = evaluatePromo(promo, {
+      subtotal_paise: subtotal,
+      channel: order.channel,
+      customer_id: order.customer_id,
+      items: order.items.map((l) => ({ ...l, category_id: catByItem.get(l.menu_item_id) })),
+    });
+    await checkPromoLimits(promo, order.customer_id);
+    await voidRedemptionsForOrder(orderId);
+    mockOrders[idx] = recomputeTotals({
+      ...order,
+      discount_percent: undefined,
+      discount_paise: amount_paise,
+      discount_reason: `PROMO:${promo.code}`,
+      promo_code: promo.code,
+      promo_id: promo.id,
+      split: undefined,
+      updated_at: new Date().toISOString(),
+      version: order.version + 1,
+    });
+    saveOrders();
+    await recordRedemption({
+      promo_id: promo.id,
+      order_id: orderId,
+      customer_id: order.customer_id,
+      amount_paise,
+    });
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: order.id,
+      event_type: "ORDER_DISCOUNTED",
+      actor_id: params?.by ?? "staff",
+      reason_text: `PROMO:${promo.code}`,
+      metadata: { promo_id: promo.id, promo_code: promo.code, amount_paise },
+    });
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
+/** Remove a promo (clears the promo-driven discount; manual edits re-add). */
+export async function removePromo(
+  orderId: string,
+  params?: { by?: string },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(200);
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (!order.promo_code) throw new Error("No promo applied on this order");
+    mockOrders[idx] = recomputeTotals({
+      ...order,
+      discount_percent: undefined,
+      discount_paise: undefined,
+      discount_reason: undefined,
+      promo_code: undefined,
+      promo_id: undefined,
+      updated_at: new Date().toISOString(),
+      version: order.version + 1,
+    });
+    const { voidRedemptionsForOrder } = await import("@/features/promos/api/service");
+    await voidRedemptionsForOrder(orderId);
+    saveOrders();
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: order.id,
+      event_type: "ORDER_DISCOUNTED",
+      actor_id: params?.by ?? "staff",
+      reason_text: "Promo removed",
+      metadata: { promo_removed: order.promo_code },
     });
     return enrichOrder(mockOrders[idx]);
   } finally {

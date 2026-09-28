@@ -20,6 +20,9 @@ import {
   SelectValue,
 } from "@pixa/ui/base-ui/select";
 import { Button } from "@pixa/ui/base-ui/button";
+import { buttonVariants } from "@pixa/ui/base-ui/button";
+import Link from "next/link";
+import { cn } from "@pixa/ui/lib/utils";
 import { formatINR } from "@/lib/money";
 import { SortTh, useSorting } from "@/components/sort-th";
 import { ExportButton } from "@/features/system/components/io-dialog";
@@ -234,6 +237,7 @@ export default function ItemSalesPage() {
                     className="ml-auto"
                   />
                 </TableHead>
+                <TableHead className="text-right">Promo</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -251,6 +255,18 @@ export default function ItemSalesPage() {
                   <TableCell className="text-right font-mono">{r.qty}</TableCell>
                   <TableCell className="text-right font-mono">{r.orders}</TableCell>
                   <TableCell className="text-right font-mono">{formatINR(r.net_paise)}</TableCell>
+                  <TableCell className="text-right">
+                    <Link
+                      href={`/dashboard/marketing/promos/new?scope=item&target=${r.menu_item_id}`}
+                      className={cn(
+                        buttonVariants({ variant: "ghost", size: "sm" }),
+                        "h-7 text-xs",
+                      )}
+                      title={`New promo for ${r.name}`}
+                    >
+                      + Promo
+                    </Link>
+                  </TableCell>
                 </TableRow>
               ))}
               {visible.length === 0 && (

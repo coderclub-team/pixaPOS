@@ -56,11 +56,13 @@ import {
 } from "@/features/payments/api/queries";
 import {
   addOrderItem,
+  applyPromo,
   cancelOrder,
   computeSplits,
   clearSplit,
   deleteOrder,
   removeDraftItem,
+  removePromo,
   setDiscount,
   updateDraftItemQty,
 } from "@/features/orders/api/service";
@@ -1312,6 +1314,25 @@ function DiscountDialog({
   const [kind, setKind] = useState<"percent" | "flat">("percent");
   const [value, setValue] = useState("");
   const [reason, setReason] = useState(order?.discount_reason ?? "");
+  const [promoCode, setPromoCode] = useState("");
+
+  const promoMut = useMutation({
+    mutationFn: () => applyPromo(orderId, promoCode),
+    onSuccess: (o) => {
+      invalidateBill(orderId, queryClient);
+      toast.success(`Promo ${o.promo_code} applied — ${formatINR(o.discount_paise ?? 0)} off`);
+      setPromoCode("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const promoRemoveMut = useMutation({
+    mutationFn: () => removePromo(orderId),
+    onSuccess: () => {
+      invalidateBill(orderId, queryClient);
+      toast.success("Promo removed");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const mut = useMutation({
     mutationFn: () =>
@@ -1337,6 +1358,42 @@ function DiscountDialog({
             Pre-tax. Editable until the order completes — paid and balance re-derive.
           </DialogDescription>
         </DialogHeader>
+        {order?.promo_code ? (
+          <div className="flex items-center gap-2 rounded-lg border border-green-500/40 bg-green-500/10 px-3 py-2">
+            <span className="text-sm font-semibold">{order.promo_code}</span>
+            <span className="text-xs text-muted-foreground">
+              −{formatINR(order.discount_paise ?? 0)}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-7 text-xs"
+              disabled={promoRemoveMut.isPending}
+              onClick={() => promoRemoveMut.mutate()}
+            >
+              Remove
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-end gap-2">
+            <div className="flex-1 space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Promo code</Label>
+              <Input
+                value={promoCode}
+                onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                placeholder="DIWALI10"
+                autoComplete="off"
+              />
+            </div>
+            <Button
+              variant="outline"
+              disabled={promoMut.isPending || !promoCode.trim()}
+              onClick={() => promoMut.mutate()}
+            >
+              Apply
+            </Button>
+          </div>
+        )}
         <div className="flex gap-2">
           {(["percent", "flat"] as const).map((k) => (
             <Button

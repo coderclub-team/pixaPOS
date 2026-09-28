@@ -329,6 +329,21 @@ export const navGroups: NavGroup[] = [
           },
         ],
       },
+      {
+        title: "Marketing",
+        url: "#",
+        icon: "exclusive",
+        isActive: false,
+        items: [
+          {
+            title: "Promo Codes",
+            url: "/dashboard/marketing/promos",
+            icon: "exclusive",
+            shortcut: ["m", "p"],
+            access: { requireOrg: true },
+          },
+        ],
+      },
     ],
   },
   {
