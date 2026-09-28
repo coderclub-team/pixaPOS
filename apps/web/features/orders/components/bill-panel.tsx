@@ -61,8 +61,10 @@ import {
   computeSplits,
   clearSplit,
   deleteOrder,
+  redeemRewards,
   removeDraftItem,
   removePromo,
+  removeRewardsRedeem,
   setDiscount,
   updateDraftItemQty,
 } from "@/features/orders/api/service";
@@ -1315,6 +1317,25 @@ function DiscountDialog({
   const [value, setValue] = useState("");
   const [reason, setReason] = useState(order?.discount_reason ?? "");
   const [promoCode, setPromoCode] = useState("");
+  const [rewardPts, setRewardPts] = useState("");
+
+  const rewardsMut = useMutation({
+    mutationFn: () => redeemRewards(orderId, Number(rewardPts)),
+    onSuccess: (o) => {
+      invalidateBill(orderId, queryClient);
+      toast.success(`${o.reward_points} pts tendered — ${formatINR(o.discount_paise ?? 0)} off`);
+      setRewardPts("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const rewardsRemoveMut = useMutation({
+    mutationFn: () => removeRewardsRedeem(orderId),
+    onSuccess: () => {
+      invalidateBill(orderId, queryClient);
+      toast.success("Rewards removed — points returned");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const promoMut = useMutation({
     mutationFn: () => applyPromo(orderId, promoCode),
@@ -1374,6 +1395,22 @@ function DiscountDialog({
               Remove
             </Button>
           </div>
+        ) : order?.reward_points ? (
+          <div className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+            <span className="text-sm font-semibold">{order.reward_points} pts</span>
+            <span className="text-xs text-muted-foreground">
+              −{formatINR(order.discount_paise ?? 0)}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-7 text-xs"
+              disabled={rewardsRemoveMut.isPending}
+              onClick={() => rewardsRemoveMut.mutate()}
+            >
+              Remove
+            </Button>
+          </div>
         ) : (
           <div className="flex items-end gap-2">
             <div className="flex-1 space-y-1.5">
@@ -1391,6 +1428,28 @@ function DiscountDialog({
               onClick={() => promoMut.mutate()}
             >
               Apply
+            </Button>
+          </div>
+        )}
+        {!order?.promo_code && !order?.reward_points && order?.customer_id && (
+          <div className="flex items-end gap-2">
+            <div className="flex-1 space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Reward points (1 pt = ₹1)</Label>
+              <Input
+                type="number"
+                min={1}
+                value={rewardPts}
+                onChange={(e) => setRewardPts(e.target.value)}
+                placeholder="50"
+              />
+            </div>
+            <Button
+              variant="outline"
+              disabled={rewardsMut.isPending || !rewardPts.trim()}
+              onClick={() => rewardsMut.mutate()}
+              title={!order?.customer_id ? "Link a customer first" : "Tender points on this bill"}
+            >
+              Tender
             </Button>
           </div>
         )}

@@ -6,6 +6,10 @@ import { notFound } from "next/navigation";
 import CustomerForm from "./customer-form";
 import { customerQueryOptions } from "../api/queries";
 import { ordersQueryOptions } from "@/features/orders/api/queries";
+import {
+  rewardBalanceQueryOptions,
+  rewardLedgerQueryOptions,
+} from "@/features/rewards/api/queries";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { formatINR } from "@/lib/money";
 
@@ -35,8 +39,48 @@ function EditCustomerView({ customerId }: { customerId: string }) {
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
       <CustomerForm initialData={data} pageTitle="Edit Customer" />
+      <RewardCard customerId={customerId} />
       <CustomerOrderHistory customerId={customerId} />
     </div>
+  );
+}
+
+function RewardCard({ customerId }: { customerId: string }) {
+  const { data: balance } = useSuspenseQuery(rewardBalanceQueryOptions(customerId));
+  const { data: ledger } = useSuspenseQuery(rewardLedgerQueryOptions(customerId));
+  if ((balance ?? 0) <= 0 && (ledger ?? []).length === 0) return null;
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between text-left text-lg font-bold">
+          Rewards
+          <span className="rounded-full bg-amber-500/15 px-3 py-1 text-sm font-semibold text-amber-700 dark:text-amber-300">
+            {balance ?? 0} pts · ₹{balance ?? 0}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-1.5">
+        <p className="text-xs text-muted-foreground">
+          Earn 1 pt per ₹10 on completed bills · 1 pt = ₹1 on any bill.
+        </p>
+        {(ledger ?? []).slice(0, 8).map((e) => (
+          <div
+            key={e.id}
+            className="flex items-center justify-between rounded-lg border px-3 py-1.5 text-sm"
+          >
+            <span className="capitalize text-muted-foreground">
+              {e.reason}
+              {e.note ? ` · ${e.note}` : ""}
+              <span className="ml-2 text-xs">{new Date(e.created_at).toLocaleDateString()}</span>
+            </span>
+            <span className={e.delta_points >= 0 ? "text-green-600" : "text-destructive"}>
+              {e.delta_points >= 0 ? "+" : ""}
+              {e.delta_points}
+            </span>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 

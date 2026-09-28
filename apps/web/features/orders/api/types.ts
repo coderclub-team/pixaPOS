@@ -96,6 +96,9 @@ export type RestaurantOrder = {
    * discounts are mutually exclusive — last write wins. */
   promo_code?: string;
   promo_id?: string;
+  /** Reward points tendered on this bill (discount_reason = `REWARDS:<n>pts`).
+   * Promo, manual discount and rewards are mutually exclusive — last wins. */
+  reward_points?: number;
   grand_total_paise: number;
   payment_status: PaymentState;
   split?: BillSplit;

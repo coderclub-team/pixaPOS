@@ -342,6 +342,13 @@ export const navGroups: NavGroup[] = [
             shortcut: ["m", "p"],
             access: { requireOrg: true },
           },
+          {
+            title: "Rewards",
+            url: "/dashboard/marketing/rewards",
+            icon: "sparkles",
+            shortcut: ["m", "r"],
+            access: { requireOrg: true },
+          },
         ],
       },
     ],

@@ -1495,6 +1495,7 @@ export async function setDiscount(
       discount_reason: params.reason.trim(),
       promo_code: undefined,
       promo_id: undefined,
+      reward_points: undefined,
       split: undefined,
       updated_at: new Date().toISOString(),
       version: order.version + 1,
@@ -1503,6 +1504,8 @@ export async function setDiscount(
     // count only promos live at completion.
     const { voidRedemptionsForOrder } = await import("@/features/promos/api/service");
     await voidRedemptionsForOrder(orderId);
+    const { voidRedemptionForOrder } = await import("@/features/rewards/api/service");
+    await voidRedemptionForOrder(orderId);
     saveOrders();
     await recordEvent({
       outlet_id: order.outlet_id,
@@ -1565,6 +1568,8 @@ export async function applyPromo(
     });
     await checkPromoLimits(promo, order.customer_id);
     await voidRedemptionsForOrder(orderId);
+    const { voidRedemptionForOrder } = await import("@/features/rewards/api/service");
+    await voidRedemptionForOrder(orderId);
     mockOrders[idx] = recomputeTotals({
       ...order,
       discount_percent: undefined,
@@ -1572,6 +1577,7 @@ export async function applyPromo(
       discount_reason: `PROMO:${promo.code}`,
       promo_code: promo.code,
       promo_id: promo.id,
+      reward_points: undefined,
       split: undefined,
       updated_at: new Date().toISOString(),
       version: order.version + 1,
@@ -1617,6 +1623,7 @@ export async function removePromo(
       discount_reason: undefined,
       promo_code: undefined,
       promo_id: undefined,
+      reward_points: undefined,
       updated_at: new Date().toISOString(),
       version: order.version + 1,
     });
@@ -1631,6 +1638,100 @@ export async function removePromo(
       actor_id: params?.by ?? "staff",
       reason_text: "Promo removed",
       metadata: { promo_removed: order.promo_code },
+    });
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
+/**
+ * Tender reward points on a draft bill (1 pt = ₹1). Needs a linked customer
+ * with balance. Mutually exclusive with promo/manual discount (last wins).
+ */
+export async function redeemRewards(
+  orderId: string,
+  points: number,
+  params?: { by?: string },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(300);
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (order.status === "COMPLETED" || order.status === "CANCELLED") {
+      throw new Error("Rewards cannot change on a completed or cancelled order");
+    }
+    if (!order.customer_id) throw new Error("Link a customer to redeem rewards");
+    const { redeemForOrder, voidRedemptionForOrder } =
+      await import("@/features/rewards/api/service");
+    const { value_paise } = await redeemForOrder(order.customer_id, orderId, points);
+    const { voidRedemptionsForOrder } = await import("@/features/promos/api/service");
+    await voidRedemptionsForOrder(orderId);
+    mockOrders[idx] = recomputeTotals({
+      ...order,
+      discount_percent: undefined,
+      discount_paise: Math.min(
+        value_paise,
+        order.items.reduce((s, i) => s + i.line_total_paise, 0),
+      ),
+      discount_reason: `REWARDS:${points}pts`,
+      promo_code: undefined,
+      promo_id: undefined,
+      reward_points: points,
+      split: undefined,
+      updated_at: new Date().toISOString(),
+      version: order.version + 1,
+    });
+    saveOrders();
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: order.id,
+      event_type: "ORDER_DISCOUNTED",
+      actor_id: params?.by ?? "staff",
+      reason_text: `REWARDS:${points}pts`,
+      metadata: { reward_points: points, amount_paise: value_paise },
+    });
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
+/** Remove a rewards tender (points return to the member's balance). */
+export async function removeRewardsRedeem(
+  orderId: string,
+  params?: { by?: string },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(200);
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (!order.reward_points) throw new Error("No rewards tendered on this order");
+    mockOrders[idx] = recomputeTotals({
+      ...order,
+      discount_percent: undefined,
+      discount_paise: undefined,
+      discount_reason: undefined,
+      reward_points: undefined,
+      updated_at: new Date().toISOString(),
+      version: order.version + 1,
+    });
+    const { voidRedemptionForOrder } = await import("@/features/rewards/api/service");
+    await voidRedemptionForOrder(orderId);
+    saveOrders();
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: order.id,
+      event_type: "ORDER_DISCOUNTED",
+      actor_id: params?.by ?? "staff",
+      reason_text: "Rewards removed",
+      metadata: { rewards_removed: order.reward_points },
     });
     return enrichOrder(mockOrders[idx]);
   } finally {
@@ -2039,6 +2140,16 @@ export async function completeOrder(
       force: forced || undefined,
     });
     saveOrders();
+    // Rewards earn on completion for linked customers (1 pt/₹10) — best
+    // effort, never fails completion.
+    if (mockOrders[idx].customer_id) {
+      const { earnForOrder } = await import("@/features/rewards/api/service");
+      await earnForOrder(
+        mockOrders[idx].customer_id!,
+        orderId,
+        mockOrders[idx].grand_total_paise,
+      ).catch(() => 0);
+    }
     // Auto-print bill (+ takeaway token) on settle. Dynamic import avoids an
     // orders <-> print-studio cycle; print failure never fails completion.
     const { maybeAutoPrintBill } = await import("@/features/print-studio/api/service");
