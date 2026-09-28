@@ -863,7 +863,8 @@ export default function OrderTerminalPage({
                       size="icon"
                       className="size-11 shrink-0 touch-manipulation"
                       aria-label="Close bill panel"
-                      onClick={() => handleTap(null)}
+                      title="Close bill panel — your bill stays as-is"
+                      onClick={() => dismissDrawer()}
                     >
                       <Icons.close className="size-5" />
                     </Button>

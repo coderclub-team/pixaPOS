@@ -23,7 +23,7 @@
  * 500 into a permanent-looking stall. Offline testing happens on preview
  * builds.
  */
-const VERSION = "pwa-v1";
+const VERSION = "pwa-v2";
 const SHELL = [
   "/pos",
   "/kds",
@@ -33,6 +33,10 @@ const SHELL = [
   "/icon.png",
   "/apple-icon.png",
   "/manifest.webmanifest",
+  "/pos/manifest.webmanifest",
+  "/kds/manifest.webmanifest",
+  "/kiosk/manifest.webmanifest",
+  "/qr/manifest.webmanifest",
 ];
 
 function putOk(cache, request, res) {
@@ -79,7 +83,8 @@ function isShellNav(request, url) {
       url.pathname === "/kiosk" ||
       url.pathname === "/qr" ||
       url.pathname === "/kot" ||
-      url.pathname.startsWith("/dashboard/kitchen"))
+      url.pathname.startsWith("/dashboard/kitchen") ||
+      url.pathname.startsWith("/dashboard"))
   );
 }
 
@@ -123,8 +128,11 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Static assets: stale-while-revalidate.
-  if (url.pathname.startsWith("/_next/") || url.pathname.match(/\.(png|ico|svg|woff2?)$/)) {
+  // Static assets + manifests: stale-while-revalidate.
+  if (
+    url.pathname.startsWith("/_next/") ||
+    url.pathname.match(/\.(png|ico|svg|woff2?|webmanifest)$/)
+  ) {
     event.respondWith(
       caches.match(request).then((cached) => {
         const refresh = fetch(request)
