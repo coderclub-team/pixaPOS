@@ -115,6 +115,11 @@ export default function OrderTerminalPage({
       const left = minutesToClose(outlet, orderType, new Date(nowTick));
       return left != null && left < cutoff;
     })();
+  // Off-hours override: when the outlet allows it, staff may start orders
+  // while closed — flagged + audited, reason mandatory if configured.
+  const offHoursAllowed = outlet?.allow_off_hours_orders ?? false;
+  const offHoursBlocked = (!typeOpen || cutoffHit) && !!outlet;
+  const [offReason, setOffReason] = useState("");
   // Left region content: floor tables, or inline menu browser replacing the
   // table panel in the exact same footprint (no modal anywhere).
   const [leftView, setLeftView] = useState<"tables" | "items">("tables");
@@ -132,6 +137,7 @@ export default function OrderTerminalPage({
     setCustName("");
     setCustPhone("");
     setCustNotes("");
+    setOffReason("");
     setPanelOpen(false);
     setLeftView("tables");
     setMobileView("tables");
@@ -172,7 +178,8 @@ export default function OrderTerminalPage({
     // Bare-single flow: tap selects + ensures one silent 1-guest party order,
     // and lands straight on the menu — no extra "Add items" tap needed.
     // The explicit seat dialog stays the full party flow.
-    mutationFn: (tableId: string) => ensureBareTableOrder(tableId),
+    mutationFn: (tableId: string) =>
+      ensureBareTableOrder(tableId, { off_hours_reason: offReason.trim() || undefined }),
     onSuccess: (order, tableId) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.all });
       queryClient.invalidateQueries({ queryKey: orderKeys.all });
@@ -194,7 +201,7 @@ export default function OrderTerminalPage({
   /** Press-and-hold a party chip: ensure that party's order and jump straight to picking. */
   const ensureGroupMut = useMutation({
     mutationFn: ({ tableId, groupId }: { tableId: string; groupId: string }) =>
-      ensureGroupOrder(groupId),
+      ensureGroupOrder(groupId, { off_hours_reason: offReason.trim() || undefined }),
     onSuccess: (order, { tableId, groupId }) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.all });
       queryClient.invalidateQueries({ queryKey: orderKeys.all });
@@ -222,6 +229,7 @@ export default function OrderTerminalPage({
         customer_name: custName.trim() || undefined,
         customer_phone: custPhone.trim() || undefined,
         customer_notes: custNotes.trim() || undefined,
+        off_hours_reason: offReason.trim() || undefined,
         // Counter carts start as local DRAFTs — deletable, never synced
         // until the first fire walks them to IN_KITCHEN.
         initial_status: "DRAFT",
@@ -473,6 +481,28 @@ export default function OrderTerminalPage({
             mobileView === "order" ? "hidden lg:flex" : "flex",
           )}
         >
+          {offHoursBlocked && offHoursAllowed && (
+            <div
+              role="status"
+              className="mb-2 flex flex-col gap-2 rounded-xl border border-amber-500/50 bg-amber-500/10 p-3"
+            >
+              <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                Outside business hours — this order will be flagged and audited.
+              </p>
+              <div className="grid gap-1.5">
+                <Label htmlFor="off-hours-reason">
+                  Reason{(outlet?.require_off_hours_reason ?? true) ? " *" : " (optional)"}
+                </Label>
+                <Input
+                  id="off-hours-reason"
+                  value={offReason}
+                  onChange={(e) => setOffReason(e.target.value)}
+                  placeholder="Late guest, private event…"
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+          )}
           {(leftView === "items" || !isDineIn) && activeOrderId ? (
             <div className="flex h-full min-h-0 flex-col gap-2">
               <div className="flex items-center gap-2">
@@ -548,16 +578,24 @@ export default function OrderTerminalPage({
                   className="h-11 w-full"
                   disabled={
                     startCounterMut.isPending ||
-                    !typeOpen ||
-                    cutoffHit ||
+                    (!typeOpen && !offHoursAllowed) ||
+                    (cutoffHit && !offHoursAllowed) ||
+                    (offHoursBlocked &&
+                      offHoursAllowed &&
+                      (outlet?.require_off_hours_reason ?? true) &&
+                      !offReason.trim()) ||
                     (askCustomer && !custName.trim() && !custPhone.trim())
                   }
                   title={
                     typeOpen
                       ? cutoffHit
-                        ? `Last ${orderTypeLabel} orders are over — kitchen closes soon`
+                        ? offHoursAllowed
+                          ? "Off-hours order — flagged and audited"
+                          : `Last ${orderTypeLabel} orders are over — kitchen closes soon`
                         : undefined
-                      : `Closed for ${orderTypeLabel}${typeOpensAt ? ` · opens ${typeOpensAt}` : ""}`
+                      : offHoursAllowed
+                        ? "Off-hours order — flagged and audited"
+                        : `Closed for ${orderTypeLabel}${typeOpensAt ? ` · opens ${typeOpensAt}` : ""}`
                   }
                   onClick={() => startCounterMut.mutate()}
                 >
@@ -565,9 +603,13 @@ export default function OrderTerminalPage({
                   {startCounterMut.isPending
                     ? "Starting…"
                     : !typeOpen
-                      ? `Closed for ${orderTypeLabel}${typeOpensAt ? ` · opens ${typeOpensAt}` : ""}`
+                      ? offHoursAllowed
+                        ? `Start off-hours ${orderTypeLabel} order`
+                        : `Closed for ${orderTypeLabel}${typeOpensAt ? ` · opens ${typeOpensAt}` : ""}`
                       : cutoffHit
-                        ? `Last orders over`
+                        ? offHoursAllowed
+                          ? `Start off-hours ${orderTypeLabel} order`
+                          : `Last orders over`
                         : `Start ${orderTypeLabel} order`}
                 </Button>
               </CardContent>

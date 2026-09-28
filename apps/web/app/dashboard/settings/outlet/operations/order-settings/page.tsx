@@ -16,7 +16,11 @@ export default function OrderSettingsPage() {
   return (
     <PageContainer pageTitle="Order Settings" pageDescription="Outlet — Operations order settings">
       <OrderSettingsForm
-        initialData={{ ask_customer_details: outlet.ask_customer_details ?? false }}
+        initialData={{
+          ask_customer_details: outlet.ask_customer_details ?? false,
+          allow_off_hours_orders: outlet.allow_off_hours_orders ?? false,
+          require_off_hours_reason: outlet.require_off_hours_reason ?? true,
+        }}
       />
     </PageContainer>
   );

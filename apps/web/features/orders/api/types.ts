@@ -76,6 +76,10 @@ export type RestaurantOrder = {
   /** Free-text customer notes — allergies, accessibility, special requests.
    * Captured at order start, printed on KOTs so the kitchen sees them. */
   customer_notes?: string;
+  /** Taken outside business hours under the outlet off-hours pref —
+   * always paired with an ORDER_OFF_HOURS audit event. */
+  off_hours?: boolean;
+  off_hours_reason?: string;
   /** Future fire slot (ISO) for scheduled-mode channels — fired manually. */
   scheduled_for?: string;
   external_ref?: string;
@@ -145,6 +149,8 @@ export type CreateOrderInput = {
   /** Staff-initiated creation (terminal, dashboard) bypasses the
    * scheduled-mode slot requirement — customer surfaces must pass a slot. */
   staff_initiated?: boolean;
+  /** Reason for an off-hours order (required when the outlet demands it). */
+  off_hours_reason?: string;
   external_ref?: string;
   created_by?: string;
   /** /new cart flow passes DRAFT; terminal/seed keep the CONFIRMED default. */

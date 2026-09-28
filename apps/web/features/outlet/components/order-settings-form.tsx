@@ -55,6 +55,24 @@ export default function OrderSettingsForm({ initialData }: { initialData: OrderS
                 />
               )}
             />
+            <form.AppField
+              name="allow_off_hours_orders"
+              children={(field) => (
+                <field.SwitchField
+                  label="Allow orders outside business hours"
+                  description="When on, staff can take orders while closed — every such order is flagged and audited. Off keeps the hard block."
+                />
+              )}
+            />
+            <form.AppField
+              name="require_off_hours_reason"
+              children={(field) => (
+                <field.SwitchField
+                  label="Require reason for off-hours orders"
+                  description="When on, staff must give a reason (late guest, event, error) recorded on the audit trail."
+                />
+              )}
+            />
           </FieldGroup>
           <div className="flex justify-end">
             <form.AppForm children={<form.SubmitButton>Save Order Settings</form.SubmitButton>} />

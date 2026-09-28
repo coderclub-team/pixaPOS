@@ -164,6 +164,8 @@ export const businessHoursSchema = z.object({
 
 export const orderSettingsSchema = z.object({
   ask_customer_details: z.boolean(),
+  allow_off_hours_orders: z.boolean(),
+  require_off_hours_reason: z.boolean(),
 });
 
 export type BasicInformationValues = z.infer<typeof basicInformationSchema>;

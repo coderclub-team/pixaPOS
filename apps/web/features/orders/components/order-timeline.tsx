@@ -123,6 +123,12 @@ function describe(
         detail: e.reason_text,
         tone: "danger",
       };
+    case "ORDER_OFF_HOURS":
+      return {
+        title: "Order taken outside business hours",
+        detail: e.reason_text,
+        tone: "info",
+      };
     case "KOT_VOIDED":
       return { title: `${ctx.kotNumber(m.kot_id)} voided`, detail: e.reason_text, tone: "danger" };
     case "KOT_LINE_VOIDED":

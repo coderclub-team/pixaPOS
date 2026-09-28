@@ -54,6 +54,8 @@ let mockOutlet: Outlet = {
   timezone: "Asia/Kolkata",
   locale: "en-IN",
   ask_customer_details: false,
+  allow_off_hours_orders: false,
+  require_off_hours_reason: true,
   business_hours: defaultBusinessHours(),
   upi_id: "",
   upi_ids: [],

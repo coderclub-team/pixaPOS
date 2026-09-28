@@ -330,40 +330,45 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
 
     // Hours gate (single choke point for every channel): closed channels
     // block creation; cut-off blocks ASAP creation near close; scheduled
-    // channels accept with a future slot (fired manually later). Staff
-    // reopen by editing business hours, not by working around the terminal.
+    // channels accept with a future slot (fired manually later). When the
+    // outlet allows off-hours orders, staff may proceed — flagged + audited.
     const { getOutletById, isChannelOpen, channelMode, channelCutoff, minutesToClose } =
       await import("@/features/outlet/api/service");
     const outlet = await getOutletById(outletId).catch(() => null);
+    let hoursBlock: string | null = null;
     if (outlet && !isChannelOpen(outlet, input.channel)) {
-      throw new Error(`Outlet is closed for ${input.channel.replace("_", " ")} orders right now`);
+      hoursBlock = `Outlet is closed for ${input.channel.replace("_", " ")} orders right now`;
     }
-    if (outlet) {
+    if (outlet && !hoursBlock) {
       const mode = channelMode(outlet, input.channel);
       const slot = input.scheduled_for ? new Date(input.scheduled_for) : null;
       if (mode === "closed") {
-        throw new Error(`Outlet is closed for ${input.channel.replace("_", " ")} orders right now`);
-      }
-      if (
+        hoursBlock = `Outlet is closed for ${input.channel.replace("_", " ")} orders right now`;
+      } else if (
         mode === "scheduled" &&
         (!slot || Number.isNaN(slot.getTime())) &&
         !input.staff_initiated
       ) {
-        throw new Error(
-          `${input.channel.replace("_", " ")} accepts scheduled orders only — pick a slot`,
-        );
-      }
-      if ((!slot || slot.getTime() <= Date.now()) && mode !== "scheduled") {
+        hoursBlock = `${input.channel.replace("_", " ")} accepts scheduled orders only — pick a slot`;
+      } else if ((!slot || slot.getTime() <= Date.now()) && mode !== "scheduled") {
         const cutoff = channelCutoff(outlet, input.channel);
         if (cutoff > 0) {
           const left = minutesToClose(outlet, input.channel);
           if (left != null && left < cutoff) {
-            throw new Error(
-              `Last ${input.channel.replace("_", " ")} orders were taken — kitchen closes soon`,
-            );
+            hoursBlock = `Last ${input.channel.replace("_", " ")} orders were taken — kitchen closes soon`;
           }
         }
       }
+    }
+    let offHours = false;
+    let offHoursReason: string | undefined;
+    if (hoursBlock) {
+      if (!outlet?.allow_off_hours_orders) throw new Error(hoursBlock);
+      if (outlet.require_off_hours_reason && !input.off_hours_reason?.trim()) {
+        throw new Error(`${hoursBlock} — off-hours orders need a reason`);
+      }
+      offHours = true;
+      offHoursReason = input.off_hours_reason?.trim() || undefined;
     }
 
     const dayOrders = mockOrders.filter(
@@ -385,6 +390,8 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
       customer_name: input.customer_name?.trim() || undefined,
       customer_phone: input.customer_phone?.trim() || undefined,
       customer_notes: input.customer_notes?.trim() || undefined,
+      off_hours: offHours || undefined,
+      off_hours_reason: offHoursReason,
       scheduled_for:
         input.scheduled_for && !Number.isNaN(new Date(input.scheduled_for).getTime())
           ? new Date(input.scheduled_for).toISOString()
@@ -421,6 +428,18 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
         event_type: "ORDER_CONFIRMED",
         to_state: "CONFIRMED",
         actor_id: order.created_by,
+      });
+    }
+    if (order.off_hours) {
+      await recordEvent({
+        outlet_id: order.outlet_id,
+        entity_type: "ORDER",
+        entity_id: order.id,
+        event_type: "ORDER_OFF_HOURS",
+        to_state: order.status,
+        actor_id: order.created_by,
+        reason_text: order.off_hours_reason,
+        metadata: { channel: order.channel, order_number: order.order_number },
       });
     }
     return enrichOrder(order);
@@ -794,7 +813,7 @@ export async function cancelOrder(
  */
 export async function ensureTableOrder(
   tableId: string,
-  params?: { by?: string },
+  params?: { by?: string; off_hours_reason?: string },
 ): Promise<OrderWithDerived> {
   // Per-table lock held for the whole flow (composed commands take their own
   // different keys, so no deadlock). Double-taps on one table serialize here.
@@ -840,6 +859,7 @@ export async function ensureTableOrder(
       table_id: tableId,
       occupancy_group_id: groupId,
       created_by: params?.by ?? "staff",
+      off_hours_reason: params?.off_hours_reason,
       // Terminal carts start as local DRAFTs (zero KOTs, deletable, never
       // synced) — the first fire walks DRAFT → IN_KITCHEN directly.
       initial_status: "DRAFT",
@@ -864,7 +884,7 @@ export async function ensureTableOrder(
  */
 export async function ensureBareTableOrder(
   tableId: string,
-  params?: { by?: string },
+  params?: { by?: string; off_hours_reason?: string },
 ): Promise<OrderWithDerived> {
   const release = await entityMutex.acquire(`order-table-${tableId}`);
   try {
@@ -908,6 +928,7 @@ export async function ensureBareTableOrder(
       table_id: tableId,
       occupancy_group_id: groupId,
       created_by: params?.by ?? "staff",
+      off_hours_reason: params?.off_hours_reason,
       // Terminal carts start as local DRAFTs (zero KOTs, deletable, never
       // synced) — the first fire walks DRAFT → IN_KITCHEN directly.
       initial_status: "DRAFT",
@@ -916,7 +937,7 @@ export async function ensureBareTableOrder(
     try {
       await attachOrder({ group_id: groupId, order_id: order.id });
     } catch {
-      // Group may have transitioned (e.g. already ORDERING) — order stays linked by table_id.
+      // Group may have transitioned (e.g. already ORDERING) — order stays linked by group id.
     }
     return order;
   } finally {
@@ -933,7 +954,7 @@ export async function ensureBareTableOrder(
  */
 export async function ensureGroupOrder(
   groupId: string,
-  params?: { by?: string },
+  params?: { by?: string; off_hours_reason?: string },
 ): Promise<OrderWithDerived> {
   const release = await entityMutex.acquire(`order-group-${groupId}`);
   try {
@@ -973,11 +994,12 @@ export async function ensureGroupOrder(
     if (raced) return enrichOrder(raced);
 
     const order = await createOrder({
-      outlet_id: group.outlet_id,
+      outlet_id: table.outlet_id,
       channel: "dine_in",
       table_id: group.table_id,
       occupancy_group_id: groupId,
       created_by: params?.by ?? "staff",
+      off_hours_reason: params?.off_hours_reason,
       initial_status: "DRAFT",
       staff_initiated: true,
     });

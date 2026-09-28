@@ -9,18 +9,18 @@
 
 ## Status table
 
-| # | Area | Status |
-|---|------|--------|
-| 1 | Offline-first (mirror, outbox, sync, pairing, PWA) | PARTIAL |
-| 2 | Business hours modes + cut-off + scheduled guard | DONE (mock-backed) |
-| 3 | Add-ons/modifiers + required gating + alias printing | DONE (mock-backed) |
-| 4 | Upsell links + bestseller | DONE (mock-backed) |
-| 5 | Nutrition (FSSAI) + kcal chip | DONE |
-| 6 | Snapshots backup/restore + auto ring | DONE (localStorage scope) |
-| 7 | Bulk CSV import/export + per-table sorting | PARTIAL (export+sort universal; import selective) |
-| 8 | Barcode (goods item-level, search) | DONE |
-| 9 | Order lifecycle + cancel/complete/force + returns + events | DONE (mock-backed) |
-| 10 | KDS / POS / dashboard / auth / roles | PARTIAL (kot + kiosk are placeholders) |
+| #   | Area                                                       | Status                                            |
+| --- | ---------------------------------------------------------- | ------------------------------------------------- |
+| 1   | Offline-first (mirror, outbox, sync, pairing, PWA)         | PARTIAL                                           |
+| 2   | Business hours modes + cut-off + scheduled guard           | DONE (mock-backed)                                |
+| 3   | Add-ons/modifiers + required gating + alias printing       | DONE (mock-backed)                                |
+| 4   | Upsell links + bestseller                                  | DONE (mock-backed)                                |
+| 5   | Nutrition (FSSAI) + kcal chip                              | DONE                                              |
+| 6   | Snapshots backup/restore + auto ring                       | DONE (localStorage scope)                         |
+| 7   | Bulk CSV import/export + per-table sorting                 | PARTIAL (export+sort universal; import selective) |
+| 8   | Barcode (goods item-level, search)                         | DONE                                              |
+| 9   | Order lifecycle + cancel/complete/force + returns + events | DONE (mock-backed)                                |
+| 10  | KDS / POS / dashboard / auth / roles                       | PARTIAL (kot + kiosk are placeholders)            |
 
 ## 1. Offline-first — PARTIAL
 
@@ -34,6 +34,7 @@ status UI (`components/sync-status.tsx:5-44`); device pairing
 PWA root manifest (`app/manifest.ts:1-21`), SW (`public/sw.js:21-35`).
 
 Gaps:
+
 - Server never applies pushed snapshots to Postgres — `sync-engine.ts:7-9` says so
   explicitly; `packages/contracts/index.ts:6` is aspirational.
 - No conflict UI (`conflicted` state per `workflows.md:9` missing; only
@@ -132,9 +133,13 @@ per `proxy.ts:8-9`). Clerk→Better Auth cutover runbook exists; expect residual
 
 1. [x] This report filed.
 2. [x] Verify/fix per-surface PWA manifest routes — FIXED 2026-09-28:
-   `app/{pos,kds,kiosk,qr}/manifest.webmanifest/route.ts` now emit tailored
-   manifests (name/start_url/scope per surface); build lists all four routes.
-3. [ ] Staff-override flag: add outlet pref vs drop claim (needs owner decision).
+       `app/{pos,kds,kiosk,qr}/manifest.webmanifest/route.ts` now emit tailored
+       manifests (name/start_url/scope per surface); build lists all four routes.
+3. [x] Staff-override flag — FIXED 2026-09-28 (owner chose outlet pref):
+   `allow_off_hours_orders` + `require_off_hours_reason` on Outlet, switches in
+   Order Settings, guard in `createOrder` flags `off_hours` + `ORDER_OFF_HOURS`
+   event, terminal shows amber reason banner instead of hard block.
+   Bonus fix: `ensureGroupOrder` used out-of-scope `tableId` → `group.table_id`.
 4. [ ] Verify `cancelOrder` auth path past-PREPARING.
 5. [ ] Per-table import/export/sort matrix; fix over-broad claims.
 6. [ ] Honest sync status (`retrying`/`blocked`/`conflicted`).

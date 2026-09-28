@@ -32,6 +32,11 @@ export type Outlet = {
   /** Ask for customer name/phone when starting counter/takeaway/delivery
    * orders on /kot. Default false = skip straight to the menu. */
   ask_customer_details: boolean;
+  /** Staff may take orders outside business hours — every such order is
+   * flagged off_hours with an ORDER_OFF_HOURS audit event. Default false. */
+  allow_off_hours_orders: boolean;
+  /** Off-hours orders need a mandatory reason (default true). */
+  require_off_hours_reason: boolean;
   /** Weekly hours: outlet base + per-channel overrides. Missing = always open. */
   business_hours?: BusinessHours;
   /** UPI VPAs for bill collect-QR (Print Studio). Exactly one may be default. */

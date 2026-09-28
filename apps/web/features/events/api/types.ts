@@ -41,6 +41,7 @@ export type BusinessEventType =
   | "ORDER_UPDATED"
   | "ORDER_COMPLETED"
   | "ORDER_CANCELLED"
+  | "ORDER_OFF_HOURS"
   | "ITEM_ADDED"
   | "ITEM_MODIFIED"
   | "ITEM_REMOVED"
