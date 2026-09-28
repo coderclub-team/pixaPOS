@@ -64,6 +64,14 @@ function validatePayload(p: PromoPayload, ignoreId?: string) {
     throw new Error("Percent must be 1–100");
   if (p.kind === "flat" && (!(p.value > 0) || !Number.isFinite(p.value)))
     throw new Error("Flat amount must be positive (paise)");
+  if ((p.kind === "bogo" || p.kind === "freebie") && (p.buy_qty ?? 1) < 1)
+    throw new Error("Buy qty must be at least 1");
+  if ((p.kind === "bogo" || p.kind === "freebie") && (p.get_qty ?? 1) < 1)
+    throw new Error("Get qty must be at least 1");
+  if (p.kind === "freebie" && !p.get_menu_item_id)
+    throw new Error("Freebie needs a free item (e.g. Burger)");
+  if (p.kind === "freebie" && p.scope === "order" && (p.target_ids ?? []).length > 0)
+    throw new Error("Freebie on whole bill needs no buy targets");
   if (p.scope !== "order" && (p.target_ids ?? []).length === 0)
     throw new Error("Item/category promos need at least one target");
   if (p.starts_at && p.ends_at && new Date(p.starts_at) > new Date(p.ends_at))
@@ -86,6 +94,9 @@ export async function createPromo(payload: PromoPayload): Promise<PromoCode> {
     scope: payload.scope,
     target_ids: payload.target_ids ?? [],
     channels: payload.channels ?? [],
+    buy_qty: payload.buy_qty ?? 1,
+    get_qty: payload.get_qty ?? 1,
+    get_menu_item_id: payload.get_menu_item_id,
     min_order_paise: payload.min_order_paise,
     starts_at: payload.starts_at,
     ends_at: payload.ends_at,
@@ -113,6 +124,9 @@ export async function updatePromo(id: string, payload: Partial<PromoPayload>): P
     scope: payload.scope ?? mockPromos[idx].scope,
     target_ids: payload.target_ids ?? mockPromos[idx].target_ids,
     channels: payload.channels ?? mockPromos[idx].channels,
+    buy_qty: payload.buy_qty ?? mockPromos[idx].buy_qty ?? 1,
+    get_qty: payload.get_qty ?? mockPromos[idx].get_qty ?? 1,
+    get_menu_item_id: payload.get_menu_item_id ?? mockPromos[idx].get_menu_item_id,
     min_order_paise: payload.min_order_paise ?? mockPromos[idx].min_order_paise,
     starts_at: payload.starts_at ?? mockPromos[idx].starts_at,
     ends_at: payload.ends_at ?? mockPromos[idx].ends_at,
@@ -121,6 +135,7 @@ export async function updatePromo(id: string, payload: Partial<PromoPayload>): P
     is_active: payload.is_active ?? mockPromos[idx].is_active,
   };
   const code = validatePayload(merged, id);
+  if (merged.kind !== "freebie") merged.get_menu_item_id = undefined;
   mockPromos[idx] = {
     ...mockPromos[idx],
     ...merged,
@@ -216,6 +231,8 @@ export function evaluatePromo(
     );
   let eligible = 0;
   let units = 0;
+  // Per-line live values for quantity mechanics (BOGO/freebie).
+  const pool: { value: number; qty: number }[] = [];
   if (promo.scope === "order") {
     eligible = order.subtotal_paise;
     units = 1;
@@ -226,10 +243,61 @@ export function evaluatePromo(
           ? promo.target_ids.includes(l.menu_item_id)
           : promo.target_ids.includes(l.category_id ?? "");
       if (!hit) continue;
-      eligible += liveValue(l);
-      units += Math.max(0, l.qty - (l.returned_qty ?? 0));
+      const v = liveValue(l);
+      const q = Math.max(0, l.qty - (l.returned_qty ?? 0));
+      eligible += v;
+      units += q;
+      pool.push({ value: v, qty: q });
     }
-    if (eligible <= 0) throw new Error(`Promo ${promo.code} matches no items on this bill`);
+    if (eligible <= 0 && promo.kind !== "freebie")
+      throw new Error(`Promo ${promo.code} matches no items on this bill`);
+  }
+
+  // Delight mechanics resolve to a paise amount here; percent/flat below.
+  if (promo.kind === "bogo") {
+    const buy = Math.max(1, promo.buy_qty ?? 1);
+    const get = Math.max(1, promo.get_qty ?? 1);
+    const poolUnits =
+      promo.scope === "order"
+        ? order.items.reduce((s, l) => s + Math.max(0, l.qty - (l.returned_qty ?? 0)), 0)
+        : units;
+    const poolValue = promo.scope === "order" ? order.subtotal_paise : eligible;
+    const sets = Math.floor(poolUnits / (buy + get));
+    if (sets <= 0)
+      throw new Error(
+        `Promo ${promo.code} needs ${buy + get} eligible items (buy ${buy}, get ${get})`,
+      );
+    const avgUnit = poolUnits > 0 ? poolValue / poolUnits : 0;
+    const amount = Math.min(eligible > 0 ? eligible : poolValue, Math.round(sets * get * avgUnit));
+    if (amount <= 0) throw new Error(`Promo ${promo.code} gives no discount on this bill`);
+    return { promo, amount_paise: amount, eligible_paise: poolValue };
+  }
+  if (promo.kind === "freebie") {
+    const buy = Math.max(1, promo.buy_qty ?? 1);
+    const get = Math.max(1, promo.get_qty ?? 1);
+    const buyUnits =
+      promo.scope === "order"
+        ? order.items.reduce((s, l) => s + Math.max(0, l.qty - (l.returned_qty ?? 0)), 0)
+        : units;
+    if (promo.scope !== "order" && eligible <= 0)
+      throw new Error(`Promo ${promo.code} matches no items on this bill`);
+    const sets = Math.floor(buyUnits / buy);
+    if (sets <= 0)
+      throw new Error(
+        `Promo ${promo.code} needs ${buy} eligible item${buy === 1 ? "" : "s"} first`,
+      );
+    const getLines = order.items.filter((l) => l.menu_item_id === promo.get_menu_item_id);
+    const getValue = getLines.reduce((s, l) => s + liveValue(l), 0);
+    if (getValue <= 0) throw new Error(`Promo ${promo.code} needs the free item on the bill`);
+    const cheapest = Math.min(
+      ...getLines.map((l) => {
+        const q = Math.max(0, l.qty - (l.returned_qty ?? 0));
+        return q > 0 ? liveValue(l) / q : Number.POSITIVE_INFINITY;
+      }),
+    );
+    const amount = Math.min(getValue, Math.round(sets * get * cheapest));
+    if (amount <= 0) throw new Error(`Promo ${promo.code} gives no discount on this bill`);
+    return { promo, amount_paise: amount, eligible_paise: getValue };
   }
   const amount = amountFor(promo, eligible, units);
   if (amount <= 0) throw new Error(`Promo ${promo.code} gives no discount on this bill`);

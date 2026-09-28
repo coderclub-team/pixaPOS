@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Image from "next/image";
 import { Button } from "@pixa/ui/base-ui/button";
@@ -58,7 +58,7 @@ import { menuCategoriesQueryOptions, menuItemsQueryOptions } from "@/features/me
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import { useMediaQuery } from "@pixa/ui/hooks/use-media-query";
-import type { MenuItem, VegType } from "@/features/menu/api/types";
+import type { MenuItem, MenuItemVariant, VegType } from "@/features/menu/api/types";
 import type { OrderItemSnapshot } from "@/features/orders/api/types";
 import { useCategorySelection } from "./category-selection";
 import { CategorySearchDialog, useCategoryCounts } from "./category-sidebar";
@@ -67,6 +67,9 @@ const VIEW_KEY = "pixaItemBrowserView";
 
 /** Fixed card page size — a multiple of the 2/3/4-column grids. */
 const CARD_PAGE_SIZE = 24;
+
+/** Same ceiling as addItemSchema and the item-picker stepper. */
+const MAX_LINE_QTY = 50;
 
 type BrowserView = "card" | "list";
 
@@ -118,6 +121,26 @@ function isVariantConfigLine(
     (line.modifiers?.length ?? 0) === 0 &&
     !line.instructions
   );
+}
+
+function barcodeMatches(item: MenuItem, code: string): boolean {
+  const q = code.trim().toLowerCase();
+  if (!q) return false;
+  if (item.barcode?.trim().toLowerCase() === q) return true;
+  return (item.variants ?? []).some((v) => v.barcode?.trim().toLowerCase() === q);
+}
+
+function findBarcodeMatch(items: MenuItem[], code: string): MenuItem | undefined {
+  const q = code.trim().toLowerCase();
+  if (!q) return undefined;
+  const matches = items.filter((i) => barcodeMatches(i, q));
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+function resolveScannedVariant(item: MenuItem, code: string): MenuItemVariant | undefined {
+  const q = code.trim().toLowerCase();
+  if (!q) return undefined;
+  return (item.variants ?? []).find((v) => v.barcode?.trim().toLowerCase() === q);
 }
 
 function imageOf(item: MenuItem): string | null {
@@ -332,8 +355,84 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
     else qtyMut.mutate({ lineId: existing.id, qty: next });
   };
 
+  const allItems = items ?? [];
+
   const draftQtyFor = (item: MenuItem) =>
     draftLines.filter((l) => isDefaultConfigLine(item, l)).reduce((s, l) => s + l.qty, 0);
+
+  const lastScannedRef = useRef<{ code: string; at: number } | null>(null);
+
+  const scanAddByBarcode = useCallback(
+    (item: MenuItem, matchedVariant?: MenuItemVariant) => {
+      const variantId = matchedVariant?.id ?? defaultVariantOf(item)?.id;
+      if (!variantId) return;
+
+      const existing = draftLines.find((l) => isVariantConfigLine(item, variantId, l));
+      if (existing) {
+        const next = Math.min(existing.qty + 1, MAX_LINE_QTY);
+        if (next === existing.qty) {
+          toast.info(`Max ${MAX_LINE_QTY} reached for ${existing.item_name_snapshot}`);
+        } else {
+          qtyMut.mutate(
+            { lineId: existing.id, qty: next },
+            {
+              onSuccess: () => {
+                toast.success(`${existing.item_name_snapshot} — ${next}× in draft`);
+              },
+            },
+          );
+        }
+        return;
+      }
+
+      // No existing plain line for this variant/default.
+      if (!matchedVariant && hasVariantOptions(item)) {
+        setVariantPick(item);
+        return;
+      }
+
+      addMut.mutate({
+        menu_item_id: item.id,
+        variant_id: variantId,
+        modifier_ids: [],
+        qty: 1,
+      });
+    },
+    [addMut, draftLines, qtyMut],
+  );
+
+  const tryScan = useCallback(
+    (code: string): boolean => {
+      const trimmed = code.trim();
+      if (!trimmed) return false;
+      const match = findBarcodeMatch(allItems, trimmed);
+      if (!match) return false;
+
+      const now = Date.now();
+      if (lastScannedRef.current?.code === trimmed && now - lastScannedRef.current.at < 300) {
+        setSearch("");
+        return true;
+      }
+      lastScannedRef.current = { code: trimmed, at: now };
+
+      const variant = resolveScannedVariant(match, trimmed);
+      scanAddByBarcode(match, variant);
+      setSearch("");
+      return true;
+    },
+    [allItems, scanAddByBarcode],
+  );
+
+  // Auto-fire a scan when the search query becomes an exact barcode match.
+  // USB keyboard-wedge scanners send keystrokes + Enter, but some also just
+  // stream the code; this catches both. The dedup ref prevents the Enter
+  // handler and this effect from both acting on the same stream.
+  useEffect(() => {
+    const trimmed = search.trim();
+    if (!trimmed) return;
+    const match = findBarcodeMatch(allItems, trimmed);
+    if (match) tryScan(trimmed);
+  }, [search, allItems, tryScan]);
 
   /** Variant-aware stepping for table sub-rows (any single variant). */
   const stepVariant = (item: MenuItem, variantId: string | undefined, delta: number) => {
@@ -360,8 +459,6 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
         (l) => l.menu_item_id === item.id && (l.modifiers?.length ?? 0) === 0 && !l.instructions,
       )
       .reduce((s, l) => s + l.qty, 0);
-
-  const allItems = items ?? [];
 
   // Card pages over the same query data. Indices are clamped per view so a
   // page valid in one view's size never renders empty in the other.
@@ -581,6 +678,12 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
               placeholder="Search menu…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const handled = tryScan(e.currentTarget.value);
+                  if (handled) e.preventDefault();
+                }
+              }}
               className="pl-8"
             />
           </div>

@@ -36,6 +36,14 @@ export default function PromoForm({ initialData }: { initialData?: PromoCode }) 
   const [name, setName] = useState(initialData?.name ?? "");
   const [kind, setKind] = useState<PromoKind>(initialData?.kind ?? "percent");
   const [value, setValue] = useState(initialData ? String(initialData.value) : "10");
+  const [buyQty, setBuyQty] = useState(
+    initialData?.buy_qty != null ? String(initialData.buy_qty) : "1",
+  );
+  const [getQty, setGetQty] = useState(
+    initialData?.get_qty != null ? String(initialData.get_qty) : "1",
+  );
+  const [freeItemId, setFreeItemId] = useState(initialData?.get_menu_item_id ?? "");
+  const [freeSearch, setFreeSearch] = useState("");
   const [scope, setScope] = useState<PromoScope>(
     initialData?.scope ?? (search.get("scope") as PromoScope) ?? "order",
   );
@@ -57,9 +65,17 @@ export default function PromoForm({ initialData }: { initialData?: PromoCode }) 
     initialData?.per_customer_limit != null ? String(initialData.per_customer_limit) : "",
   );
   const [active, setActive] = useState(initialData?.is_active ?? true);
+  const [targetSearch, setTargetSearch] = useState("");
 
   const { data: items } = useQuery(menuItemsQueryOptions({}));
   const { data: categories } = useQuery(menuCategoriesQueryOptions());
+  const q = targetSearch.trim().toLowerCase();
+  const shownItems = (items ?? [])
+    .filter((m) => m.is_active)
+    .filter((m) => !q || m.name.toLowerCase().includes(q));
+  const shownCats = (categories ?? [])
+    .filter((c) => c.is_active)
+    .filter((c) => !q || c.name.toLowerCase().includes(q));
 
   const toggle = <T,>(list: T[], v: T, set: (l: T[]) => void) =>
     set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
@@ -70,11 +86,15 @@ export default function PromoForm({ initialData }: { initialData?: PromoCode }) 
         code,
         name: name.trim() || undefined,
         kind,
-        // Flat is entered in ₹ (bill total or per unit) — stored as paise.
         value: kind === "flat" ? Math.round(Number(value) * 100) : Number(value),
         scope,
         target_ids: scope === "order" ? [] : targets,
         channels,
+        buy_qty:
+          kind === "bogo" || kind === "freebie" ? Math.max(1, Number(buyQty) || 1) : undefined,
+        get_qty:
+          kind === "bogo" || kind === "freebie" ? Math.max(1, Number(getQty) || 1) : undefined,
+        get_menu_item_id: kind === "freebie" ? freeItemId || undefined : undefined,
         min_order_paise: minOrder.trim() === "" ? undefined : Math.round(Number(minOrder) * 100),
         starts_at: startsAt || undefined,
         ends_at: endsAt || undefined,
@@ -123,30 +143,117 @@ export default function PromoForm({ initialData }: { initialData?: PromoCode }) 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label>Type</Label>
-            <div className="flex gap-2">
-              {(["percent", "flat"] as PromoKind[]).map((k) => (
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  ["percent", "Percent %"],
+                  ["flat", "Flat ₹"],
+                  ["bogo", "Buy N get M"],
+                  ["freebie", "Free item"],
+                ] as [PromoKind, string][]
+              ).map(([k, label]) => (
                 <Button
                   key={k}
                   type="button"
                   variant={kind === k ? "default" : "outline"}
                   size="sm"
                   onClick={() => setKind(k)}
+                  title={
+                    k === "bogo"
+                      ? "Buy N, get M free from the same items"
+                      : k === "freebie"
+                        ? "Buy items, get a specific item free"
+                        : undefined
+                  }
                 >
-                  {k === "percent" ? "Percent %" : "Flat ₹"}
+                  {label}
                 </Button>
               ))}
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>
-              {kind === "percent" ? "Percent (1–100)" : "Amount ₹ (bill) / ₹ per unit (items)"}
-            </Label>
-            <Input type="number" min={0} value={value} onChange={(e) => setValue(e.target.value)} />
-          </div>
+          {kind === "percent" || kind === "flat" ? (
+            <div className="space-y-1.5">
+              <Label>
+                {kind === "percent" ? "Percent (1–100)" : "Amount ₹ (bill) / ₹ per unit (items)"}
+              </Label>
+              <Input
+                type="number"
+                min={0}
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+              />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label>Buy qty</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={buyQty}
+                  onChange={(e) => setBuyQty(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Get qty free</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={getQty}
+                  onChange={(e) => setGetQty(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
         </div>
+        {kind === "freebie" && (
+          <div className="space-y-1.5">
+            <Label>Free item *</Label>
+            <Input
+              placeholder="Search free item…"
+              value={freeSearch}
+              onChange={(e) => setFreeSearch(e.target.value)}
+              autoComplete="off"
+            />
+            <div className="max-h-36 overflow-auto rounded-lg border p-2">
+              {(items ?? [])
+                .filter((m) => m.is_active)
+                .filter(
+                  (m) =>
+                    !freeSearch.trim() ||
+                    m.name.toLowerCase().includes(freeSearch.trim().toLowerCase()),
+                )
+                .slice(0, 20)
+                .map((m) => (
+                  <label
+                    key={m.id}
+                    className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted"
+                  >
+                    <input
+                      type="radio"
+                      name="free-item"
+                      checked={freeItemId === m.id}
+                      onChange={() => setFreeItemId(m.id)}
+                    />
+                    {m.name}
+                  </label>
+                ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              The free item must be on the bill — its value (cheapest variant) caps the discount.
+              E.g. buy a Pizza, get a Burger free.
+            </p>
+          </div>
+        )}
         <div className="space-y-1.5">
-          <Label>Applies to</Label>
-          <Select value={scope} onValueChange={(v) => setScope(v as PromoScope)}>
+          <Label>{kind === "freebie" ? "Buy from" : "Applies to"}</Label>
+          <Select
+            value={scope}
+            onValueChange={(v) => {
+              setScope(v as PromoScope);
+              setTargetSearch("");
+            }}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -160,44 +267,52 @@ export default function PromoForm({ initialData }: { initialData?: PromoCode }) 
         {scope === "item" && (
           <div className="space-y-1.5">
             <Label>Items ({targets.length} selected)</Label>
+            <Input
+              placeholder="Search items…"
+              value={targetSearch}
+              onChange={(e) => setTargetSearch(e.target.value)}
+              autoComplete="off"
+            />
             <div className="max-h-44 overflow-auto rounded-lg border p-2">
-              {(items ?? [])
-                .filter((m) => m.is_active)
-                .map((m) => (
-                  <label
-                    key={m.id}
-                    className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={targets.includes(m.id)}
-                      onChange={() => toggle(targets, m.id, setTargets)}
-                    />
-                    {m.name}
-                  </label>
-                ))}
+              {shownItems.map((m) => (
+                <label
+                  key={m.id}
+                  className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted"
+                >
+                  <input
+                    type="checkbox"
+                    checked={targets.includes(m.id)}
+                    onChange={() => toggle(targets, m.id, setTargets)}
+                  />
+                  {m.name}
+                </label>
+              ))}
             </div>
           </div>
         )}
         {scope === "category" && (
           <div className="space-y-1.5">
             <Label>Categories ({targets.length} selected)</Label>
+            <Input
+              placeholder="Search categories…"
+              value={targetSearch}
+              onChange={(e) => setTargetSearch(e.target.value)}
+              autoComplete="off"
+            />
             <div className="max-h-44 overflow-auto rounded-lg border p-2">
-              {(categories ?? [])
-                .filter((c) => c.is_active)
-                .map((c) => (
-                  <label
-                    key={c.id}
-                    className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={targets.includes(c.id)}
-                      onChange={() => toggle(targets, c.id, setTargets)}
-                    />
-                    {c.name}
-                  </label>
-                ))}
+              {shownCats.map((c) => (
+                <label
+                  key={c.id}
+                  className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted"
+                >
+                  <input
+                    type="checkbox"
+                    checked={targets.includes(c.id)}
+                    onChange={() => toggle(targets, c.id, setTargets)}
+                  />
+                  {c.name}
+                </label>
+              ))}
             </div>
           </div>
         )}

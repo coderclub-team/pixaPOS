@@ -30,7 +30,14 @@ const columns: CsvColumn<PromoCode>[] = [
   {
     key: "value",
     label: "Value",
-    get: (p) => (p.kind === "percent" ? `${p.value}%` : `Rs.${p.value / 100}`),
+    get: (p) =>
+      p.kind === "percent"
+        ? `${p.value}%`
+        : p.kind === "bogo"
+          ? `Buy ${p.buy_qty ?? 1} get ${p.get_qty ?? 1}`
+          : p.kind === "freebie"
+            ? `Buy ${p.buy_qty ?? 1} get ${p.get_qty ?? 1} free`
+            : `Rs.${p.value / 100}`,
   },
   { key: "scope", label: "Scope", get: (p) => p.scope },
   {
@@ -137,7 +144,11 @@ export default function PromosPage() {
                   <TableCell className="font-mono text-xs">
                     {p.kind === "percent"
                       ? `${p.value}%`
-                      : `${formatINR(p.value)}${p.scope === "order" ? "" : " /unit"}`}
+                      : p.kind === "bogo"
+                        ? `Buy ${p.buy_qty ?? 1} get ${p.get_qty ?? 1}`
+                        : p.kind === "freebie"
+                          ? `Buy ${p.buy_qty ?? 1} → ${p.get_qty ?? 1} free`
+                          : `${formatINR(p.value)}${p.scope === "order" ? "" : " /unit"}`}
                   </TableCell>
                   <TableCell className="text-xs capitalize">
                     {p.scope}
