@@ -18,6 +18,8 @@ import type {
   BillPartition,
   BillingView,
   CreateOrderInput,
+  ItemSalesFilters,
+  ItemSalesStat,
   OrderFilters,
   OrderItemSnapshot,
   OrderReturn,
@@ -301,6 +303,71 @@ export async function getOrders(filters?: OrderFilters): Promise<OrderWithDerive
   return r
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .map((o) => enrichOrder(o, progress.get(o.id)));
+}
+
+/**
+ * Item sales read-model (Phase 1 of promos/rewards): per item+variant rollup
+ * over non-cancelled orders. Live servings exclude returned qty; bill
+ * discounts allocate pro-rata by line value. Returned/voided lines never
+ * inflate a "top seller". No new entity — pure derivation for the Item Sales
+ * report, promo targeting, and future overview KPIs.
+ */
+export async function itemSalesStats(filters?: ItemSalesFilters): Promise<ItemSalesStat[]> {
+  await delay(300);
+  loadOrders();
+  const { getMenuItems } = await import("@/features/menu/api/service");
+  const menu = await getMenuItems().catch(() => []);
+  const catByItem = new Map<string, string>(
+    menu.map((m): [string, string] => [m.id, m.category_name ?? ""]),
+  );
+  const nameByItem = new Map<string, string>(menu.map((m): [string, string] => [m.id, m.name]));
+
+  const from = filters?.from ? new Date(filters.from).getTime() : null;
+  const to = filters?.to ? new Date(filters.to).getTime() : null;
+  const byKey = new Map<string, ItemSalesStat & { orderIds: Set<string> }>();
+
+  for (const o of mockOrders) {
+    if (o.deleted_at || o.status === "CANCELLED") continue;
+    if (filters?.channel && o.channel !== filters.channel) continue;
+    const t = new Date(o.created_at).getTime();
+    if (from != null && t < from) continue;
+    if (to != null && t > to) continue;
+    const subtotal = o.items.reduce((s, i) => s + i.line_total_paise, 0);
+    const discount = discountFor(subtotal, o);
+    for (const l of o.items) {
+      const live = l.qty - (l.returned_qty ?? 0);
+      if (live <= 0) continue;
+      const share = subtotal > 0 ? l.line_total_paise / subtotal : 0;
+      const gross = Math.round((l.line_total_paise * live) / Math.max(1, l.qty));
+      const dShare = Math.round(discount * share * (live / Math.max(1, l.qty)));
+      const key = `${l.menu_item_id}|${l.variant_id ?? ""}`;
+      let s = byKey.get(key);
+      if (!s) {
+        s = {
+          menu_item_id: l.menu_item_id,
+          variant_id: l.variant_id,
+          name: l.item_name_snapshot || nameByItem.get(l.menu_item_id) || "Unknown",
+          variant_name: l.variant_name_snapshot,
+          category_name: catByItem.get(l.menu_item_id) || undefined,
+          qty: 0,
+          gross_paise: 0,
+          discount_paise: 0,
+          net_paise: 0,
+          orders: 0,
+          orderIds: new Set(),
+        };
+        byKey.set(key, s);
+      }
+      s.qty += live;
+      s.gross_paise += gross;
+      s.discount_paise += dShare;
+      s.net_paise += gross - dShare;
+      s.orderIds.add(o.id);
+    }
+  }
+  return [...byKey.values()]
+    .map(({ orderIds, ...s }) => ({ ...s, orders: orderIds.size }))
+    .sort((a, b) => b.qty - a.qty);
 }
 
 export async function getOrderById(id: string): Promise<OrderWithDerived | null> {

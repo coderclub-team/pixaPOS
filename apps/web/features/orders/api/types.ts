@@ -165,6 +165,25 @@ export type AddItemInput = {
   instructions?: string;
 };
 
+export type ItemSalesFilters = {
+  from?: string; // ISO date (inclusive)
+  to?: string; // ISO date (inclusive)
+  channel?: OrderChannel;
+};
+
+export type ItemSalesStat = {
+  menu_item_id: string;
+  variant_id?: string;
+  name: string;
+  variant_name?: string;
+  category_name?: string;
+  qty: number; // live servings (returned qty excluded)
+  gross_paise: number; // pre-discount line value
+  discount_paise: number; // pro-rata share of bill discount
+  net_paise: number;
+  orders: number; // distinct orders containing it
+};
+
 export type OrderFilters = {
   search?: string;
   channel?: OrderChannel;

@@ -300,6 +300,13 @@ export const navGroups: NavGroup[] = [
         isActive: false,
         items: [
           {
+            title: "Item Sales",
+            url: "/dashboard/reports/item-sales",
+            icon: "table",
+            shortcut: ["r", "s"],
+            access: { requireOrg: true },
+          },
+          {
             title: "Stock History",
             url: "/dashboard/inventory/stock",
             icon: "warehouse",
