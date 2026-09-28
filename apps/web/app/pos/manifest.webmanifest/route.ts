@@ -1,21 +1,28 @@
-import { NextResponse } from "next/server";
+const icons = [
+  { src: "/icon.png", sizes: "512x512", type: "image/png" },
+  { src: "/icon.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+];
 
-/** Installable POS terminal web manifest (start_url scope keeps it a separate app icon). */
-export async function GET() {
-  return NextResponse.json({
-    name: "pixaPOS — Counter Terminal",
-    short_name: "POS",
-    description: "Counter terminal — orders, bills and KOTs.",
-    start_url: "/pos",
-    scope: "/pos",
-    id: "/pos",
+function surfaceManifest(name: string, shortName: string, startUrl: string, description: string) {
+  return Response.json({
+    name,
+    short_name: shortName,
+    description,
+    start_url: startUrl,
+    scope: startUrl,
+    id: startUrl,
     display: "standalone",
     background_color: "#ffffff",
     theme_color: "#ffffff",
-    icons: [
-      { src: "/icon.png", sizes: "512x512", type: "image/png" },
-      { src: "/icon.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
-      { src: "/apple-icon.png", sizes: "180x180", type: "image/png" },
-    ],
+    icons,
   });
+}
+
+export async function GET() {
+  return surfaceManifest(
+    "pixaPOS — POS Terminal",
+    "POS",
+    "/pos",
+    "Standalone order terminal — dine-in, counter, takeaway and delivery.",
+  );
 }

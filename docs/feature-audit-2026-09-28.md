@@ -131,7 +131,9 @@ per `proxy.ts:8-9`). Clerk→Better Auth cutover runbook exists; expect residual
 ## Correction list (working through one by one)
 
 1. [x] This report filed.
-2. [ ] Verify/fix per-surface PWA manifest routes.
+2. [x] Verify/fix per-surface PWA manifest routes — FIXED 2026-09-28:
+   `app/{pos,kds,kiosk,qr}/manifest.webmanifest/route.ts` now emit tailored
+   manifests (name/start_url/scope per surface); build lists all four routes.
 3. [ ] Staff-override flag: add outlet pref vs drop claim (needs owner decision).
 4. [ ] Verify `cancelOrder` auth path past-PREPARING.
 5. [ ] Per-table import/export/sort matrix; fix over-broad claims.
