@@ -271,6 +271,62 @@ export type PurchaseItem = {
   purchase_qty?: number; // as-bought qty (audit)
   purchase_unit?: string; // as-bought unit
   purchase_unit_cost?: number; // price per purchase unit
+  /** Goods traceability (batch auto-created on receipt when absent). */
+  batch_no?: string;
+  mfg_date?: string; // YYYY-MM-DD
+  expiry_date?: string; // YYYY-MM-DD
+  location_id?: string;
+};
+
+/** Storage master: floor + rack per goods item (Odoo location pattern). */
+export type StorageLocation = {
+  id: string;
+  outlet_id?: string;
+  name: string; // Main Store, Kitchen, Cold Room…
+  floor?: string; // Ground, First…
+  rack?: string; // A1, B2…
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type StorageLocationPayload = {
+  name: string;
+  floor?: string;
+  rack?: string;
+  is_active?: boolean;
+};
+
+/**
+ * Goods batch (lot): badge number + mfg/expiry + location per receipt.
+ * Allocation overlay on material stock_qty (source of truth stays stock_qty;
+ * unattributed remainder = legacy/pre-batch stock).
+ */
+export type StockBatch = {
+  id: string;
+  material_id: string;
+  material_name?: string;
+  batch_no: string;
+  mfg_date?: string;
+  expiry_date?: string;
+  qty_received: number;
+  qty_on_hand: number;
+  location_id?: string;
+  location_name?: string;
+  purchase_id?: string;
+  supplier_name?: string;
+  status: "active" | "exhausted" | "expired";
+  created_at: string;
+  updated_at: string;
+};
+
+export type BatchFilters = {
+  search?: string;
+  material_id?: string;
+  location_id?: string;
+  expiring_within_days?: number;
+  expired?: boolean;
+  status?: StockBatch["status"];
 };
 
 export type PurchasePaymentStatus = "unpaid" | "partial" | "paid";

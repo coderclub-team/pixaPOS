@@ -27,9 +27,9 @@ import {
 } from "@pixa/ui/base-ui/dialog";
 import { Icons } from "@pixa/ui/icons";
 import { StatusDot } from "@pixa/ui/base-ui/status-dot";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { deleteRawMaterial } from "../api/service";
-import { inventoryKeys } from "../api/queries";
+import { batchSummaryQueryOptions, inventoryKeys } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -97,6 +97,7 @@ export function RawMaterialList({ materials }: { materials: RawMaterial[] }) {
                   onToggle={toggle}
                 />
               </TableHead>
+              <TableHead>Batches</TableHead>
               <TableHead className="text-right">
                 <SortTh
                   label="Valuation"
@@ -198,6 +199,9 @@ function RawMaterialRow({ m }: { m: RawMaterial }) {
             Threshold {m.low_stock_threshold} • Value ₹{stockValue.toFixed(2)}
           </div>
         </TableCell>
+        <TableCell>
+          <BatchChips materialId={m.id} />
+        </TableCell>
         <TableCell className="text-right">
           <div className="flex flex-col items-end text-xs">
             <span className="font-mono font-medium">₹{m.avg_cost.toFixed(2)}</span>
@@ -241,5 +245,25 @@ function RawMaterialRow({ m }: { m: RawMaterial }) {
         </TableCell>
       </TableRow>
     </>
+  );
+}
+
+/** Batch badges per goods item: lot count + nearest expiry (FEFO order). */
+function BatchChips({ materialId }: { materialId: string }) {
+  const { data } = useQuery(batchSummaryQueryOptions(materialId));
+  if (!data || data.batches === 0) return <span className="text-muted-foreground">—</span>;
+  const expiring =
+    data.nearest_expiry && new Date(data.nearest_expiry).getTime() - Date.now() < 30 * 86400000;
+  return (
+    <div className="flex flex-col gap-1 text-[11px]">
+      <span className="rounded border bg-muted px-1.5 py-0.5 font-mono">
+        {data.batches} lot{data.batches === 1 ? "" : "s"}
+      </span>
+      {data.nearest_expiry && (
+        <span className={expiring ? "font-semibold text-destructive" : "text-muted-foreground"}>
+          exp {data.nearest_expiry}
+        </span>
+      )}
+    </div>
   );
 }

@@ -248,6 +248,20 @@ export const navGroups: NavGroup[] = [
             shortcut: ["i", "s"],
             access: { requireOrg: true },
           },
+          {
+            title: "Batches",
+            url: "/dashboard/inventory/batches",
+            icon: "package",
+            shortcut: ["i", "b"],
+            access: { requireOrg: true },
+          },
+          {
+            title: "Locations",
+            url: "/dashboard/inventory/locations",
+            icon: "table",
+            shortcut: ["i", "l"],
+            access: { requireOrg: true },
+          },
         ],
       },
       {
