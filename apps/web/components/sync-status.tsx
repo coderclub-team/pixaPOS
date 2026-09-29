@@ -79,11 +79,13 @@ export default function SyncStatus({ className }: { className?: string }) {
       aria-label={`Sync status: ${label}. Activate to retry.`}
       className={cn(
         "flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground",
+        // Subdomain headers on phones: dot only, label via tooltip.
+        "max-sm:gap-0 max-sm:px-1.5",
         className,
       )}
     >
       <span className={cn("size-1.5 rounded-full", dot, spinning && "animate-spin")} />
-      {label}
+      <span className="max-sm:hidden">{label}</span>
     </button>
   );
 }

@@ -284,7 +284,8 @@ export default function OrderTerminalPage({
       setActiveGroupId(group.id);
       setActiveOrderId(group.order_id);
       setSeatOpen(false);
-      openDrawerTo("order");
+      // Food first: land on the menu picker; the bill is one pull-up away.
+      openDrawerTo("items");
       toast.success(`Party ${group.label ?? ""} seated — tap Start order or hold its chip`.trim());
     },
     onError: (e: Error) => toast.error(e.message),
@@ -368,7 +369,8 @@ export default function OrderTerminalPage({
     }
     setActiveGroupId(groupId);
     setActiveOrderId(liveOrderByGroup.get(groupId)?.id ?? null);
-    openDrawerTo("order");
+    // Food first: party chip opens the menu picker; pull up for the bill.
+    openDrawerTo("items");
   };
 
   /** Tap a detached open tab: focus its bill without any party. */
@@ -376,7 +378,7 @@ export default function OrderTerminalPage({
     if (ensureMut.isPending || ensureGroupMut.isPending) return;
     setActiveGroupId(null);
     setActiveOrderId(orderId);
-    openDrawerTo("order");
+    openDrawerTo("items");
   };
 
   /** Reopen a table-free bill: jump straight into its menu + bill. */
@@ -985,6 +987,7 @@ export default function OrderTerminalPage({
                 onClick={() => setSeatCount((c) => Math.max(1, c - 1))}
                 disabled={seatCount <= 1}
                 aria-label="Fewer guests"
+                title="Fewer guests"
               >
                 <Icons.minus className="size-4" />
               </Button>
@@ -1009,6 +1012,7 @@ export default function OrderTerminalPage({
                   seatCount >= activeTableDerived.capacity - (activeTableDerived.seated_seats ?? 0)
                 }
                 aria-label="More guests"
+                title="More guests"
               >
                 <Icons.add className="size-4" />
               </Button>

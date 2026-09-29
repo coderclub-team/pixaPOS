@@ -121,6 +121,7 @@ function PosShellMain() {
             size="sm"
             onClick={refresh}
             title="Refresh floor, tables and orders"
+            aria-label="Refresh floor, tables and orders"
           >
             <Icons.refresh className="mr-1 size-4" /> Refresh
           </Button>

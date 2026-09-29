@@ -9,6 +9,7 @@ import { ordersQueryOptions } from "@/features/orders/api/queries";
 import {
   rewardBalanceQueryOptions,
   rewardLedgerQueryOptions,
+  rewardRulesQueryOptions,
 } from "@/features/rewards/api/queries";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { formatINR } from "@/lib/money";
@@ -48,6 +49,9 @@ function EditCustomerView({ customerId }: { customerId: string }) {
 function RewardCard({ customerId }: { customerId: string }) {
   const { data: balance } = useSuspenseQuery(rewardBalanceQueryOptions(customerId));
   const { data: ledger } = useSuspenseQuery(rewardLedgerQueryOptions(customerId));
+  const { data: rules } = useSuspenseQuery(rewardRulesQueryOptions());
+  const now = new Date().toISOString();
+  const active = (rules ?? []).find((r) => r.from_at <= now && (!r.to_at || now < r.to_at));
   if ((balance ?? 0) <= 0 && (ledger ?? []).length === 0) return null;
   return (
     <Card className="w-full">
@@ -61,7 +65,8 @@ function RewardCard({ customerId }: { customerId: string }) {
       </CardHeader>
       <CardContent className="space-y-1.5">
         <p className="text-xs text-muted-foreground">
-          Earn 1 pt per ₹10 on completed bills · 1 pt = ₹1 on any bill.
+          Earn 1 pt per ₹{(active?.earn_paise_per_point ?? 1000) / 100} on completed bills · 1 pt =
+          ₹{(active?.redeem_paise_per_point ?? 100) / 100} on any bill.
         </p>
         {(ledger ?? []).slice(0, 8).map((e) => (
           <div

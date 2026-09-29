@@ -715,11 +715,7 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
               </Button>
             ))}
           </div>
-          <div
-            className="hidden rounded-lg border p-0.5 sm:flex"
-            role="group"
-            aria-label="Menu layout"
-          >
+          <div className="flex rounded-lg border p-0.5" role="group" aria-label="Menu layout">
             <Button
               type="button"
               variant={view === "card" ? "default" : "ghost"}
