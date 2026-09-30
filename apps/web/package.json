@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000 --hostname 0.0.0.0 --experimental-https",
+    "dev": "next dev -p 443 -H 0.0.0.0 --experimental-https --experimental-https-key ./certificates/local.key --experimental-https-cert ./certificates/local.crt",
     "build": "next build",
     "start": "next start"
   },
@@ -59,3 +59,4 @@
     "@types/react-dom": "^19.0.0"
   }
 }
+
