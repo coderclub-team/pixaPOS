@@ -83,6 +83,14 @@ function getAuth(): AuthInstance {
         },
       }),
       emailAndPassword: { enabled: true },
+      // Local + LAN origins (local.pixapos.store has a real public suffix so
+      // origin checks pass where bare .local names are rejected).
+      trustedOrigins: [
+        "http://localhost:3000",
+        "https://localhost:3000",
+        "http://local.pixapos.store:3000",
+        "https://local.pixapos.store:3000",
+      ],
       // Google is registered only when credentials exist — email/password
       // keeps working in environments without OAuth configured.
       ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
