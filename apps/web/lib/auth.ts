@@ -90,6 +90,7 @@ function getAuth(): AuthInstance {
         "https://localhost:3000",
         "http://local.pixapos.store:3000",
         "https://local.pixapos.store:3000",
+        "https://local.pixapos.store",
       ],
       // Google is registered only when credentials exist — email/password
       // keeps working in environments without OAuth configured.
