@@ -69,3 +69,7 @@ sudo rm -rf apps/web/.next       # pure build cache, regenerates
 - `next.config.js` `allowedDevOrigins` covers the domain (HMR).
 - Google OAuth needs `https://local.pixapos.store/api/auth/callback/google`
   in Cloud Console redirect URIs — manual step, per Google project.
+- Google NEVER allows a LAN/private IP as an OAuth redirect URI
+  (`https://192.168.x.x/...` always ends in `Error 400: invalid_request`).
+  Staff on other LAN devices must open the **domain**, never the raw IP.
+  Email/password sign-in works on the IP; Google sign-in does not.
