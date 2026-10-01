@@ -27,14 +27,19 @@
     "format:check": "pnpm -w exec oxfmt --check . '!**/*.md' '!**/*.mdc' '!**/*.mdx' '!**/*.yml' '!**/*.yaml' '!apps/template/.agents/**' '!apps/template/.claude/**'",
     "typecheck": "turbo run typecheck",
     "dev:web": "pnpm --filter @pixa/web dev",
+    "dev:web:https": "pnpm --filter @pixa/web dev:https",
+    "dev:web:domain": "pnpm --filter @pixa/web dev:domain",
     "dev:admin": "pnpm --filter @pixa/admin dev",
     "dev:mobile": "pnpm --filter @pixa/mobile dev",
     "dev:template": "pnpm --filter @pixa/template dev",
-    "prepare": "husky"
+    "prepare": "husky",
+    "clean:cache": "rm -rf apps/web/.next .next"
+    
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
     "drizzle-orm": "^0.45.2",
+    
     "recharts": "3.8.0"
   },
   "devDependencies": {
