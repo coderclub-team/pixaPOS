@@ -3,6 +3,7 @@
 
 # Build outputs
 .next/
+.next-local/
 dist/
 build/
 .turbo/
