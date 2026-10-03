@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3002",
+    "predev": "pkill -f 'next/dist/bin/next dev -p 3002' 2>/dev/null || true",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
