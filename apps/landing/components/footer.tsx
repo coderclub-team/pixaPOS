@@ -24,7 +24,7 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
 
 export default function Footer() {
   return (
-    <footer className="relative z-10 bg-[#090E34] pt-20 lg:pt-[100px]">
+    <footer className="relative z-10 overflow-hidden bg-dark pt-20 lg:pt-[100px]">
       <div className="container">
         <div className="-mx-4 flex flex-wrap">
           <div className="w-full px-4 sm:w-1/2 lg:w-4/12 xl:w-3/12">

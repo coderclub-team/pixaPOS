@@ -88,10 +88,14 @@ export default function Hero() {
                         {
                           n: "ORD-1042 · Table 12",
                           s: "Preparing",
-                          c: "bg-amber-100 text-amber-700",
+                          c: "bg-warn/15 text-warn",
                         },
-                        { n: "ORD-1043 · Delivery", s: "Ready", c: "bg-green-100 text-green-700" },
-                        { n: "ORD-1044 · Counter", s: "New", c: "bg-blue-100 text-blue-700" },
+                        {
+                          n: "ORD-1043 · Delivery",
+                          s: "Ready",
+                          c: "bg-secondary/15 text-secondary",
+                        },
+                        { n: "ORD-1044 · Counter", s: "New", c: "bg-primary/10 text-primary" },
                       ].map((o) => (
                         <div
                           key={o.n}

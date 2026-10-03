@@ -112,7 +112,7 @@ function SignupForm() {
   return (
     <section className="relative py-20 md:py-[120px]">
       <div className="absolute top-0 left-0 -z-[1] h-full w-full dark:bg-dark" />
-      <div className="absolute top-0 left-0 -z-[1] h-1/2 w-full bg-[#E9F9FF] lg:h-[45%] xl:h-1/2 dark:bg-dark-700" />
+      <div className="absolute top-0 left-0 -z-[1] h-1/2 w-full bg-primary/10 lg:h-[45%] xl:h-1/2 dark:bg-dark-700" />
       <div className="container px-4">
         <div className="-mx-4 flex flex-wrap justify-center">
           <div className="w-full px-4 lg:w-7/12 xl:w-6/12">
