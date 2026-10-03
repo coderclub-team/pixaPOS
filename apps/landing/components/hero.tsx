@@ -70,7 +70,90 @@ export default function Hero() {
           </div>
         </div>
       </div>
-      <div className="pb-[110px]" />
+
+      <div className="container">
+        <div className="-mx-4 flex flex-wrap">
+          <div className="w-full px-4">
+            <div className="relative z-10 mx-auto max-w-[845px]">
+              <div className="mt-16">
+                <div className="mx-auto max-w-full overflow-hidden rounded-t-xl bg-white text-left shadow-[0px_0px_60px_0px_rgba(0,0,0,0.25)]">
+                  <div className="flex items-center gap-1.5 border-b border-stroke px-4 py-2.5">
+                    <span className="size-2.5 rounded-full bg-[#FF5F57]" />
+                    <span className="size-2.5 rounded-full bg-[#FEBC2E]" />
+                    <span className="size-2.5 rounded-full bg-[#28C840]" />
+                    <span className="ml-2 rounded bg-gray-1 px-3 py-0.5 text-xs text-body-color">
+                      app.pixapos.store/pos
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-5">
+                    <div className="col-span-3 border-r border-stroke p-4">
+                      <p className="mb-3 text-xs font-semibold tracking-wide text-body-color uppercase">
+                        Live orders
+                      </p>
+                      {[
+                        {
+                          n: "ORD-1042 · Table 12",
+                          s: "Preparing",
+                          c: "bg-amber-100 text-amber-700",
+                        },
+                        { n: "ORD-1043 · Delivery", s: "Ready", c: "bg-green-100 text-green-700" },
+                        { n: "ORD-1044 · Counter", s: "New", c: "bg-blue-100 text-blue-700" },
+                      ].map((o) => (
+                        <div
+                          key={o.n}
+                          className="mb-2 flex items-center justify-between rounded-lg bg-gray-1 px-3 py-2"
+                        >
+                          <span className="text-sm font-medium text-dark">{o.n}</span>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${o.c}`}
+                          >
+                            {o.s}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="col-span-2 p-4">
+                      <p className="mb-3 text-xs font-semibold tracking-wide text-body-color uppercase">
+                        Bill · ORD-1042
+                      </p>
+                      {[
+                        ["Butter Chicken × 2", "₹560"],
+                        ["Naan Basket × 1", "₹120"],
+                        ["Fresh Lime × 2", "₹160"],
+                      ].map(([item, amt]) => (
+                        <div key={item} className="mb-1.5 flex justify-between text-sm text-dark">
+                          <span>{item}</span>
+                          <span className="font-medium">{amt}</span>
+                        </div>
+                      ))}
+                      <div className="mt-3 flex justify-between border-t border-stroke pt-2 text-sm font-bold text-dark">
+                        <span>Total</span>
+                        <span>₹840</span>
+                      </div>
+                      <div className="mt-3 rounded-md bg-primary px-4 py-2 text-center text-sm font-medium text-white">
+                        Fire KOT
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="absolute -bottom-0 -left-9 z-[-1]">
+                <svg width="134" height="106" viewBox="0 0 134 106" fill="none">
+                  {Array.from({ length: 30 }).map((_, i) => (
+                    <circle
+                      key={i}
+                      cx={1.66667 + (i % 6) * 14.6666}
+                      cy={104 - Math.floor(i / 6) * 14.6666}
+                      r="1.66667"
+                      fill="white"
+                    />
+                  ))}
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
