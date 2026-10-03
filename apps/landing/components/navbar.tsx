@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -43,11 +44,23 @@ export default function Header() {
           <div className="w-60 max-w-full px-4">
             <Link
               href="/"
-              className={`navbar-logo block w-full font-bold tracking-tight ${
-                sticky ? "py-2" : "py-5"
-              } ${onHome && !sticky ? "text-white" : "text-dark dark:text-white"}`}
+              className={`navbar-logo flex w-full items-center gap-2 ${sticky ? "py-2" : "py-5"}`}
             >
-              <span className="text-xl">pixaPOS</span>
+              <Image
+                src="/logo.png"
+                alt="pixaPOS"
+                width={32}
+                height={32}
+                className="size-8 rounded-lg"
+                priority
+              />
+              <span
+                className={`text-xl font-bold tracking-tight ${
+                  onHome && !sticky ? "text-white" : "text-dark dark:text-white"
+                }`}
+              >
+                pixaPOS
+              </span>
             </Link>
           </div>
           <div className="flex w-full items-center justify-between px-4">

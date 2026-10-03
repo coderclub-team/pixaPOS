@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { signInUrl, signUpUrl } from "@/lib/site";
 import { TRIAL_DAYS } from "@/lib/plans";
@@ -28,7 +29,14 @@ export default function Footer() {
         <div className="-mx-4 flex flex-wrap">
           <div className="w-full px-4 sm:w-1/2 lg:w-4/12 xl:w-3/12">
             <div className="mb-10 w-full">
-              <Link href="/" className="mb-6 inline-block">
+              <Link href="/" className="mb-6 inline-flex items-center gap-2">
+                <Image
+                  src="/logo.png"
+                  alt="pixaPOS"
+                  width={36}
+                  height={36}
+                  className="size-9 rounded-lg"
+                />
                 <span className="text-2xl font-bold text-white">pixaPOS</span>
               </Link>
               <p className="mb-8 max-w-[270px] text-base text-gray-7">
