@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { adminDb } from "@/lib/db";
 import { baInvitation, baMember, baOrganization, orgProfiles, saasAudit } from "@pixa/db";
-import { LifecycleBadge } from "./page";
+import { LifecycleBadge } from "../page";
 import { OrgActions } from "./actions";
 
 export const dynamic = "force-dynamic";
