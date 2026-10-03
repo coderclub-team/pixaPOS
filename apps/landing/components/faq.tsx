@@ -1,3 +1,5 @@
+import SectionTitle from "@/components/section-title";
+
 const QA = [
   {
     q: "How does the 14-day free trial work?",
@@ -27,23 +29,31 @@ const QA = [
 
 export default function Faq() {
   return (
-    <section id="faq" className="mx-auto w-full max-w-4xl scroll-mt-20 px-4 py-14 sm:px-6">
-      <p className="text-center text-sm font-medium text-(--muted-foreground)">FAQ</p>
-      <h2 className="mx-auto mt-2 max-w-2xl text-center text-3xl font-bold tracking-tight text-balance">
-        Trial, billing and offline — answered
-      </h2>
-      <div className="mt-8">
-        {QA.map((item) => (
-          <div key={item.q} className="mb-8 flex gap-4 last:mb-0">
-            <div className="flex size-10 w-full max-w-10 shrink-0 items-center justify-center rounded-xl bg-(--primary) text-base font-bold text-(--primary-foreground)">
-              ?
+    <section id="faq" className="pt-20 pb-8 lg:pt-[120px] lg:pb-[70px]">
+      <div className="container">
+        <div className="mb-[60px]">
+          <SectionTitle
+            subtitle="FAQ"
+            title="Trial, billing and offline — answered"
+            paragraph="The questions every owner asks before the trial week."
+            center
+          />
+        </div>
+        <div className="mx-auto" style={{ maxWidth: "770px" }}>
+          {QA.map((item) => (
+            <div key={item.q} className="mb-12 flex lg:mb-[70px]">
+              <div className="mr-4 flex h-[50px] w-full max-w-[50px] items-center justify-center rounded-xl bg-primary text-lg font-bold text-white sm:mr-6 sm:h-[60px] sm:max-w-[60px]">
+                ?
+              </div>
+              <div className="w-full">
+                <h3 className="mb-6 text-xl font-semibold text-dark sm:text-2xl lg:text-xl xl:text-2xl dark:text-white">
+                  {item.q}
+                </h3>
+                <p className="text-base text-body-color dark:text-dark-6">{item.a}</p>
+              </div>
             </div>
-            <div className="w-full">
-              <h3 className="mb-2 text-lg font-semibold">{item.q}</h3>
-              <p className="text-sm leading-relaxed text-(--muted-foreground)">{item.a}</p>
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </section>
   );

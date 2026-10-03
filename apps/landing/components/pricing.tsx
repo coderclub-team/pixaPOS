@@ -3,106 +3,109 @@
 import Link from "next/link";
 import { useState } from "react";
 import { signUpUrl } from "@/lib/site";
-import { PLANS, TRIAL_DAYS, formatINR, planPrice, type BillingCycle } from "@/lib/plans";
-import { Icons } from "@pixa/ui/icons";
-import { Badge } from "@pixa/ui/base-ui/badge";
-import { buttonVariants } from "@pixa/ui/base-ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
+import { PLANS, TRIAL_DAYS, planPrice, type BillingCycle } from "@/lib/plans";
+import SectionTitle from "@/components/section-title";
 import { cn } from "@pixa/ui/lib/utils";
 
 export default function Pricing() {
   const [cycle, setCycle] = useState<BillingCycle>("annual");
 
   return (
-    <section id="pricing" className="mx-auto w-full max-w-6xl scroll-mt-20 px-4 py-14 sm:px-6">
-      <p className="text-center text-sm font-medium text-(--muted-foreground)">Pricing</p>
-      <h2 className="mx-auto mt-2 max-w-2xl text-center text-3xl font-bold tracking-tight text-balance">
-        Start with a {TRIAL_DAYS}-day free trial, pay per outlet
-      </h2>
-      <p className="mx-auto mt-3 max-w-xl text-center text-sm text-(--muted-foreground)">
-        Trial includes every Growth feature, no credit card required. Annual billing saves 20% — the
-        same honest math as Odoo, per outlet like Zoho.
-      </p>
+    <section
+      id="pricing"
+      className="relative z-20 overflow-hidden bg-white pt-20 pb-12 lg:pt-[120px] lg:pb-[90px] dark:bg-dark"
+    >
+      <div className="container">
+        <div className="mb-[60px]">
+          <SectionTitle
+            subtitle="Pricing Table"
+            title={`Start with a ${TRIAL_DAYS}-day free trial, pay per outlet`}
+            paragraph="Trial includes every Growth feature with no credit card. Annual billing saves 20% — honest math, per outlet like Zoho."
+            center
+          />
+          <div className="mt-6 flex justify-center gap-3 text-base">
+            {(["monthly", "annual"] as BillingCycle[]).map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setCycle(c)}
+                aria-pressed={cycle === c}
+                className={cn(
+                  "cursor-pointer rounded-md px-5 py-2 font-medium capitalize duration-300",
+                  cycle === c
+                    ? "bg-primary text-white"
+                    : "bg-gray-2 text-dark hover:bg-primary hover:text-white dark:bg-dark-2 dark:text-white",
+                )}
+              >
+                {c}
+                {c === "annual" && " −20%"}
+              </button>
+            ))}
+          </div>
+        </div>
 
-      <div
-        className="mx-auto mt-6 flex w-fit items-center gap-1 rounded-full border border-(--border) p-1 text-sm"
-        role="group"
-        aria-label="Billing frequency"
-      >
-        {(["monthly", "annual"] as BillingCycle[]).map((c) => (
-          <button
-            key={c}
-            type="button"
-            onClick={() => setCycle(c)}
-            aria-pressed={cycle === c}
-            className={cn(
-              "rounded-full px-4 py-1.5 font-medium capitalize",
-              cycle === c
-                ? "bg-(--primary) text-(--primary-foreground)"
-                : "text-(--muted-foreground)",
-            )}
-          >
-            {c}
-            {c === "annual" && <span className="ml-1 text-xs">−20%</span>}
-          </button>
-        ))}
-      </div>
-
-      <ul className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
-        {PLANS.map((plan) => {
-          const price = planPrice(plan, cycle);
-          return (
-            <li key={plan.id} className="h-full">
-              <Card className={cn("h-full", plan.featured && "border-2 border-(--primary)")}>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+        <div className="-mx-4 flex flex-wrap justify-center">
+          {PLANS.map((plan) => {
+            const price = planPrice(plan, cycle);
+            return (
+              <div key={plan.id} className="w-full px-4 md:w-1/2 lg:w-1/3">
+                <div className="relative z-10 mb-10 overflow-hidden rounded-xl bg-white px-8 py-10 shadow-[0px_0px_40px_0px_rgba(0,0,0,0.08)] sm:p-12 lg:px-6 lg:py-10 xl:p-14 dark:bg-dark-2">
+                  {plan.featured && (
+                    <p className="absolute top-[60px] -right-[50px] inline-block -rotate-90 rounded-tl-md rounded-bl-md bg-primary px-5 py-2 text-base font-medium text-white">
+                      Recommended
+                    </p>
+                  )}
+                  <span className="mb-5 block text-xl font-medium text-dark dark:text-white">
                     {plan.name}
-                    {plan.featured && <Badge>Most popular</Badge>}
-                  </CardTitle>
-                  <CardDescription>{plan.tagline}</CardDescription>
-                  <p className="pt-2">
+                  </span>
+                  <h2 className="mb-11 text-4xl font-semibold text-dark xl:text-[42px] xl:leading-[1.21] dark:text-white">
                     {price == null ? (
-                      <span className="text-3xl font-bold">Custom</span>
+                      "Custom"
                     ) : (
                       <span>
-                        <span className="text-3xl font-bold">{formatINR(price)}</span>
-                        <span className="text-sm text-(--muted-foreground)">
+                        <span className="text-xl font-medium">₹ </span>
+                        <span className="-ml-1 -tracking-[2px]">
+                          {(price / 100).toLocaleString("en-IN")}
+                        </span>
+                        <span className="text-base font-normal text-body-color dark:text-dark-6">
                           {" "}
-                          / outlet / month
-                          {cycle === "annual" ? ", billed annually" : ", billed monthly"}
+                          / outlet / mo{cycle === "annual" ? ", billed annually" : ""}
                         </span>
                       </span>
                     )}
-                  </p>
-                </CardHeader>
-                <CardContent className="grid gap-4">
-                  <ul className="grid gap-2 text-sm">
-                    {plan.features.map((f) => (
-                      <li key={f} className="flex items-start gap-2">
-                        <Icons.check className="mt-0.5 size-4 shrink-0" aria-hidden />
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                  <Link
-                    href={signUpUrl(plan.id)}
-                    className={cn(
-                      buttonVariants({ variant: plan.featured ? "default" : "outline" }),
-                      "w-full",
-                    )}
-                  >
-                    {plan.cta}
-                  </Link>
-                </CardContent>
-              </Card>
-            </li>
-          );
-        })}
-      </ul>
-      <p className="mt-4 text-center text-xs text-(--muted-foreground)">
-        Prices in INR, exclusive of taxes. Trial lapses lock the workspace until a plan is chosen —
-        your data is never deleted.
-      </p>
+                  </h2>
+
+                  <div className="mb-[50px]">
+                    <h3 className="mb-5 text-lg font-medium text-dark dark:text-white">Features</h3>
+                    <div className="mb-10">
+                      <p className="mb-3 text-base text-body-color dark:text-dark-6">
+                        {plan.tagline}
+                      </p>
+                      {plan.features.map((f) => (
+                        <p key={f} className="mb-1 text-base text-body-color dark:text-dark-6">
+                          {f}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="w-full">
+                    <Link
+                      href={signUpUrl(plan.id)}
+                      className="inline-block cursor-pointer rounded-md bg-primary px-7 py-3 text-center text-base font-medium text-white transition duration-300 hover:bg-primary/90"
+                    >
+                      {plan.cta}
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-center text-sm text-body-color dark:text-dark-6">
+          Prices in INR, exclusive of taxes. Trial lapses lock the workspace until a plan is chosen
+          — your data is never deleted.
+        </p>
+      </div>
     </section>
   );
 }

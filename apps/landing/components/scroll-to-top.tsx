@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Icons } from "@pixa/ui/icons";
-import { cn } from "@pixa/ui/lib/utils";
 
 export default function ScrollToTop() {
   const [isVisible, setIsVisible] = useState(false);
@@ -15,20 +13,17 @@ export default function ScrollToTop() {
     return () => window.removeEventListener("scroll", toggleVisibility);
   }, []);
 
+  if (!isVisible) return null;
+
   return (
-    <div className="fixed right-8 bottom-8 z-50">
-      <button
-        type="button"
+    <div className="fixed right-8 bottom-8 z-[999]">
+      <div
         onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-        aria-label="Scroll to top"
-        tabIndex={isVisible ? 0 : -1}
-        className={cn(
-          "flex size-10 cursor-pointer items-center justify-center rounded-md bg-(--primary) text-(--primary-foreground) shadow-md transition duration-300 hover:opacity-80",
-          !isVisible && "pointer-events-none opacity-0",
-        )}
+        aria-label="scroll to top"
+        className="back-to-top flex h-10 w-10 cursor-pointer items-center justify-center rounded-md bg-primary text-white shadow-md transition duration-300 ease-in-out hover:bg-dark"
       >
-        <Icons.arrowRight className="size-4 -rotate-90" aria-hidden />
-      </button>
+        <span className="mt-[6px] h-3 w-3 rotate-45 border-t border-l border-white" />
+      </div>
     </div>
   );
 }

@@ -1,48 +1,42 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap")
+layer(base);
+
 @import "tailwindcss";
+@plugin "tailgrids/plugin";
 
-/* Vercel-monochrome brand tokens (mirrors @pixa/ui themes/vercel.css). */
-:root {
-  color-scheme: light;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --primary: oklch(0 0 0);
-  --primary-foreground: oklch(1 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --border: oklch(0.922 0 0);
-  --radius: 0.625rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --primary: oklch(1 0 0);
-    --primary-foreground: oklch(0 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --border: oklch(1 0 0 / 10%);
-  }
-}
-
-* {
-  box-sizing: border-box;
-}
-
-html {
-  scroll-behavior: smooth;
-}
+@custom-variant dark (&:is(.dark *));
 
 body {
+  font-family: "Inter", sans-serif;
   margin: 0;
-  background: var(--background);
-  color: var(--foreground);
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Sticky header states (play-nextjs pattern). */
+.sticky-menu .navbar-logo {
+  @apply py-2;
+}
+
+.sticky-menu #navbarToggler span {
+  @apply bg-dark dark:bg-white;
+}
+
+.sticky-menu #navbarCollapse li > a {
+  @apply text-dark hover:text-primary hover:opacity-100 dark:text-white;
+}
+
+#navbarCollapse li .ud-menu-scroll.active {
+  @apply opacity-70;
+}
+
+.sticky-menu #navbarCollapse li .ud-menu-scroll.active {
+  @apply text-primary opacity-100 dark:text-white;
+}
+
+.sticky-menu .loginBtn {
+  @apply text-dark hover:text-primary hover:opacity-100 dark:text-white;
+}
+
+.sticky-menu .signUpBtn {
+  @apply bg-primary hover:bg-dark text-white hover:text-white;
 }

@@ -85,6 +85,34 @@ importers:
         specifier: 8.5.25
         version: 8.5.25
 
+  apps/landing:
+    dependencies:
+      '@pixa/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@tailwindcss/postcss':
+        specifier: ^4.2.2
+        version: 4.3.3
+      next:
+        specifier: 16.2.12
+        version: 16.2.12(@babel/core@7.29.7(supports-color@8.1.1))(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      react:
+        specifier: 19.2.4
+        version: 19.2.4
+      react-dom:
+        specifier: 19.2.4
+        version: 19.2.4(react@19.2.4)
+      tailgrids:
+        specifier: ^2.4.0
+        version: 2.4.0
+      tailwindcss:
+        specifier: ^4.2.2
+        version: 4.3.3
+    devDependencies:
+      postcss:
+        specifier: 8.5.25
+        version: 8.5.25
+
   apps/mobile:
     dependencies:
       '@pixa/ui':
@@ -7472,6 +7500,10 @@ packages:
     peerDependencies:
       react: 19.2.4
 
+  tailgrids@2.4.0:
+    resolution: {integrity: sha512-oyhsPskkku+omlvWJJzATtpLXsWOwM2dntQKTCbSVd9fKFj4ebTE2vRzTBhFYPEKn8CE22HL27snifhSkMGP8A==}
+    deprecated: 'This package has been deprecated. Please use @tailgrids/cli instead: https://www.npmjs.com/package/@tailgrids/cli'
+
   tailwind-merge@3.6.0:
     resolution: {integrity: sha512-uxL7qAVQriqRQPAyK3pj66VqskWqoZ37PW94jwOTwNfq/z9oyu1V+eqrZqtR2+fCiXdYOZe/Modt8GtvqNzu+w==}
 
@@ -14795,6 +14827,8 @@ snapshots:
       dequal: 2.0.3
       react: 19.2.4
       use-sync-external-store: 1.6.0(react@19.2.4)
+
+  tailgrids@2.4.0: {}
 
   tailwind-merge@3.6.0: {}
 
