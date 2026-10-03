@@ -49,7 +49,7 @@ export default function Pricing() {
             const price = planPrice(plan, cycle);
             return (
               <div key={plan.id} className="w-full px-4 md:w-1/2 lg:w-1/3">
-                <div className="relative z-10 mb-10 overflow-hidden rounded-xl bg-white px-8 py-10 shadow-[0px_0px_40px_0px_rgba(0,0,0,0.08)] sm:p-12 lg:px-6 lg:py-10 xl:p-14 dark:bg-dark-2">
+                <div className="relative z-10 mb-10 flex h-[calc(100%-2.5rem)] flex-col overflow-hidden rounded-xl bg-white px-8 py-10 shadow-[0px_0px_40px_0px_rgba(0,0,0,0.08)] sm:p-12 lg:px-6 lg:py-10 xl:p-14 dark:bg-dark-2">
                   {plan.featured && (
                     <p className="absolute top-[60px] -right-[50px] inline-block -rotate-90 rounded-tl-md rounded-bl-md bg-primary px-5 py-2 text-base font-medium text-white">
                       Recommended
@@ -61,6 +61,13 @@ export default function Pricing() {
                   <h2 className="mb-11 text-4xl font-semibold text-dark xl:text-[42px] xl:leading-[1.21] dark:text-white">
                     {price == null ? (
                       "Custom"
+                    ) : price === 0 ? (
+                      <span>
+                        Free{" "}
+                        <span className="text-base font-normal text-body-color dark:text-dark-6">
+                          forever
+                        </span>
+                      </span>
                     ) : (
                       <span>
                         <span className="text-xl font-medium">₹ </span>
@@ -75,7 +82,7 @@ export default function Pricing() {
                     )}
                   </h2>
 
-                  <div className="mb-[50px]">
+                  <div className="mb-[50px] flex-1">
                     <h3 className="mb-5 text-lg font-medium text-dark dark:text-white">Features</h3>
                     <div className="mb-10">
                       <p className="mb-3 text-base text-body-color dark:text-dark-6">

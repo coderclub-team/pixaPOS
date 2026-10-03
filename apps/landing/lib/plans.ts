@@ -35,17 +35,16 @@ export const PLANS: Plan[] = [
   {
     id: "starter",
     name: "Starter",
-    tagline: "One outlet getting onto its first POS.",
-    monthly_paise: 99900,
-    annual_discount_pct: 20,
-    cta: "Start 14-day free trial",
+    tagline: "Free forever for a single counter.",
+    monthly_paise: 0,
+    annual_discount_pct: 0,
+    cta: "Start free",
     features: [
-      "1 outlet · 2 registers",
+      "1 outlet · 1 register",
       "POS terminal + KDS",
       "Tables, KOT printing",
-      "UPI / cash / card collection",
+      "UPI / cash collection",
       "Daily sales reports",
-      "Email support",
     ],
   },
   {
