@@ -145,7 +145,9 @@ export function KOTAccordion({
   ) =>
     !!editable &&
     kot.status !== "CANCELLED" &&
-    (order?.status === "SERVED" || order?.status === "COMPLETED") &&
+    (order?.status === "SERVED" ||
+      order?.status === "DELIVERED" ||
+      order?.status === "COMPLETED") &&
     l.qty - l.voided_qty - (l.returned_qty ?? 0) > 0;
 
   // Plus on a fired line adds the same item as a NEW unfired line — it will
@@ -1271,7 +1273,9 @@ export function CancelOrderBlock({
           <DialogHeader>
             <DialogTitle>Cancel order {order.order_number}?</DialogTitle>
             <DialogDescription>
-              {["PREPARING", "READY", "SERVED"].includes(order.status)
+              {["PREPARING", "READY", "SERVED", "OUT_FOR_DELIVERY", "DELIVERED"].includes(
+                order.status,
+              )
                 ? "This order has fired KOTs — you are recorded as the authorizer with your reason."
                 : "The order and its unfired lines are removed."}
             </DialogDescription>

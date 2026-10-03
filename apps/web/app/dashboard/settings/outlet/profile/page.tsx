@@ -30,7 +30,7 @@ export default function OutletProfilePage() {
   return (
     <PageContainer
       pageTitle="Outlet Profile"
-      pageDescription="Single outlet identity — Odoo Company / Zoho Organization Profile. General, Address, Legal & Tax tabs. Floors & Tables under Setup."
+      pageDescription="Single outlet identity. Configure General, Address, and Legal & Tax details. Manage Floors & Tables under Setup."
     >
       <Tabs defaultValue="general">
         <TabsList>

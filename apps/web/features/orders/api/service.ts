@@ -29,6 +29,7 @@ import type {
   RestaurantOrder,
   SplitMode,
 } from "./types";
+import { DISPATCH_CHANNELS } from "./types";
 
 const ORDER_STORAGE_KEY = "pixaOrders";
 const RETURN_STORAGE_KEY = "pixaReturns";
@@ -152,8 +153,10 @@ const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   CONFIRMED: ["IN_KITCHEN", "CANCELLED"],
   IN_KITCHEN: ["PREPARING", "CANCELLED"],
   PREPARING: ["READY", "CANCELLED"],
-  READY: ["SERVED", "CANCELLED"],
+  READY: ["SERVED", "OUT_FOR_DELIVERY", "CANCELLED"],
   SERVED: ["COMPLETED", "CANCELLED"],
+  OUT_FOR_DELIVERY: ["DELIVERED", "CANCELLED"],
+  DELIVERED: ["COMPLETED", "CANCELLED"],
   COMPLETED: [],
   CANCELLED: [],
 };
@@ -394,6 +397,11 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
     }
     // Table-free orders (counter / takeaway / delivery / online) allow
     // anonymous tokens — customer name/phone is optional capture only.
+    // Own-fleet delivery needs a drop address at creation (aggregator
+    // channels carry addressing externally via external_ref).
+    if (input.channel === "delivery" && !input.delivery_address?.trim()) {
+      throw new Error("Delivery orders need a drop address");
+    }
 
     // Hours gate (single choke point for every channel): closed channels
     // block creation; cut-off blocks ASAP creation near close; scheduled
@@ -457,6 +465,7 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
       customer_name: input.customer_name?.trim() || undefined,
       customer_phone: input.customer_phone?.trim() || undefined,
       customer_notes: input.customer_notes?.trim() || undefined,
+      delivery_address_snapshot: input.delivery_address?.trim() || undefined,
       off_hours: offHours || undefined,
       off_hours_reason: offHoursReason,
       scheduled_for:
@@ -855,7 +864,10 @@ export async function cancelOrder(
     if (idx === -1) throw new Error("Order not found");
     if (!params.reason?.trim()) throw new Error("A reason is required to cancel an order");
     const order = mockOrders[idx];
-    if (["PREPARING", "READY", "SERVED"].includes(order.status) && !params.by) {
+    if (
+      ["PREPARING", "READY", "SERVED", "OUT_FOR_DELIVERY", "DELIVERED"].includes(order.status) &&
+      !params.by
+    ) {
       throw new Error("Cancelling a kitchen-fired order requires an authorized user");
     }
     mockOrders[idx] = {
@@ -1225,7 +1237,7 @@ export async function getReturnsByOrder(orderId: string): Promise<OrderReturn[]>
  * Item-wise post-sale return. Returns own kitchen truth (returnKOTLine works
  * on served lines, routes waste), shrink the bill (returned qty excluded from
  * totals), and refund to the original payment methods (refundForReturn).
- * Allowed on SERVED and COMPLETED orders — the bill must exist to be reduced.
+ * Allowed on SERVED, DELIVERED and COMPLETED orders — the bill must exist to be reduced.
  * Terminal CANCELLED orders go through cancel semantics, not returns.
  */
 export async function createReturn(
@@ -1241,7 +1253,7 @@ export async function createReturn(
     const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
     if (idx === -1) throw new Error("Order not found");
     const order = mockOrders[idx];
-    if (order.status !== "SERVED" && order.status !== "COMPLETED") {
+    if (order.status !== "SERVED" && order.status !== "DELIVERED" && order.status !== "COMPLETED") {
       throw new Error(
         `Returns need a served bill (order is ${order.status.toLowerCase()}) — edit or void unfired items instead`,
       );
@@ -1997,6 +2009,8 @@ const STEP_EVENT_FOR: Record<OrderStatus, any> = {
   PREPARING: "KITCHEN_STARTED",
   READY: "ORDER_READY",
   SERVED: "ORDER_SERVED",
+  OUT_FOR_DELIVERY: "ORDER_DISPATCHED",
+  DELIVERED: "ORDER_DELIVERED",
   COMPLETED: "ORDER_COMPLETED",
   CANCELLED: "ORDER_CANCELLED",
 };
@@ -2074,9 +2088,191 @@ export async function refreshOrderKitchenState(orderId: string): Promise<void> {
     // later save would persist the revert. Sibling-tab staleness is bounded
     // (advance-only; backfill heals on read).
     const { peekTickets } = await import("@/features/kitchen/api/service");
-    const target = deriveKitchenTarget(peekTickets().filter((t) => t.order_id === orderId));
+    let target = deriveKitchenTarget(peekTickets().filter((t) => t.order_id === orderId));
     if (!target) return;
+    // Dispatch channels cap at READY — served KOT lines must never walk a
+    // delivery order to SERVED. The dispatch flow owns everything after.
+    if (target === "SERVED" && (DISPATCH_CHANNELS as string[]).includes(order.channel)) {
+      target = "READY";
+    }
     if (await walkForward(idx, target)) saveOrders();
+  } finally {
+    release();
+  }
+}
+
+/**
+ * Dispatch flow (Odoo Delivery-Screen rule): READY → OUT_FOR_DELIVERY →
+ * DELIVERED, owned by the dispatch console — never by item-served events.
+ * Dispatch auto-serves the order's open KOTs (kitchen's job ends at handoff),
+ * which clears the KDS board; the clamped derivation keeps the order itself
+ * off the SERVED path.
+ */
+export async function assignRider(
+  orderId: string,
+  params: { rider_name: string; by?: string },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(200);
+    loadOrders();
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (!(DISPATCH_CHANNELS as string[]).includes(order.channel)) {
+      throw new Error("Only delivery-channel orders take a rider");
+    }
+    if (order.status !== "READY" && order.status !== "OUT_FOR_DELIVERY") {
+      throw new Error(
+        `Rider can be set on ready or out-for-delivery orders (is ${order.status.toLowerCase()})`,
+      );
+    }
+    const rider = params.rider_name?.trim();
+    if (!rider) throw new Error("Rider name is required");
+    const now = new Date().toISOString();
+    mockOrders[idx] = { ...order, rider_name: rider, updated_at: now, version: order.version + 1 };
+    saveOrders();
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: order.id,
+      event_type: "ORDER_RIDER_ASSIGNED",
+      actor_id: params.by ?? "staff",
+      metadata: { rider_name: rider },
+    });
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
+export async function dispatchOrder(
+  orderId: string,
+  params?: { by?: string },
+): Promise<OrderWithDerived> {
+  // Serve open tickets BEFORE the order lock (same deadlock rule as completion).
+  loadOrders();
+  const pre = mockOrders.find((o) => o.id === orderId && !o.deleted_at);
+  if (!pre) throw new Error("Order not found");
+  if (!(DISPATCH_CHANNELS as string[]).includes(pre.channel)) {
+    throw new Error("Only delivery-channel orders can be dispatched");
+  }
+  if (pre.status !== "READY") {
+    throw new Error(`Only ready orders can be dispatched (is ${pre.status.toLowerCase()})`);
+  }
+  if (!pre.rider_name?.trim()) {
+    throw new Error("Assign a rider before dispatch");
+  }
+  const { serveOpenTickets } = await import("@/features/kitchen/api/service");
+  await serveOpenTickets(orderId, { by: params?.by });
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(300);
+    loadOrders();
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (order.status !== "READY") {
+      throw new Error(`Only ready orders can be dispatched (is ${order.status.toLowerCase()})`);
+    }
+    const now = new Date().toISOString();
+    mockOrders[idx] = {
+      ...order,
+      dispatched_at: now,
+      updated_at: now,
+      version: order.version + 1,
+    };
+    saveOrders();
+    await transitionOrder(idx, "OUT_FOR_DELIVERY", {
+      actor_id: params?.by ?? "staff",
+      event_type: "ORDER_DISPATCHED",
+      metadata: { rider_name: mockOrders[idx].rider_name },
+    });
+    saveOrders();
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
+export async function markDelivered(
+  orderId: string,
+  params?: { by?: string },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(300);
+    loadOrders();
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (order.status !== "OUT_FOR_DELIVERY") {
+      throw new Error(
+        `Only out-for-delivery orders can be marked delivered (is ${order.status.toLowerCase()})`,
+      );
+    }
+    const now = new Date().toISOString();
+    mockOrders[idx] = {
+      ...order,
+      delivered_at: now,
+      updated_at: now,
+      version: order.version + 1,
+    };
+    saveOrders();
+    await transitionOrder(idx, "DELIVERED", {
+      actor_id: params?.by ?? "staff",
+      event_type: "ORDER_DELIVERED",
+      metadata: { rider_name: mockOrders[idx].rider_name },
+    });
+    saveOrders();
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
+/** Drop address stays editable until the rider leaves with the food. */
+export async function setDeliveryAddress(
+  orderId: string,
+  params: { delivery_address: string; by?: string },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(200);
+    loadOrders();
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (!(DISPATCH_CHANNELS as string[]).includes(order.channel)) {
+      throw new Error("Only delivery-channel orders take a drop address");
+    }
+    if (
+      order.status !== "READY" &&
+      order.status !== "CONFIRMED" &&
+      order.status !== "IN_KITCHEN" &&
+      order.status !== "PREPARING"
+    ) {
+      throw new Error("Drop address can only change before dispatch");
+    }
+    const address = params.delivery_address?.trim();
+    if (!address) throw new Error("Drop address is required");
+    const now = new Date().toISOString();
+    mockOrders[idx] = {
+      ...order,
+      delivery_address_snapshot: address,
+      updated_at: now,
+      version: order.version + 1,
+    };
+    saveOrders();
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: order.id,
+      event_type: "ORDER_UPDATED",
+      actor_id: params.by ?? "staff",
+      metadata: { delivery_address: address },
+    });
+    return enrichOrder(mockOrders[idx]);
   } finally {
     release();
   }
@@ -2122,10 +2318,15 @@ export async function completeOrder(
       throw new Error(`Order is already ${order.status.toLowerCase()}`);
     }
     const actor = params?.by ?? by ?? "staff";
-    const forced = !!params?.force && order.status !== "SERVED";
-    if (!forced && order.status !== "SERVED") {
+    // Fulfillment bar: delivery channels complete from DELIVERED (rider
+    // confirmed handover), everything else from SERVED.
+    const fulfilledAt = (DISPATCH_CHANNELS as string[]).includes(order.channel)
+      ? "DELIVERED"
+      : "SERVED";
+    const forced = !!params?.force && order.status !== fulfilledAt;
+    if (!forced && order.status !== fulfilledAt) {
       throw new Error(
-        `Only served orders can be completed (order is ${order.status.toLowerCase()}) — or force-complete with a reason`,
+        `Only ${fulfilledAt === "DELIVERED" ? "delivered" : "served"} orders can be completed (order is ${order.status.toLowerCase()}) — or force-complete with a reason`,
       );
     }
     if (forced && !params?.reason?.trim()) {

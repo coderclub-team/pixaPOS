@@ -70,6 +70,7 @@ let cached: AuthInstance | null = null;
 function getAuth(): AuthInstance {
   if (!cached) {
     cached = betterAuth({
+      baseURL: process.env.BETTER_AUTH_URL,
       database: drizzleAdapter(db(), {
         provider: "pg",
         schema: {
@@ -88,6 +89,8 @@ function getAuth(): AuthInstance {
       trustedOrigins: [
         "http://localhost:3000",
         "https://localhost:3000",
+        "http://localhost:443",
+        "https://localhost:443",
         "http://local.pixapos.store:3000",
         "https://local.pixapos.store:3000",
         "https://local.pixapos.store",

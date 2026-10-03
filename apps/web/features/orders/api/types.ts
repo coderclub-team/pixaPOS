@@ -14,8 +14,15 @@ export type OrderStatus =
   | "PREPARING"
   | "READY"
   | "SERVED"
+  | "OUT_FOR_DELIVERY"
+  | "DELIVERED"
   | "COMPLETED"
   | "CANCELLED";
+
+/** Channels fulfilled by a rider instead of table service. Kitchen
+ * aggregation caps these at READY — item-served events never auto-advance
+ * them; the dispatch flow owns OUT_FOR_DELIVERY → DELIVERED. */
+export const DISPATCH_CHANNELS: OrderChannel[] = ["delivery", "zomato", "swiggy", "own_online"];
 
 export type OrderItemSnapshot = {
   id: string;
@@ -73,6 +80,14 @@ export type RestaurantOrder = {
   customer_id?: string;
   customer_name?: string;
   customer_phone?: string;
+  /** Drop-address snapshot for dispatch channels — captured at order start
+   * (own-fleet delivery requires it), printed on the dispatch sheet. */
+  delivery_address_snapshot?: string;
+  /** Rider owning the run — set by assignRider, required before dispatch. */
+  rider_name?: string;
+  /** Fulfillment timestamps for the dispatch trail. */
+  dispatched_at?: string;
+  delivered_at?: string;
   /** Free-text customer notes — allergies, accessibility, special requests.
    * Captured at order start, printed on KOTs so the kitchen sees them. */
   customer_notes?: string;
@@ -152,6 +167,8 @@ export type CreateOrderInput = {
   customer_name?: string;
   customer_phone?: string;
   customer_notes?: string;
+  /** Drop address for own-fleet delivery — required when channel is delivery. */
+  delivery_address?: string;
   scheduled_for?: string;
   /** Staff-initiated creation (terminal, dashboard) bypasses the
    * scheduled-mode slot requirement — customer surfaces must pass a slot. */

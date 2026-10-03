@@ -64,7 +64,7 @@ sudo rm -rf apps/web/.next       # pure build cache, regenerates
 
 - `apps/web/certificates/local.{key,crt}` — mkcert CA-signed for
   `local.pixapos.store`, `*.local.pixapos.store`, `localhost`, `127.0.0.1`,
-  `10.99.120.225`; CA trusted in System keychain (`TrustRoot` for SSL).
+  `10.32.212.225`; CA trusted in System keychain (`TrustRoot` for SSL).
 - `lib/auth.ts` `trustedOrigins` covers localhost:3000 + local.pixapos.store.
 - `next.config.js` `allowedDevOrigins` covers the domain (HMR).
 - Google OAuth needs `https://local.pixapos.store/api/auth/callback/google`

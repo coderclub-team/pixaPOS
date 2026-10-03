@@ -69,6 +69,8 @@ const STATUSES: { value: OrderStatus | "all"; label: string }[] = [
   { value: "PREPARING", label: "Preparing" },
   { value: "READY", label: "Ready" },
   { value: "SERVED", label: "Served" },
+  { value: "OUT_FOR_DELIVERY", label: "Out for delivery" },
+  { value: "DELIVERED", label: "Delivered" },
   { value: "COMPLETED", label: "Completed" },
   { value: "CANCELLED", label: "Cancelled" },
 ];

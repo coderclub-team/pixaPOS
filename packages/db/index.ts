@@ -7,11 +7,13 @@ import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import * as schema from "./schema";
 import * as authSchema from "./auth-schema";
+import * as saasSchema from "./saas-schema";
 
 export * from "./schema";
 export * from "./auth-schema";
+export * from "./saas-schema";
 
-const fullSchema = { ...schema, ...authSchema };
+const fullSchema = { ...schema, ...authSchema, ...saasSchema };
 
 let cached: ReturnType<typeof drizzle<typeof fullSchema>> | null = null;
 
