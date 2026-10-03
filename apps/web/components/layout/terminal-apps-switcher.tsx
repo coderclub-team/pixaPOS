@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { useIdentity } from "@/hooks/use-identity";
 import { Icons } from "@pixa/ui/icons";
@@ -64,18 +64,24 @@ const SURFACES: Surface[] = [
 ];
 
 /**
- * Header app-switcher: the only sanctioned way back to the surface list
- * once inside a route. Launcher links and switches below all use
- * router.replace so browser Back never returns to `/`.
+ * Header app-switcher (dashboard only). From /dashboard, surfaces open in a
+ * new tab so the dashboard stays put; elsewhere this component isn't mounted
+ * and terminal shells stay exit-less.
  */
 export default function TerminalAppsSwitcher() {
   const router = useRouter();
+  const pathname = usePathname();
   const { user } = useIdentity();
   const [open, setOpen] = React.useState(false);
   const signedIn = Boolean(user);
 
   const go = (href: string) => {
     setOpen(false);
+    // Dashboard is the ops hub: open surfaces in a new tab, keep it open.
+    if (pathname?.startsWith("/dashboard")) {
+      window.open(href, "_blank", "noopener");
+      return;
+    }
     router.replace(href);
   };
 
@@ -97,8 +103,8 @@ export default function TerminalAppsSwitcher() {
         <DialogHeader>
           <DialogTitle>Switch surface</DialogTitle>
           <DialogDescription>
-            Jump to another operations surface. Switching replaces the current page — browser Back
-            won&apos;t return here.
+            Jump to another operations surface. From the dashboard, surfaces open in a new tab and
+            this page stays open.
           </DialogDescription>
         </DialogHeader>
         <ul className="grid max-h-[60dvh] grid-cols-1 gap-2 overflow-y-auto">
