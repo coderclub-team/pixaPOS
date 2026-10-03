@@ -6,6 +6,16 @@ layer(base);
 
 @custom-variant dark (&:is(.dark *));
 
+/* pixaPOS website palette (adobe.ly mosaic-P theme):
+ * blue #138AF2 · green #17BF71 · amber #F2A516 · orange #F2911B · red #F24949 */
+@theme {
+  --color-primary: #138af2;
+  --color-secondary: #17bf71;
+  --color-accent: #f2a516;
+  --color-warn: #f2911b;
+  --color-danger: #f24949;
+}
+
 body {
   font-family: "Inter", sans-serif;
   margin: 0;
