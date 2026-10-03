@@ -4,9 +4,9 @@ import { auth } from "@/lib/auth";
 import { readDeviceCookie, verifyDeviceToken } from "@/lib/device-token";
 
 // Session attach + app gates. Public paths: auth pages, API auth,
-// static assets. /dashboard, /kds, /pos and /kot require a Better Auth session
-// (all show live order and payment data — never anonymous). /kiosk stays
-// public by design (customer self-ordering).
+// static assets. /dashboard, /kds, /pos, /kot, /dispatch and /rider require a
+// Better Auth session (all show live order and payment data — never
+// anonymous). /kiosk stays public by design (customer self-ordering).
 //
 // Offline grace: when the session lookup THROWS (IdP/DB unreachable), a
 // valid pixa_device cookie (paired while online) keeps the app open instead
@@ -23,7 +23,10 @@ export async function middleware(request: NextRequest) {
     !pathname.startsWith("/dashboard") &&
     pathname !== "/kds" &&
     pathname !== "/pos" &&
-    pathname !== "/kot"
+    pathname !== "/kot" &&
+    pathname !== "/dispatch" &&
+    !pathname.startsWith("/dispatch/") &&
+    pathname !== "/rider"
   ) {
     return NextResponse.next();
   }

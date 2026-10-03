@@ -23,13 +23,15 @@
  * 500 into a permanent-looking stall. Offline testing happens on preview
  * builds.
  */
-const VERSION = "pwa-v2";
+const VERSION = "pwa-v4";
 const SHELL = [
   "/pos",
   "/kds",
   "/kiosk",
   "/qr",
   "/kot",
+  "/dispatch",
+  "/rider",
   "/icon.png",
   "/apple-icon.png",
   "/manifest.webmanifest",
@@ -37,6 +39,8 @@ const SHELL = [
   "/kds/manifest.webmanifest",
   "/kiosk/manifest.webmanifest",
   "/qr/manifest.webmanifest",
+  "/dispatch/manifest.webmanifest",
+  "/rider/manifest.webmanifest",
 ];
 
 function putOk(cache, request, res) {
@@ -83,6 +87,9 @@ function isShellNav(request, url) {
       url.pathname === "/kiosk" ||
       url.pathname === "/qr" ||
       url.pathname === "/kot" ||
+      url.pathname === "/dispatch" ||
+      url.pathname.startsWith("/dispatch/") ||
+      url.pathname === "/rider" ||
       url.pathname.startsWith("/dashboard/kitchen") ||
       url.pathname.startsWith("/dashboard"))
   );

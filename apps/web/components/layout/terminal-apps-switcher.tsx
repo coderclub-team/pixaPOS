@@ -47,6 +47,20 @@ const SURFACES: Surface[] = [
     gated: true,
   },
   {
+    href: "/dispatch",
+    title: "Dispatch console",
+    blurb: "Pack, assign riders, send out",
+    icon: "send",
+    gated: true,
+  },
+  {
+    href: "/rider",
+    title: "Rider",
+    blurb: "My assigned deliveries",
+    icon: "user",
+    gated: true,
+  },
+  {
     href: "/kot",
     title: "KOT",
     blurb: "Kitchen order tickets",

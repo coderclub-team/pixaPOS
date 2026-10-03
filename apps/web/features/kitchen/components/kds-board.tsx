@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
@@ -24,6 +24,7 @@ import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { formatAge } from "@/lib/utils";
 import { kitchenKeys, kitchenTicketsQueryOptions } from "@/features/kitchen/api/queries";
+import { ordersQueryOptions } from "@/features/orders/api/queries";
 import {
   acceptKOT,
   acceptKOTLine,
@@ -124,6 +125,16 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
   }
 
   const live = (tickets ?? []).filter((t) => t.status !== "SERVED" && t.status !== "CANCELLED");
+  // Rider names live on the order, not the ticket — one orders read builds
+  // the lookup so delivery cards can show who owns the run.
+  const ordersQuery = useQuery({ ...ordersQueryOptions(), staleTime: 15000 });
+  const riderByOrder = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const o of ordersQuery.data ?? []) {
+      if (o.rider_name?.trim()) map.set(o.id, o.rider_name.trim());
+    }
+    return map;
+  }, [ordersQuery.data]);
   const scoped = live.filter(
     (t) =>
       (filter === "ALL" || t.status === filter) && (channel === "ALL" || t.channel === channel),
@@ -285,7 +296,14 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
                     No tickets
                   </div>
                 ) : (
-                  col.map((t) => <TicketCard key={t.id} ticket={t} compact={compact} />)
+                  col.map((t) => (
+                    <TicketCard
+                      key={t.id}
+                      ticket={t}
+                      compact={compact}
+                      riderName={riderByOrder.get(t.order_id)}
+                    />
+                  ))
                 )}
               </div>
             );
@@ -294,7 +312,12 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           {scoped.map((t) => (
-            <TicketCard key={t.id} ticket={t} compact={compact} />
+            <TicketCard
+              key={t.id}
+              ticket={t}
+              compact={compact}
+              riderName={riderByOrder.get(t.order_id)}
+            />
           ))}
         </div>
       )}
@@ -311,9 +334,11 @@ function invalidateBoard() {
 function TicketCard({
   ticket: t,
   compact = false,
+  riderName,
 }: {
   ticket: KitchenTicketWithDerived;
   compact?: boolean;
+  riderName?: string;
 }) {
   const [voidOpen, setVoidOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -392,6 +417,11 @@ function TicketCard({
           {t.table_number_snapshot ? `Table ${t.table_number_snapshot} · ` : ""}
           <span className="capitalize">{t.channel.replace("_", " ")}</span> ·{" "}
           <span className="capitalize">{t.status.toLowerCase()}</span>
+          {riderName ? (
+            <span className="ml-1 inline-flex items-center gap-0.5 rounded-full bg-violet-100 px-1.5 py-px font-medium text-violet-700 dark:bg-violet-950 dark:text-violet-300">
+              {riderName}
+            </span>
+          ) : null}
         </p>
       </CardHeader>
       <CardContent className="flex min-h-0 flex-1 flex-col space-y-1">
