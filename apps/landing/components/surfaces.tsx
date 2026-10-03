@@ -38,21 +38,19 @@ const FEATURES = [
 
 export default function Surfaces() {
   return (
-    <section id="surfaces" className="pt-20 pb-8 lg:pt-[120px] lg:pb-[70px]">
+    <section id="surfaces" className="pt-20 pb-8 lg:pt-[120px] lg:pb-[70px] dark:bg-dark">
       <div className="container">
-        <div className="mb-[60px]">
-          <SectionTitle
-            subtitle="Six surfaces"
-            title="One subscription, every counter"
-            paragraph="Every surface reads the same order truth — online on the cloud, offline on your LAN."
-            center
-          />
-        </div>
-        <div className="-mx-4 flex flex-wrap">
+        <SectionTitle
+          subtitle="Features"
+          title="Main Features Of pixaPOS"
+          paragraph="There are many variations of passages of Lorem Ipsum available but the majority have suffered alteration in some form."
+        />
+
+        <div className="-mx-4 mt-12 flex flex-wrap lg:mt-20">
           {FEATURES.map((feature) => {
             const Icon = Icons[feature.icon];
             return (
-              <div key={feature.title} className="w-full px-4 md:w-1/2 lg:w-1/3">
+              <div key={feature.title} className="w-full px-4 md:w-1/2 lg:w-1/4">
                 <div className="group mb-12">
                   <div className="relative z-10 mb-8 flex h-[70px] w-[70px] items-center justify-center rounded-2xl bg-primary">
                     <span className="absolute top-0 left-0 z-[-1] mb-8 flex h-[70px] w-[70px] rotate-[25deg] items-center justify-center rounded-2xl bg-primary/20 duration-300 group-hover:rotate-45" />
@@ -68,7 +66,7 @@ export default function Surfaces() {
                     href={signUpUrl()}
                     className="text-base font-medium text-dark hover:text-primary dark:text-white dark:hover:text-primary"
                   >
-                    Try it free
+                    Learn More
                   </Link>
                 </div>
               </div>
