@@ -32,6 +32,9 @@ export default function Contact() {
                 <h2 className="max-w-[260px] text-[35px] leading-[1.14] font-semibold text-dark dark:text-white">
                   Let&apos;s talk about your restaurant.
                 </h2>
+                <p className="mt-4 max-w-[300px] text-base text-body-color dark:text-dark-6">
+                  Trial questions, pricing or onboarding — we reply within one business day.
+                </p>
               </div>
               <div className="mb-12 flex flex-wrap justify-between lg:mb-0">
                 <div className="mb-8 flex w-[330px] max-w-full">

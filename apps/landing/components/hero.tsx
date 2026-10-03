@@ -3,12 +3,7 @@ import { signUpUrl } from "@/lib/site";
 import { TRIAL_DAYS } from "@/lib/plans";
 import { Icons } from "@pixa/ui/icons";
 
-const SURFACE_LINKS = [
-  { label: "POS", href: "/#surfaces" },
-  { label: "KDS", href: "/#surfaces" },
-  { label: "Dispatch", href: "/#surfaces" },
-  { label: "Kiosk", href: "/#surfaces" },
-];
+const PLATFORMS = ["Windows", "Android", "iOS", "Web", "Counter tablets"];
 
 export default function Hero() {
   return (
@@ -52,17 +47,16 @@ export default function Hero() {
 
               <div>
                 <p className="mb-4 text-center text-base font-medium text-white/60">
-                  Six surfaces, one order truth
+                  pixaPOS is a PWA — install it on any platform
                 </p>
-                <div className="flex items-center justify-center gap-4 text-center">
-                  {SURFACE_LINKS.map((s) => (
-                    <Link
-                      key={s.label}
-                      href={s.href}
-                      className="rounded-md bg-white/10 px-4 py-2 text-sm font-medium text-white/80 duration-300 ease-in-out hover:bg-white hover:text-dark"
+                <div className="flex flex-wrap items-center justify-center gap-4 text-center">
+                  {PLATFORMS.map((platform) => (
+                    <span
+                      key={platform}
+                      className="rounded-md bg-white/10 px-4 py-2 text-sm font-medium text-white/80"
                     >
-                      {s.label}
-                    </Link>
+                      {platform}
+                    </span>
                   ))}
                 </div>
               </div>

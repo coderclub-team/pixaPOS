@@ -80,12 +80,37 @@ export default function Footer() {
           </div>
         </div>
       </div>
+
       <div className="border-t border-white/10">
         <div className="container">
-          <p className="py-4 text-center text-sm text-gray-7">
-            © 2026 pixaPOS · {TRIAL_DAYS}-day free trial · No credit card required
-          </p>
+          <div className="-mx-4 flex flex-wrap py-4">
+            <div className="w-full px-4 md:w-2/3 lg:w-1/2">
+              <p className="text-base text-gray-7">
+                © 2026 pixaPOS · {TRIAL_DAYS}-day free trial · No credit card required
+              </p>
+            </div>
+            <div className="w-full px-4 md:w-1/3 lg:w-1/2">
+              <div className="my-1 flex justify-center md:justify-end">
+                <p className="text-base text-gray-7">
+                  Local-first restaurant OS ·{" "}
+                  <Link href={signUpUrl()} className="text-gray-1 hover:underline">
+                    Start free
+                  </Link>
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
+      </div>
+
+      <div>
+        <span className="absolute top-0 left-0 z-[-1] aspect-[95/82] w-full max-w-[570px]">
+          <Image src="/shape-1.svg" alt="shape" fill />
+        </span>
+
+        <span className="absolute right-0 bottom-0 z-[-1] aspect-[31/22] w-full max-w-[372px]">
+          <Image src="/shape-3.svg" alt="shape" fill />
+        </span>
       </div>
     </footer>
   );
