@@ -79,7 +79,7 @@ export default async function HomePage() {
         </p>
         {!signedIn && (
           <div>
-            <Link href="/auth/sign-in" className={buttonVariants()}>
+            <Link href="/auth/sign-in" replace className={buttonVariants()}>
               <Icons.login className="size-4" aria-hidden />
               Sign in
             </Link>
@@ -122,6 +122,7 @@ export default async function HomePage() {
                   <CardContent>
                     <Link
                       href={locked ? "/auth/sign-in" : s.href}
+                      replace
                       aria-label={locked ? `${s.title} — sign in required` : `Open ${s.title}`}
                       className={cn(
                         buttonVariants({ variant: locked ? "secondary" : "outline" }),
