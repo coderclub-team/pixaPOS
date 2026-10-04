@@ -53,7 +53,8 @@ export async function middleware(request: NextRequest) {
     pathname !== "/kot" &&
     pathname !== "/dispatch" &&
     !pathname.startsWith("/dispatch/") &&
-    pathname !== "/rider"
+    pathname !== "/rider" &&
+    pathname !== "/onboarding"
   ) {
     return pass();
   }

@@ -9,9 +9,11 @@ export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000
 export const TRIAL_QUERY = "trial=14d";
 
 export function signUpUrl(plan?: string): string {
-  // In-landing registration first (restaurant profile + lead details),
-  // then handoff to the app with prefill params. See app/signup/page.tsx.
-  return plan ? `/signup?plan=${encodeURIComponent(plan)}` : "/signup";
+  // Direct to the app — no registration form on this site. The app reads
+  // trial/plan and routes new users through /onboarding.
+  const params = new URLSearchParams({ trial: "14d" });
+  if (plan) params.set("plan", plan);
+  return `${APP_URL}/auth/sign-up?${params.toString()}`;
 }
 
 export function signInUrl(): string {

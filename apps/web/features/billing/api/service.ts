@@ -40,14 +40,66 @@ function loadBilling(): void {
 loadBilling();
 
 /**
- * Fetch the organization subscription with its derived status. Null until the
- * first ensure (billing page calls ensure on mount). Legacy outlet-keyed rows
- * (pre-ADR-0021) are adopted once into the organization scope.
+ * Server trial truth (orgProfiles row written by /api/onboarding or admin
+ * approve). Returns the trial window when present; null offline or when the
+ * org predates server trials — callers fall back to localStorage.
+ */
+export async function getServerTrial(
+  organizationId: string,
+): Promise<{ trialEndsAt: string | null; plan: string; lifecycle: string } | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const res = await fetch(
+      `/api/billing/trial?organization_id=${encodeURIComponent(organizationId)}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      trial?: { trialEndsAt: string | null; plan: string; lifecycle: string } | null;
+    };
+    return data?.trial ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch the organization subscription with its derived status. Prefers the
+ * server trial row (orgProfiles) and adopts it into the local mirror, so the
+ * trial clock survives browser wipes; localStorage is the offline fallback.
  */
 export async function getSubscription(organizationId: string): Promise<SubscriptionView | null> {
   await delay(300);
   loadBilling();
   adoptLegacyRow(organizationId);
+  const server = await getServerTrial(organizationId);
+  if (server?.trialEndsAt) {
+    const trialStart = new Date(
+      new Date(server.trialEndsAt).getTime() - 14 * 86400 * 1000,
+    ).toISOString();
+    if (!mockSubscription || mockSubscription.organization_id !== organizationId) {
+      const now = new Date().toISOString();
+      mockSubscription = {
+        id: `sub_${Date.now().toString(36)}`,
+        organization_id: organizationId,
+        plan_id: "pixa_pro_monthly",
+        trial_started_at: trialStart,
+        cancel_at_period_end: false,
+        created_at: now,
+        updated_at: now,
+        version: 1,
+      };
+      saveBilling();
+    } else {
+      mockSubscription = {
+        ...mockSubscription,
+        trial_started_at: trialStart,
+        updated_at: new Date().toISOString(),
+      };
+      saveBilling();
+    }
+    return deriveSubscriptionView(mockSubscription);
+  }
   if (!mockSubscription || mockSubscription.organization_id !== organizationId) return null;
   return deriveSubscriptionView(mockSubscription);
 }
