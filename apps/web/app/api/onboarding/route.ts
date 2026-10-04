@@ -2,9 +2,17 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, baOrganization, baMember, orgProfiles } from "@pixa/db";
 import { baSession } from "@/lib/auth-session";
+import { indiaLockError } from "@/lib/geo";
 
 const uid = (p: string) =>
   `${p}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+
+/** Flatten a DB/driver failure into a short client-safe message. */
+function dbMessage(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  // Neon/drizzle errors carry detail after the first newline — keep one line.
+  return raw.split("\n")[0].slice(0, 220) || "database error";
+}
 
 function slugify(name: string): string {
   const base = name
@@ -58,6 +66,13 @@ export async function POST(req: Request) {
   const outletName = (body.outlet_name ?? "").trim();
   if (!businessName) return NextResponse.json({ error: "business name required" }, { status: 400 });
   if (!outletName) return NextResponse.json({ error: "initial outlet required" }, { status: 400 });
+  // India-only market gate (lift by deleting this block + client check).
+  const lockError = indiaLockError(
+    (body.country ?? "IN").trim() || "IN",
+    (body.currency ?? "INR").trim() || "INR",
+    (body.timezone ?? "Asia/Kolkata").trim() || "Asia/Kolkata",
+  );
+  if (lockError) return NextResponse.json({ error: lockError }, { status: 400 });
 
   const plan = ["starter", "growth", "scale", "trial"].includes((body.plan ?? "").trim())
     ? (body.plan as string).trim()
@@ -87,6 +102,7 @@ export async function POST(req: Request) {
   let slug = base;
   let orgId = "";
   let created = false;
+  let lastError: unknown = null;
   for (let attempt = 0; attempt < 5 && !created; attempt++) {
     slug = attempt === 0 ? base : `${base}-${attempt + 1}`;
     orgId = uid("org");
@@ -100,20 +116,28 @@ export async function POST(req: Request) {
         metadata: JSON.stringify(metadata),
       });
       created = true;
-    } catch {
-      if (attempt === 4) {
-        return NextResponse.json({ error: "could not create organization" }, { status: 500 });
-      }
+    } catch (e) {
+      lastError = e;
     }
   }
+  if (!created) {
+    return NextResponse.json(
+      { error: `could not create organization: ${dbMessage(lastError)}` },
+      { status: 500 },
+    );
+  }
 
-  await database.insert(baMember).values({
-    id: uid("mem"),
-    organizationId: orgId,
-    userId: user.id,
-    role: "admin",
-    createdAt: new Date(),
-  });
+  try {
+    await database.insert(baMember).values({
+      id: uid("mem"),
+      organizationId: orgId,
+      userId: user.id,
+      role: "admin",
+      createdAt: new Date(),
+    });
+  } catch (e) {
+    return NextResponse.json({ error: `could not link owner: ${dbMessage(e)}` }, { status: 500 });
+  }
 
   const existing = await database
     .select({ organizationId: orgProfiles.organizationId })
@@ -121,13 +145,17 @@ export async function POST(req: Request) {
     .where(eq(orgProfiles.organizationId, orgId))
     .limit(1);
   if (existing.length === 0) {
-    await database.insert(orgProfiles).values({
-      organizationId: orgId,
-      lifecycle: "trial",
-      plan,
-      trialEndsAt: new Date(Date.now() + 14 * 86400 * 1000),
-      ownerEmail: user.email ?? null,
-    });
+    try {
+      await database.insert(orgProfiles).values({
+        organizationId: orgId,
+        lifecycle: "trial",
+        plan,
+        trialEndsAt: new Date(Date.now() + 14 * 86400 * 1000),
+        ownerEmail: user.email ?? null,
+      });
+    } catch (e) {
+      return NextResponse.json({ error: `could not open trial: ${dbMessage(e)}` }, { status: 500 });
+    }
   }
 
   const res = NextResponse.json({ ok: true, organizationId: orgId, slug });

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useIdentity } from "@/hooks/use-identity";
 import { baOrgs } from "@/lib/auth-client";
 import { useAppForm } from "@/lib/form";
+import { INDIA, countryOptions, currencyOptions, indiaLockError, timeZoneOptions } from "@/lib/geo";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { FieldGroup } from "@pixa/ui/base-ui/field";
@@ -38,9 +39,9 @@ export default function OnboardingForm() {
   const form = useAppForm({
     defaultValues: {
       business_name: "",
-      currency: "INR",
-      country: "IN",
-      timezone: "Asia/Kolkata",
+      currency: INDIA.currency,
+      country: INDIA.country,
+      timezone: INDIA.timezone,
       outlet_name: "",
       outlet_address: "",
       outlets_count: "1",
@@ -56,6 +57,11 @@ export default function OnboardingForm() {
       }
       if (!value.outlet_name.trim()) {
         toast.error("Initial outlet name is required");
+        return;
+      }
+      const lockError = indiaLockError(value.country, value.currency, value.timezone);
+      if (lockError) {
+        toast.error(lockError);
         return;
       }
       const plan = (() => {
@@ -142,21 +148,26 @@ export default function OnboardingForm() {
               />
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <form.AppField
-                  name="currency"
+                  name="country"
                   children={(field) => (
-                    <field.TextField label="Currency" required placeholder="INR" />
+                    <field.SelectField
+                      label="Country"
+                      required
+                      options={countryOptions()}
+                      description="India only for now"
+                    />
                   )}
                 />
                 <form.AppField
-                  name="country"
+                  name="currency"
                   children={(field) => (
-                    <field.TextField label="Country" required placeholder="IN" />
+                    <field.SelectField label="Currency" required options={currencyOptions()} />
                   )}
                 />
                 <form.AppField
                   name="timezone"
                   children={(field) => (
-                    <field.TextField label="Timezone" required placeholder="Asia/Kolkata" />
+                    <field.SelectField label="Timezone" required options={timeZoneOptions()} />
                   )}
                 />
               </div>
