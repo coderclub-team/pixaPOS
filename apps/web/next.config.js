@@ -1,7 +1,6 @@
 /** minimal Next.js config for pixaPOS web */
 const nextConfig = {
   reactStrictMode: true,
-  distDir: ".next-local",
   transpilePackages: ["@pixa/ui", "@pixa/contracts", "@pixa/db"],
   // Local HTTPS aliases (local.pixapos.store, LAN IPs) must be allowed to
   // load dev HMR/assets — browsers treat them as cross-origin vs localhost.
