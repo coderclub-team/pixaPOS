@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { baUser } from "@/lib/auth-session";
 import { getOwnerSession } from "@/lib/saas-owner";
 import Header from "@/components/layout/header";
+import KBar from "@/components/kbar";
 import { SidebarInset, SidebarProvider } from "@pixa/ui/base-ui/sidebar";
 import AdminSidebar from "./admin-sidebar";
 
@@ -29,18 +30,20 @@ export default async function AdminConsoleLayout({ children }: { children: React
   const defaultOpen = cookieStore.get("sidebar_state")?.value === "true";
 
   return (
-    <SidebarProvider defaultOpen={defaultOpen}>
-      <a
-        href="#main-content"
-        className="bg-background ring-ring sr-only rounded-md px-3 py-2 text-sm font-medium shadow focus:not-sr-only focus:absolute focus:top-2 focus:start-2 focus:z-50 focus:ring-2"
-      >
-        Skip to content
-      </a>
-      <AdminSidebar ownerEmail={owner.email} />
-      <SidebarInset id="main-content" tabIndex={-1} className="scroll-mt-16">
-        <Header />
-        {children}
-      </SidebarInset>
-    </SidebarProvider>
+    <KBar>
+      <SidebarProvider defaultOpen={defaultOpen}>
+        <a
+          href="#main-content"
+          className="bg-background ring-ring sr-only rounded-md px-3 py-2 text-sm font-medium shadow focus:not-sr-only focus:absolute focus:top-2 focus:start-2 focus:z-50 focus:ring-2"
+        >
+          Skip to content
+        </a>
+        <AdminSidebar ownerEmail={owner.email} />
+        <SidebarInset id="main-content" tabIndex={-1} className="scroll-mt-16">
+          <Header />
+          {children}
+        </SidebarInset>
+      </SidebarProvider>
+    </KBar>
   );
 }
