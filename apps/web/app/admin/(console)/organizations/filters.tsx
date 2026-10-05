@@ -68,7 +68,7 @@ export function OrgFilters() {
 
 export function ReviewRegistrationsButton() {
   return (
-    <Button render={<Link href="/admin/leads" />}>
+    <Button nativeButton={false} render={<Link href="/admin/leads" />}>
       Review registrations
       <Icons.arrowRight className="size-3.5" aria-hidden />
     </Button>

@@ -132,6 +132,7 @@ function Home({
             <Button
               variant="link"
               size="sm"
+              nativeButton={false}
               render={<Link href="/admin/leads" />}
               className="mt-3 px-0"
             >

@@ -130,6 +130,7 @@ export default async function OrgsPage({ searchParams }: { searchParams: Promise
                     <Button
                       variant="ghost"
                       size="sm"
+                      nativeButton={false}
                       render={<Link href={`/admin/organizations/${o.id}`} />}
                     >
                       Open

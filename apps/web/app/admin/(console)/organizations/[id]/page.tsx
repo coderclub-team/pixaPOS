@@ -54,6 +54,7 @@ export default async function OrgDetail({ params }: { params: Promise<{ id: stri
       <Button
         variant="ghost"
         size="sm"
+        nativeButton={false}
         render={<Link href="/admin/organizations" />}
         className="px-0"
       >

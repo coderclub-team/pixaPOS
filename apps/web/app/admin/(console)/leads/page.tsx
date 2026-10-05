@@ -112,7 +112,12 @@ async function fetchLeads() {
 
 function FilterPill({ href, active, label }: { href: string; active: boolean; label: string }) {
   return (
-    <Button variant={active ? "default" : "outline"} size="sm" render={<Link href={href} />}>
+    <Button
+      nativeButton={false}
+      variant={active ? "default" : "outline"}
+      size="sm"
+      render={<Link href={href} />}
+    >
       <span className="capitalize">{label}</span>
     </Button>
   );

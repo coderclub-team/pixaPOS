@@ -40,7 +40,7 @@ export default async function AdminConsoleLayout({ children }: { children: React
         </a>
         <AdminSidebar ownerEmail={owner.email} />
         <SidebarInset id="main-content" tabIndex={-1} className="scroll-mt-16">
-          <Header />
+          <Header showSurfaceSwitcher={false} />
           {children}
         </SidebarInset>
       </SidebarProvider>
