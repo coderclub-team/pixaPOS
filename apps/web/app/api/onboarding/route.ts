@@ -74,7 +74,7 @@ export async function POST(req: Request) {
   );
   if (lockError) return NextResponse.json({ error: lockError }, { status: 400 });
 
-  const plan = ["starter", "growth", "scale", "trial"].includes((body.plan ?? "").trim())
+  const plan = ["starter", "growth", "custom", "scale", "trial"].includes((body.plan ?? "").trim())
     ? (body.plan as string).trim()
     : "starter";
 

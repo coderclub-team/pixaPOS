@@ -22,9 +22,11 @@ export type Plan = {
   id: string;
   name: string;
   tagline: string;
-  monthly_paise: number | null; // null = custom (Scale)
+  monthly_paise: number | null; // null = custom (talk to sales)
   annual_discount_pct: number;
   cta: string;
+  /** Optional CTA override — e.g. Custom plan goes to contact, not signup. */
+  ctaHref?: string;
   featured?: boolean;
   features: string[];
 };
@@ -50,7 +52,7 @@ export const PLANS: Plan[] = [
   {
     id: "growth",
     name: "Growth",
-    tagline: "Multi-counter restaurants that deliver.",
+    tagline: "For growing restaurants, chains & branches.",
     monthly_paise: 199900,
     annual_discount_pct: 20,
     cta: "Start 14-day free trial",
@@ -58,6 +60,8 @@ export const PLANS: Plan[] = [
     features: [
       "Per outlet · unlimited registers",
       "Everything in Starter",
+      "Multi-outlet dashboard & reports",
+      "Central menu, pricing & tax control",
       "Kiosk, QR ordering, dispatch console",
       "Inventory, batches & wastage",
       "Promos, rewards, customers",
@@ -66,19 +70,20 @@ export const PLANS: Plan[] = [
     ],
   },
   {
-    id: "scale",
-    name: "Scale",
-    tagline: "Chains and franchises.",
+    id: "custom",
+    name: "Custom",
+    tagline: "Volume pricing for large chains & franchises.",
     monthly_paise: null,
     annual_discount_pct: 20,
     cta: "Talk to sales",
+    ctaHref: "/#contact",
     features: [
       "Everything in Growth",
-      "Multi-outlet management",
-      "Roles, audit trail, SSO",
-      "API access + webhooks",
-      "Onboarding + training",
-      "Dedicated manager",
+      "Volume pricing for 5+ outlets",
+      "Franchise & head-office controls",
+      "SSO, audit trail, API access",
+      "Dedicated onboarding manager",
+      "SLA + priority support",
     ],
   },
 ];

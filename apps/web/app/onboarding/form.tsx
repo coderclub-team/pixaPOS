@@ -69,7 +69,7 @@ export default function OnboardingForm() {
           const m = document.cookie.match(/(?:^|; )pixa_funnel=([^;]*)/);
           const funnel = m ? JSON.parse(decodeURIComponent(m[1])) : {};
           const p = String(funnel.plan ?? "").trim();
-          return ["starter", "growth", "scale", "trial"].includes(p) ? p : "starter";
+          return ["starter", "growth", "custom", "scale", "trial"].includes(p) ? p : "starter";
         } catch {
           return "starter";
         }

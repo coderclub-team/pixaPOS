@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { signUpUrl } from "@/lib/site/site";
-import { PLANS, TRIAL_DAYS, planPrice, type BillingCycle } from "@/lib/site/plans";
+import { PLANS, TRIAL_DAYS, formatINR, planPrice, type BillingCycle } from "@/lib/site/plans";
 import SectionTitle from "@/components/site/section-title";
 import { cn } from "@pixa/ui/lib/utils";
 
@@ -58,7 +58,9 @@ export default function Pricing() {
                   <span className="mb-5 block text-xl font-medium text-dark dark:text-white">
                     {plan.name}
                   </span>
-                  <h2 className="mb-11 text-4xl font-semibold text-dark xl:text-[42px] xl:leading-[1.21] dark:text-white">
+                  {/* min-h keeps the Features heading aligned across cards:
+                      Custom/Free render one line, paid prices wrap to two. */}
+                  <h2 className="mb-11 flex min-h-[104px] flex-col justify-center text-4xl font-semibold text-dark xl:text-[42px] xl:leading-[1.21] dark:text-white">
                     {price == null ? (
                       "Custom"
                     ) : price === 0 ? (
@@ -70,13 +72,11 @@ export default function Pricing() {
                       </span>
                     ) : (
                       <span>
-                        <span className="text-xl font-medium">₹ </span>
-                        <span className="-ml-1 -tracking-[2px]">
-                          {(price / 100).toLocaleString("en-IN")}
-                        </span>
+                        <span className="text-xl font-medium">{formatINR(price).slice(0, 1)} </span>
+                        <span className="-ml-1 -tracking-[2px]">{formatINR(price).slice(1)}</span>
                         <span className="text-base font-normal text-body-color dark:text-dark-6">
                           {" "}
-                          / outlet / mo{cycle === "annual" ? ", billed annually" : ""}
+                          / outlet / month{cycle === "annual" ? ", billed annually" : ""}
                         </span>
                       </span>
                     )}
@@ -97,7 +97,7 @@ export default function Pricing() {
                   </div>
                   <div className="w-full">
                     <Link
-                      href={signUpUrl(plan.id)}
+                      href={plan.ctaHref ?? signUpUrl(plan.id)}
                       className="inline-block cursor-pointer rounded-md bg-primary px-7 py-3 text-center text-base font-medium text-white transition duration-300 hover:bg-primary/90"
                     >
                       {plan.cta}
