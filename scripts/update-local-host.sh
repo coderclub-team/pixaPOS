@@ -100,7 +100,7 @@ $SUDO mkdir -p "$DNSMASQ_DIR"
 $SUDO tee "$DNSMASQ_CONF" >/dev/null <<EOF
 # pixaPOS local development
 
-# Resolve local.pixapos.store and all subdomains
+# Resolve only the exact local.pixapos.store host
 # to this Mac's current LAN IP.
 address=/${DOMAIN}/${LOCAL_IP}
 

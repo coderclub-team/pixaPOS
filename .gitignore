@@ -4,6 +4,7 @@
 # Build outputs
 .next/
 .next-local/
+out/
 dist/
 build/
 .turbo/
