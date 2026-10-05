@@ -81,20 +81,44 @@ export default function Footer() {
         </div>
       </div>
 
-      <div className="border-t border-white/10">
+      <div className="mt-12 border-t border-white/10 py-8 lg:mt-[60px]">
         <div className="container">
-          <div className="-mx-4 flex flex-wrap py-4">
+          <div className="-mx-4 flex flex-wrap">
             <div className="w-full px-4 md:w-2/3 lg:w-1/2">
-              <p className="text-base text-gray-7">
-                © 2026 pixaPOS · {TRIAL_DAYS}-day free trial · No credit card required
-              </p>
+              <div className="my-1">
+                <div className="-mx-3 flex items-center justify-center md:justify-start">
+                  <Link
+                    href="/#pricing"
+                    className="px-3 text-base text-gray-7 hover:text-white hover:underline"
+                  >
+                    Pricing
+                  </Link>
+                  <Link
+                    href="/#faq"
+                    className="px-3 text-base text-gray-7 hover:text-white hover:underline"
+                  >
+                    FAQ
+                  </Link>
+                  <Link
+                    href={signUpUrl()}
+                    className="px-3 text-base text-gray-7 hover:text-white hover:underline"
+                  >
+                    Terms of service
+                  </Link>
+                </div>
+              </div>
             </div>
             <div className="w-full px-4 md:w-1/3 lg:w-1/2">
               <div className="my-1 flex justify-center md:justify-end">
                 <p className="text-base text-gray-7">
-                  Local-first restaurant OS ·{" "}
-                  <Link href={signUpUrl()} className="text-gray-1 hover:underline">
-                    Start free
+                  Designed and Developed by{" "}
+                  <Link
+                    href="https://tailgrids.com"
+                    rel="nofollow noopner noreferrer"
+                    target="_blank"
+                    className="text-gray-1 hover:underline"
+                  >
+                    TailGrids and Next.js Templates
                   </Link>
                 </p>
               </div>
