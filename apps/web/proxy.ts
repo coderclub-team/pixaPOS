@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { readDeviceCookie, verifyDeviceToken } from "@/lib/device-token";
+import { resolveSurfaceRoute } from "@/lib/hosts";
 
 // Session attach + app gates. Public paths: auth pages, API auth,
 // static assets. /dashboard, /kds, /pos, /kot, /dispatch and /rider require a
@@ -15,26 +16,17 @@ import { readDeviceCookie, verifyDeviceToken } from "@/lib/device-token";
 const PUBLIC_PREFIXES = ["/auth/", "/api/auth/"];
 
 /**
- * Subdomain → surface mapping (multi-subdomain architecture:
- * kds/kiosk/kot/order/captain all serve the web app with `/` rewritten to
- * their surface; www/admin are separate Vercel projects). Localhost and the
- * apex/app domains keep default routing.
+ * Hostname routing (single-app multi-subdomain — see lib/hosts.ts).
+ * Only the bare surface root rewrites — deep links, assets and API keep
+ * working untouched on every subdomain. Gating below runs on the rewritten
+ * pathname, so surface hosts can never bypass session checks.
  */
-const SURFACE_HOSTS: Record<string, string> = {
-  "kds.pixapos.store": "/kds",
-  "kiosk.pixapos.store": "/kiosk",
-  "kot.pixapos.store": "/kot",
-  "order.pixapos.store": "/qr",
-  "captain.pixapos.store": "/pos",
-};
-
 export async function middleware(request: NextRequest) {
-  const host = request.headers.get("host")?.split(":")[0] ?? "";
-  const surface = SURFACE_HOSTS[host];
+  const host = request.headers.get("host") ?? "";
+  const route = resolveSurfaceRoute(host);
   let { pathname } = request.nextUrl;
-  // Only the bare surface root rewrites — deep links, assets and API
-  // keep working untouched on every subdomain.
-  const rewritten = surface && pathname === "/" ? surface : null;
+  // A "/" route is a no-op (apex/www serve `/` natively) — skip the rewrite.
+  const rewritten = route && route !== "/" && pathname === "/" ? route : null;
   if (rewritten) pathname = rewritten;
   // Pass-through that honors a pending surface rewrite.
   const pass = () => {
