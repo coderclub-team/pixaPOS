@@ -60,68 +60,6 @@ importers:
         specifier: 5.7.2
         version: 5.7.2
 
-  apps/admin:
-    dependencies:
-      '@pixa/db':
-        specifier: workspace:*
-        version: link:../../packages/db
-      '@pixa/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      '@pixa/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
-      '@tailwindcss/postcss':
-        specifier: ^4.2.2
-        version: 4.3.3
-      drizzle-orm:
-        specifier: ^0.45.2
-        version: 0.45.2(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(kysely@0.29.6)(pg@8.23.0)
-      next:
-        specifier: 16.2.12
-        version: 16.2.12(@babel/core@7.29.7(supports-color@8.1.1))(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      react:
-        specifier: 19.2.4
-        version: 19.2.4
-      react-dom:
-        specifier: 19.2.4
-        version: 19.2.4(react@19.2.4)
-      tailwindcss:
-        specifier: ^4.2.2
-        version: 4.3.3
-    devDependencies:
-      postcss:
-        specifier: 8.5.25
-        version: 8.5.25
-
-  apps/landing:
-    dependencies:
-      '@pixa/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
-      '@tailwindcss/postcss':
-        specifier: ^4.2.2
-        version: 4.3.3
-      next:
-        specifier: 16.2.12
-        version: 16.2.12(@babel/core@7.29.7(supports-color@8.1.1))(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      react:
-        specifier: 19.2.4
-        version: 19.2.4
-      react-dom:
-        specifier: 19.2.4
-        version: 19.2.4(react@19.2.4)
-      tailgrids:
-        specifier: ^2.4.0
-        version: 2.4.0
-      tailwindcss:
-        specifier: ^4.2.2
-        version: 4.3.3
-    devDependencies:
-      postcss:
-        specifier: 8.5.25
-        version: 8.5.25
-
   apps/mobile:
     dependencies:
       '@pixa/ui':
@@ -351,6 +289,9 @@ importers:
       '@better-auth-ui/react':
         specifier: ^1.7.23
         version: 1.7.23(6d9cd66f3505d4be4c23c06604e1d378)
+      '@neondatabase/serverless':
+        specifier: ^1.1.0
+        version: 1.1.0
       '@pixa/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

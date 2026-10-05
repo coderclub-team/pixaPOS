@@ -40,6 +40,7 @@ export async function middleware(request: NextRequest) {
   }
   if (
     !pathname.startsWith("/dashboard") &&
+    !pathname.startsWith("/admin") &&
     pathname !== "/kds" &&
     pathname !== "/pos" &&
     pathname !== "/kot" &&
