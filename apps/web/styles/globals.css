@@ -19,15 +19,25 @@ layer(base);
 
 @import "@pixa/ui/themes/theme.css";
 
-/* Marketing site theme (moved from apps/landing): mosaic-P palette scoped
- * under .site-theme so the POS app theme is untouched — nearer-ancestor
- * inheritance makes these win inside marketing pages only. */
-.site-theme {
-  --color-primary: #138af2;
-  --color-secondary: #17bf71;
-  --color-accent: #f2a516;
+/* Brand token for marketing-only utilities (bg-warn/text-warn). Only the
+ * landing uses warn classes, so a global token is safe. */
+@theme {
   --color-warn: #f2911b;
-  --color-danger: #f24949;
+}
+
+/* Marketing site theme (moved from apps/landing): mosaic-P palette scoped
+ * under .site-theme so the POS app theme is untouched. Utilities like
+ * bg-primary resolve via var(--primary), so the brand colors must override
+ * THOSE names — nearer-ancestor inheritance makes them win inside marketing
+ * pages only, in both light and dark mode (the template keeps one palette).
+ * The dark: variants already in the components handle dark surfaces. */
+.site-theme {
+  --primary: #138af2;
+  --primary-foreground: #ffffff;
+  --secondary: #17bf71;
+  --secondary-foreground: #ffffff;
+  --accent: #f2a516;
+  --accent-foreground: #ffffff;
   font-family: "Inter", sans-serif;
   scroll-behavior: smooth;
 }
