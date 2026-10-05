@@ -38,7 +38,7 @@ const FEATURES = [
 
 export default function Surfaces() {
   return (
-    <section id="surfaces" className="pt-20 pb-8 lg:pt-[120px] lg:pb-[70px]">
+    <section id="surfaces" className="pt-20 pb-8 lg:pt-[120px] lg:pb-[70px] dark:bg-dark">
       <div className="container">
         <SectionTitle
           subtitle="Features"
@@ -56,11 +56,15 @@ export default function Surfaces() {
                     <span className="absolute top-0 left-0 z-[-1] mb-8 flex h-[70px] w-[70px] rotate-[25deg] items-center justify-center rounded-2xl bg-primary/20 duration-300 group-hover:rotate-45" />
                     <Icon className="size-8 text-white" aria-hidden />
                   </div>
-                  <h3 className="mb-3 text-xl font-bold text-dark">{feature.title}</h3>
-                  <p className="mb-8 text-body-color lg:mb-11">{feature.paragraph}</p>
+                  <h3 className="mb-3 text-xl font-bold text-dark dark:text-white">
+                    {feature.title}
+                  </h3>
+                  <p className="mb-8 text-body-color lg:mb-11 dark:text-dark-6">
+                    {feature.paragraph}
+                  </p>
                   <Link
                     href={signUpUrl()}
-                    className="text-base font-medium text-dark hover:text-primary"
+                    className="text-base font-medium text-dark hover:text-primary dark:text-white dark:hover:text-primary"
                   >
                     Learn More
                   </Link>

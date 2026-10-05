@@ -37,10 +37,10 @@ function FaqItem({ question, answer }: { question: string; answer: string }) {
         ?
       </div>
       <div className="w-full">
-        <h3 className="mb-6 text-xl font-semibold text-dark sm:text-2xl lg:text-xl xl:text-2xl">
+        <h3 className="mb-6 text-xl font-semibold text-dark sm:text-2xl lg:text-xl xl:text-2xl dark:text-white">
           {question}
         </h3>
-        <p className="text-base text-body-color">{answer}</p>
+        <p className="text-base text-body-color dark:text-dark-6">{answer}</p>
       </div>
     </div>
   );
@@ -50,7 +50,7 @@ export default function Faq() {
   return (
     <section
       id="faq"
-      className="relative z-20 overflow-hidden bg-white pt-20 pb-8 lg:pt-[120px] lg:pb-[50px]"
+      className="relative z-20 overflow-hidden bg-white pt-20 pb-8 lg:pt-[120px] lg:pb-[50px] dark:bg-dark"
     >
       <div className="container">
         <SectionTitle

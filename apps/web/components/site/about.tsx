@@ -3,16 +3,16 @@ import { signUpUrl } from "@/lib/site/site";
 
 export default function About() {
   return (
-    <section id="about" className="bg-gray-1 pt-20 pb-8 lg:pt-[120px] lg:pb-[70px]">
+    <section id="about" className="bg-gray-1 pt-20 pb-8 lg:pt-[120px] lg:pb-[70px] dark:bg-dark-2">
       <div className="container">
         <div>
           <div className="-mx-4 flex flex-wrap items-center">
             <div className="w-full px-4 lg:w-1/2">
               <div className="mb-12 max-w-[540px] lg:mb-0">
-                <h2 className="mb-5 text-3xl leading-tight font-bold text-dark sm:text-[40px] sm:leading-[1.2]">
+                <h2 className="mb-5 text-3xl leading-tight font-bold text-dark sm:text-[40px] sm:leading-[1.2] dark:text-white">
                   Brilliant Toolkit to Run Restaurant Businesses.
                 </h2>
-                <p className="mb-10 text-base leading-relaxed text-body-color">
+                <p className="mb-10 text-base leading-relaxed text-body-color dark:text-dark-6">
                   The main thrust is to focus on educating attendees on how to best protect highly
                   vulnerable business applications with interactive panel discussions and
                   roundtables led by subject matter experts.
@@ -42,9 +42,9 @@ export default function About() {
 
                 <div className="w-full px-2 sm:w-1/2 sm:px-4 lg:px-2 xl:px-4">
                   <div className="relative mb-4 sm:mb-8 sm:h-[220px] md:h-[346px] lg:mb-4 lg:h-[225px] xl:mb-8 xl:h-[310px]">
-                    <div className="flex h-full w-full flex-col justify-end rounded-xl bg-dark p-6">
-                      <p className="text-2xl font-bold text-white">KDS Wallboard</p>
-                      <p className="text-white/70">Tickets, lines, timers</p>
+                    <div className="flex h-full w-full flex-col justify-end rounded-xl bg-dark p-6 dark:bg-white">
+                      <p className="text-2xl font-bold text-white dark:text-dark">KDS Wallboard</p>
+                      <p className="text-white/70 dark:text-dark/70">Tickets, lines, timers</p>
                     </div>
                   </div>
 

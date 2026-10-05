@@ -31,7 +31,7 @@ const POSTS = [
 
 export default function BlogSection() {
   return (
-    <section className="bg-white pt-20 pb-10 lg:pt-[120px] lg:pb-20">
+    <section className="bg-white pt-20 pb-10 lg:pt-[120px] lg:pb-20 dark:bg-dark">
       <div className="container mx-auto">
         <div className="mb-[60px]">
           <SectionTitle
@@ -65,12 +65,12 @@ export default function BlogSection() {
                   <h3>
                     <Link
                       href={signUpUrl()}
-                      className="mb-4 inline-block text-xl font-semibold text-dark hover:text-primary sm:text-2xl lg:text-xl xl:text-2xl"
+                      className="mb-4 inline-block text-xl font-semibold text-dark hover:text-primary sm:text-2xl lg:text-xl xl:text-2xl dark:text-white dark:hover:text-primary"
                     >
                       {blog.title}
                     </Link>
                   </h3>
-                  <p className="text-base text-body-color">{blog.excerpt}</p>
+                  <p className="text-base text-body-color dark:text-dark-6">{blog.excerpt}</p>
                 </div>
               </div>
             </div>

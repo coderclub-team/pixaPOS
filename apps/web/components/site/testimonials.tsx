@@ -29,7 +29,7 @@ const QUOTES = [
 
 export default function Testimonials() {
   return (
-    <section id="customers" className="bg-white pt-20 pb-10 lg:pt-[120px] lg:pb-20">
+    <section id="customers" className="bg-white pt-20 pb-10 lg:pt-[120px] lg:pb-20 dark:bg-dark">
       <div className="container mx-auto">
         <div className="mb-[60px]">
           <SectionTitle
@@ -63,12 +63,12 @@ export default function Testimonials() {
                   <h3>
                     <Link
                       href={signUpUrl()}
-                      className="mb-4 inline-block text-xl font-semibold text-dark hover:text-primary sm:text-2xl lg:text-xl xl:text-2xl"
+                      className="mb-4 inline-block text-xl font-semibold text-dark hover:text-primary sm:text-2xl lg:text-xl xl:text-2xl dark:text-white dark:hover:text-primary"
                     >
                       {t.name}
                     </Link>
                   </h3>
-                  <p className="text-base text-body-color">{t.content}</p>
+                  <p className="text-base text-body-color dark:text-dark-6">{t.content}</p>
                 </div>
               </div>
             </div>
