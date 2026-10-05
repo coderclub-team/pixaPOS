@@ -38,9 +38,17 @@ export async function middleware(request: NextRequest) {
   if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) {
     return pass();
   }
+  // Owner login must stay reachable anonymously (it redirects to /admin
+  // itself when an owner session already exists). The rest of /admin* is
+  // NOT gated here on a restaurant session: the owner console authenticates
+  // on its own isolated plane (pixa_owner cookie, checked per-request in
+  // the console layout and requireOwnerApi). Never treat a restaurant
+  // session as owner proof, and never accept a device cookie for admin.
+  if (pathname === "/admin/login" || pathname.startsWith("/admin")) {
+    return pass();
+  }
   if (
     !pathname.startsWith("/dashboard") &&
-    !pathname.startsWith("/admin") &&
     pathname !== "/kds" &&
     pathname !== "/pos" &&
     pathname !== "/kot" &&
@@ -55,15 +63,19 @@ export async function middleware(request: NextRequest) {
     // If the client disconnects mid-lookup (reload / navigation during a
     // cold session check), stop waiting and end the request — otherwise the
     // dev server turns the write-after-abort into an uncaught ECONNRESET.
-    const aborted = new Promise<null>((resolve) => {
-      if (request.signal.aborted) resolve(null);
-      else request.signal.addEventListener("abort", () => resolve(null), { once: true });
+    const ABORTED = Symbol("aborted");
+    const aborted = new Promise<typeof ABORTED>((resolve) => {
+      if (request.signal.aborted) resolve(ABORTED);
+      else request.signal.addEventListener("abort", () => resolve(ABORTED), { once: true });
     });
     const session = await Promise.race([
       auth.api.getSession({ headers: request.headers }),
       aborted,
     ]);
-    if (session === null) return new Response(null, { status: 499 });
+    // Client went away mid-lookup: end it quietly (499 = client closed).
+    // NOTE: anonymous getSession ALSO resolves null — only the sentinel
+    // means aborted, so missing sessions still fall through to sign-in below.
+    if (session === ABORTED) return new Response(null, { status: 499 });
     if (!session?.user) {
       const url = request.nextUrl.clone();
       url.pathname = "/auth/sign-in";
@@ -71,7 +83,8 @@ export async function middleware(request: NextRequest) {
     }
     return pass();
   } catch {
-    // Session store unreachable (offline): honor a paired device session.
+    // Session store unreachable: honor a paired device session (POS
+    // surfaces only — /admin* never reaches here; it passed through above).
     const raw = readDeviceCookie(request.headers.get("cookie"));
     if (raw) {
       const claims = await verifyDeviceToken(raw);

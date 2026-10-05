@@ -49,7 +49,7 @@ export default async function OrgsPage({ searchParams }: { searchParams: Promise
           </p>
         </div>
         <a
-          href="/leads"
+          href="/admin/leads"
           className="rounded-lg bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
         >
           Review registrations

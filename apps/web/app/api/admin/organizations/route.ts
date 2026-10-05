@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { desc } from "drizzle-orm";
 import { adminDb } from "@/lib/saas-admin";
+import { requireOwnerApi } from "@/lib/saas-owner";
 import { baMember, baOrganization, orgProfiles } from "@pixa/db";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const auth = await requireOwnerApi(["orgs:read"]);
+  if ("response" in auth) return auth.response;
   try {
     const db = adminDb();
     const orgs = await db

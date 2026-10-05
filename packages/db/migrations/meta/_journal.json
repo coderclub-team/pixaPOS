@@ -36,6 +36,13 @@
       "when": 1791081852380,
       "tag": "0004_red_moondragon",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791202607435,
+      "tag": "0005_condemned_sphinx",
+      "breakpoints": true
     }
   ]
 }

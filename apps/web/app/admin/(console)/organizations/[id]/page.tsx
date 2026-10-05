@@ -1,7 +1,14 @@
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { adminDb } from "@/lib/saas-admin";
-import { baInvitation, baMember, baOrganization, orgProfiles, saasAudit } from "@pixa/db";
+import {
+  baInvitation,
+  baMember,
+  baOrganization,
+  orgProfiles,
+  saasAudit,
+  saasPlans,
+} from "@pixa/db";
 import { LifecycleBadge } from "../page";
 import { OrgActions } from "./actions";
 
@@ -12,7 +19,8 @@ export default async function OrgDetail({ params }: { params: Promise<{ id: stri
   let org,
     profile,
     members: unknown[] = [],
-    invites: unknown[] = [];
+    invites: unknown[] = [],
+    plans: { id: string; name: string }[] = [];
   try {
     const db = adminDb();
     const rows = await db.select().from(baOrganization).where(eq(baOrganization.id, id));
@@ -22,6 +30,9 @@ export default async function OrgDetail({ params }: { params: Promise<{ id: stri
       (await db.select().from(orgProfiles).where(eq(orgProfiles.organizationId, id)))[0] ?? null;
     members = await db.select().from(baMember).where(eq(baMember.organizationId, id));
     invites = await db.select().from(baInvitation).where(eq(baInvitation.organizationId, id));
+    plans = (await db.select({ id: saasPlans.id, name: saasPlans.name }).from(saasPlans)).map(
+      (p) => ({ id: p.id, name: p.name }),
+    );
   } catch {
     return (
       <div className="rounded-xl border bg-white p-8 text-sm">
@@ -35,7 +46,7 @@ export default async function OrgDetail({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="space-y-5">
-      <a href="/organizations" className="text-sm text-zinc-600 hover:underline">
+      <a href="/admin/organizations" className="text-sm text-zinc-600 hover:underline">
         ← All organisations
       </a>
       <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-white p-5">
@@ -51,7 +62,7 @@ export default async function OrgDetail({ params }: { params: Promise<{ id: stri
             </span>
           </div>
         </div>
-        <OrgActions id={org!.id} profile={profile} />
+        <OrgActions id={org!.id} profile={profile} plans={plans} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">

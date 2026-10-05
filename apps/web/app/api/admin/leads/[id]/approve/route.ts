@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { adminDb, uid } from "@/lib/saas-admin";
-import { baMember, baOrganization, baUser, orgProfiles, saasAudit, saasLeads } from "@pixa/db";
+import { auditOwnerAction, requireOwnerApi } from "@/lib/saas-owner";
+import { baMember, baOrganization, baUser, orgProfiles, saasLeads } from "@pixa/db";
 
 function slugify(s: string) {
   return (
@@ -15,6 +16,8 @@ function slugify(s: string) {
 
 /** Approve a website lead → Better Auth org + owner member + trial profile (idempotent). */
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireOwnerApi(["leads:write"]);
+  if ("response" in auth) return auth.response;
   const { id } = await params;
   try {
     const db = adminDb();
@@ -85,13 +88,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         updatedAt: new Date(),
       })
       .where(eq(saasLeads.id, id));
-    await db.insert(saasAudit).values({
-      id: uid("audit"),
-      entityType: "organization",
-      entityId: orgId,
-      action: "ORG_CREATED_FROM_LEAD",
-      detail: `${lead.businessName} <${lead.email}>`,
-    });
+    await auditOwnerAction(
+      auth.owner,
+      "organization",
+      orgId,
+      "ORG_CREATED_FROM_LEAD",
+      `${lead.businessName} <${lead.email}>`,
+    );
     return NextResponse.json({ ok: true, organizationId: orgId });
   } catch (e) {
     return NextResponse.json(

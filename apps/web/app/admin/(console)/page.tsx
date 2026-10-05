@@ -113,7 +113,7 @@ function Home({
             </ul>
           )}
           <a
-            href="/leads"
+            href="/admin/leads"
             className="mt-3 inline-block text-sm font-medium underline underline-offset-2"
           >
             Open pipeline →
@@ -131,14 +131,14 @@ function Home({
             </li>
             <li>
               Triage{" "}
-              <a className="underline" href="/leads">
+              <a className="underline" href="/admin/leads">
                 registrations
               </a>{" "}
               → Approve creates the org + 14-day trial.
             </li>
             <li>
               Manage lifecycle on each{" "}
-              <a className="underline" href="/organizations">
+              <a className="underline" href="/admin/organizations">
                 organisation
               </a>{" "}
               (suspend blocks login via profile check).

@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { desc } from "drizzle-orm";
 import { adminDb, uid } from "@/lib/saas-admin";
+import { auditOwnerAction, leadIntakeAllowed, requireOwnerApi } from "@/lib/saas-owner";
 import { saasAudit, saasLeads } from "@pixa/db";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function GET() {
+  const auth = await requireOwnerApi(["leads:read"]);
+  if ("response" in auth) return auth.response;
   try {
     const rows = await adminDb()
       .select()
@@ -18,8 +21,13 @@ export async function GET() {
   }
 }
 
-/** Public website registration → lead row. Rate-limit at the edge/proxy. */
+/** Public website registration → lead row. Owner auth NOT required here
+ * (it's the public intake), but per-IP rate limiting applies. */
 export async function POST(req: Request) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  if (!leadIntakeAllowed(ip)) {
+    return NextResponse.json({ ok: false, error: "too many requests" }, { status: 429 });
+  }
   const body = await req.json().catch(() => null);
   const businessName = String(body?.businessName ?? body?.business_name ?? "").trim();
   const contactName = String(body?.contactName ?? body?.contact_name ?? "").trim();

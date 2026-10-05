@@ -37,7 +37,7 @@ export default async function LeadsPage({
         </p>
       </div>
       <div className="flex flex-wrap gap-2 text-sm">
-        <FilterPill href="/leads" active={!status} label={`All (${rows.length})`} />
+        <FilterPill href="/admin/leads" active={!status} label={`All (${rows.length})`} />
         {Object.entries(counts).map(([s, n]) => (
           <FilterPill
             key={s}
