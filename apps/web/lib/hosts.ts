@@ -30,18 +30,18 @@ const KNOWN_BASES = [
 const SURFACE_MAP: Record<string, string> = {
   "": "/",
   www: "/",
-  // NOTE: admin → /admin and shop → /shop land with Phases 3–4 (the routes
-  // don't exist yet; mapping them now would turn those hosts into 404s).
+  admin: "/admin",
   app: "/dashboard",
   pos: "/pos",
   captain: "/pos",
   kot: "/kot",
   kds: "/kds",
   kiosk: "/kiosk",
-  // order.* serves the QR ordering shell until the dedicated /order
-  // route lands; /qr keeps working for installed PWAs.
-  order: "/qr",
+  // order.* is the public storefront route (reuses the QR shell for now);
+  // /qr keeps working for installed PWAs and scanned table codes.
+  order: "/order",
   qr: "/qr",
+  shop: "/shop",
 };
 
 /** Local/preview hosts that never rewrite (dev paths + branch previews). */
