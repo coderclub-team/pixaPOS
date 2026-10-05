@@ -52,7 +52,18 @@ export async function middleware(request: NextRequest) {
     return pass();
   }
   try {
-    const session = await auth.api.getSession({ headers: request.headers });
+    // If the client disconnects mid-lookup (reload / navigation during a
+    // cold session check), stop waiting and end the request — otherwise the
+    // dev server turns the write-after-abort into an uncaught ECONNRESET.
+    const aborted = new Promise<null>((resolve) => {
+      if (request.signal.aborted) resolve(null);
+      else request.signal.addEventListener("abort", () => resolve(null), { once: true });
+    });
+    const session = await Promise.race([
+      auth.api.getSession({ headers: request.headers }),
+      aborted,
+    ]);
+    if (session === null) return new Response(null, { status: 499 });
     if (!session?.user) {
       const url = request.nextUrl.clone();
       url.pathname = "/auth/sign-in";
