@@ -1,6 +1,6 @@
 import Link from "next/link";
-import SectionTitle from "@/components/section-title";
-import { signUpUrl } from "@/lib/site";
+import SectionTitle from "@/components/site/section-title";
+import { signUpUrl } from "@/lib/site/site";
 
 const POSTS = [
   {

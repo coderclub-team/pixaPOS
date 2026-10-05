@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { signUpUrl } from "@/lib/site";
-import { TRIAL_DAYS } from "@/lib/plans";
+import { signUpUrl } from "@/lib/site/site";
+import { TRIAL_DAYS } from "@/lib/site/plans";
 import { Icons } from "@pixa/ui/icons";
 
 const PLATFORMS = ["Windows", "Android", "iOS", "Web", "Counter tablets"];

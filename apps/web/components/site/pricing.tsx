@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { signUpUrl } from "@/lib/site";
-import { PLANS, TRIAL_DAYS, planPrice, type BillingCycle } from "@/lib/plans";
-import SectionTitle from "@/components/section-title";
+import { signUpUrl } from "@/lib/site/site";
+import { PLANS, TRIAL_DAYS, planPrice, type BillingCycle } from "@/lib/site/plans";
+import SectionTitle from "@/components/site/section-title";
 import { cn } from "@pixa/ui/lib/utils";
 
 export default function Pricing() {

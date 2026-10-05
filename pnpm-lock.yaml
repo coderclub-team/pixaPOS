@@ -435,6 +435,9 @@ importers:
       sonner:
         specifier: ^1.7.4
         version: 1.7.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      tailgrids:
+        specifier: ^2.4.0
+        version: 2.4.0
       tailwind-merge:
         specifier: ^3.5.0
         version: 3.6.0

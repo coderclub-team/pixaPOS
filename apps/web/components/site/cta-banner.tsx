@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { signUpUrl } from "@/lib/site";
-import { TRIAL_DAYS } from "@/lib/plans";
+import { signUpUrl } from "@/lib/site/site";
+import { TRIAL_DAYS } from "@/lib/site/plans";
 
 export default function CtaBanner() {
   return (

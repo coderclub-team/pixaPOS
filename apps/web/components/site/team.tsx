@@ -1,5 +1,5 @@
-import SectionTitle from "@/components/section-title";
-import SingleTeam from "@/components/single-team";
+import SectionTitle from "@/components/site/section-title";
+import SingleTeam from "@/components/site/single-team";
 
 const TEAM = [
   { name: "Adveen Desuza", designation: "UI Designer" },

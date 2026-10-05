@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
-import { signInUrl, signUpUrl } from "@/lib/site";
-import { TRIAL_DAYS } from "@/lib/plans";
+import { signInUrl, signUpUrl } from "@/lib/site/site";
+import { TRIAL_DAYS } from "@/lib/site/plans";
 
 const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   {

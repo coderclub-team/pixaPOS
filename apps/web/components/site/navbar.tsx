@@ -4,8 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { signInUrl, signUpUrl } from "@/lib/site";
-import { TRIAL_DAYS } from "@/lib/plans";
+import { signInUrl, signUpUrl } from "@/lib/site/site";
+import { TRIAL_DAYS } from "@/lib/site/plans";
 
 const MENU = [
   { title: "Surfaces", path: "/#surfaces" },

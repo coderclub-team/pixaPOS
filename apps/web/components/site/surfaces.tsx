@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { signUpUrl } from "@/lib/site";
+import { signUpUrl } from "@/lib/site/site";
 import { Icons } from "@pixa/ui/icons";
-import SectionTitle from "@/components/section-title";
+import SectionTitle from "@/components/site/section-title";
 
 const FEATURES = [
   {

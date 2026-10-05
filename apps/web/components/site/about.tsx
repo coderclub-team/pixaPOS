@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { signUpUrl } from "@/lib/site";
+import { signUpUrl } from "@/lib/site/site";
 
 export default function About() {
   return (

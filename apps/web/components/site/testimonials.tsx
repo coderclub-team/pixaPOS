@@ -1,7 +1,7 @@
 import Link from "next/link";
-import SectionTitle from "@/components/section-title";
-import { signUpUrl } from "@/lib/site";
-import { TRIAL_DAYS } from "@/lib/plans";
+import SectionTitle from "@/components/site/section-title";
+import { signUpUrl } from "@/lib/site/site";
+import { TRIAL_DAYS } from "@/lib/site/plans";
 
 const QUOTES = [
   {
