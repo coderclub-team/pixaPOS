@@ -1,6 +1,11 @@
+import Link from "next/link";
 import { desc } from "drizzle-orm";
 import { adminDb } from "@/lib/saas-admin";
 import { saasLeads } from "@pixa/db";
+import { Button } from "@pixa/ui/base-ui/button";
+import { Badge } from "@pixa/ui/base-ui/badge";
+import { Card, CardContent } from "@pixa/ui/base-ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@pixa/ui/base-ui/empty";
 import { LeadActions } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +35,7 @@ export default async function LeadsPage({
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Website registrations</h1>
-        <p className="text-sm text-zinc-600">
+        <p className="text-sm text-muted-foreground">
           Public form <code>POST /api/admin/leads</code> writes here. Triage each lead, then
           <strong> Approve</strong> creates the Better Auth organisation (slug-unique, owner member,
           trial profile).
@@ -41,42 +46,58 @@ export default async function LeadsPage({
         {Object.entries(counts).map(([s, n]) => (
           <FilterPill
             key={s}
-            href={`/leads?status=${s}`}
+            href={`/admin/leads?status=${s}`}
             active={status === s}
             label={`${s} (${n})`}
           />
         ))}
       </div>
       {dbDown ? (
-        <Empty
-          title="Database not connected"
-          body="Set DATABASE_URL to review live registrations."
-        />
+        <Card className="border-dashed">
+          <CardContent className="p-8 text-center">
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>Database not connected</EmptyTitle>
+                <EmptyDescription>Set DATABASE_URL to review live registrations.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          </CardContent>
+        </Card>
       ) : filtered.length === 0 ? (
-        <Empty
-          title="No registrations"
-          body="New website signups will appear here with contact, city and planned outlets."
-        />
+        <Card className="border-dashed">
+          <CardContent className="p-8 text-center">
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>No registrations</EmptyTitle>
+                <EmptyDescription>
+                  New website signups will appear here with contact, city and planned outlets.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid gap-3">
           {filtered.map((l) => (
-            <div key={l.id} className="rounded-xl border bg-white p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold">{l.businessName}</p>
-                  <p className="text-sm text-zinc-600">
-                    {l.contactName} · {l.email} · {l.phone}
-                  </p>
-                  <p className="mt-1 text-xs text-zinc-500">
-                    {l.city ?? "—"} · {l.outletsPlanned} outlet(s) · {l.source} ·{" "}
-                    {new Date(l.createdAt).toLocaleString("en-IN")}
-                  </p>
-                  {l.notes && <p className="mt-2 text-sm">{l.notes}</p>}
+            <Card key={l.id}>
+              <CardContent className="pt-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">{l.businessName}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {l.contactName} · {l.email} · {l.phone}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {l.city ?? "—"} · {l.outletsPlanned} outlet(s) · {l.source} ·{" "}
+                      {new Date(l.createdAt).toLocaleString("en-IN")}
+                    </p>
+                    {l.notes && <p className="mt-2 text-sm">{l.notes}</p>}
+                  </div>
+                  <StatusPill status={l.status} />
                 </div>
-                <StatusPill status={l.status} />
-              </div>
-              <LeadActions lead={l} />
-            </div>
+                <LeadActions lead={l} />
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
@@ -91,37 +112,24 @@ async function fetchLeads() {
 
 function FilterPill({ href, active, label }: { href: string; active: boolean; label: string }) {
   return (
-    <a
-      href={href}
-      className={`rounded-full border px-3 py-1 capitalize ${active ? "bg-zinc-950 text-white" : "bg-white hover:bg-zinc-50"}`}
-    >
-      {label}
-    </a>
+    <Button variant={active ? "default" : "outline"} size="sm" render={<Link href={href} />}>
+      <span className="capitalize">{label}</span>
+    </Button>
   );
 }
 
-function Empty({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-xl border border-dashed bg-white p-8 text-center text-sm text-zinc-600">
-      <p className="font-medium text-zinc-900">{title}</p>
-      <p className="mt-1">{body}</p>
-    </div>
-  );
-}
+const STATUS_TONE: Record<string, "secondary" | "outline" | "default" | "destructive"> = {
+  new: "secondary",
+  contacted: "outline",
+  trial: "default",
+  converted: "default",
+  rejected: "destructive",
+};
 
 export function StatusPill({ status }: { status: string }) {
-  const tone: Record<string, string> = {
-    new: "bg-sky-100 text-sky-800",
-    contacted: "bg-amber-100 text-amber-800",
-    trial: "bg-violet-100 text-violet-800",
-    converted: "bg-emerald-100 text-emerald-800",
-    rejected: "bg-zinc-200 text-zinc-600",
-  };
   return (
-    <span
-      className={`rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${tone[status] ?? "bg-zinc-100"}`}
-    >
+    <Badge variant={STATUS_TONE[status] ?? "secondary"} className="capitalize">
       {status}
-    </span>
+    </Badge>
   );
 }

@@ -1,17 +1,18 @@
 import { redirect } from "next/navigation";
 import { baUser } from "@/lib/auth-session";
 import { getOwnerSession } from "@/lib/saas-owner";
+import { Icons } from "@pixa/ui/icons";
 
 const NAV = [
-  { href: "/admin", label: "Overview", icon: "◧" },
-  { href: "/admin/organizations", label: "Organisations", icon: "◈" },
-  { href: "/admin/leads", label: "Registrations", icon: "✉" },
-  { href: "/admin/billing", label: "Plans & Billing", icon: "₹" },
-  { href: "/admin/users", label: "Owner users", icon: "◉" },
-  { href: "/admin/roles", label: "Owner roles", icon: "⬣" },
-  { href: "/admin/audit", label: "Audit log", icon: "≡" },
-  { href: "/admin/settings", label: "Settings", icon: "⚙" },
-];
+  { href: "/admin", label: "Overview", icon: "dashboard" },
+  { href: "/admin/organizations", label: "Organisations", icon: "workspace" },
+  { href: "/admin/leads", label: "Registrations", icon: "forms" },
+  { href: "/admin/billing", label: "Plans & Billing", icon: "billing" },
+  { href: "/admin/users", label: "Owner users", icon: "teams" },
+  { href: "/admin/roles", label: "Owner roles", icon: "lock" },
+  { href: "/admin/audit", label: "Audit log", icon: "clock" },
+  { href: "/admin/settings", label: "Settings", icon: "settings" },
+] as const;
 
 /**
  * Owner gate (console group). Identity comes ONLY from the isolated
@@ -36,16 +37,19 @@ export default async function AdminConsoleLayout({ children }: { children: React
           <p className="text-xs text-zinc-400">SaaS Admin Console</p>
         </div>
         <nav className="flex-1 space-y-1 px-3" aria-label="Admin">
-          {NAV.map((n) => (
-            <a
-              key={n.href}
-              href={n.href}
-              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-zinc-800 hover:text-white"
-            >
-              <span aria-hidden>{n.icon}</span>
-              {n.label}
-            </a>
-          ))}
+          {NAV.map((n) => {
+            const Icon = Icons[n.icon];
+            return (
+              <a
+                key={n.href}
+                href={n.href}
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-zinc-800 hover:text-white"
+              >
+                <Icon className="size-4 shrink-0" aria-hidden />
+                {n.label}
+              </a>
+            );
+          })}
         </nav>
         <div className="p-4 text-[11px] leading-relaxed text-zinc-500">
           Signed in as {owner.email}

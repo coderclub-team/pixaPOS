@@ -230,7 +230,7 @@ function ReturnRow({ ret }: { ret: PurchaseReturn }) {
             <DialogDescription>
               This will deduct stock{" "}
               {ret.restock ? `and create credit ₹${ret.total_refund}` : "(no stock change)"} —
-              cannot be undone. Approved is posted (Odoo).
+              cannot be undone. Approved is posted.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2">

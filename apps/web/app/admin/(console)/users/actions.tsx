@@ -1,7 +1,32 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import * as z from "zod";
+import { Button } from "@pixa/ui/base-ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
+import { Badge } from "@pixa/ui/base-ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@pixa/ui/base-ui/dialog";
+import { Input } from "@pixa/ui/base-ui/input";
+import { Label } from "@pixa/ui/base-ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@pixa/ui/base-ui/select";
+import { FieldGroup } from "@pixa/ui/base-ui/field";
+import { useAppForm } from "@/lib/form";
+import { Icons } from "@pixa/ui/icons";
 
 type Owner = {
   id: string;
@@ -10,6 +35,22 @@ type Owner = {
   roleId: string | null;
   isActive: boolean;
 };
+
+const inviteSchema = z.object({
+  email: z.email("Enter a valid email"),
+  password: z.string().min(12, "Password needs 12+ characters"),
+  roleId: z.string(),
+});
+
+async function api(url: string, method: string, body: Record<string, unknown>) {
+  const res = await fetch(url, {
+    method,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+  if (!res.ok || !data?.ok) throw new Error(data?.error ?? "save failed");
+}
 
 export function OwnerActions({
   owners,
@@ -20,219 +61,261 @@ export function OwnerActions({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [roleId, setRoleId] = useState("");
-  const [confirmFor, setConfirmFor] = useState<string | null>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<Owner | null>(null);
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [resetTarget, setResetTarget] = useState<Owner | null>(null);
   const [newPassword, setNewPassword] = useState("");
 
-  async function call(url: string, method: string, body: Record<string, unknown>) {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch(url, {
-        method,
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
-      if (!res.ok || !data?.ok) setError(data?.error ?? "save failed");
-      else {
-        setEmail("");
-        setPassword("");
-        setRoleId("");
-        setConfirmFor(null);
-        setConfirmPassword("");
-        setNewPassword("");
+  const roleOptions = [
+    { value: "none", label: "Staff (no role)" },
+    ...roles.map((r) => ({ value: r.id, label: r.name })),
+  ];
+
+  const form = useAppForm({
+    defaultValues: { email: "", password: "", roleId: "none" },
+    validators: { onSubmit: inviteSchema },
+    onSubmit: async ({ value }) => {
+      setBusy(true);
+      try {
+        await api("/api/admin/owners", "POST", {
+          email: value.email,
+          password: value.password,
+          roleId: value.roleId === "none" ? null : value.roleId,
+        });
+        toast.success(`Invited ${value.email}`);
+        form.reset();
         router.refresh();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Invite failed");
+      } finally {
+        setBusy(false);
       }
-    } catch {
-      setError("save failed");
+    },
+  });
+
+  const saveRow = async (id: string, patch: Record<string, unknown>, done: string) => {
+    setBusy(true);
+    try {
+      await api(`/api/admin/owners/${id}`, "PATCH", patch);
+      toast.success(done);
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Save failed");
     } finally {
       setBusy(false);
     }
-  }
-
-  const input =
-    "rounded-lg border px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-zinc-900";
+  };
 
   return (
     <div className="space-y-4">
-      {error && (
-        <p
-          role="alert"
-          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-        >
-          {error}
-        </p>
-      )}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void call("/api/admin/owners", "POST", {
-            email,
-            password,
-            roleId: roleId || null,
-          });
-        }}
-        className="flex flex-wrap items-end gap-2 rounded-xl border bg-white p-4"
-      >
-        <label className="text-xs text-zinc-600">
-          Email
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className={input}
-          />
-        </label>
-        <label className="text-xs text-zinc-600">
-          Password (12+ chars)
-          <input
-            type="password"
-            required
-            minLength={12}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={input}
-          />
-        </label>
-        <label className="text-xs text-zinc-600">
-          Role
-          <select value={roleId} onChange={(e) => setRoleId(e.target.value)} className={input}>
-            <option value="">Staff (no role)</option>
-            {roles.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="submit"
-          disabled={busy}
-          className="rounded-lg bg-zinc-950 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
-          Invite staff
-        </button>
-      </form>
+      <Card>
+        <CardHeader>
+          <CardTitle>Invite staff</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void form.handleSubmit();
+            }}
+          >
+            <FieldGroup>
+              <form.AppField
+                name="email"
+                children={(field) => (
+                  <field.TextField label="Email" required type="email" autoComplete="off" />
+                )}
+              />
+              <form.AppField
+                name="password"
+                children={(field) => (
+                  <field.TextField
+                    label="Password"
+                    required
+                    type="password"
+                    autoComplete="new-password"
+                    description="12+ characters"
+                  />
+                )}
+              />
+              <form.AppField
+                name="roleId"
+                children={(field) => <field.SelectField label="Role" options={roleOptions} />}
+              />
+            </FieldGroup>
+            <form.Subscribe selector={(s) => s.isSubmitting}>
+              {(submitting) => (
+                <Button type="submit" disabled={busy || submitting} className="mt-4">
+                  <Icons.add className="size-4" aria-hidden />
+                  Invite staff
+                </Button>
+              )}
+            </form.Subscribe>
+          </form>
+        </CardContent>
+      </Card>
 
       <ul className="space-y-2">
         {owners.map((o) => (
-          <li
-            key={o.id}
-            className={`rounded-xl border bg-white p-4 ${o.isActive ? "" : "opacity-60"}`}
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="font-medium">{o.email}</p>
-              <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium">
-                {o.role === "super_owner" ? "super owner" : "staff"}
-              </span>
-              {!o.isActive && (
-                <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">
-                  deactivated
-                </span>
-              )}
-              {o.role !== "super_owner" && (
-                <>
-                  <select
-                    value={o.roleId ?? ""}
-                    disabled={busy}
-                    onChange={(e) =>
-                      void call(`/api/admin/owners/${o.id}`, "PATCH", {
-                        roleId: e.target.value || null,
-                      })
-                    }
-                    className="ml-auto rounded-lg border px-2 py-1.5 text-xs"
-                    aria-label={`Role for ${o.email}`}
-                  >
-                    <option value="">Staff (no role)</option>
-                    {roles.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    disabled={busy}
-                    onClick={() =>
-                      o.isActive
-                        ? setConfirmFor(o.id)
-                        : void call(`/api/admin/owners/${o.id}`, "PATCH", { isActive: true })
-                    }
-                    className="rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 disabled:opacity-50"
-                  >
-                    {o.isActive ? "Deactivate" : "Activate"}
-                  </button>
-                </>
-              )}
-            </div>
-            {o.role !== "super_owner" && (
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {confirmFor === o.id ? (
+          <li key={o.id}>
+            <Card className={!o.isActive ? "opacity-60" : undefined}>
+              <CardContent className="flex flex-wrap items-center gap-2 pt-4">
+                <p className="font-medium">{o.email}</p>
+                <Badge variant={o.role === "super_owner" ? "default" : "secondary"}>
+                  {o.role === "super_owner" ? "super owner" : "staff"}
+                </Badge>
+                {!o.isActive && <Badge variant="destructive">deactivated</Badge>}
+                {o.role !== "super_owner" && (
                   <>
-                    <input
-                      type="password"
-                      autoComplete="current-password"
-                      placeholder="Your password to confirm"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className={`${input} w-56`}
-                    />
-                    <input
-                      type="password"
-                      placeholder="New password for them (12+)"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className={`${input} w-56`}
-                    />
-                    <button
-                      disabled={busy || !confirmPassword || newPassword.length < 12}
-                      onClick={() =>
-                        void call(`/api/admin/owners/${o.id}`, "PATCH", {
-                          password: newPassword,
-                          confirmPassword,
-                        })
+                    <Select
+                      value={o.roleId ?? "none"}
+                      disabled={busy}
+                      onValueChange={(v) =>
+                        void saveRow(
+                          o.id,
+                          { roleId: v === "none" ? null : v },
+                          `Role updated for ${o.email}`,
+                        )
                       }
-                      className="rounded-lg bg-zinc-950 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                    >
+                      <SelectTrigger className="ml-auto w-44" aria-label={`Role for ${o.email}`}>
+                        <SelectValue placeholder="Staff (no role)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {roleOptions.map((r) => (
+                          <SelectItem key={r.value || "none"} value={r.value}>
+                            {r.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() =>
+                        o.isActive
+                          ? setDeactivateTarget(o)
+                          : void saveRow(o.id, { isActive: true }, `${o.email} activated`)
+                      }
+                    >
+                      {o.isActive ? "Deactivate" : "Activate"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => setResetTarget(o)}
                     >
                       Reset password
-                    </button>
-                    <button
-                      onClick={() => setConfirmFor(null)}
-                      className="px-2 text-xs text-zinc-600"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      disabled={busy || !confirmPassword}
-                      onClick={() =>
-                        void call(`/api/admin/owners/${o.id}`, "PATCH", {
-                          isActive: false,
-                          confirmPassword,
-                        })
-                      }
-                      className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 disabled:opacity-50"
-                    >
-                      Confirm deactivate
-                    </button>
+                    </Button>
                   </>
-                ) : (
-                  <button
-                    onClick={() => setConfirmFor(o.id)}
-                    className="text-xs text-zinc-600 underline"
-                  >
-                    Password reset / deactivate…
-                  </button>
                 )}
-              </div>
-            )}
+              </CardContent>
+            </Card>
           </li>
         ))}
       </ul>
+
+      <Dialog open={!!deactivateTarget} onOpenChange={(v) => !v && setDeactivateTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Deactivate {deactivateTarget?.email}?</DialogTitle>
+            <DialogDescription>
+              They lose console access immediately and all their sessions are revoked. Enter your
+              password to confirm.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Label htmlFor="deactivate-confirm">Your password</Label>
+            <Input
+              id="deactivate-confirm"
+              type="password"
+              autoComplete="current-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeactivateTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={busy || !confirmPassword || !deactivateTarget}
+              onClick={() => {
+                if (!deactivateTarget) return;
+                void saveRow(
+                  deactivateTarget.id,
+                  { isActive: false, confirmPassword },
+                  `${deactivateTarget.email} deactivated`,
+                ).then(() => {
+                  setDeactivateTarget(null);
+                  setConfirmPassword("");
+                });
+              }}
+            >
+              Confirm deactivate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!resetTarget} onOpenChange={(v) => !v && setResetTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset password for {resetTarget?.email}?</DialogTitle>
+            <DialogDescription>
+              They are logged out everywhere immediately. Enter your password to confirm, plus their
+              new one.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="reset-confirm">Your password</Label>
+              <Input
+                id="reset-confirm"
+                type="password"
+                autoComplete="current-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="reset-new">Their new password (12+ chars)</Label>
+              <Input
+                id="reset-new"
+                type="password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={busy || !confirmPassword || newPassword.length < 12 || !resetTarget}
+              onClick={() => {
+                if (!resetTarget) return;
+                void saveRow(
+                  resetTarget.id,
+                  { password: newPassword, confirmPassword },
+                  `Password reset for ${resetTarget.email}`,
+                ).then(() => {
+                  setResetTarget(null);
+                  setConfirmPassword("");
+                  setNewPassword("");
+                });
+              }}
+            >
+              Reset password
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

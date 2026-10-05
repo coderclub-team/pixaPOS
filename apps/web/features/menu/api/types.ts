@@ -52,7 +52,7 @@ export type MenuItemVariant = {
 };
 
 export type ProductType = "simple" | "variant";
-export type ItemType = "goods" | "service"; // Zoho Goods|Service / Odoo Goods|Service/Combo; RistaPOS goods vs service (packing charge)
+export type ItemType = "goods" | "service"; // Goods|Service split; RistaPOS goods vs service (packing charge)
 export type MenuItemImage = { url: string; sort_order: number };
 export type MenuItem = {
   id: string;
@@ -64,10 +64,10 @@ export type MenuItem = {
   category_name?: string;
   description?: string;
   image_url?: string; // deprecated alias = images[0].url
-  images?: MenuItemImage[]; // gallery max 6 (Zoho 15 but POS cap 6)
+  images?: MenuItemImage[]; // gallery max 6 (POS cap 6)
   image_urls?: string[]; // flat alias for form
   item_type: ItemType; // goods = Supply of Goods (HSN + 5%/18%), service = Supply of Service (SAC 9973/9997 + 5%)
-  product_type: ProductType; // simple = no variants (Regular), variant = has variants (Petpooja/Zoho)
+  product_type: ProductType; // simple = no variants (Regular), variant = has variants (Petpooja)
   veg_type: VegType;
   spice_level?: "mild" | "medium" | "spicy";
   prep_time_min?: number;

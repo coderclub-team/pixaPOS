@@ -1,6 +1,22 @@
+import Link from "next/link";
+import { Suspense } from "react";
 import { desc } from "drizzle-orm";
 import { adminDb } from "@/lib/saas-admin";
 import { baMember, baOrganization, orgProfiles } from "@pixa/db";
+import { Button } from "@pixa/ui/base-ui/button";
+import { Badge } from "@pixa/ui/base-ui/badge";
+import { Card, CardContent } from "@pixa/ui/base-ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@pixa/ui/base-ui/empty";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@pixa/ui/base-ui/table";
+import { Icons } from "@pixa/ui/icons";
+import { OrgFilters, ReviewRegistrationsButton } from "./filters";
 
 export const dynamic = "force-dynamic";
 
@@ -36,124 +52,115 @@ async function load(search: Search) {
 export default async function OrgsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
   const rows = await load(sp);
-  const lifecycles = ["trial", "active", "past_due", "suspended", "churned"];
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Organisations</h1>
-          <p className="text-sm text-zinc-600">
+          <p className="text-sm text-muted-foreground">
             Every website registration becomes a lead first; approved leads become an organisation
-            (Better Auth row + lifecycle profile). Zoho/Odoo-style pipeline below.
+            (Better Auth row + lifecycle profile) below.
           </p>
         </div>
-        <a
-          href="/admin/leads"
-          className="rounded-lg bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
-        >
-          Review registrations
-        </a>
+        <ReviewRegistrationsButton />
       </div>
 
-      <form className="flex flex-wrap gap-2 rounded-xl border bg-white p-3" method="get">
-        <input
-          name="q"
-          defaultValue={sp.q ?? ""}
-          placeholder="Search name or slug…"
-          className="min-w-52 flex-1 rounded-lg border px-3 py-2 text-sm"
-        />
-        <select
-          name="lifecycle"
-          defaultValue={sp.lifecycle ?? ""}
-          className="rounded-lg border px-3 py-2 text-sm"
-        >
-          <option value="">All lifecycles</option>
-          {lifecycles.map((l) => (
-            <option key={l} value={l}>
-              {l}
-            </option>
-          ))}
-        </select>
-        <button className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-zinc-50">
-          Filter
-        </button>
-      </form>
+      <Suspense>
+        <OrgFilters />
+      </Suspense>
 
       {!rows ? (
-        <div className="rounded-xl border border-dashed bg-white p-8 text-center text-sm text-zinc-600">
-          <p className="font-medium text-zinc-900">Database not connected</p>
-          <p className="mt-1">
-            Set <code>DATABASE_URL</code> on this app to list live organisations.
-          </p>
-        </div>
+        <Card className="border-dashed">
+          <CardContent className="p-8 text-center">
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>Database not connected</EmptyTitle>
+                <EmptyDescription>
+                  Set <code>DATABASE_URL</code> on this app to list live organisations.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          </CardContent>
+        </Card>
       ) : rows.length === 0 ? (
-        <div className="rounded-xl border bg-white p-8 text-center text-sm text-zinc-600">
-          No organisations match.
-        </div>
+        <Card className="border-dashed">
+          <CardContent className="p-8 text-center">
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>No organisations match</EmptyTitle>
+                <EmptyDescription>Try widening the search or clearing the filter.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="overflow-hidden rounded-xl border bg-white">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b bg-zinc-50 text-xs uppercase text-zinc-500">
-              <tr>
-                <th className="px-4 py-3">Organisation</th>
-                <th className="px-4 py-3">Lifecycle</th>
-                <th className="px-4 py-3">Plan</th>
-                <th className="px-4 py-3">Seats</th>
-                <th className="px-4 py-3">Created</th>
-                <th className="px-4 py-3">
+        <Card className="overflow-hidden py-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Organisation</TableHead>
+                <TableHead>Lifecycle</TableHead>
+                <TableHead>Plan</TableHead>
+                <TableHead>Seats</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead>
                   <span className="sr-only">Open</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rows.map((o) => (
-                <tr key={o.id} className="border-b last:border-0 hover:bg-zinc-50">
-                  <td className="px-4 py-3">
+                <TableRow key={o.id}>
+                  <TableCell>
                     <p className="font-medium">{o.name}</p>
-                    <p className="text-xs text-zinc-500">
+                    <p className="text-xs text-muted-foreground">
                       {o.slug} · {o.id.slice(0, 8)}…
                     </p>
-                  </td>
-                  <td className="px-4 py-3">
+                  </TableCell>
+                  <TableCell>
                     <LifecycleBadge value={o.profile?.lifecycle ?? "trial"} />
-                  </td>
-                  <td className="px-4 py-3 capitalize">{o.profile?.plan ?? "starter"}</td>
-                  <td className="px-4 py-3">{o.seats}</td>
-                  <td className="px-4 py-3 text-zinc-600">
+                  </TableCell>
+                  <TableCell className="capitalize">{o.profile?.plan ?? "starter"}</TableCell>
+                  <TableCell>{o.seats}</TableCell>
+                  <TableCell className="text-muted-foreground">
                     {new Date(o.createdAt).toLocaleDateString("en-IN")}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <a
-                      href={`/organizations/${o.id}`}
-                      className="font-medium text-zinc-900 underline underline-offset-2"
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      render={<Link href={`/admin/organizations/${o.id}`} />}
                     >
-                      Open →
-                    </a>
-                  </td>
-                </tr>
+                      Open
+                      <Icons.arrowRight className="size-3.5" aria-hidden />
+                    </Button>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Card>
       )}
     </div>
   );
 }
 
+const LIFECYCLE_TONE: Record<
+  string,
+  "default" | "secondary" | "outline" | "destructive" | "ghost"
+> = {
+  trial: "secondary",
+  active: "default",
+  past_due: "outline",
+  suspended: "destructive",
+  churned: "ghost",
+};
+
 export function LifecycleBadge({ value }: { value: string }) {
-  const tone: Record<string, string> = {
-    trial: "bg-sky-100 text-sky-800",
-    active: "bg-emerald-100 text-emerald-800",
-    past_due: "bg-amber-100 text-amber-800",
-    suspended: "bg-red-100 text-red-800",
-    churned: "bg-zinc-200 text-zinc-700",
-  };
   return (
-    <span
-      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${tone[value] ?? "bg-zinc-100"}`}
-    >
+    <Badge variant={LIFECYCLE_TONE[value] ?? "secondary"} className="capitalize">
       {value.replace("_", " ")}
-    </span>
+    </Badge>
   );
 }

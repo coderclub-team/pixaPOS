@@ -1,6 +1,8 @@
 import { adminDb } from "@/lib/saas-admin";
 import { saasOwnerRoles } from "@pixa/db";
 import { parsePermissions } from "@/lib/saas-owner";
+import { Card, CardContent } from "@pixa/ui/base-ui/card";
+import { Empty, EmptyHeader, EmptyTitle } from "@pixa/ui/base-ui/empty";
 import { RolesManager } from "./manager";
 
 export const dynamic = "force-dynamic";
@@ -53,13 +55,21 @@ export default async function OwnerRolesPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Owner roles</h1>
-        <p className="text-sm text-zinc-600">
-          Scoped permissions for owner-created staff. Zoho-style custom admins — each role sees only
-          its surfaces. The super owner always holds every permission.
+        <p className="text-sm text-muted-foreground">
+          Scoped permissions for owner-created staff. Scoped custom admins — each role sees only its
+          surfaces. The super owner always holds every permission.
         </p>
       </div>
       {dbDown ? (
-        <p className="rounded-xl border bg-white p-8 text-sm">Database not connected.</p>
+        <Card className="border-dashed">
+          <CardContent className="p-8 text-center">
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>Database not connected</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
+          </CardContent>
+        </Card>
       ) : (
         <RolesManager initialRoles={roles} vocabulary={vocabulary} />
       )}

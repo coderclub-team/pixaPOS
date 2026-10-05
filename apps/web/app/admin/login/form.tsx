@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Button } from "@pixa/ui/base-ui/button";
+import { Input } from "@pixa/ui/base-ui/input";
+import { Label } from "@pixa/ui/base-ui/label";
 
 export function LoginForm() {
   const router = useRouter();
@@ -22,62 +26,57 @@ export function LoginForm() {
       });
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
       if (!res.ok || !data?.ok) {
-        setError(data?.error ?? "sign-in failed");
+        const message = data?.error ?? "sign-in failed";
+        setError(message);
+        toast.error(message);
         return;
       }
+      toast.success("Signed in — welcome back");
       // Replace (not push): the login page leaves the history stack, so
       // Back from /admin never lands back on a stale sign-in form.
       router.replace("/admin");
       router.refresh();
     } catch {
       setError("sign-in failed");
+      toast.error("sign-in failed");
     } finally {
       setPending(false);
     }
   }
 
   return (
-    <form onSubmit={submit} className="mt-5 space-y-3">
-      <div>
-        <label htmlFor="owner-email" className="mb-1 block text-sm font-medium">
-          Email
-        </label>
-        <input
+    <form onSubmit={submit} className="grid gap-4">
+      <div className="grid gap-2">
+        <Label htmlFor="owner-email">Email</Label>
+        <Input
           id="owner-email"
           type="email"
           autoComplete="username"
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-zinc-900"
         />
       </div>
-      <div>
-        <label htmlFor="owner-password" className="mb-1 block text-sm font-medium">
-          Password
-        </label>
-        <input
+      <div className="grid gap-2">
+        <Label htmlFor="owner-password">Password</Label>
+        <Input
           id="owner-password"
           type="password"
           autoComplete="current-password"
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-zinc-900"
+          aria-invalid={error ? true : undefined}
         />
       </div>
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
       )}
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
-      >
+      <Button type="submit" className="w-full" disabled={pending}>
         {pending ? "Signing in…" : "Sign in"}
-      </button>
+      </Button>
     </form>
   );
 }

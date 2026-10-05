@@ -150,7 +150,7 @@ export async function ensureSubscription(
   }
 }
 
-/** Zoho pattern: usable until the paid period ends, then cancelled. */
+/** Grace pattern: usable until the paid period ends, then cancelled. */
 export async function cancelSubscription(
   organizationId: string,
   params: { atPeriodEnd?: boolean } = {},

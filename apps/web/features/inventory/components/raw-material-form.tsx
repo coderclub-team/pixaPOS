@@ -178,7 +178,7 @@ export default function RawMaterialForm({
                       label="Purchase Unit"
                       options={[{ label: "Same as stock", value: "" }, ...unitOptions]}
                       placeholder="Same as stock"
-                      description="Buying unit (Odoo purchase UoM)"
+                      description="Buying unit (purchase unit of measure)"
                     />
                   )}
                 />

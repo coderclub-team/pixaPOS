@@ -2,7 +2,7 @@
  * SaaS-owner tables (admin.pixapos.store).
  * Website registrations land here as leads; approving a lead creates a
  * Better Auth `organization` row, linked via `organizationId`.
- * Org lifecycle (Zoho/Odoo-style pipeline) lives in `orgProfiles`
+ * Org lifecycle (trial → active pipeline) lives in `orgProfiles`
  * so Better Auth defaults stay untouched.
  *
  * Owner identity (saasOwners/saasOwnerRoles/saasOwnerSessions) is a

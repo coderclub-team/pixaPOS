@@ -1,6 +1,16 @@
 import { desc } from "drizzle-orm";
 import { adminDb } from "@/lib/saas-admin";
 import { saasAudit } from "@pixa/db";
+import { Card, CardContent } from "@pixa/ui/base-ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@pixa/ui/base-ui/empty";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@pixa/ui/base-ui/table";
 
 export const dynamic = "force-dynamic";
 
@@ -27,45 +37,52 @@ export default async function AuditPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Audit log</h1>
-        <p className="text-sm text-zinc-600">
+        <p className="text-sm text-muted-foreground">
           Append-only trail of owner actions: lead triage, org creation, lifecycle changes.
         </p>
       </div>
-      {dbDown ? (
-        <div className="rounded-xl border bg-white p-8 text-center text-sm text-zinc-600">
-          Database not connected.
-        </div>
-      ) : rows.length === 0 ? (
-        <div className="rounded-xl border bg-white p-8 text-center text-sm text-zinc-600">
-          No audit events yet.
-        </div>
+      {dbDown || rows.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="p-8 text-center">
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>{dbDown ? "Database not connected" : "No audit events yet"}</EmptyTitle>
+                {dbDown && (
+                  <EmptyDescription>Set DATABASE_URL to review the trail.</EmptyDescription>
+                )}
+              </EmptyHeader>
+            </Empty>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="overflow-hidden rounded-xl border bg-white">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b bg-zinc-50 text-xs uppercase text-zinc-500">
-              <tr>
-                <th className="px-4 py-3">When</th>
-                <th className="px-4 py-3">Action</th>
-                <th className="px-4 py-3">Entity</th>
-                <th className="px-4 py-3">Detail</th>
-              </tr>
-            </thead>
-            <tbody>
+        <Card className="overflow-hidden py-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>When</TableHead>
+                <TableHead>Action</TableHead>
+                <TableHead>Entity</TableHead>
+                <TableHead>Detail</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rows.map((r) => (
-                <tr key={r.id} className="border-b last:border-0">
-                  <td className="px-4 py-2 text-zinc-600">
+                <TableRow key={r.id}>
+                  <TableCell className="text-muted-foreground">
                     {new Date(r.createdAt).toLocaleString("en-IN")}
-                  </td>
-                  <td className="px-4 py-2 font-mono text-xs">{r.action}</td>
-                  <td className="px-4 py-2 text-xs">
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">{r.action}</TableCell>
+                  <TableCell className="text-xs">
                     {r.entityType}/{String(r.entityId).slice(0, 12)}…
-                  </td>
-                  <td className="px-4 py-2 text-xs text-zinc-600">{r.detail}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="max-w-md truncate text-xs text-muted-foreground">
+                    {r.detail}
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Card>
       )}
     </div>
   );

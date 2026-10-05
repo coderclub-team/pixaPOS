@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { adminDb } from "@/lib/saas-admin";
@@ -9,6 +10,10 @@ import {
   saasAudit,
   saasPlans,
 } from "@pixa/db";
+import { Badge } from "@pixa/ui/base-ui/badge";
+import { Button } from "@pixa/ui/base-ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
+import { Icons } from "@pixa/ui/icons";
 import { LifecycleBadge } from "../page";
 import { OrgActions } from "./actions";
 
@@ -46,50 +51,72 @@ export default async function OrgDetail({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="space-y-5">
-      <a href="/admin/organizations" className="text-sm text-zinc-600 hover:underline">
-        ← All organisations
-      </a>
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-white p-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{org!.name}</h1>
-          <p className="text-sm text-zinc-600">
-            {org!.slug} · created {new Date(org!.createdAt).toLocaleString("en-IN")}
-          </p>
-          <div className="mt-2 flex gap-2">
-            <LifecycleBadge value={profile?.lifecycle ?? "trial"} />
-            <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium capitalize">
-              {profile?.plan ?? "starter"} plan
-            </span>
+      <Button
+        variant="ghost"
+        size="sm"
+        render={<Link href="/admin/organizations" />}
+        className="px-0"
+      >
+        <Icons.chevronLeft className="size-3.5" aria-hidden />
+        All organisations
+      </Button>
+      <Card>
+        <CardContent className="flex flex-wrap items-start justify-between gap-3 pt-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">{org!.name}</h1>
+            <p className="text-sm text-muted-foreground">
+              {org!.slug} · created {new Date(org!.createdAt).toLocaleString("en-IN")}
+            </p>
+            <div className="mt-2 flex gap-2">
+              <LifecycleBadge value={profile?.lifecycle ?? "trial"} />
+              <Badge variant="secondary" className="capitalize">
+                {profile?.plan ?? "starter"} plan
+              </Badge>
+            </div>
           </div>
-        </div>
-        <OrgActions id={org!.id} profile={profile} plans={plans} />
-      </div>
+          <OrgActions id={org!.id} profile={profile} plans={plans} />
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-xl border bg-white p-4">
-          <p className="text-xs uppercase text-zinc-500">Members</p>
-          <p className="mt-1 text-2xl font-semibold">{members.length}</p>
-        </div>
-        <div className="rounded-xl border bg-white p-4">
-          <p className="text-xs uppercase text-zinc-500">Pending invites</p>
-          <p className="mt-1 text-2xl font-semibold">{invites.length}</p>
-        </div>
-        <div className="rounded-xl border bg-white p-4">
-          <p className="text-xs uppercase text-zinc-500">MRR</p>
-          <p className="mt-1 text-2xl font-semibold">
-            ₹{((profile?.mrrPaise ?? 0) / 100).toLocaleString("en-IN")}
-          </p>
-        </div>
+        <Card>
+          <CardContent className="pt-4">
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              Members
+            </p>
+            <p className="mt-1 text-2xl font-semibold">{members.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              Pending invites
+            </p>
+            <p className="mt-1 text-2xl font-semibold">{invites.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">MRR</p>
+            <p className="mt-1 text-2xl font-semibold">
+              ₹{((profile?.mrrPaise ?? 0) / 100).toLocaleString("en-IN")}
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="rounded-xl border bg-white p-5">
-        <h2 className="font-semibold">Owner & subscription notes</h2>
-        <p className="mt-1 text-sm text-zinc-600">
-          Owner: {profile?.ownerEmail ?? "—"} · Trial ends:{" "}
-          {profile?.trialEndsAt ? new Date(profile.trialEndsAt).toLocaleDateString("en-IN") : "—"}
-        </p>
-        {profile?.notes && <p className="mt-2 text-sm">{profile.notes}</p>}
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Owner & subscription notes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Owner: {profile?.ownerEmail ?? "—"} · Trial ends:{" "}
+            {profile?.trialEndsAt ? new Date(profile.trialEndsAt).toLocaleDateString("en-IN") : "—"}
+          </p>
+          {profile?.notes && <p className="mt-2 text-sm">{profile.notes}</p>}
+        </CardContent>
+      </Card>
     </div>
   );
 }

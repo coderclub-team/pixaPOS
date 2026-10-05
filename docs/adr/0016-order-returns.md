@@ -6,7 +6,7 @@ Date: 2026-09-16 · Status: accepted
 
 Voids cover pre-service corrections; cancellations kill whole orders. Neither
 handles the real post-sale flow: a served wrong/cold dish comes back, the bill
-must shrink, and money must go back the way it came (Zoho pattern: gateway
+must shrink, and money must go back the way it came (gateway
 payments auto-refund to source, cash/manual recorded in the books; Razorpay:
 source-only refunds, full or multiple partials, normal vs instant, webhook
 final status).

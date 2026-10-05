@@ -5,7 +5,7 @@ Date: 2026-09-11 · Status: accepted
 ## Context
 
 Orders carry flat `customer_name/phone` snapshots but no customer entity.
-Reference parity (Odoo contacts with typed addresses, Zoho compound address +
+Reference parity (contacts with typed addresses, compound address +
 lat/long + alternates, Petpooja CRM pools + labels, Rista customer data)
 requires first-class records ready for website orders (geo + multi-address).
 

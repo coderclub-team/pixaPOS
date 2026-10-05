@@ -7,8 +7,7 @@ import { saasOwnerRoles, saasOwners, saasOwnerSessions } from "@pixa/db";
 /**
  * PATCH an owner: activate/deactivate, assign role, reset password.
  * Super-owner-only. Single-super-owner invariant: the last active
- * super_owner can never be demoted or deactivated (Odoo's impotent-admin
- * rule). Destructive changes require the acting owner's password.
+ * super_owner can never be demoted or deactivated (last-admin lockout rule). Destructive changes require the acting owner's password.
  */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireOwnerApi(["owners:manage"]);
@@ -27,7 +26,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const deactivating = body?.isActive === false && target.isActive !== false;
     const resetting = typeof body?.password === "string" && body.password.length > 0;
 
-    // Last-super-owner invariant (Odoo's impotent-admin rule): the singleton
+    // Last-super-owner invariant (last-admin lockout rule): the singleton
     // super owner can never be deactivated — there is no second one.
     if (deactivating && target.role === "super_owner") {
       return NextResponse.json(

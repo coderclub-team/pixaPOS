@@ -18,7 +18,7 @@ machines defined below.
 DRAFT → CONFIRMED → IN_KITCHEN → PREPARING → READY → SERVED → COMPLETED
 ```
 
-Delivery branch (dispatch console, Odoo Delivery-Screen rule):
+Delivery branch (dispatch console, delivery-screen rule):
 
 ```text
 READY → OUT_FOR_DELIVERY → DELIVERED → COMPLETED
@@ -30,7 +30,7 @@ Cancellation: any non-terminal state → `CANCELLED` with mandatory reason. Past
 - **CONFIRMED**: order accepted — add items (each add fires a new KOT), send to kitchen, accept payment, policy-bound modify/cancel.
 - **IN_KITCHEN**: ticket created; kitchen may begin. **PREPARING**: kitchen started (item-ready marks allowed; cancel needs auth). **READY**: awaiting pickup/serve/delivery. **SERVED** (dine-in). **OUT_FOR_DELIVERY** (dispatch channels: rider assigned, KOTs auto-served at handoff so KDS clears). **DELIVERED** (rider-confirmed handover; COD may still be due). **COMPLETED**: normally `payment = PAID` + fulfillment done (`DELIVERED` for dispatch channels, `SERVED` otherwise).
 - **Kitchen → order propagation** (advance-only, never regresses): KOT accept/prepare/ready/serve walks the order `CONFIRMED → IN_KITCHEN → PREPARING → READY → SERVED` via `refreshOrderKitchenState` (voided tickets ignored) — except dispatch channels (`delivery/zomato/swiggy/own_online`), which cap at `READY`: served lines never auto-advance a delivery order (Foodops rule), the dispatch console owns `OUT_FOR_DELIVERY → DELIVERED` explicitly via `dispatchOrder`/`markDelivered` (`ORDER_DISPATCHED`/`ORDER_DELIVERED`, rider in metadata). Loads also self-heal: `getOrders`/`getOrderById` backfill non-terminal orders forward to the same derived step (change-only, so steady state writes nothing). Backfill reconciles silently — it writes status without emitting events, so reloads never fabricate audit history; live transitions remain the sole event source. Completion is explicit via `completeOrder` — zero balance → `COMPLETED` (`ORDER_COMPLETED`); completing first marks every open KOT served (cash settlement means handover), then the normal path needs `SERVED` while the force path completes any settled order with a mandatory reason (audited).
-- **Multi-KOT aggregation** (Toast/Lightspeed/Odoo rule): one order may hold N tickets; the order step is derived from *all* non-voided tickets — all `SERVED` → `SERVED`, all `READY`/`SERVED` → `READY`, any `PREPARING` work → `PREPARING`. An order is ready only when every item is ready; the shared `OrderKitchenProgress` readout (`done/total ready`) renders on the list, detail and terminal from the same derivation so every surface agrees.
+- **Multi-KOT aggregation** (Toast/Lightspeed multi-ticket rule): one order may hold N tickets; the order step is derived from *all* non-voided tickets — all `SERVED` → `SERVED`, all `READY`/`SERVED` → `READY`, any `PREPARING` work → `PREPARING`. An order is ready only when every item is ready; the shared `OrderKitchenProgress` readout (`done/total ready`) renders on the list, detail and terminal from the same derivation so every surface agrees.
 - **Add-on reopen** (Aloha rule): firing new items onto a `READY`/`SERVED` order walks it back to `IN_KITCHEN` (audited, the only regression path) — settled status must never claim food that is still cooking.
 - **Shared source**: the localStorage-backed mocks reload on every read and broadcast `storage` events (`useCrossTabSync`), so the KDS wallboard (5 s poll), terminal, list and detail converge on one truth across tabs.
 

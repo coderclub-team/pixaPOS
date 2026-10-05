@@ -40,7 +40,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (Object.keys(patch).length === 0)
     return NextResponse.json({ ok: false, error: "nothing to update" }, { status: 400 });
   // Step-up: suspending/blocking an org requires the acting owner's password
-  // in the same request (Zoho-style re-auth for destructive acts, no TOTP v1).
+  // in the same request (step-up re-auth for destructive acts, no TOTP v1).
   if (patch.isBlocked === true || patch.lifecycle === "suspended") {
     const confirm = String(body?.confirmPassword ?? "");
     if (!confirm) {

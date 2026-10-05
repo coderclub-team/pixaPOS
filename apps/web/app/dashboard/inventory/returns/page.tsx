@@ -39,7 +39,7 @@ export default function ReturnsPage() {
     return (
       <PageContainer
         pageTitle="Purchase Returns"
-        pageDescription="Returns / Credit Notes — vendor credits (Odoo reverse, Zoho vendor credit)"
+        pageDescription="Returns / Credit Notes — vendor credits (reversing entry, vendor credit)"
         isLoading
       >
         <div />

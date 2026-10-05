@@ -1379,11 +1379,9 @@ export async function createPurchase(payload: PurchasePayload): Promise<Purchase
   // Standard: only sent POs can be billed, and only once (invoiced hidden)
   if (po) {
     if (po.status !== "sent")
-      throw new Error("Only sent POs can be billed (Odoo: draft/received/cancelled not billable)");
+      throw new Error("Only sent POs can be billed (draft/received/cancelled not billable)");
     if (mockPurchases.some((p) => p.po_id === po.id))
-      throw new Error(
-        "PO already billed — duplicate purchase not allowed (Odoo: already invoiced)",
-      );
+      throw new Error("PO already billed — duplicate purchase not allowed (already invoiced)");
   }
   const enriched = payload.items.map((it) => ({
     material_id: it.material_id,

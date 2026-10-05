@@ -1,5 +1,7 @@
 import { adminDb } from "@/lib/saas-admin";
 import { orgProfiles, saasPlans } from "@pixa/db";
+import { Alert, AlertDescription, AlertTitle } from "@pixa/ui/base-ui/alert";
+import { Icons } from "@pixa/ui/icons";
 import { PlansManager } from "./plans-manager";
 
 export const dynamic = "force-dynamic";
@@ -34,16 +36,20 @@ export default async function BillingPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Plans & billing</h1>
-        <p className="text-sm text-zinc-600">
+        <p className="text-sm text-muted-foreground">
           Owner-managed plan catalog — the single source of truth. Razorpay reconciliation stays in
           the web app; this is the owner overview.
         </p>
       </div>
       {orphaned.length > 0 && (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          Orgs on unknown plans: {orphaned.map(([id, n]) => `${id} (${n})`).join(", ")} — assign
-          them a catalog plan from the organisation page.
-        </p>
+        <Alert>
+          <Icons.warning className="size-4" aria-hidden />
+          <AlertTitle>Unknown plans in use</AlertTitle>
+          <AlertDescription>
+            Orgs on unknown plans: {orphaned.map(([id, n]) => `${id} (${n})`).join(", ")} — assign
+            them a catalog plan from the organisation page.
+          </AlertDescription>
+        </Alert>
       )}
       <PlansManager initialPlans={plans} />
     </div>

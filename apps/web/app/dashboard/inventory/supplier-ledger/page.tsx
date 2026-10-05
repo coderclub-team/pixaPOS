@@ -57,7 +57,7 @@ export default function SupplierLedgerPage() {
     return (
       <PageContainer
         pageTitle="Supplier Ledger"
-        pageDescription="Global payables — Odoo Journals / Zoho Vendor Statement"
+        pageDescription="Global payables — journals / vendor statement"
         isLoading
       >
         <div />
