@@ -8,7 +8,7 @@
  */
 import { ulid, type CommandEnvelope, type OutboxOperation } from "@pixa/contracts";
 import { deviceId } from "./device";
-import { localExec, localQuery } from "./sqlite";
+import { initLocalDb, localExec, localQuery } from "./sqlite";
 
 async function nextSeq(device: string): Promise<number> {
   const { rows } = await localQuery("SELECT value FROM kv_meta WHERE key = ?", [
@@ -120,4 +120,58 @@ export async function markOutboxSynced(commandIds: string[]): Promise<void> {
       [now, id],
     );
   }
+}
+
+/**
+ * Fire-and-forget entity envelope for domain commands. Never throws and
+ * never blocks the business mutation — a mirror/outbox failure is logged
+ * loudly (dev-visible) and the local mutation still succeeds. The sync
+ * processor (pilot) drains pending rows; until then they accumulate safely.
+ */
+export async function emitEntityOp(params: {
+  outlet_id: string;
+  entity_type: string;
+  entity_id: string;
+  operation: OutboxOperation;
+  payload: Record<string, unknown>;
+  actor_id: string;
+}): Promise<boolean> {
+  try {
+    if ((await initLocalDb()) !== "sqlite") return false;
+    await appendOutbox(params);
+    return true;
+  } catch (e) {
+    console.warn("[outbox] emitEntityOp failed for", params.entity_id, e);
+    return false;
+  }
+}
+
+/** Record a failed push attempt (retry bookkeeping for the processor loop). */
+export async function markOutboxFailed(commandIds: string[], error: string): Promise<void> {
+  if (commandIds.length === 0) return;
+  for (const id of commandIds) {
+    await localExec(
+      "UPDATE sync_outbox SET retry_count = retry_count + 1, last_error = ? WHERE command_id = ?",
+      [error.slice(0, 500), id],
+    );
+  }
+}
+
+/** Counts by status for the sync status UI. */
+export async function outboxStatusCounts(): Promise<{
+  pending: number;
+  failed: number;
+  synced: number;
+}> {
+  const { rows } = await localQuery(
+    `SELECT status, COUNT(*) FROM sync_outbox WHERE status IN ('pending','failed','synced') GROUP BY status`,
+    [],
+  );
+  const counts = { pending: 0, failed: 0, synced: 0 };
+  for (const [status, n] of (rows ?? []) as [string, number][]) {
+    if (status === "pending" || status === "failed" || status === "synced") {
+      counts[status] = Number(n) || 0;
+    }
+  }
+  return counts;
 }

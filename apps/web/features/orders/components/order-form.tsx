@@ -39,6 +39,7 @@ export default function OrderForm({
         customer_phone: values.customer_phone?.trim() || undefined,
         external_ref: values.external_ref?.trim() || undefined,
         initial_status: "DRAFT",
+        staff_initiated: true,
       }),
     onSuccess: (order) => {
       getQueryClient().invalidateQueries({ queryKey: orderKeys.all });

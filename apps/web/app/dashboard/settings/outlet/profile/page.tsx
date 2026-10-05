@@ -5,12 +5,20 @@ import BasicInformationForm from "@/features/outlet/components/basic-information
 import ContactForm from "@/features/outlet/components/contact-form";
 import AddressForm from "@/features/outlet/components/address-form";
 import BusinessDetailsForm from "@/features/outlet/components/business-details-form";
+import UpiAccountsManager from "@/features/outlet/components/upi-accounts-manager";
 import { outletQueryOptions } from "@/features/outlet/api/queries";
+import { getOrganizationLogo } from "@/features/outlet/api/service";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@pixa/ui/base-ui/tabs";
 
 export default function OutletProfilePage() {
   const { data: outlet, isPending } = useQuery(outletQueryOptions);
+  // Server truth first: Better Auth organization logo (Neon) survives every
+  // host/reload; the outlet mock mirrors it for offline reads + printing.
+  const { data: orgLogo } = useQuery({
+    queryKey: ["outlet", "org-logo"],
+    queryFn: getOrganizationLogo,
+  });
   if (isPending || !outlet) {
     return (
       <PageContainer pageTitle="Outlet Profile" isLoading>
@@ -18,16 +26,18 @@ export default function OutletProfilePage() {
       </PageContainer>
     );
   }
+  const logoUrl = orgLogo ?? (typeof outlet.logo_url === "string" ? outlet.logo_url : "") ?? "";
   return (
     <PageContainer
       pageTitle="Outlet Profile"
-      pageDescription="Single outlet identity — Odoo Company / Zoho Organization Profile. General, Address, Legal & Tax tabs. Floors & Tables under Setup."
+      pageDescription="Single outlet identity. Configure General, Address, and Legal & Tax details. Manage Floors & Tables under Setup."
     >
       <Tabs defaultValue="general">
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="address">Address</TabsTrigger>
           <TabsTrigger value="legal">Legal & Tax</TabsTrigger>
+          <TabsTrigger value="payments">Payments</TabsTrigger>
         </TabsList>
         <TabsContent value="general" className="space-y-6 pt-4">
           <BasicInformationForm
@@ -36,7 +46,7 @@ export default function OutletProfilePage() {
               code: outlet.code,
               alias: outlet.alias ?? "",
               type: outlet.type,
-              logo_url: undefined,
+              logo_url: logoUrl,
               is_active: outlet.is_active,
             }}
           />
@@ -75,6 +85,9 @@ export default function OutletProfilePage() {
               fssai_number: outlet.fssai_number ?? "",
             }}
           />
+        </TabsContent>
+        <TabsContent value="payments" className="pt-4">
+          <UpiAccountsManager outlet={outlet} />
         </TabsContent>
       </Tabs>
       <div className="mt-4 grid grid-cols-2 gap-4 text-sm text-muted-foreground">

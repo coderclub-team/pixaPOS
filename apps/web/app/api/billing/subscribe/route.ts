@@ -5,8 +5,8 @@ import { BILLING_PLAN } from "@/features/billing/api/types";
 export const runtime = "nodejs";
 
 /**
- * Create the Razorpay subscription for an outlet upgrade.
- * Body: { outlet_id, start_at_unix? }. Trial = future start_at (Razorpay
+ * Create the Razorpay subscription for an organization upgrade.
+ * Body: { organization_id, start_at_unix? }. Trial = future start_at (Razorpay
  * treats the pre-start window as the trial period — no charge until then).
  * Returns the subscription id + public key for Standard Checkout.
  */
@@ -18,14 +18,14 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: { outlet_id?: string; start_at_unix?: number };
+  let body: { organization_id?: string; start_at_unix?: number };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ ok: false, error: "bad json" }, { status: 400 });
   }
-  if (!body.outlet_id) {
-    return NextResponse.json({ ok: false, error: "outlet_id required" }, { status: 400 });
+  if (!body.organization_id) {
+    return NextResponse.json({ ok: false, error: "organization_id required" }, { status: 400 });
   }
 
   try {
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       ok: true,
       subscription_id: sub.id,
       key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? process.env.RAZORPAY_KEY_ID ?? "",
-      outlet_id: body.outlet_id,
+      organization_id: body.organization_id,
     });
   } catch (e) {
     return NextResponse.json(

@@ -7,6 +7,7 @@ export type EntityType =
   | "KITCHEN_TICKET"
   | "CUSTOMER"
   | "PAYMENT"
+  | "PRINT_JOB"
   | "STOCK_ITEM"
   | "WASTE_LOG";
 
@@ -40,6 +41,7 @@ export type BusinessEventType =
   | "ORDER_UPDATED"
   | "ORDER_COMPLETED"
   | "ORDER_CANCELLED"
+  | "ORDER_OFF_HOURS"
   | "ITEM_ADDED"
   | "ITEM_MODIFIED"
   | "ITEM_REMOVED"
@@ -48,6 +50,9 @@ export type BusinessEventType =
   | "KITCHEN_ITEM_READY"
   | "ORDER_READY"
   | "ORDER_SERVED"
+  | "ORDER_RIDER_ASSIGNED"
+  | "ORDER_DISPATCHED"
+  | "ORDER_DELIVERED"
   | "KOT_VOIDED"
   | "KOT_LINE_VOIDED"
   | "KOT_LINE_QTY_ADDED"
@@ -65,6 +70,11 @@ export type BusinessEventType =
   | "ORDER_SPLIT_CLEARED"
   | "ORDER_PAID"
   | "ORDER_LOCKED"
+  | "PRINT_QUEUED"
+  | "PRINT_SENT"
+  | "PRINT_FAILED"
+  | "BILL_REPRINTED"
+  | "KOT_REPRINTED"
   | "CUSTOMER_CREATED"
   | "CUSTOMER_UPDATED"
   | "CUSTOMER_DELETED"
@@ -79,7 +89,7 @@ export type BusinessEvent = {
   event_type: BusinessEventType;
   from_state?: string;
   to_state?: string;
-  actor_id?: string; // Clerk user id
+  actor_id?: string; // Better Auth user id
   reason_code?: string;
   reason_text?: string;
   metadata?: Record<string, any>;

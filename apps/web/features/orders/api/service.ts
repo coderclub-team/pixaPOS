@@ -18,6 +18,8 @@ import type {
   BillPartition,
   BillingView,
   CreateOrderInput,
+  ItemSalesFilters,
+  ItemSalesStat,
   OrderFilters,
   OrderItemSnapshot,
   OrderReturn,
@@ -27,6 +29,7 @@ import type {
   RestaurantOrder,
   SplitMode,
 } from "./types";
+import { DISPATCH_CHANNELS } from "./types";
 
 const ORDER_STORAGE_KEY = "pixaOrders";
 const RETURN_STORAGE_KEY = "pixaReturns";
@@ -34,10 +37,67 @@ const RETURN_STORAGE_KEY = "pixaReturns";
 let mockOrders: RestaurantOrder[] = [];
 let mockReturns: OrderReturn[] = [];
 
+function toDoc(o: {
+  id: string;
+  outlet_id?: string;
+  version?: number;
+  updated_at?: string;
+  deleted_at?: string | null;
+}) {
+  return {
+    id: o.id,
+    outlet_id: o.outlet_id ?? null,
+    data: o,
+    version: o.version ?? 1,
+    updated_at: o.updated_at ?? new Date().toISOString(),
+    deleted_at: o.deleted_at ?? null,
+  };
+}
+
+/** Durable SQLite mirror (fire-and-forget; repo never throws). */
+function mirrorOrders() {
+  if (typeof window === "undefined") return;
+  import("@/lib/db/repo").then(({ writeScope }) => {
+    void writeScope("orders", mockOrders.map(toDoc));
+    void writeScope("order_returns", mockReturns.map(toDoc));
+  });
+}
+
+/** Adopt the durable mirror on app startup — only when localStorage is
+ * missing/empty (fresh device or eviction recovery). Never overwrites
+ * existing localStorage: the mirror write lags it by design. */
+export async function hydrateOrdersFromMirror(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(ORDER_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(parsed?.orders) && parsed.orders.length > 0) return;
+    const rraw = localStorage.getItem(RETURN_STORAGE_KEY);
+    const rparsed = rraw ? JSON.parse(rraw) : null;
+    const { readScope } = await import("@/lib/db/repo");
+    const [orders, returns] = await Promise.all([readScope("orders"), readScope("order_returns")]);
+    if (orders.length > 0) {
+      localStorage.setItem(
+        ORDER_STORAGE_KEY,
+        JSON.stringify({ orders: orders.map((d) => d.data) }),
+      );
+      loadOrders();
+    }
+    if (returns.length > 0) {
+      localStorage.setItem(
+        RETURN_STORAGE_KEY,
+        JSON.stringify({ returns: returns.map((d) => d.data) }),
+      );
+      loadReturns();
+    }
+  } catch {}
+}
+
 function saveReturns() {
   if (typeof window !== "undefined") {
     try {
       localStorage.setItem(RETURN_STORAGE_KEY, JSON.stringify({ returns: mockReturns }));
+      mirrorOrders();
     } catch {}
   }
 }
@@ -59,6 +119,7 @@ function saveOrders() {
   if (typeof window !== "undefined") {
     try {
       localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify({ orders: mockOrders }));
+      mirrorOrders();
     } catch {}
   }
 }
@@ -92,8 +153,10 @@ const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   CONFIRMED: ["IN_KITCHEN", "CANCELLED"],
   IN_KITCHEN: ["PREPARING", "CANCELLED"],
   PREPARING: ["READY", "CANCELLED"],
-  READY: ["SERVED", "CANCELLED"],
+  READY: ["SERVED", "OUT_FOR_DELIVERY", "CANCELLED"],
   SERVED: ["COMPLETED", "CANCELLED"],
+  OUT_FOR_DELIVERY: ["DELIVERED", "CANCELLED"],
+  DELIVERED: ["COMPLETED", "CANCELLED"],
   COMPLETED: [],
   CANCELLED: [],
 };
@@ -245,6 +308,71 @@ export async function getOrders(filters?: OrderFilters): Promise<OrderWithDerive
     .map((o) => enrichOrder(o, progress.get(o.id)));
 }
 
+/**
+ * Item sales read-model (Phase 1 of promos/rewards): per item+variant rollup
+ * over non-cancelled orders. Live servings exclude returned qty; bill
+ * discounts allocate pro-rata by line value. Returned/voided lines never
+ * inflate a "top seller". No new entity — pure derivation for the Item Sales
+ * report, promo targeting, and future overview KPIs.
+ */
+export async function itemSalesStats(filters?: ItemSalesFilters): Promise<ItemSalesStat[]> {
+  await delay(300);
+  loadOrders();
+  const { getMenuItems } = await import("@/features/menu/api/service");
+  const menu = await getMenuItems().catch(() => []);
+  const catByItem = new Map<string, string>(
+    menu.map((m): [string, string] => [m.id, m.category_name ?? ""]),
+  );
+  const nameByItem = new Map<string, string>(menu.map((m): [string, string] => [m.id, m.name]));
+
+  const from = filters?.from ? new Date(filters.from).getTime() : null;
+  const to = filters?.to ? new Date(filters.to).getTime() : null;
+  const byKey = new Map<string, ItemSalesStat & { orderIds: Set<string> }>();
+
+  for (const o of mockOrders) {
+    if (o.deleted_at || o.status === "CANCELLED") continue;
+    if (filters?.channel && o.channel !== filters.channel) continue;
+    const t = new Date(o.created_at).getTime();
+    if (from != null && t < from) continue;
+    if (to != null && t > to) continue;
+    const subtotal = o.items.reduce((s, i) => s + i.line_total_paise, 0);
+    const discount = discountFor(subtotal, o);
+    for (const l of o.items) {
+      const live = l.qty - (l.returned_qty ?? 0);
+      if (live <= 0) continue;
+      const share = subtotal > 0 ? l.line_total_paise / subtotal : 0;
+      const gross = Math.round((l.line_total_paise * live) / Math.max(1, l.qty));
+      const dShare = Math.round(discount * share * (live / Math.max(1, l.qty)));
+      const key = `${l.menu_item_id}|${l.variant_id ?? ""}`;
+      let s = byKey.get(key);
+      if (!s) {
+        s = {
+          menu_item_id: l.menu_item_id,
+          variant_id: l.variant_id,
+          name: l.item_name_snapshot || nameByItem.get(l.menu_item_id) || "Unknown",
+          variant_name: l.variant_name_snapshot,
+          category_name: catByItem.get(l.menu_item_id) || undefined,
+          qty: 0,
+          gross_paise: 0,
+          discount_paise: 0,
+          net_paise: 0,
+          orders: 0,
+          orderIds: new Set(),
+        };
+        byKey.set(key, s);
+      }
+      s.qty += live;
+      s.gross_paise += gross;
+      s.discount_paise += dShare;
+      s.net_paise += gross - dShare;
+      s.orderIds.add(o.id);
+    }
+  }
+  return [...byKey.values()]
+    .map(({ orderIds, ...s }) => ({ ...s, orders: orderIds.size }))
+    .sort((a, b) => b.qty - a.qty);
+}
+
 export async function getOrderById(id: string): Promise<OrderWithDerived | null> {
   await delay(200);
   loadOrders();
@@ -266,10 +394,56 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
       const table = await getTableById(input.table_id);
       if (!table) throw new Error("Table not found");
       if (table.outlet_id !== outletId) throw new Error("Table belongs to another outlet");
-    } else {
-      if (!input.customer_name?.trim() && !input.customer_phone?.trim()) {
-        throw new Error("Takeaway, delivery and online orders require a customer name or phone");
+    }
+    // Table-free orders (counter / takeaway / delivery / online) allow
+    // anonymous tokens — customer name/phone is optional capture only.
+    // Own-fleet delivery needs a drop address at creation (aggregator
+    // channels carry addressing externally via external_ref).
+    if (input.channel === "delivery" && !input.delivery_address?.trim()) {
+      throw new Error("Delivery orders need a drop address");
+    }
+
+    // Hours gate (single choke point for every channel): closed channels
+    // block creation; cut-off blocks ASAP creation near close; scheduled
+    // channels accept with a future slot (fired manually later). When the
+    // outlet allows off-hours orders, staff may proceed — flagged + audited.
+    const { getOutletById, isChannelOpen, channelMode, channelCutoff, minutesToClose } =
+      await import("@/features/outlet/api/service");
+    const outlet = await getOutletById(outletId).catch(() => null);
+    let hoursBlock: string | null = null;
+    if (outlet && !isChannelOpen(outlet, input.channel)) {
+      hoursBlock = `Outlet is closed for ${input.channel.replace("_", " ")} orders right now`;
+    }
+    if (outlet && !hoursBlock) {
+      const mode = channelMode(outlet, input.channel);
+      const slot = input.scheduled_for ? new Date(input.scheduled_for) : null;
+      if (mode === "closed") {
+        hoursBlock = `Outlet is closed for ${input.channel.replace("_", " ")} orders right now`;
+      } else if (
+        mode === "scheduled" &&
+        (!slot || Number.isNaN(slot.getTime())) &&
+        !input.staff_initiated
+      ) {
+        hoursBlock = `${input.channel.replace("_", " ")} accepts scheduled orders only — pick a slot`;
+      } else if ((!slot || slot.getTime() <= Date.now()) && mode !== "scheduled") {
+        const cutoff = channelCutoff(outlet, input.channel);
+        if (cutoff > 0) {
+          const left = minutesToClose(outlet, input.channel);
+          if (left != null && left < cutoff) {
+            hoursBlock = `Last ${input.channel.replace("_", " ")} orders were taken — kitchen closes soon`;
+          }
+        }
       }
+    }
+    let offHours = false;
+    let offHoursReason: string | undefined;
+    if (hoursBlock) {
+      if (!outlet?.allow_off_hours_orders) throw new Error(hoursBlock);
+      if (outlet.require_off_hours_reason && !input.off_hours_reason?.trim()) {
+        throw new Error(`${hoursBlock} — off-hours orders need a reason`);
+      }
+      offHours = true;
+      offHoursReason = input.off_hours_reason?.trim() || undefined;
     }
 
     const dayOrders = mockOrders.filter(
@@ -290,6 +464,14 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
       occupancy_group_id: input.occupancy_group_id,
       customer_name: input.customer_name?.trim() || undefined,
       customer_phone: input.customer_phone?.trim() || undefined,
+      customer_notes: input.customer_notes?.trim() || undefined,
+      delivery_address_snapshot: input.delivery_address?.trim() || undefined,
+      off_hours: offHours || undefined,
+      off_hours_reason: offHoursReason,
+      scheduled_for:
+        input.scheduled_for && !Number.isNaN(new Date(input.scheduled_for).getTime())
+          ? new Date(input.scheduled_for).toISOString()
+          : undefined,
       external_ref: input.external_ref?.trim() || undefined,
       status: input.initial_status ?? "CONFIRMED",
       items: [],
@@ -322,6 +504,18 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
         event_type: "ORDER_CONFIRMED",
         to_state: "CONFIRMED",
         actor_id: order.created_by,
+      });
+    }
+    if (order.off_hours) {
+      await recordEvent({
+        outlet_id: order.outlet_id,
+        entity_type: "ORDER",
+        entity_id: order.id,
+        event_type: "ORDER_OFF_HOURS",
+        to_state: order.status,
+        actor_id: order.created_by,
+        reason_text: order.off_hours_reason,
+        metadata: { channel: order.channel, order_number: order.order_number },
       });
     }
     return enrichOrder(order);
@@ -363,7 +557,12 @@ export async function addOrderItem(
     const modifiers = (input.modifier_ids ?? []).map((mid) => {
       const m = allModifiers.find((x) => x.id === mid && x.is_active);
       if (!m) throw new Error(`Modifier not available: ${mid}`);
-      return { modifier_id: m.id, name_snapshot: m.name, price_paise: toPaise(m.price) };
+      return {
+        modifier_id: m.id,
+        name_snapshot: m.name,
+        alias_snapshot: m.alias ?? undefined,
+        price_paise: toPaise(m.price),
+      };
     });
 
     const unitPrice =
@@ -412,7 +611,7 @@ export async function addOrderItem(
 function orderChannelToMenuChannel(
   channel: CreateOrderInput["channel"],
 ): "dine_in" | "pickup" | "delivery" | "zomato" | "swiggy" | "ondc" {
-  if (channel === "takeaway") return "pickup";
+  if (channel === "takeaway" || channel === "counter") return "pickup";
   if (channel === "own_online") return "delivery";
   return channel;
 }
@@ -598,6 +797,10 @@ export async function markLinesFired(
       updated_at: new Date().toISOString(),
       version: base.version + 1,
     };
+    // Persist the marks BEFORE the fallible steps below (auto-seat,
+    // transition): a throw after this point must never leave marked lines
+    // only in memory while storage still calls them draft.
+    saveOrders();
     const order = mockOrders[idx];
     if (order.status === "DRAFT" || order.status === "CONFIRMED") {
       if (order.status === "DRAFT" && order.channel === "dine_in" && order.table_id) {
@@ -661,7 +864,10 @@ export async function cancelOrder(
     if (idx === -1) throw new Error("Order not found");
     if (!params.reason?.trim()) throw new Error("A reason is required to cancel an order");
     const order = mockOrders[idx];
-    if (["PREPARING", "READY", "SERVED"].includes(order.status) && !params.by) {
+    if (
+      ["PREPARING", "READY", "SERVED", "OUT_FOR_DELIVERY", "DELIVERED"].includes(order.status) &&
+      !params.by
+    ) {
       throw new Error("Cancelling a kitchen-fired order requires an authorized user");
     }
     mockOrders[idx] = {
@@ -682,14 +888,15 @@ export async function cancelOrder(
 }
 
 /**
- * Terminal capture: return the table's live order, or auto-create a CONFIRMED
- * dine-in order and attach it to the active occupancy group. Seats a default
+ * Terminal capture: return the table's live order, or auto-create a DRAFT
+ * dine-in order and attach it to the active occupancy group. Drafts stay
+ * local (deletable, never synced) until the first fire. Seats a default
  * party (table capacity) when the table has no active group. Serialized under
  * the order-write lock so double-taps can't create two drafts.
  */
 export async function ensureTableOrder(
   tableId: string,
-  params?: { by?: string },
+  params?: { by?: string; off_hours_reason?: string },
 ): Promise<OrderWithDerived> {
   // Per-table lock held for the whole flow (composed commands take their own
   // different keys, so no deadlock). Double-taps on one table serialize here.
@@ -735,6 +942,11 @@ export async function ensureTableOrder(
       table_id: tableId,
       occupancy_group_id: groupId,
       created_by: params?.by ?? "staff",
+      off_hours_reason: params?.off_hours_reason,
+      // Terminal carts start as local DRAFTs (zero KOTs, deletable, never
+      // synced) — the first fire walks DRAFT → IN_KITCHEN directly.
+      initial_status: "DRAFT",
+      staff_initiated: true,
     });
     try {
       await attachOrder({ group_id: groupId, order_id: order.id });
@@ -748,15 +960,84 @@ export async function ensureTableOrder(
 }
 
 /**
+ * Bare-single twin of ensureTableOrder: return the table's live order, or
+ * seat one silent 1-guest group (no seating ceremony, no guest-count step)
+ * and create + attach its order. Terminal taps land here; the explicit seat
+ * dialog stays the full party flow. Serialized per table like ensureTableOrder.
+ */
+export async function ensureBareTableOrder(
+  tableId: string,
+  params?: { by?: string; off_hours_reason?: string },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-table-${tableId}`);
+  try {
+    await delay(200);
+    const findLive = () =>
+      mockOrders
+        .filter(
+          (o) =>
+            !o.deleted_at &&
+            o.table_id === tableId &&
+            o.status !== "COMPLETED" &&
+            o.status !== "CANCELLED",
+        )
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+    const existing = findLive();
+    if (existing) return enrichOrder(existing);
+
+    const table = await getTableById(tableId);
+    if (!table) throw new Error("Table not found");
+    if (table.status === "out_of_service") throw new Error("Table is out of service");
+    if (table.status === "cleaning")
+      throw new Error("Table is being cleaned. Mark it cleaned first.");
+
+    let groupId = table.active_groups[0]?.id;
+    if (!groupId) {
+      if (table.seated_seats >= table.capacity) throw new Error("Table is full");
+      const seated = await seatOccupancy({
+        table_id: tableId,
+        seats: 1,
+        created_by: params?.by ?? "staff",
+      });
+      groupId = seated.id;
+    }
+
+    const raced = findLive();
+    if (raced) return enrichOrder(raced);
+
+    const order = await createOrder({
+      outlet_id: table.outlet_id,
+      channel: "dine_in",
+      table_id: tableId,
+      occupancy_group_id: groupId,
+      created_by: params?.by ?? "staff",
+      off_hours_reason: params?.off_hours_reason,
+      // Terminal carts start as local DRAFTs (zero KOTs, deletable, never
+      // synced) — the first fire walks DRAFT → IN_KITCHEN directly.
+      initial_status: "DRAFT",
+      staff_initiated: true,
+    });
+    try {
+      await attachOrder({ group_id: groupId, order_id: order.id });
+    } catch {
+      // Group may have transitioned (e.g. already ORDERING) — order stays linked by group id.
+    }
+    return order;
+  } finally {
+    release();
+  }
+}
+
+/**
  * Party-scoped twin of ensureTableOrder: return the occupancy group's live
- * order, or create a CONFIRMED dine-in order and attach it to the group.
+ * order, or create a DRAFT dine-in order and attach it to the group.
  * This is how shared tables serve one order per party — the press-and-hold
  * gesture on a party chip lands here. Serialized per group so double
  * holds can't create two orders.
  */
 export async function ensureGroupOrder(
   groupId: string,
-  params?: { by?: string },
+  params?: { by?: string; off_hours_reason?: string },
 ): Promise<OrderWithDerived> {
   const release = await entityMutex.acquire(`order-group-${groupId}`);
   try {
@@ -796,11 +1077,14 @@ export async function ensureGroupOrder(
     if (raced) return enrichOrder(raced);
 
     const order = await createOrder({
-      outlet_id: group.outlet_id,
+      outlet_id: table.outlet_id,
       channel: "dine_in",
       table_id: group.table_id,
       occupancy_group_id: groupId,
       created_by: params?.by ?? "staff",
+      off_hours_reason: params?.off_hours_reason,
+      initial_status: "DRAFT",
+      staff_initiated: true,
     });
     try {
       await attachOrder({ group_id: groupId, order_id: order.id });
@@ -813,6 +1097,76 @@ export async function ensureGroupOrder(
   }
 }
 
+/**
+ * Sync eligibility for the server database: an order may leave the device
+ * only once at least one line has fired to a KOT. Zero-KOT drafts (any
+ * status) and deleted orders stay local-only — creatable and deletable
+ * freely, never synced. Synchronous, no delays: safe to call from the
+ * event/outbox path. Fired-then-cancelled orders stay eligible (the server
+ * needs the cancel and its waste impact).
+ */
+export function orderSyncEligible(orderId: string): boolean {
+  loadOrders();
+  const o = mockOrders.find((m) => m.id === orderId);
+  if (!o || o.deleted_at) return false;
+  if (o.status === "DRAFT") return false;
+  return o.items.some((i) => i.kot_id);
+}
+
+/**
+ * Current order snapshot for sync envelopes. No delays, no enrichment —
+ * the outbox path must never slow business mutations.
+ */
+export function getOrderForSync(orderId: string): RestaurantOrder | null {
+  loadOrders();
+  return mockOrders.find((m) => m.id === orderId && !m.deleted_at) ?? null;
+}
+
+/**
+ * Sweep abandoned empty drafts: non-terminal orders that never received a
+ * single item line. Called when the terminal workspace resets (type switch,
+ * deselect, completion) and once on mount — never while the cart is being
+ * built. The 5-minute age guard protects a just-started cart (including one
+ * open in another tab); only genuinely abandoned empties go. No events are
+ * recorded (an empty cart is audit noise, and this keeps it out of the
+ * outbox entirely). Seated parties are detached, never released.
+ */
+export async function discardEmptyDrafts(outletId?: string): Promise<number> {
+  const release = await entityMutex.acquire("order-write");
+  const detached: { group_id: string; order_id: string }[] = [];
+  let count = 0;
+  try {
+    loadOrders();
+    const cutoff = Date.now() - 5 * 60 * 1000;
+    const now = new Date().toISOString();
+    for (const o of mockOrders) {
+      if (o.deleted_at) continue;
+      if (o.status === "COMPLETED" || o.status === "CANCELLED") continue;
+      if (o.items.length > 0) continue;
+      if (new Date(o.created_at).getTime() > cutoff) continue;
+      if (outletId && o.outlet_id !== outletId) continue;
+      o.deleted_at = now;
+      o.cancelled_reason = "Empty draft auto-discarded";
+      o.updated_at = now;
+      o.version += 1;
+      if (o.occupancy_group_id) {
+        detached.push({ group_id: o.occupancy_group_id, order_id: o.id });
+      }
+      count++;
+    }
+    if (count > 0) saveOrders();
+  } finally {
+    release();
+  }
+  for (const d of detached) {
+    try {
+      await detachOrder({ group_id: d.group_id, order_id: d.order_id });
+    } catch {
+      // Group already released/transferred — pointer is harmless.
+    }
+  }
+  return count;
+}
 /**
  * Delete an unfired order (soft-delete). Allowed iff no line has fired to a
  * KOT, regardless of status — anything fired must go through cancelOrder.
@@ -828,6 +1182,16 @@ export async function deleteOrder(orderId: string, by?: string): Promise<void> {
     const order = mockOrders[idx];
     if (order.items.some((i) => i.kot_id)) {
       throw new Error("Order has fired items — cancel it instead");
+    }
+    // Money guard: a prepaid-but-unfired order must go through cancel/refund
+    // so the payment trail survives — discarding would erase what the
+    // customer paid. Dynamic import: payments/service imports this module.
+    const { getPayments } = await import("@/features/payments/api/service");
+    const paid = (await getPayments({ order_id: orderId }))
+      .filter((p) => p.status === "PAID")
+      .reduce((s, p) => s + p.amount_paise, 0);
+    if (paid > 0) {
+      throw new Error("Order has payments — cancel and refund it instead");
     }
     groupId = order.occupancy_group_id;
     const now = new Date().toISOString();
@@ -873,7 +1237,7 @@ export async function getReturnsByOrder(orderId: string): Promise<OrderReturn[]>
  * Item-wise post-sale return. Returns own kitchen truth (returnKOTLine works
  * on served lines, routes waste), shrink the bill (returned qty excluded from
  * totals), and refund to the original payment methods (refundForReturn).
- * Allowed on SERVED and COMPLETED orders — the bill must exist to be reduced.
+ * Allowed on SERVED, DELIVERED and COMPLETED orders — the bill must exist to be reduced.
  * Terminal CANCELLED orders go through cancel semantics, not returns.
  */
 export async function createReturn(
@@ -889,7 +1253,7 @@ export async function createReturn(
     const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
     if (idx === -1) throw new Error("Order not found");
     const order = mockOrders[idx];
-    if (order.status !== "SERVED" && order.status !== "COMPLETED") {
+    if (order.status !== "SERVED" && order.status !== "DELIVERED" && order.status !== "COMPLETED") {
       throw new Error(
         `Returns need a served bill (order is ${order.status.toLowerCase()}) — edit or void unfired items instead`,
       );
@@ -1032,6 +1396,36 @@ export async function linkCustomer(orderId: string, customerId: string): Promise
  * link again). Clears the snapshot; the customer record itself is untouched.
  * Blocked on terminal states. Audited with the previous customer in metadata.
  */
+/**
+ * Set free-text customer notes (allergies, accessibility, requests) on a
+ * live order. Editable until COMPLETED/CANCELLED — the kitchen reads them
+ * off every KOT print, so late allergy flags still land safely.
+ */
+export async function setCustomerNotes(orderId: string, notes: string): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(300);
+    loadOrders();
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (order.status === "COMPLETED" || order.status === "CANCELLED") {
+      throw new Error(`Cannot edit notes on a ${order.status.toLowerCase()} order`);
+    }
+    if (notes.trim().length > 300) throw new Error("Notes must be 300 characters or less");
+    mockOrders[idx] = {
+      ...order,
+      customer_notes: notes.trim() || undefined,
+      updated_at: new Date().toISOString(),
+      version: order.version + 1,
+    };
+    saveOrders();
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
 export async function unlinkCustomer(
   orderId: string,
   params?: { reason?: string; by?: string },
@@ -1115,6 +1509,193 @@ export async function setDiscount(
       discount_percent: params.percent,
       discount_paise: params.amount_paise,
       discount_reason: params.reason.trim(),
+      promo_code: undefined,
+      promo_id: undefined,
+      reward_points: undefined,
+      split: undefined,
+      updated_at: new Date().toISOString(),
+      version: order.version + 1,
+    });
+    // Manual discount replaces any promo — void its redemption so limits
+    // count only promos live at completion.
+    const { voidRedemptionsForOrder } = await import("@/features/promos/api/service");
+    await voidRedemptionsForOrder(orderId);
+    const { voidRedemptionForOrder } = await import("@/features/rewards/api/service");
+    await voidRedemptionForOrder(orderId);
+    saveOrders();
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: order.id,
+      event_type: "ORDER_DISCOUNTED",
+      actor_id: params.by ?? "staff",
+      reason_text: params.reason.trim(),
+      metadata: { percent: params.percent, amount_paise: params.amount_paise },
+    });
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
+/**
+ * Apply a promo code to a draft bill. The evaluated amount lands in
+ * discount_paise (pre-tax, like manual discounts) with
+ * discount_reason = `PROMO:<CODE>`; promo and manual discounts are mutually
+ * exclusive. Limits enforced; redemption recorded per apply and voided if
+ * the promo is replaced/removed before completion.
+ */
+export async function applyPromo(
+  orderId: string,
+  code: string,
+  params?: { by?: string },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(300);
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (order.status === "COMPLETED" || order.status === "CANCELLED") {
+      throw new Error("Promo cannot change on a completed or cancelled order");
+    }
+    const {
+      getPromoByCode,
+      evaluatePromo,
+      checkPromoLimits,
+      recordRedemption,
+      voidRedemptionsForOrder,
+    } = await import("@/features/promos/api/service");
+    const promo = await getPromoByCode(code);
+    if (!promo) throw new Error(`Promo ${code.trim().toUpperCase() || "code"} not found`);
+    // Category matching needs catalog category_ids on the view lines.
+    const catByItem = new Map<string, string>();
+    if (promo.scope === "category") {
+      const { getMenuItems } = await import("@/features/menu/api/service");
+      const menu = await getMenuItems().catch(() => []);
+      for (const m of menu) catByItem.set(m.id, (m as any).category_id ?? "");
+    }
+    const subtotal = order.items.reduce((s, i) => s + i.line_total_paise, 0);
+    const { amount_paise } = evaluatePromo(promo, {
+      subtotal_paise: subtotal,
+      channel: order.channel,
+      customer_id: order.customer_id,
+      items: order.items.map((l) => ({ ...l, category_id: catByItem.get(l.menu_item_id) })),
+    });
+    await checkPromoLimits(promo, order.customer_id);
+    await voidRedemptionsForOrder(orderId);
+    const { voidRedemptionForOrder } = await import("@/features/rewards/api/service");
+    await voidRedemptionForOrder(orderId);
+    mockOrders[idx] = recomputeTotals({
+      ...order,
+      discount_percent: undefined,
+      discount_paise: amount_paise,
+      discount_reason: `PROMO:${promo.code}`,
+      promo_code: promo.code,
+      promo_id: promo.id,
+      reward_points: undefined,
+      split: undefined,
+      updated_at: new Date().toISOString(),
+      version: order.version + 1,
+    });
+    saveOrders();
+    await recordRedemption({
+      promo_id: promo.id,
+      order_id: orderId,
+      customer_id: order.customer_id,
+      amount_paise,
+    });
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: order.id,
+      event_type: "ORDER_DISCOUNTED",
+      actor_id: params?.by ?? "staff",
+      reason_text: `PROMO:${promo.code}`,
+      metadata: { promo_id: promo.id, promo_code: promo.code, amount_paise },
+    });
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
+/** Remove a promo (clears the promo-driven discount; manual edits re-add). */
+export async function removePromo(
+  orderId: string,
+  params?: { by?: string },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(200);
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (!order.promo_code) throw new Error("No promo applied on this order");
+    mockOrders[idx] = recomputeTotals({
+      ...order,
+      discount_percent: undefined,
+      discount_paise: undefined,
+      discount_reason: undefined,
+      promo_code: undefined,
+      promo_id: undefined,
+      reward_points: undefined,
+      updated_at: new Date().toISOString(),
+      version: order.version + 1,
+    });
+    const { voidRedemptionsForOrder } = await import("@/features/promos/api/service");
+    await voidRedemptionsForOrder(orderId);
+    saveOrders();
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: order.id,
+      event_type: "ORDER_DISCOUNTED",
+      actor_id: params?.by ?? "staff",
+      reason_text: "Promo removed",
+      metadata: { promo_removed: order.promo_code },
+    });
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
+/**
+ * Tender reward points on a draft bill (1 pt = ₹1). Needs a linked customer
+ * with balance. Mutually exclusive with promo/manual discount (last wins).
+ */
+export async function redeemRewards(
+  orderId: string,
+  points: number,
+  params?: { by?: string },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(300);
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (order.status === "COMPLETED" || order.status === "CANCELLED") {
+      throw new Error("Rewards cannot change on a completed or cancelled order");
+    }
+    if (!order.customer_id) throw new Error("Link a customer to redeem rewards");
+    const { redeemForOrder, voidRedemptionForOrder } =
+      await import("@/features/rewards/api/service");
+    const { value_paise } = await redeemForOrder(order.customer_id, orderId, points);
+    const { voidRedemptionsForOrder } = await import("@/features/promos/api/service");
+    await voidRedemptionsForOrder(orderId);
+    mockOrders[idx] = recomputeTotals({
+      ...order,
+      discount_percent: undefined,
+      discount_paise: Math.min(
+        value_paise,
+        order.items.reduce((s, i) => s + i.line_total_paise, 0),
+      ),
+      discount_reason: `REWARDS:${points}pts`,
+      promo_code: undefined,
+      promo_id: undefined,
+      reward_points: points,
       split: undefined,
       updated_at: new Date().toISOString(),
       version: order.version + 1,
@@ -1125,9 +1706,48 @@ export async function setDiscount(
       entity_type: "ORDER",
       entity_id: order.id,
       event_type: "ORDER_DISCOUNTED",
-      actor_id: params.by ?? "staff",
-      reason_text: params.reason.trim(),
-      metadata: { percent: params.percent, amount_paise: params.amount_paise },
+      actor_id: params?.by ?? "staff",
+      reason_text: `REWARDS:${points}pts`,
+      metadata: { reward_points: points, amount_paise: value_paise },
+    });
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
+/** Remove a rewards tender (points return to the member's balance). */
+export async function removeRewardsRedeem(
+  orderId: string,
+  params?: { by?: string },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(200);
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (!order.reward_points) throw new Error("No rewards tendered on this order");
+    mockOrders[idx] = recomputeTotals({
+      ...order,
+      discount_percent: undefined,
+      discount_paise: undefined,
+      discount_reason: undefined,
+      reward_points: undefined,
+      updated_at: new Date().toISOString(),
+      version: order.version + 1,
+    });
+    const { voidRedemptionForOrder } = await import("@/features/rewards/api/service");
+    await voidRedemptionForOrder(orderId);
+    saveOrders();
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: order.id,
+      event_type: "ORDER_DISCOUNTED",
+      actor_id: params?.by ?? "staff",
+      reason_text: "Rewards removed",
+      metadata: { rewards_removed: order.reward_points },
     });
     return enrichOrder(mockOrders[idx]);
   } finally {
@@ -1389,6 +2009,8 @@ const STEP_EVENT_FOR: Record<OrderStatus, any> = {
   PREPARING: "KITCHEN_STARTED",
   READY: "ORDER_READY",
   SERVED: "ORDER_SERVED",
+  OUT_FOR_DELIVERY: "ORDER_DISPATCHED",
+  DELIVERED: "ORDER_DELIVERED",
   COMPLETED: "ORDER_COMPLETED",
   CANCELLED: "ORDER_CANCELLED",
 };
@@ -1466,9 +2088,191 @@ export async function refreshOrderKitchenState(orderId: string): Promise<void> {
     // later save would persist the revert. Sibling-tab staleness is bounded
     // (advance-only; backfill heals on read).
     const { peekTickets } = await import("@/features/kitchen/api/service");
-    const target = deriveKitchenTarget(peekTickets().filter((t) => t.order_id === orderId));
+    let target = deriveKitchenTarget(peekTickets().filter((t) => t.order_id === orderId));
     if (!target) return;
+    // Dispatch channels cap at READY — served KOT lines must never walk a
+    // delivery order to SERVED. The dispatch flow owns everything after.
+    if (target === "SERVED" && (DISPATCH_CHANNELS as string[]).includes(order.channel)) {
+      target = "READY";
+    }
     if (await walkForward(idx, target)) saveOrders();
+  } finally {
+    release();
+  }
+}
+
+/**
+ * Dispatch flow (Odoo Delivery-Screen rule): READY → OUT_FOR_DELIVERY →
+ * DELIVERED, owned by the dispatch console — never by item-served events.
+ * Dispatch auto-serves the order's open KOTs (kitchen's job ends at handoff),
+ * which clears the KDS board; the clamped derivation keeps the order itself
+ * off the SERVED path.
+ */
+export async function assignRider(
+  orderId: string,
+  params: { rider_name: string; by?: string },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(200);
+    loadOrders();
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (!(DISPATCH_CHANNELS as string[]).includes(order.channel)) {
+      throw new Error("Only delivery-channel orders take a rider");
+    }
+    if (order.status !== "READY" && order.status !== "OUT_FOR_DELIVERY") {
+      throw new Error(
+        `Rider can be set on ready or out-for-delivery orders (is ${order.status.toLowerCase()})`,
+      );
+    }
+    const rider = params.rider_name?.trim();
+    if (!rider) throw new Error("Rider name is required");
+    const now = new Date().toISOString();
+    mockOrders[idx] = { ...order, rider_name: rider, updated_at: now, version: order.version + 1 };
+    saveOrders();
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: order.id,
+      event_type: "ORDER_RIDER_ASSIGNED",
+      actor_id: params.by ?? "staff",
+      metadata: { rider_name: rider },
+    });
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
+export async function dispatchOrder(
+  orderId: string,
+  params?: { by?: string },
+): Promise<OrderWithDerived> {
+  // Serve open tickets BEFORE the order lock (same deadlock rule as completion).
+  loadOrders();
+  const pre = mockOrders.find((o) => o.id === orderId && !o.deleted_at);
+  if (!pre) throw new Error("Order not found");
+  if (!(DISPATCH_CHANNELS as string[]).includes(pre.channel)) {
+    throw new Error("Only delivery-channel orders can be dispatched");
+  }
+  if (pre.status !== "READY") {
+    throw new Error(`Only ready orders can be dispatched (is ${pre.status.toLowerCase()})`);
+  }
+  if (!pre.rider_name?.trim()) {
+    throw new Error("Assign a rider before dispatch");
+  }
+  const { serveOpenTickets } = await import("@/features/kitchen/api/service");
+  await serveOpenTickets(orderId, { by: params?.by });
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(300);
+    loadOrders();
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (order.status !== "READY") {
+      throw new Error(`Only ready orders can be dispatched (is ${order.status.toLowerCase()})`);
+    }
+    const now = new Date().toISOString();
+    mockOrders[idx] = {
+      ...order,
+      dispatched_at: now,
+      updated_at: now,
+      version: order.version + 1,
+    };
+    saveOrders();
+    await transitionOrder(idx, "OUT_FOR_DELIVERY", {
+      actor_id: params?.by ?? "staff",
+      event_type: "ORDER_DISPATCHED",
+      metadata: { rider_name: mockOrders[idx].rider_name },
+    });
+    saveOrders();
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
+export async function markDelivered(
+  orderId: string,
+  params?: { by?: string },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(300);
+    loadOrders();
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (order.status !== "OUT_FOR_DELIVERY") {
+      throw new Error(
+        `Only out-for-delivery orders can be marked delivered (is ${order.status.toLowerCase()})`,
+      );
+    }
+    const now = new Date().toISOString();
+    mockOrders[idx] = {
+      ...order,
+      delivered_at: now,
+      updated_at: now,
+      version: order.version + 1,
+    };
+    saveOrders();
+    await transitionOrder(idx, "DELIVERED", {
+      actor_id: params?.by ?? "staff",
+      event_type: "ORDER_DELIVERED",
+      metadata: { rider_name: mockOrders[idx].rider_name },
+    });
+    saveOrders();
+    return enrichOrder(mockOrders[idx]);
+  } finally {
+    release();
+  }
+}
+
+/** Drop address stays editable until the rider leaves with the food. */
+export async function setDeliveryAddress(
+  orderId: string,
+  params: { delivery_address: string; by?: string },
+): Promise<OrderWithDerived> {
+  const release = await entityMutex.acquire(`order-${orderId}`);
+  try {
+    await delay(200);
+    loadOrders();
+    const idx = mockOrders.findIndex((o) => o.id === orderId && !o.deleted_at);
+    if (idx === -1) throw new Error("Order not found");
+    const order = mockOrders[idx];
+    if (!(DISPATCH_CHANNELS as string[]).includes(order.channel)) {
+      throw new Error("Only delivery-channel orders take a drop address");
+    }
+    if (
+      order.status !== "READY" &&
+      order.status !== "CONFIRMED" &&
+      order.status !== "IN_KITCHEN" &&
+      order.status !== "PREPARING"
+    ) {
+      throw new Error("Drop address can only change before dispatch");
+    }
+    const address = params.delivery_address?.trim();
+    if (!address) throw new Error("Drop address is required");
+    const now = new Date().toISOString();
+    mockOrders[idx] = {
+      ...order,
+      delivery_address_snapshot: address,
+      updated_at: now,
+      version: order.version + 1,
+    };
+    saveOrders();
+    await recordEvent({
+      outlet_id: order.outlet_id,
+      entity_type: "ORDER",
+      entity_id: order.id,
+      event_type: "ORDER_UPDATED",
+      actor_id: params.by ?? "staff",
+      metadata: { delivery_address: address },
+    });
+    return enrichOrder(mockOrders[idx]);
   } finally {
     release();
   }
@@ -1514,10 +2318,15 @@ export async function completeOrder(
       throw new Error(`Order is already ${order.status.toLowerCase()}`);
     }
     const actor = params?.by ?? by ?? "staff";
-    const forced = !!params?.force && order.status !== "SERVED";
-    if (!forced && order.status !== "SERVED") {
+    // Fulfillment bar: delivery channels complete from DELIVERED (rider
+    // confirmed handover), everything else from SERVED.
+    const fulfilledAt = (DISPATCH_CHANNELS as string[]).includes(order.channel)
+      ? "DELIVERED"
+      : "SERVED";
+    const forced = !!params?.force && order.status !== fulfilledAt;
+    if (!forced && order.status !== fulfilledAt) {
       throw new Error(
-        `Only served orders can be completed (order is ${order.status.toLowerCase()}) — or force-complete with a reason`,
+        `Only ${fulfilledAt === "DELIVERED" ? "delivered" : "served"} orders can be completed (order is ${order.status.toLowerCase()}) — or force-complete with a reason`,
       );
     }
     if (forced && !params?.reason?.trim()) {
@@ -1536,6 +2345,20 @@ export async function completeOrder(
       force: forced || undefined,
     });
     saveOrders();
+    // Rewards earn on completion for linked customers (1 pt/₹10) — best
+    // effort, never fails completion.
+    if (mockOrders[idx].customer_id) {
+      const { earnForOrder } = await import("@/features/rewards/api/service");
+      await earnForOrder(
+        mockOrders[idx].customer_id!,
+        orderId,
+        mockOrders[idx].grand_total_paise,
+      ).catch(() => 0);
+    }
+    // Auto-print bill (+ takeaway token) on settle. Dynamic import avoids an
+    // orders <-> print-studio cycle; print failure never fails completion.
+    const { maybeAutoPrintBill } = await import("@/features/print-studio/api/service");
+    await maybeAutoPrintBill(orderId, actor);
     return enrichOrder(mockOrders[idx]);
   } finally {
     release();

@@ -52,13 +52,22 @@ export default function CheckoutDialog({
   const completeMut = useMutation({
     mutationFn: (reason: string) =>
       completeOrder(orderId, reason ? { reason, force: true } : undefined),
-    onSuccess: (_o, reason) => {
+    onSuccess: async (_o, reason) => {
       queryClient.invalidateQueries({ queryKey: orderKeys.detail(orderId) });
       queryClient.invalidateQueries({ queryKey: orderKeys.all });
       queryClient.invalidateQueries({ queryKey: kitchenKeys.byOrder(orderId) });
       queryClient.invalidateQueries({ queryKey: paymentKeys.byOrder(orderId) });
       queryClient.invalidateQueries({ queryKey: eventKeys.byOrder(orderId) });
       toast.success(`Order ${order?.order_number ?? ""} completed — table free`.trim());
+      // Truthful print status: settle always leaves a trace — SENT, or a
+      // warning pointing at Print History when the bill job failed/parked.
+      const { latestJobForRef } = await import("@/features/print-studio/api/service");
+      const job = await latestJobForRef("BILL", orderId).catch(() => null);
+      if (job && job.status !== "SENT") {
+        toast.warning(
+          `Bill print ${job.status.toLowerCase()}: ${job.last_error ?? "see Print History"}. Retry there.`,
+        );
+      }
       setCompleting(false);
       setForceReason("");
       onOpenChange(false);
@@ -77,7 +86,7 @@ export default function CheckoutDialog({
   const paid = paidList.reduce((s, p) => s + p.amount_paise, 0) - refunded;
   const grand = order?.grand_total_paise ?? 0;
   const balance = Math.max(0, grand - paid);
-  const served = order?.status === "SERVED";
+  const served = order?.status === "SERVED" || order?.status === "DELIVERED";
   const settled = balance <= 0;
   const needsForce = !!order && !served;
 

@@ -41,9 +41,12 @@ export type SubscriptionStatus = "trialing" | "active" | "grace" | "blocked" | "
 
 export type Subscription = {
   id: string;
-  outlet_id: string;
+  /** Workspace scope (ADR-0021): one subscription per organization. */
+  organization_id: string;
+  /** @deprecated single-outlet era; read for legacy rows, never written. */
+  outlet_id?: string;
   plan_id: string;
-  /** Trial clock anchor. Pinned first-wins: Clerk org createdAt when available,
+  /** Trial clock anchor. Pinned first-wins: Better Auth org createdAt when available,
    * else local first-seen (documented tradeoff — a data wipe restarts it). */
   trial_started_at: string;
   razorpay_subscription_id?: string;
@@ -62,7 +65,9 @@ export type InvoiceStatus = "paid" | "pending" | "failed";
 
 export type SubscriptionInvoice = {
   id: string;
-  outlet_id: string;
+  organization_id: string;
+  /** @deprecated single-outlet era; read for legacy rows, never written. */
+  outlet_id?: string;
   subscription_id: string;
   invoice_number: string;
   period_start: string;

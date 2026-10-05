@@ -1,7 +1,10 @@
 "use client";
 import * as React from "react";
 import PageContainer from "@/components/layout/page-container";
-import { PurchaseReturnList } from "@/features/inventory/components/purchase-return-list";
+import {
+  PurchaseReturnList,
+  purchaseReturnExportColumns,
+} from "@/features/inventory/components/purchase-return-list";
 import { purchaseReturnsQueryOptions } from "@/features/inventory/api/queries";
 import { useQuery } from "@tanstack/react-query";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
@@ -16,6 +19,7 @@ import {
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
+import { ExportButton } from "@/features/system/components/io-dialog";
 
 export default function ReturnsPage() {
   const [search, setSearch] = React.useState("");
@@ -75,6 +79,11 @@ export default function ReturnsPage() {
             <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>
         </Select>
+        <ExportButton
+          filename="purchase-returns"
+          rows={returns ?? []}
+          columns={purchaseReturnExportColumns}
+        />
       </div>
       <PurchaseReturnList returns={returns ?? []} />
     </PageContainer>

@@ -5,6 +5,7 @@ import {
   IconArmchair,
   IconArrowRight,
   IconBell,
+  IconBackspace,
   IconBold,
   IconBox,
   IconBrandGithub,
@@ -36,6 +37,7 @@ import {
   IconDeviceLaptop,
   IconDots,
   IconDotsVertical,
+  IconDownload,
   IconEdit,
   IconExternalLink,
   IconEyeOff,
@@ -46,6 +48,7 @@ import {
   IconFileTypeXls,
   IconFileZip,
   IconFolder,
+  IconFrame,
   IconGripVertical,
   IconHelpCircle,
   IconInfoCircle,
@@ -53,6 +56,7 @@ import {
   IconLayoutDashboard,
   IconLayoutGrid,
   IconLayoutKanban,
+  IconLayoutList,
   IconLayoutSidebar,
   IconLoader2,
   IconLock,
@@ -69,6 +73,7 @@ import {
   IconPhoto,
   IconPizza,
   IconPlus,
+  IconPrinter,
   IconProps,
   IconRosetteDiscountCheck,
   IconSearch,
@@ -88,6 +93,7 @@ import {
   IconStar,
   IconSun,
   IconTable,
+  IconTag,
   IconToolsKitchen2,
   IconTrash,
   IconTrendingDown,
@@ -121,6 +127,7 @@ export const Icons = {
   code: IconCode,
   copy: IconCopy,
   dots: IconDots,
+  download: IconDownload,
   ellipsis: IconDotsVertical,
   externalLink: IconExternalLink,
   help: IconHelpCircle,
@@ -143,6 +150,7 @@ export const Icons = {
   // Layout
   dashboard: IconLayoutDashboard,
   cards: IconLayoutGrid,
+  layoutList: IconLayoutList,
   kanban: IconLayoutKanban,
   panelLeft: IconLayoutSidebar,
 
@@ -188,6 +196,7 @@ export const Icons = {
   login: IconLogin,
   logout: IconLogout,
   gripVertical: IconGripVertical,
+  fit: IconFrame,
 
   // Shapes / Indicators
   circle: IconCircle,
@@ -205,6 +214,7 @@ export const Icons = {
 
   // Commerce / Plans
   billing: IconCreditCard,
+  backspace: IconBackspace,
   creditCard: IconCreditCard,
   product: IconBox,
   pro: IconCrown,
@@ -234,8 +244,10 @@ export const Icons = {
 
   // Misc
   orders: IconReceipt,
+  receipt: IconReceipt,
   refund: IconReceiptRefund,
   refresh: IconRefresh,
+  printer: IconPrinter,
   kitchen: IconChefHat,
   pizza: IconPizza,
   party: IconArmchair,
@@ -247,6 +259,7 @@ export const Icons = {
   moreHorizontal: IconDots,
   layers: IconStack3,
   table: IconTable,
+  tag: IconTag,
 
   // Inventory
   warehouse: IconBuildingWarehouse,

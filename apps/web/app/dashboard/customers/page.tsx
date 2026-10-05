@@ -3,13 +3,16 @@
 import * as React from "react";
 import PageContainer from "@/components/layout/page-container";
 import { CustomerList } from "@/features/customers/components/customer-list";
-import { customersQueryOptions } from "@/features/customers/api/queries";
+import { customerKeys, customersQueryOptions } from "@/features/customers/api/queries";
+import { getQueryClient } from "@/lib/query-client";
 import { useQuery } from "@tanstack/react-query";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
 import { Input } from "@pixa/ui/base-ui/input";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
+import { ExportButton, ImportDialog } from "@/features/system/components/io-dialog";
+import { customerColumns, customerSample, importCustomers } from "@/features/customers/lib/io";
 
 export default function CustomersPage() {
   const [search, setSearch] = React.useState("");
@@ -52,6 +55,17 @@ export default function CustomersPage() {
           onChange={(e) => setInputValue(e.target.value)}
           className="max-w-sm"
         />
+        <span className="ml-auto flex gap-2">
+          <ExportButton filename="customers" rows={customers ?? []} columns={customerColumns} />
+          <ImportDialog
+            title="Bulk import customers"
+            sampleFilename="customers"
+            columns={customerColumns}
+            sampleRows={customerSample}
+            onImport={importCustomers}
+            onDone={() => getQueryClient().invalidateQueries({ queryKey: customerKeys.all })}
+          />
+        </span>
       </div>
 
       <CustomerList customers={customers ?? []} />

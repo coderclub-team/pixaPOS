@@ -24,15 +24,31 @@ import {
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { formatINR, toPaise } from "@/lib/money";
+import { formatAge } from "@/lib/utils";
+import { useIdentity } from "@/hooks/use-identity";
+import { useNow } from "@/lib/use-now";
 import { orderKeys, orderQueryOptions } from "@/features/orders/api/queries";
 import { kotsByOrderQueryOptions, kitchenKeys } from "@/features/kitchen/api/queries";
 import { eventKeys } from "@/features/events/api/queries";
 import { tableQueryOptions } from "@/features/table/api/queries";
-import CustomerLinkBlock from "@/features/customers/components/customer-link-block";
+import BillCustomerTab from "@/features/customers/components/bill-customer-tab";
 import TableStrip from "@/features/table/components/table-strip";
 import TableOpsDialog from "@/features/table/components/table-ops-dialog";
 import CheckoutDialog from "./checkout-dialog";
 import ReturnDialog, { type ReturnTarget } from "./return-dialog";
+import ReprintDialog from "@/features/print-studio/components/reprint-dialog";
+import BillPrintPreview, {
+  useBillPreviewDoc,
+} from "@/features/print-studio/components/bill-print-preview";
+import ReceiptPreview from "@/features/print-studio/components/receipt-preview";
+import AmountPad from "./amount-pad";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@pixa/ui/base-ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@pixa/ui/base-ui/dropdown-menu";
 import {
   paymentsByOrderQueryOptions,
   paymentKeys,
@@ -40,10 +56,17 @@ import {
 } from "@/features/payments/api/queries";
 import {
   addOrderItem,
+  applyPromo,
   cancelOrder,
   computeSplits,
   clearSplit,
+  deleteOrder,
+  redeemRewards,
+  removeDraftItem,
+  removePromo,
+  removeRewardsRedeem,
   setDiscount,
+  updateDraftItemQty,
 } from "@/features/orders/api/service";
 import { collectPayment } from "@/features/payments/api/service";
 import { fireKOT, voidKOTLine } from "@/features/kitchen/api/service";
@@ -91,6 +114,7 @@ export function KOTAccordion({
 }) {
   const queryClient = useQueryClient();
   const { data: order } = useQuery(orderQueryOptions(orderId));
+  const now = useNow();
   const [openId, setOpenId] = useState<string | null>(kots[0]?.id ?? null);
   // Arrival flash: when a new KOT lands, auto-expand it and pulse once.
   const [flashId, setFlashId] = useState<string | null>(null);
@@ -121,7 +145,9 @@ export function KOTAccordion({
   ) =>
     !!editable &&
     kot.status !== "CANCELLED" &&
-    (order?.status === "SERVED" || order?.status === "COMPLETED") &&
+    (order?.status === "SERVED" ||
+      order?.status === "DELIVERED" ||
+      order?.status === "COMPLETED") &&
     l.qty - l.voided_qty - (l.returned_qty ?? 0) > 0;
 
   // Plus on a fired line adds the same item as a NEW unfired line — it will
@@ -166,6 +192,26 @@ export function KOTAccordion({
   });
 
   const draft = order?.items.filter((i) => !i.kot_id) ?? [];
+
+  const draftFireMut = useMutation({
+    mutationFn: () => fireKOT(orderId),
+    onSuccess: (kot) => {
+      invalidateBill(orderId, queryClient);
+      toast.success(`KOT #${kot.kot_number} fired to kitchen`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const draftQtyMut = useMutation({
+    mutationFn: ({ lineId, qty }: { lineId: string; qty: number }) =>
+      updateDraftItemQty(orderId, lineId, qty),
+    onSuccess: () => invalidateBill(orderId, queryClient),
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const draftRemoveMut = useMutation({
+    mutationFn: (lineId: string) => removeDraftItem(orderId, lineId),
+    onSuccess: () => invalidateBill(orderId, queryClient),
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   if (kots.length === 0 && draft.length === 0) {
     return (
@@ -215,6 +261,74 @@ export function KOTAccordion({
 
   return (
     <div className="space-y-2.5">
+      {draft.length > 0 && (
+        <div className="rounded-xl border border-dashed border-primary/40 p-2">
+          <div className="flex items-center justify-between px-1 pb-1">
+            <p className="text-xs font-medium uppercase text-muted-foreground">
+              Draft KOT · {draft.reduce((s, l) => s + l.qty, 0)}×
+            </p>
+            <Button
+              size="sm"
+              className="h-8"
+              disabled={draftFireMut.isPending}
+              onClick={() => draftFireMut.mutate()}
+              title="Fire all draft lines to kitchen"
+            >
+              {draftFireMut.isPending ? "Firing…" : "Fire to kitchen"}
+            </Button>
+          </div>
+          <div className="space-y-1">
+            {draft.map((l) => (
+              <div
+                key={l.id}
+                className="flex items-center gap-2 rounded-lg border bg-card px-2 py-1 text-sm"
+              >
+                <span className="min-w-0 flex-1 truncate font-medium">
+                  {l.qty}× {l.item_name_snapshot}
+                  {l.variant_name_snapshot ? ` (${l.variant_name_snapshot})` : ""}
+                  {l.modifiers?.length
+                    ? ` +${l.modifiers.map((m) => m.name_snapshot).join(", ")}`
+                    : ""}
+                </span>
+                <span className="flex shrink-0 items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={draftQtyMut.isPending || draftRemoveMut.isPending}
+                    onClick={() =>
+                      l.qty <= 1
+                        ? draftRemoveMut.mutate(l.id)
+                        : draftQtyMut.mutate({ lineId: l.id, qty: l.qty - 1 })
+                    }
+                    aria-label={`Decrease ${l.item_name_snapshot}`}
+                  >
+                    <Icons.minus className="size-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={draftQtyMut.isPending}
+                    onClick={() => draftQtyMut.mutate({ lineId: l.id, qty: l.qty + 1 })}
+                    aria-label={`Increase ${l.item_name_snapshot}`}
+                  >
+                    <Icons.add className="size-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-destructive"
+                    disabled={draftRemoveMut.isPending}
+                    onClick={() => draftRemoveMut.mutate(l.id)}
+                    aria-label={`Remove ${l.item_name_snapshot}`}
+                  >
+                    <Icons.trash className="size-3.5" />
+                  </Button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {kots.map((kot) => {
         const open = openId === kot.id;
         return (
@@ -225,10 +339,17 @@ export function KOTAccordion({
               flashId === kot.id && "animate-pulse border-primary ring-2 ring-primary/40",
             )}
           >
-            <button
-              type="button"
+            <div
+              role="button"
+              tabIndex={0}
               onClick={() => setOpenId(open ? null : kot.id)}
-              className="flex w-full items-center justify-between px-2 py-2 text-sm"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setOpenId(open ? null : kot.id);
+                }
+              }}
+              className="flex w-full cursor-pointer items-center justify-between px-2 py-2 text-sm"
             >
               <span className="flex min-w-0 items-center gap-2 font-medium">
                 <span className="shrink-0">KOT #{kot.kot_number}</span>
@@ -248,16 +369,24 @@ export function KOTAccordion({
                   {kot.status.toLowerCase()}
                 </span>
                 <span className="truncate text-xs font-normal text-muted-foreground">
-                  {kot.lines.length} item{KotLinesPlural(kot)} · {kot.age_minutes}m old
+                  {kot.lines.length} item{KotLinesPlural(kot)} · {formatAge(kot.fired_at, now)} old
                 </span>
               </span>
               <span className="flex items-center gap-1">
                 <span className="text-sm font-semibold">{formatINR(kotTotal(kot))}</span>
+                <span onClick={(e) => e.stopPropagation()}>
+                  <ReprintDialog
+                    purpose="KOT"
+                    refId={kot.id}
+                    refLabel={`KOT #${kot.kot_number}`}
+                    triggerLabel=""
+                  />
+                </span>
                 <Icons.chevronRight
                   className={cn("size-4 transition-transform", open && "rotate-90")}
                 />
               </span>
-            </button>
+            </div>
             {open && (
               <div className="space-y-1 border-t px-2 py-2">
                 {kot.lines.map((l) => {
@@ -562,21 +691,117 @@ export default function OrderBillPanel({
   const [activePartition, setActivePartition] = useState<string | null>(null);
   const [opsOpen, setOpsOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const tenderAnchorId = `bill-tender-${orderId}`;
+  const [tab, setTab] = useState<string | null>(null);
+  // Bill tab-row overflow: collapse trailing tabs under an action-style
+  // 3-dot menu when the row runs out of width (measured, not fixed).
+  const [tabVisibleCount, setTabVisibleCount] = useState<number | null>(null);
+  const tabRowRef = useRef<HTMLDivElement>(null);
+  const tabWidthCache = useRef<Record<string, number>>({});
+  const tabEls = useRef<Record<string, HTMLElement | null>>({});
   const focusTender = () => {
-    const el = document.getElementById(tenderAnchorId);
-    el?.scrollIntoView({ behavior: "smooth", block: "center" });
-    const input = el?.querySelector<HTMLInputElement>('input[type="number"], input');
-    if (input) window.setTimeout(() => input.focus({ preventScroll: true }), 350);
+    setTab("payment");
+    window.setTimeout(() => {
+      const el = document.getElementById(tenderAnchorId);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      const input = el?.querySelector<HTMLInputElement>("input");
+      if (input) input.focus({ preventScroll: true });
+    }, 100);
   };
   const fireMut = useMutation({
     mutationFn: () => fireKOT(orderId),
-    onSuccess: (kot) => {
+    onSuccess: async (kot) => {
       invalidateBill(orderId, queryClient);
       toast.success(`KOT #${kot.kot_number} fired to kitchen`);
+      const { latestJobForRef } = await import("@/features/print-studio/api/service");
+      const job = await latestJobForRef("KOT", kot.id).catch(() => null);
+      if (job && job.status !== "SENT") {
+        toast.warning(
+          `KOT print ${job.status.toLowerCase()}: ${job.last_error ?? "see Print History"}. Retry there.`,
+        );
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  // KOTs is always the default tab; collect/tender flows jump to Payment
+  // explicitly via focusTender.
+  // NOTE: this block stays above the `if (!order)` early return — hooks
+  // cannot move after it (Rules of Hooks). Balance here is a tab-label
+  // estimate; the authoritative `balance` below is used everywhere else.
+  const activeTab = tab ?? "kots";
+  const tabPaidTotal =
+    (payments ?? []).filter((p) => p.status === "PAID").reduce((s, p) => s + p.amount_paise, 0) -
+    (refunds ?? []).filter((r) => r.status === "REFUNDED").reduce((s, r) => s + r.amount_paise, 0);
+  const tabBalance = Math.max(0, (order?.grand_total_paise ?? 0) - tabPaidTotal);
+  const tabDefs = [
+    {
+      value: "kots",
+      label: `KOTs${(kots ?? []).length > 0 ? ` (${(kots ?? []).length})` : ""}`,
+    },
+    { value: "bill", label: "Bill" },
+    { value: "payment", label: `Payment${tabBalance > 0 ? ` · ${formatINR(tabBalance)}` : ""}` },
+    ...(showCustomer ? [{ value: "customer", label: "Customer" }] : []),
+    { value: "more", label: "More" },
+  ];
+  const tabSig = tabDefs.map((d) => `${d.value}:${d.label}`).join("|");
+  useEffect(() => {
+    const row = tabRowRef.current;
+    if (!row) return;
+    let raf = 0;
+    const fit = () => {
+      const list = row.querySelector<HTMLElement>("[data-tab-list]");
+      const rowW = row.clientWidth;
+      if (!list || rowW === 0) return;
+      const widths = tabDefs.map((d) => {
+        const w = tabEls.current[d.value]?.offsetWidth ?? 0;
+        if (w > 0) tabWidthCache.current[d.value] = w;
+        return tabWidthCache.current[d.value] ?? 0;
+      });
+      // Not measured yet — keep everything visible until widths are known.
+      if (widths.some((w) => w === 0)) return;
+      // The 3-dot button now lives inside the tab bar as the last item —
+      // measure it when rendered so the fit math accounts for its real size.
+      const btnW = list.querySelector<HTMLElement>("[data-overflow-btn]")?.offsetWidth ?? 0;
+      if (btnW > 0) tabWidthCache.current.__overflow = btnW;
+      const triggerW = tabWidthCache.current.__overflow ?? 48;
+      let n = tabDefs.length;
+      for (; n > 1; n--) {
+        const avail = rowW - (n < tabDefs.length ? triggerW : 0);
+        const sum = widths.slice(0, n).reduce((a, b) => a + b, 0) + (n - 1) * 4;
+        if (sum <= avail) break;
+      }
+      setTabVisibleCount((prev) => {
+        const next = n >= tabDefs.length ? null : n;
+        return prev === next ? prev : next;
+      });
+    };
+    const schedule = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(fit);
+    };
+    schedule();
+    const ro = new ResizeObserver(schedule);
+    ro.observe(row);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabSig]);
+  const shownCount = tabVisibleCount ?? tabDefs.length;
+  let visibleTabs = tabDefs.slice(0, shownCount);
+  let overflowTabs = tabDefs.slice(shownCount);
+  // Keep the active tab visible — swap it in for the last visible one.
+  if (overflowTabs.length > 0 && !visibleTabs.some((d) => d.value === activeTab)) {
+    const active = tabDefs.find((d) => d.value === activeTab);
+    const last = visibleTabs[visibleTabs.length - 1];
+    if (active && last) {
+      visibleTabs = [...visibleTabs.slice(0, -1), active];
+      overflowTabs = [last, ...overflowTabs.filter((d) => d.value !== activeTab)];
+    }
+  }
 
   if (!order) {
     return (
@@ -614,211 +839,292 @@ export default function OrderBillPanel({
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center justify-between text-lg">
           <span className="min-w-0 truncate">{title ?? "Bill"}</span>
-          <Badge variant="outline" className={cn("gap-1", stamp.className)}>
-            <div
-              className={cn(
-                "h-2 w-2 rounded-full",
-                order.payment_status === "PAID" && "bg-green-500",
-                order.payment_status === "PARTIAL" && "bg-amber-500",
-                order.payment_status === "UNPAID" && "bg-slate-400",
-              )}
-            />
-            {stamp.label}
-          </Badge>
+          <span className="flex items-center gap-1">
+            {onAddItems && !isTerminal && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2"
+                onClick={onAddItems}
+                title="Add items — fires straight to kitchen"
+                aria-label="Add items"
+              >
+                <Icons.add className="size-4" />
+                <Icons.pizza className="size-4" />
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setPreviewOpen(true)}
+              title="Print preview"
+              aria-label="Print preview"
+            >
+              <Icons.receipt className="size-4" />
+            </Button>
+            {(kots?.length ?? 0) > 0 && (
+              <ReprintDialog
+                purpose="BILL"
+                refId={orderId}
+                refLabel={`Bill ${order.order_number}`}
+                triggerLabel=""
+              />
+            )}
+            <Badge variant="outline" className={cn("gap-1", stamp.className)}>
+              <div
+                className={cn(
+                  "h-2 w-2 rounded-full",
+                  order.payment_status === "PAID" && "bg-green-500",
+                  order.payment_status === "PARTIAL" && "bg-amber-500",
+                  order.payment_status === "UNPAID" && "bg-slate-400",
+                )}
+              />
+              {stamp.label}
+            </Badge>
+          </span>
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           {order.order_number} · {order.items.length} item{order.items.length === 1 ? "" : "s"}
+          {order.customer_notes?.trim() ? ` · !! ${order.customer_notes.trim()}` : ""}
         </p>
       </CardHeader>
       <CardContent className={fill ? "min-h-0 flex-1 space-y-4 overflow-y-auto pb-6" : "space-y-4"}>
-        {onAddItems && !isTerminal && (
-          <div className="sticky top-0 z-[5] -mx-1 bg-background/95 px-1 py-2 backdrop-blur-sm">
-            <div className="flex gap-2">
-              <Button
-                className="h-11 flex-1 text-sm"
-                onClick={onAddItems}
-                title="Add items — fires straight to kitchen"
-              >
-                <Icons.add className="size-4" />
-                <Icons.pizza className="mr-1 size-4" />
-                Add items
-                {drafts.length > 0 && (
-                  <span className="ml-2 rounded-full bg-primary-foreground/20 px-2 py-0.5 text-xs">
-                    {drafts.length} to fire
-                  </span>
-                )}
-              </Button>
-              {drafts.length > 0 && (
-                <Button
-                  variant="secondary"
-                  className="h-11 shrink-0"
-                  disabled={fireMut.isPending}
-                  onClick={() => fireMut.mutate()}
-                  title="Fire pending items to kitchen without opening the picker"
+        {drafts.length > 0 && !isTerminal && (
+          <div className="px-1 py-1">
+            <Button
+              variant="secondary"
+              className="h-11 w-full shrink-0 text-sm"
+              disabled={fireMut.isPending}
+              onClick={() => fireMut.mutate()}
+              title="Fire pending items to kitchen without opening the picker"
+            >
+              {fireMut.isPending
+                ? "Firing…"
+                : `Fire ${drafts.length} draft${drafts.length === 1 ? "" : "s"}`}
+            </Button>
+          </div>
+        )}
+        <Tabs value={activeTab} onValueChange={setTab} className="w-full">
+          <div
+            ref={tabRowRef}
+            className="sticky top-0 z-[5] -mx-1 flex items-center gap-1 px-1 pt-1"
+          >
+            <TabsList data-tab-list className="min-w-0 flex-1 gap-1 overflow-hidden flex-nowrap">
+              {visibleTabs.map((d) => (
+                <TabsTrigger
+                  key={d.value}
+                  ref={(el) => {
+                    tabEls.current[d.value] = el;
+                  }}
+                  value={d.value}
+                  className="min-h-11 shrink-0 px-4 touch-manipulation"
                 >
-                  {fireMut.isPending ? "Firing…" : `Fire (${drafts.length})`}
+                  {d.label}
+                </TabsTrigger>
+              ))}
+              {overflowTabs.length > 0 && (
+                <DropdownMenu modal={false}>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        data-overflow-btn
+                        aria-label="More tabs"
+                        className="min-h-11 shrink-0"
+                      />
+                    }
+                  >
+                    <Icons.ellipsis className="size-4" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {overflowTabs.map((d) => (
+                      <DropdownMenuItem
+                        key={d.value}
+                        onClick={() => setTab(d.value)}
+                        className="min-h-11"
+                      >
+                        {d.value === activeTab && <Icons.check className="mr-2 size-4" />}
+                        {d.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </TabsList>
+          </div>
+          <TabsContent value="kots" className="space-y-4 pt-2">
+            <section aria-label="Kitchen tickets" className="space-y-2 rounded-xl border p-3">
+              <p className="flex items-center justify-between text-xs font-medium uppercase text-muted-foreground">
+                <span>Kitchen tickets</span>
+                {(kots ?? []).length > 0 && <span>{(kots ?? []).length}</span>}
+              </p>
+              <KOTAccordion kots={kots ?? []} orderId={orderId} editable />
+              <div data-kot-list-bottom />
+            </section>
+
+            <CancelledItemsList kots={kots ?? []} />
+          </TabsContent>
+          <TabsContent value="bill" className="space-y-4 pt-2">
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span>{formatINR(order.subtotal_paise)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">
+                  Discount
+                  {order.discount_reason ? ` · ${order.discount_reason}` : ""}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span>
+                    −{formatINR(Math.max(0, order.total_paise - order.grand_total_paise))}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    title="Edit discount"
+                    onClick={() => setDiscountOpen(true)}
+                  >
+                    <Icons.edit className="size-3.5" />
+                  </Button>
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">GST</span>
+                <span>{formatINR(order.tax_paise)}</span>
+              </div>
+              <div className="flex justify-between border-t pt-1 text-base font-bold">
+                <span>Total</span>
+                <span>{formatINR(order.grand_total_paise)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Paid {formatINR(paidTotal)}</span>
+                <span>Balance {formatINR(balance)}</span>
+              </div>
+            </div>
+
+            {showSplit && (!isTerminal || order.split) && (
+              <SplitSection
+                orderId={orderId}
+                mode={splitMode}
+                onModeChange={(m) => {
+                  setSplitMode(m);
+                  setActivePartition(null);
+                }}
+                activePartition={activePartition}
+                onSelectPartition={setActivePartition}
+              />
+            )}
+          </TabsContent>
+          <TabsContent value="payment" className="space-y-4 pt-2">
+            <section aria-label="Payment" className="space-y-2 rounded-xl border p-3">
+              <p className="text-xs font-medium uppercase text-muted-foreground">Payment</p>
+              {showTender && dueAmount > 0 && (
+                <div id={tenderAnchorId} className="scroll-mt-20">
+                  <TenderPad
+                    orderId={orderId}
+                    duePaise={dueAmount}
+                    partitionLabel={activePartition}
+                  />
+                </div>
+              )}
+
+              {showPayments && paidList.length > 0 && (
+                <div className="space-y-1">
+                  {paidList.map((p: Payment) => (
+                    <div
+                      key={p.id}
+                      className="flex justify-between rounded-md border px-2 py-1 text-xs"
+                    >
+                      <span className="capitalize">
+                        {p.method.replace("_", " ")}
+                        {p.partition_label ? ` · ${p.partition_label}` : ""}
+                        {p.change_paise ? ` · change ${formatINR(p.change_paise)}` : ""}
+                      </span>
+                      <span className="font-medium">{formatINR(p.amount_paise)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {showPayments && (refunds ?? []).length > 0 && (
+                <div className="space-y-1">
+                  {(refunds ?? []).map((r) => {
+                    const method =
+                      paidList.find((p) => p.id === r.payment_id)?.method.replace("_", " ") ??
+                      "payment";
+                    return (
+                      <div
+                        key={r.id}
+                        className="flex justify-between rounded-md border border-dashed px-2 py-1 text-xs"
+                      >
+                        <span className="flex items-center gap-1 capitalize text-muted-foreground">
+                          <Icons.refund className="size-3" />
+                          Refund → {method}
+                          {r.status === "REFUND_PENDING" ? " · gateway pending" : ""}
+                          {r.status === "REFUND_FAILED" ? " · failed" : ""}
+                          {r.qty ? ` · ${r.qty}×` : ""}
+                        </span>
+                        <span className="font-medium">−{formatINR(r.amount_paise)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {!isTerminal && (
+                <Button
+                  className="h-11 w-full text-sm"
+                  variant={balance > 0 ? "default" : "secondary"}
+                  onClick={() => setCheckoutOpen(true)}
+                  title={
+                    balance > 0
+                      ? "Review the bill and collect the balance"
+                      : "Review the bill and complete the order"
+                  }
+                >
+                  {balance > 0 ? (
+                    <>
+                      <Icons.billing className="mr-2 size-4" /> Settle · {formatINR(balance)}
+                    </>
+                  ) : (
+                    <>
+                      <Icons.checks className="mr-2 size-4" /> Complete order
+                    </>
+                  )}
                 </Button>
               )}
-            </div>
-          </div>
-        )}
-        {showSeating && table && (
-          <>
-            <TableStrip
-              table={table}
-              activeGroupId={order.occupancy_group_id}
-              onOpenOps={() => setOpsOpen(true)}
-            />
-            <TableOpsDialog
-              tableId={table.id}
-              floorId={table.floor_id}
-              open={opsOpen}
-              onOpenChange={setOpsOpen}
-            />
-          </>
-        )}
-
-        {showCustomer && <CustomerLinkBlock orderId={orderId} />}
-
-        <section aria-label="Kitchen tickets" className="space-y-2 rounded-xl border p-3">
-          <p className="flex items-center justify-between text-xs font-medium uppercase text-muted-foreground">
-            <span>Kitchen tickets</span>
-            {(kots ?? []).length > 0 && <span>{(kots ?? []).length}</span>}
-          </p>
-          <KOTAccordion kots={kots ?? []} orderId={orderId} editable />
-          <div data-kot-list-bottom />
-        </section>
-
-        <CancelledItemsList kots={kots ?? []} />
-
-        <div className="space-y-1 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Subtotal</span>
-            <span>{formatINR(order.subtotal_paise)}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">
-              Discount
-              {order.discount_reason ? ` · ${order.discount_reason}` : ""}
-            </span>
-            <span className="flex items-center gap-1">
-              <span>−{formatINR(Math.max(0, order.total_paise - order.grand_total_paise))}</span>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                title="Edit discount"
-                onClick={() => setDiscountOpen(true)}
-              >
-                <Icons.edit className="size-3.5" />
-              </Button>
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">GST</span>
-            <span>{formatINR(order.tax_paise)}</span>
-          </div>
-          <div className="flex justify-between border-t pt-1 text-base font-bold">
-            <span>Total</span>
-            <span>{formatINR(order.grand_total_paise)}</span>
-          </div>
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Paid {formatINR(paidTotal)}</span>
-            <span>Balance {formatINR(balance)}</span>
-          </div>
-        </div>
-
-        {showSplit && (!isTerminal || order.split) && (
-          <SplitSection
-            orderId={orderId}
-            mode={splitMode}
-            onModeChange={(m) => {
-              setSplitMode(m);
-              setActivePartition(null);
-            }}
-            activePartition={activePartition}
-            onSelectPartition={setActivePartition}
-          />
-        )}
-
-        <section aria-label="Payment" className="space-y-2 rounded-xl border p-3">
-          <p className="text-xs font-medium uppercase text-muted-foreground">Payment</p>
-          {showTender && dueAmount > 0 && (
-            <div id={tenderAnchorId} className="scroll-mt-20">
-              <TenderPad orderId={orderId} duePaise={dueAmount} partitionLabel={activePartition} />
-            </div>
+            </section>
+          </TabsContent>
+          {!!showCustomer && (
+            <TabsContent value="customer" className="space-y-4 pt-2">
+              <BillCustomerTab orderId={orderId} />
+            </TabsContent>
           )}
-
-          {showPayments && paidList.length > 0 && (
-            <div className="space-y-1">
-              {paidList.map((p: Payment) => (
-                <div
-                  key={p.id}
-                  className="flex justify-between rounded-md border px-2 py-1 text-xs"
-                >
-                  <span className="capitalize">
-                    {p.method.replace("_", " ")}
-                    {p.partition_label ? ` · ${p.partition_label}` : ""}
-                    {p.change_paise ? ` · change ${formatINR(p.change_paise)}` : ""}
-                  </span>
-                  <span className="font-medium">{formatINR(p.amount_paise)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {showPayments && (refunds ?? []).length > 0 && (
-            <div className="space-y-1">
-              {(refunds ?? []).map((r) => {
-                const method =
-                  paidList.find((p) => p.id === r.payment_id)?.method.replace("_", " ") ??
-                  "payment";
-                return (
-                  <div
-                    key={r.id}
-                    className="flex justify-between rounded-md border border-dashed px-2 py-1 text-xs"
-                  >
-                    <span className="flex items-center gap-1 capitalize text-muted-foreground">
-                      <Icons.refund className="size-3" />
-                      Refund → {method}
-                      {r.status === "REFUND_PENDING" ? " · gateway pending" : ""}
-                      {r.status === "REFUND_FAILED" ? " · failed" : ""}
-                      {r.qty ? ` · ${r.qty}×` : ""}
-                    </span>
-                    <span className="font-medium">−{formatINR(r.amount_paise)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {!isTerminal && (
-            <Button
-              className="h-11 w-full text-sm"
-              variant={balance > 0 ? "default" : "secondary"}
-              onClick={() => setCheckoutOpen(true)}
-              title={
-                balance > 0
-                  ? "Review the bill and collect the balance"
-                  : "Review the bill and complete the order"
-              }
-            >
-              {balance > 0 ? (
-                <>
-                  <Icons.billing className="mr-2 size-4" /> Settle · {formatINR(balance)}
-                </>
-              ) : (
-                <>
-                  <Icons.checks className="mr-2 size-4" /> Complete order
-                </>
-              )}
-            </Button>
-          )}
-        </section>
-
-        {showCancel && <CancelOrderBlock orderId={orderId} />}
+          <TabsContent value="more" className="space-y-4 pt-2">
+            {showSeating && table && (
+              <>
+                <TableStrip
+                  table={table}
+                  activeGroupId={order.occupancy_group_id}
+                  onOpenOps={() => setOpsOpen(true)}
+                />
+                <TableOpsDialog
+                  tableId={table.id}
+                  floorId={table.floor_id}
+                  open={opsOpen}
+                  onOpenChange={setOpsOpen}
+                />
+              </>
+            )}
+            {showCancel && <CancelOrderBlock orderId={orderId} onDeleted={onCompleted} />}
+          </TabsContent>
+        </Tabs>
       </CardContent>
 
       <DiscountDialog orderId={orderId} open={discountOpen} onOpenChange={setDiscountOpen} />
+      <PreviewDialog orderId={orderId} open={previewOpen} onOpenChange={setPreviewOpen} />
       <CheckoutDialog
         orderId={orderId}
         open={checkoutOpen}
@@ -830,14 +1136,65 @@ export default function OrderBillPanel({
   );
 }
 
-export function CancelOrderBlock({ orderId }: { orderId: string }) {
+function PreviewDialog({
+  orderId,
+  open,
+  onOpenChange,
+}: {
+  orderId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { preview, outlet, template } = useBillPreviewDoc(orderId);
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Print preview</DialogTitle>
+          <DialogDescription>
+            Live receipt — same layout math as the printed bytes.
+          </DialogDescription>
+        </DialogHeader>
+        {preview && outlet && template ? (
+          <>
+            <p className="text-[11px] text-muted-foreground">{preview.qrCaption}</p>
+            <ReceiptPreview
+              doc={preview.doc}
+              title="Bill preview"
+              logoUrl={
+                template.show_logo && typeof outlet.logo_url === "string" && outlet.logo_url
+                  ? outlet.logo_url
+                  : undefined
+              }
+            />
+          </>
+        ) : (
+          <p className="text-xs text-muted-foreground">Loading preview…</p>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function CancelOrderBlock({
+  orderId,
+  onDeleted,
+}: {
+  orderId: string;
+  onDeleted?: (orderId: string) => void;
+}) {
   const queryClient = useQueryClient();
   const { data: order } = useQuery(orderQueryOptions(orderId));
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const identity = useIdentity();
 
   const cancelMut = useMutation({
-    mutationFn: (r: string) => cancelOrder(orderId, { reason: r }),
+    mutationFn: (r: string) =>
+      cancelOrder(orderId, {
+        reason: r,
+        by: identity.user?.email ?? identity.user?.name ?? "staff",
+      }),
     onSuccess: () => {
       invalidateBill(orderId, queryClient);
       toast.success("Order cancelled");
@@ -846,7 +1203,58 @@ export function CancelOrderBlock({ orderId }: { orderId: string }) {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Zero fired KOTs: the order never left the device — discard it outright
+  // (no reason, no cancel trail) instead of cancelling.
+  const discardMut = useMutation({
+    mutationFn: () => deleteOrder(orderId),
+    onSuccess: () => {
+      invalidateBill(orderId, queryClient);
+      toast.success("Draft discarded");
+      setCancelOpen(false);
+      onDeleted?.(orderId);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   if (!order || order.status === "COMPLETED" || order.status === "CANCELLED") return null;
+  const unfired = !order.items.some((i) => i.kot_id);
+
+  if (unfired) {
+    return (
+      <>
+        <Button
+          variant="outline"
+          className="w-full"
+          disabled={discardMut.isPending}
+          onClick={() => setCancelOpen(true)}
+        >
+          <Icons.trash className="mr-2 size-4" /> Discard draft
+        </Button>
+        <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Discard {order.order_number}?</DialogTitle>
+              <DialogDescription>
+                Nothing has fired to the kitchen — the draft is removed and never synced.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setCancelOpen(false)}>
+                Keep order
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={discardMut.isPending}
+                onClick={() => discardMut.mutate()}
+              >
+                {discardMut.isPending ? "Discarding…" : "Discard draft"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
 
   return (
     <>
@@ -865,8 +1273,10 @@ export function CancelOrderBlock({ orderId }: { orderId: string }) {
           <DialogHeader>
             <DialogTitle>Cancel order {order.order_number}?</DialogTitle>
             <DialogDescription>
-              {["PREPARING", "READY", "SERVED"].includes(order.status)
-                ? "This order has fired KOTs — cancellation is authorized and audited."
+              {["PREPARING", "READY", "SERVED", "OUT_FOR_DELIVERY", "DELIVERED"].includes(
+                order.status,
+              )
+                ? "This order has fired KOTs — you are recorded as the authorizer with your reason."
                 : "The order and its unfired lines are removed."}
             </DialogDescription>
           </DialogHeader>
@@ -910,6 +1320,44 @@ function DiscountDialog({
   const [kind, setKind] = useState<"percent" | "flat">("percent");
   const [value, setValue] = useState("");
   const [reason, setReason] = useState(order?.discount_reason ?? "");
+  const [promoCode, setPromoCode] = useState("");
+  const [rewardPts, setRewardPts] = useState("");
+
+  const rewardsMut = useMutation({
+    mutationFn: () => redeemRewards(orderId, Number(rewardPts)),
+    onSuccess: (o) => {
+      invalidateBill(orderId, queryClient);
+      toast.success(`${o.reward_points} pts tendered — ${formatINR(o.discount_paise ?? 0)} off`);
+      setRewardPts("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const rewardsRemoveMut = useMutation({
+    mutationFn: () => removeRewardsRedeem(orderId),
+    onSuccess: () => {
+      invalidateBill(orderId, queryClient);
+      toast.success("Rewards removed — points returned");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const promoMut = useMutation({
+    mutationFn: () => applyPromo(orderId, promoCode),
+    onSuccess: (o) => {
+      invalidateBill(orderId, queryClient);
+      toast.success(`Promo ${o.promo_code} applied — ${formatINR(o.discount_paise ?? 0)} off`);
+      setPromoCode("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const promoRemoveMut = useMutation({
+    mutationFn: () => removePromo(orderId),
+    onSuccess: () => {
+      invalidateBill(orderId, queryClient);
+      toast.success("Promo removed");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const mut = useMutation({
     mutationFn: () =>
@@ -935,6 +1383,80 @@ function DiscountDialog({
             Pre-tax. Editable until the order completes — paid and balance re-derive.
           </DialogDescription>
         </DialogHeader>
+        {order?.promo_code ? (
+          <div className="flex items-center gap-2 rounded-lg border border-green-500/40 bg-green-500/10 px-3 py-2">
+            <span className="text-sm font-semibold">{order.promo_code}</span>
+            <span className="text-xs text-muted-foreground">
+              −{formatINR(order.discount_paise ?? 0)}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-7 text-xs"
+              disabled={promoRemoveMut.isPending}
+              onClick={() => promoRemoveMut.mutate()}
+            >
+              Remove
+            </Button>
+          </div>
+        ) : order?.reward_points ? (
+          <div className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+            <span className="text-sm font-semibold">{order.reward_points} pts</span>
+            <span className="text-xs text-muted-foreground">
+              −{formatINR(order.discount_paise ?? 0)}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto h-7 text-xs"
+              disabled={rewardsRemoveMut.isPending}
+              onClick={() => rewardsRemoveMut.mutate()}
+            >
+              Remove
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-end gap-2">
+            <div className="flex-1 space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Promo code</Label>
+              <Input
+                value={promoCode}
+                onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                placeholder="DIWALI10"
+                autoComplete="off"
+              />
+            </div>
+            <Button
+              variant="outline"
+              disabled={promoMut.isPending || !promoCode.trim()}
+              onClick={() => promoMut.mutate()}
+            >
+              Apply
+            </Button>
+          </div>
+        )}
+        {!order?.promo_code && !order?.reward_points && order?.customer_id && (
+          <div className="flex items-end gap-2">
+            <div className="flex-1 space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Reward points (1 pt = ₹1)</Label>
+              <Input
+                type="number"
+                min={1}
+                value={rewardPts}
+                onChange={(e) => setRewardPts(e.target.value)}
+                placeholder="50"
+              />
+            </div>
+            <Button
+              variant="outline"
+              disabled={rewardsMut.isPending || !rewardPts.trim()}
+              onClick={() => rewardsMut.mutate()}
+              title={!order?.customer_id ? "Link a customer first" : "Tender points on this bill"}
+            >
+              Tender
+            </Button>
+          </div>
+        )}
         <div className="flex gap-2">
           {(["percent", "flat"] as const).map((k) => (
             <Button
@@ -954,8 +1476,8 @@ function DiscountDialog({
               {kind === "percent" ? "Percent (0–100)" : "Amount ₹"}
             </Label>
             <Input
-              type="number"
-              min={0}
+              type="text"
+              inputMode="decimal"
               value={value}
               onChange={(e) => setValue(e.target.value)}
               placeholder={kind === "percent" ? "10" : "50"}
@@ -970,6 +1492,7 @@ function DiscountDialog({
             />
           </div>
         </div>
+        <AmountPad value={value} onChange={setValue} allowDecimal={kind !== "percent"} />
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
@@ -1009,6 +1532,7 @@ export function SplitSection({
   const [editing, setEditing] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
   const [removeReason, setRemoveReason] = useState("");
+  const [padCustom, setPadCustom] = useState<number | null>(null);
 
   const buildMut = useMutation({
     mutationFn: (p: Parameters<typeof computeSplits>[1]) => computeSplits(orderId, p as any),
@@ -1301,14 +1825,15 @@ export function SplitSection({
                 placeholder={`Guest ${i + 1}`}
               />
               <Input
-                type="number"
-                min={0}
+                type="text"
+                inputMode="decimal"
                 value={r.amount}
                 onChange={(e) =>
                   setCustomRows((rows) =>
                     rows.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)),
                   )
                 }
+                onFocus={() => setPadCustom(i)}
                 className="h-8 w-28"
                 placeholder="₹"
               />
@@ -1346,6 +1871,14 @@ export function SplitSection({
           <p className="text-[11px] text-muted-foreground">
             Shares must add up to {formatINR(order.grand_total_paise)}.
           </p>
+          <AmountPad
+            value={padCustom != null && customRows[padCustom] ? customRows[padCustom].amount : ""}
+            onChange={(v) => {
+              if (padCustom == null || !customRows[padCustom]) return;
+              const i = padCustom;
+              setCustomRows((rows) => rows.map((x, j) => (j === i ? { ...x, amount: v } : x)));
+            }}
+          />
         </div>
       )}
 
@@ -1406,6 +1939,10 @@ export function TenderPad({
     { method: "cash", amount: "", tendered: "" },
     { method: "upi", amount: "", tendered: "" },
   ]);
+  // Which field the shared pad drives (single mode + combined rows).
+  const [padTarget, setPadTarget] = useState<"amount" | "tendered">("amount");
+  const [padRow, setPadRow] = useState<{ i: number; field: "amount" | "tendered" } | null>(null);
+  const dueStr = (duePaise / 100).toFixed(2);
 
   const collectMut = useMutation({
     mutationFn: () =>
@@ -1520,10 +2057,11 @@ export function TenderPad({
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Amount ₹</Label>
               <Input
-                type="number"
-                min={0}
+                type="text"
+                inputMode="decimal"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
+                onFocus={() => setPadTarget("amount")}
                 placeholder={(duePaise / 100).toFixed(2)}
               />
             </div>
@@ -1531,23 +2069,23 @@ export function TenderPad({
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Tendered ₹</Label>
                 <Input
-                  type="number"
-                  min={0}
+                  type="text"
+                  inputMode="decimal"
                   value={tendered}
                   onChange={(e) => setTendered(e.target.value)}
+                  onFocus={() => setPadTarget("tendered")}
                   placeholder="Cash received"
                 />
               </div>
             )}
           </div>
+          <AmountPad
+            value={padTarget === "tendered" && method === "cash" ? tendered : amount}
+            onChange={padTarget === "tendered" && method === "cash" ? setTendered : setAmount}
+            showDenominations={method === "cash"}
+            dueAmount={dueStr}
+          />
           <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setAmount((duePaise / 100).toFixed(2))}
-            >
-              Exact
-            </Button>
             {change > 0 && (
               <span className="text-xs text-muted-foreground">Change {formatINR(change)}</span>
             )}
@@ -1590,19 +2128,21 @@ export function TenderPad({
                 </SelectContent>
               </Select>
               <Input
-                type="number"
-                min={0}
+                type="text"
+                inputMode="decimal"
                 value={r.amount}
                 onChange={(e) => updateRow(i, { amount: e.target.value })}
+                onFocus={() => setPadRow({ i, field: "amount" })}
                 className="h-8"
                 placeholder="₹ amount"
               />
               {r.method === "cash" && (
                 <Input
-                  type="number"
-                  min={0}
+                  type="text"
+                  inputMode="decimal"
                   value={r.tendered}
                   onChange={(e) => updateRow(i, { tendered: e.target.value })}
+                  onFocus={() => setPadRow({ i, field: "tendered" })}
                   className="h-8 w-24"
                   placeholder="Tendered"
                 />
@@ -1649,6 +2189,21 @@ export function TenderPad({
               {collectCombinedMut.isPending ? "Collecting…" : `Collect ${formatINR(rowsTotal)}`}
             </Button>
           </div>
+          <AmountPad
+            value={
+              padRow && rows[padRow.i]
+                ? padRow.field === "tendered" && rows[padRow.i].method === "cash"
+                  ? rows[padRow.i].tendered
+                  : rows[padRow.i].amount
+                : ""
+            }
+            onChange={(v) => {
+              if (!padRow || !rows[padRow.i]) return;
+              updateRow(padRow.i, { [padRow.field]: v });
+            }}
+            showDenominations={!!padRow && rows[padRow.i]?.method === "cash"}
+            dueAmount={dueStr}
+          />
         </>
       )}
     </div>

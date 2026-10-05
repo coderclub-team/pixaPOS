@@ -47,6 +47,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@pixa/ui/base-ui/select";
+import { SortTh, useSorting } from "@/components/sort-th";
+import type { CsvColumn } from "@/features/system/lib/csv";
 
 function statusClass(s: string) {
   if (s === "paid") return "text-green-600";
@@ -54,8 +56,56 @@ function statusClass(s: string) {
   return "text-destructive";
 }
 
+export const purchaseExportColumns: CsvColumn<Purchase>[] = [
+  { key: "purchase_number", label: "Purchase #", get: (p) => p.purchase_number },
+  { key: "po_number", label: "PO #", get: (p) => p.po_number ?? "" },
+  { key: "supplier_name", label: "Supplier", get: (p) => p.supplier_name ?? "" },
+  { key: "bill_date", label: "Bill Date", get: (p) => p.bill_date },
+  { key: "due_date", label: "Due Date", get: (p) => p.due_date ?? "" },
+  { key: "reference", label: "Reference", get: (p) => (p as any).reference ?? "" },
+  { key: "items_count", label: "Items Count", get: (p) => p.items.length },
+  {
+    key: "items_list",
+    label: "Items List",
+    get: (p) => p.items.map((it) => `${it.material_name} ×${it.qty}`).join(", "),
+  },
+  { key: "subtotal", label: "Subtotal", get: (p) => `₹${p.subtotal.toFixed(2)}` },
+  { key: "tax_amount", label: "Tax", get: (p) => `₹${p.tax_amount.toFixed(2)}` },
+  {
+    key: "landed_cost",
+    label: "Landed Cost",
+    get: (p) => ((p as any).landed_cost ? `₹${Number((p as any).landed_cost).toFixed(2)}` : ""),
+  },
+  { key: "total_amount", label: "Total", get: (p) => `₹${p.total_amount.toFixed(2)}` },
+  { key: "paid_amount", label: "Paid", get: (p) => `₹${p.paid_amount.toFixed(2)}` },
+  {
+    key: "due_amount",
+    label: "Due Amount",
+    get: (p) => `₹${(p.total_amount - p.paid_amount).toFixed(2)}`,
+  },
+  { key: "payment_status", label: "Payment Status", get: (p) => p.payment_status },
+  { key: "payment_mode", label: "Payment Mode", get: (p) => p.payment_mode ?? "" },
+];
+
 export function PurchaseList({ purchases }: { purchases: Purchase[] }) {
-  if (purchases.length === 0)
+  const { sortKey, sortDir, toggle, sorted } = useSorting<Purchase>("bill_date", "desc");
+  const rows = sorted(purchases, {
+    purchase_number: (p) => p.purchase_number,
+    po_number: (p) => p.po_number ?? "",
+    supplier_name: (p) => p.supplier_name ?? "",
+    bill_date: (p) => p.bill_date,
+    due_date: (p) => p.due_date ?? "",
+    items_count: (p) => p.items.length,
+    subtotal: (p) => p.subtotal,
+    tax_amount: (p) => p.tax_amount,
+    total_amount: (p) => p.total_amount,
+    paid_amount: (p) => p.paid_amount,
+    due_amount: (p) => p.total_amount - p.paid_amount,
+    payment_status: (p) => p.payment_status,
+    payment_mode: (p) => p.payment_mode ?? "",
+  });
+
+  if (rows.length === 0)
     return (
       <Card>
         <CardContent className="py-12 text-center">
@@ -77,17 +127,65 @@ export function PurchaseList({ purchases }: { purchases: Purchase[] }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Purchase #</TableHead>
-              <TableHead>Supplier</TableHead>
-              <TableHead>Items</TableHead>
-              <TableHead>Total</TableHead>
-              <TableHead>Due Amount</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>
+                <SortTh
+                  label="Purchase #"
+                  column="purchase_number"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Supplier"
+                  column="supplier_name"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Items"
+                  column="items_count"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Total"
+                  column="total_amount"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Due Amount"
+                  column="due_amount"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Status"
+                  column="payment_status"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {purchases.map((p) => (
+            {rows.map((p) => (
               <PurchaseRow key={p.id} pur={p} />
             ))}
           </TableBody>

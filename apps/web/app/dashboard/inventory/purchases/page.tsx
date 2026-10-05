@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import PageContainer from "@/components/layout/page-container";
-import { PurchaseList } from "@/features/inventory/components/purchase-list";
+import { PurchaseList, purchaseExportColumns } from "@/features/inventory/components/purchase-list";
 import { purchasesQueryOptions } from "@/features/inventory/api/queries";
 import { useQuery } from "@tanstack/react-query";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
@@ -16,6 +16,7 @@ import {
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
+import { ExportButton } from "@/features/system/components/io-dialog";
 
 export default function PurchasesPage() {
   const [search, setSearch] = React.useState("");
@@ -75,6 +76,7 @@ export default function PurchasesPage() {
             <SelectItem value="paid">Paid</SelectItem>
           </SelectContent>
         </Select>
+        <ExportButton filename="purchases" rows={purchases ?? []} columns={purchaseExportColumns} />
       </div>
       <PurchaseList purchases={purchases ?? []} />
     </PageContainer>

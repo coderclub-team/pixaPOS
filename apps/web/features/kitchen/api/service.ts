@@ -22,10 +22,47 @@ const KOT_STORAGE_KEY = "pixaKOTs";
 
 let mockTickets: KitchenTicket[] = [];
 
+/** Durable SQLite mirror (fire-and-forget; repo never throws). */
+function mirrorTickets() {
+  if (typeof window === "undefined") return;
+  import("@/lib/db/repo").then(({ writeScope }) => {
+    void writeScope(
+      "kot_tickets",
+      mockTickets.map((t) => ({
+        id: t.id,
+        outlet_id: t.outlet_id ?? null,
+        data: t,
+        version: t.version ?? 1,
+        updated_at: t.updated_at ?? new Date().toISOString(),
+        deleted_at: (t as { deleted_at?: string | null }).deleted_at ?? null,
+      })),
+    );
+  });
+}
+
+/** Adopt the durable mirror on app startup — only when localStorage is
+ * missing/empty (fresh device or eviction recovery). Never overwrites
+ * existing localStorage: the mirror write lags it by design. */
+export async function hydrateTicketsFromMirror(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(KOT_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(parsed?.tickets) && parsed.tickets.length > 0) return;
+    const { readScope } = await import("@/lib/db/repo");
+    const docs = await readScope("kot_tickets");
+    if (docs.length > 0) {
+      localStorage.setItem(KOT_STORAGE_KEY, JSON.stringify({ tickets: docs.map((d) => d.data) }));
+      loadTickets();
+    }
+  } catch {}
+}
+
 function saveTickets() {
   if (typeof window !== "undefined") {
     try {
       localStorage.setItem(KOT_STORAGE_KEY, JSON.stringify({ tickets: mockTickets }));
+      mirrorTickets();
     } catch {}
   }
 }
@@ -49,6 +86,15 @@ function loadTickets(): void {
   }
 }
 loadTickets();
+
+/**
+ * Current ticket snapshot for sync envelopes. No delays, no enrichment —
+ * the outbox path must never slow business mutations.
+ */
+export function getTicketForSync(ticketId: string): KitchenTicket | null {
+  loadTickets();
+  return mockTickets.find((t) => t.id === ticketId) ?? null;
+}
 
 /**
  * Synchronous shared-source snapshot for cross-domain aggregation (order
@@ -223,8 +269,48 @@ export async function fireKOT(orderId: string, by?: string): Promise<KitchenTick
     const draftLines = order.items.filter((i) => !i.kot_id);
     if (draftLines.length === 0) throw new Error("No new items to fire");
 
+    // Required add-on groups block firing (Peblla pattern): every linked
+    // group with min > 0 needs at least min picks on the line; max caps it.
+    {
+      const { getMenuItemById, getModifierGroupById, getModifiers } =
+        await import("@/features/menu/api/service");
+      const groupCache = new Map<string, { name: string; min: number; max: number } | null>();
+      for (const line of draftLines) {
+        const item = await getMenuItemById(line.menu_item_id);
+        if (!item) continue;
+        for (const gid of item.modifier_group_ids ?? []) {
+          let g = groupCache.get(gid);
+          if (g === undefined) {
+            const full = await getModifierGroupById(gid);
+            g =
+              full && full.is_active
+                ? { name: full.name, min: full.min_selection, max: full.max_selection }
+                : null;
+            groupCache.set(gid, g);
+          }
+          if (!g) continue;
+          const inGroup = new Set((await getModifiers(gid)).map((m) => m.id));
+          const picked = line.modifiers.filter((m) => inGroup.has(m.modifier_id)).length;
+          if (picked < g.min) {
+            throw new Error(
+              `${line.item_name_snapshot} needs at least ${g.min} from ${g.name} (has ${picked})`,
+            );
+          }
+          if (picked > g.max) {
+            throw new Error(
+              `${line.item_name_snapshot} allows at most ${g.max} from ${g.name} (has ${picked})`,
+            );
+          }
+        }
+      }
+    }
+
     const now = new Date().toISOString();
     const kotNumber = mockTickets.filter((t) => t.order_id === orderId).length + 1;
+    // Build the ticket WITHOUT publishing it yet: markLinesFired can throw
+    // (auto-seat, transition) — a ticket pushed before the marks succeed
+    // becomes a phantom KOT (visible in KDS, lines still draft). The push
+    // below happens only after the marks land.
     const ticket: KitchenTicket = {
       id: `kot_${Date.now().toString(36)}`,
       outlet_id: order.outlet_id,
@@ -239,7 +325,7 @@ export async function fireKOT(orderId: string, by?: string): Promise<KitchenTick
         order_line_id: l.id,
         item_name_snapshot: l.item_name_snapshot,
         variant_name_snapshot: l.variant_name_snapshot,
-        modifiers_snapshot: l.modifiers.map((m) => m.name_snapshot),
+        modifiers_snapshot: l.modifiers.map((m) => m.alias_snapshot ?? m.name_snapshot),
         instructions: l.instructions,
         qty: l.qty,
         voided_qty: 0,
@@ -254,14 +340,38 @@ export async function fireKOT(orderId: string, by?: string): Promise<KitchenTick
       version: 1,
     };
     mockTickets.push(ticket);
-    await markLinesFired(
-      orderId,
-      draftLines.map((l, i) => ({
-        line_id: l.id,
-        kot_id: ticket.id,
-        kot_line_id: ticket.lines[i].id,
-      })),
-    );
+    try {
+      await markLinesFired(
+        orderId,
+        draftLines.map((l, i) => ({
+          line_id: l.id,
+          kot_id: ticket.id,
+          kot_line_id: ticket.lines[i].id,
+        })),
+      );
+    } catch (e) {
+      // Roll back the unpublished ticket so a failed fire never leaves a
+      // phantom KOT behind the draft lines.
+      const ti = mockTickets.findIndex((t) => t.id === ticket.id);
+      if (ti !== -1) mockTickets.splice(ti, 1);
+      throw e;
+    }
+    // Post-fire verification: every targeted line must carry this ticket's
+    // id — otherwise the bill would show the items as draft AND in the KOT.
+    {
+      const { getOrderById: reloadOrder } = await import("@/features/orders/api/service");
+      const reloaded = await reloadOrder(orderId);
+      const unmarked = (reloaded?.items ?? []).filter(
+        (i) => draftLines.some((d) => d.id === i.id) && i.kot_id !== ticket.id,
+      );
+      if (unmarked.length > 0) {
+        const ti = mockTickets.findIndex((t) => t.id === ticket.id);
+        if (ti !== -1) mockTickets.splice(ti, 1);
+        throw new Error(
+          `Fire incomplete — ${unmarked.length} line${unmarked.length === 1 ? "" : "s"} not marked. Retry firing.`,
+        );
+      }
+    }
     saveTickets();
     publishTicket(ticket, { lines: ticket.lines.length });
     await recordEvent({
@@ -273,6 +383,10 @@ export async function fireKOT(orderId: string, by?: string): Promise<KitchenTick
       actor_id: by ?? "staff",
       metadata: { kot_id: ticket.id, kot_number: kotNumber, lines: ticket.lines.length },
     });
+    // Auto-print KOT (template flag; never fails the fire — dynamic import
+    // avoids a kitchen <-> print-studio module cycle).
+    const { maybeAutoPrintKOT } = await import("@/features/print-studio/api/service");
+    await maybeAutoPrintKOT(ticket.id, by);
     return enrichTicket(ticket);
   } finally {
     release();

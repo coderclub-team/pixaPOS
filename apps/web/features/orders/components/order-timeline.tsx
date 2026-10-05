@@ -115,6 +115,15 @@ function describe(
       return { title: "Order ready — every item done", tone: "success" };
     case "ORDER_SERVED":
       return { title: "Order served", tone: "done" };
+    case "ORDER_RIDER_ASSIGNED":
+      return { title: `Rider assigned${m.rider_name ? ` — ${m.rider_name}` : ""}`, tone: "info" };
+    case "ORDER_DISPATCHED":
+      return {
+        title: `Dispatched${m.rider_name ? ` with ${m.rider_name}` : ""}`,
+        tone: "progress",
+      };
+    case "ORDER_DELIVERED":
+      return { title: "Delivered to customer", tone: "success" };
     case "ORDER_COMPLETED":
       return { title: "Order completed", tone: "done" };
     case "ORDER_CANCELLED":
@@ -122,6 +131,12 @@ function describe(
         title: `Order cancelled${e.from_state ? ` (was ${e.from_state.toLowerCase().replace("_", " ")})` : ""}`,
         detail: e.reason_text,
         tone: "danger",
+      };
+    case "ORDER_OFF_HOURS":
+      return {
+        title: "Order taken outside business hours",
+        detail: e.reason_text,
+        tone: "info",
       };
     case "KOT_VOIDED":
       return { title: `${ctx.kotNumber(m.kot_id)} voided`, detail: e.reason_text, tone: "danger" };
@@ -399,7 +414,7 @@ export default function OrderTimeline({ orderId }: { orderId: string }) {
 
 function kotTone(status: string): keyof typeof DOT {
   if (status === "READY") return "success";
-  if (status === "SERVED") return "done";
+  if (status === "SERVED" || status === "DELIVERED") return "done";
   if (status === "CANCELLED") return "danger";
   if (status === "PREPARING" || status === "ACCEPTED") return "progress";
   return "muted";

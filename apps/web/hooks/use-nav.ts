@@ -3,8 +3,7 @@
 /**
  * Fully client-side hook for filtering navigation items based on RBAC
  *
- * This hook uses the unified identity hook (Better Auth preferred, Clerk
- * fallback) to check permissions, roles, and organization
+ * This hook uses the unified identity hook (Better Auth) to check permissions, roles, and organization
  * without any server calls. This is perfect for navigation visibility (UX only).
  *
  * Performance:
@@ -91,7 +90,7 @@ export function useFilteredNavItems(items: NavItem[]) {
           }
         }
 
-        // Note: Plans and features require server-side checks with Clerk's has() function
+        // Note: Plans and features require server-side checks with baHas()
         // For navigation visibility, you can either:
         // 1. Store plan/feature info in organization metadata (client-accessible)
         // 2. Use server actions (current approach)

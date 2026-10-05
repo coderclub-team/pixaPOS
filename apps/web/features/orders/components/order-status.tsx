@@ -8,6 +8,8 @@ const STATUS_STYLES: Record<OrderStatus, string> = {
   PREPARING: "animate-pulse text-orange-600",
   READY: "text-green-600",
   SERVED: "text-teal-600",
+  OUT_FOR_DELIVERY: "text-violet-600",
+  DELIVERED: "text-emerald-600",
   COMPLETED: "text-emerald-700",
   CANCELLED: "text-red-600",
 };

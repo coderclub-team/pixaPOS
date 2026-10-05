@@ -16,6 +16,14 @@ import {
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
+import { ExportButton, ImportDialog } from "@/features/system/components/io-dialog";
+import {
+  importRawMaterials,
+  rawMaterialColumns,
+  rawMaterialSample,
+} from "@/features/inventory/lib/io-raw-materials";
+import { inventoryKeys } from "@/features/inventory/api/queries";
+import { getQueryClient } from "@/lib/query-client";
 
 const CATEGORIES = [
   "Vegetables",
@@ -88,6 +96,21 @@ export default function RawMaterialsPage() {
             ))}
           </SelectContent>
         </Select>
+        <span className="ml-auto flex gap-2">
+          <ExportButton
+            filename="raw-materials"
+            rows={materials ?? []}
+            columns={rawMaterialColumns}
+          />
+          <ImportDialog
+            title="Bulk import raw materials"
+            sampleFilename="raw-materials"
+            columns={rawMaterialColumns}
+            sampleRows={rawMaterialSample}
+            onImport={importRawMaterials}
+            onDone={() => getQueryClient().invalidateQueries({ queryKey: inventoryKeys.all })}
+          />
+        </span>
       </div>
       <RawMaterialList materials={materials ?? []} />
     </PageContainer>

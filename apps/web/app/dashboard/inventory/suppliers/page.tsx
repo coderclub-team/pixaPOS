@@ -16,6 +16,14 @@ import {
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
+import { ExportButton, ImportDialog } from "@/features/system/components/io-dialog";
+import {
+  importSuppliers,
+  supplierColumns,
+  supplierSample,
+} from "@/features/inventory/lib/io-suppliers";
+import { inventoryKeys } from "@/features/inventory/api/queries";
+import { getQueryClient } from "@/lib/query-client";
 
 export default function SuppliersPage() {
   const [search, setSearch] = React.useState("");
@@ -70,6 +78,17 @@ export default function SuppliersPage() {
             <SelectItem value="inactive">Inactive</SelectItem>
           </SelectContent>
         </Select>
+        <span className="ml-auto flex gap-2">
+          <ExportButton filename="suppliers" rows={suppliers ?? []} columns={supplierColumns} />
+          <ImportDialog
+            title="Bulk import suppliers"
+            sampleFilename="suppliers"
+            columns={supplierColumns}
+            sampleRows={supplierSample}
+            onImport={importSuppliers}
+            onDone={() => getQueryClient().invalidateQueries({ queryKey: inventoryKeys.all })}
+          />
+        </span>
       </div>
       <SupplierList suppliers={suppliers ?? []} />
     </PageContainer>

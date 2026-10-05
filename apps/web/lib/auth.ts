@@ -1,7 +1,6 @@
 /**
- * Self-managed Better Auth server (Phase 1 strangler: runs alongside Clerk
- * until cutover). Postgres-backed via @pixa/db (Neon), organization plugin
- * with pixaPOS custom roles mapped from config/permissions.ts.
+ * Self-managed Better Auth server (Postgres-backed via @pixa/db (Neon),
+ * organization plugin with pixaPOS custom roles mapped from config/permissions.ts).
  */
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -71,6 +70,7 @@ let cached: AuthInstance | null = null;
 function getAuth(): AuthInstance {
   if (!cached) {
     cached = betterAuth({
+      baseURL: process.env.BETTER_AUTH_URL,
       database: drizzleAdapter(db(), {
         provider: "pg",
         schema: {
@@ -84,6 +84,17 @@ function getAuth(): AuthInstance {
         },
       }),
       emailAndPassword: { enabled: true },
+      // Local + LAN origins (local.pixapos.store has a real public suffix so
+      // origin checks pass where bare .local names are rejected).
+      trustedOrigins: [
+        "http://localhost:3000",
+        "https://localhost:3000",
+        "http://localhost:443",
+        "https://localhost:443",
+        "http://local.pixapos.store:3000",
+        "https://local.pixapos.store:3000",
+        "https://local.pixapos.store",
+      ],
       // Google is registered only when credentials exist — email/password
       // keeps working in environments without OAuth configured.
       ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET

@@ -36,6 +36,7 @@ import { toast } from "sonner";
 import { createPurchase, updatePurchase } from "../api/service";
 import {
   inventoryKeys,
+  locationsQueryOptions,
   purchasesQueryOptions,
   rawMaterialsQueryOptions,
   suppliersQueryOptions,
@@ -51,6 +52,11 @@ type FormItem = {
   unit_cost: number | string;
   tax_percent?: number;
   entry_unit?: string; // unit the row is entered in (purchase unit or base unit)
+  /** Optional goods traceability — shown when the material tracks expiry. */
+  batch_no?: string;
+  mfg_date?: string;
+  expiry_date?: string;
+  location_id?: string;
 };
 
 // 1 purchase_unit = rate base units; entry in purchase unit converts to base for stock/costing
@@ -79,6 +85,7 @@ export default function PurchaseForm({
   const isEdit = !!initialData && initialData.payment_status !== "paid";
   const { data: suppliers } = useQuery(suppliersQueryOptions());
   const { data: materials } = useQuery(rawMaterialsQueryOptions());
+  const { data: locations } = useQuery(locationsQueryOptions());
   const { data: pos } = useQuery(purchaseOrdersQueryOptions());
 
   const supplierOptions = (suppliers ?? []).map((s) => ({
@@ -115,6 +122,10 @@ export default function PurchaseForm({
         unit_cost: inPurchase ? ((it as any).purchase_unit_cost as number) : it.unit_cost,
         tax_percent: it.tax_percent,
         entry_unit: inPurchase ? pu : undefined,
+        batch_no: (it as any).batch_no,
+        mfg_date: (it as any).mfg_date,
+        expiry_date: (it as any).expiry_date,
+        location_id: (it as any).location_id,
       };
     }) ?? [{ material_id: "", qty: 1, unit_cost: 0, tax_percent: undefined }],
   );
@@ -728,6 +739,63 @@ export default function PurchaseForm({
                         <Icons.trash className="size-4" />
                       </Button>
                     </div>
+                    {(mat as any)?.is_expiry && (
+                      <div className="grid grid-cols-2 gap-2 border-t pt-2 md:col-span-full md:grid-cols-4">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">
+                            Batch no (optional)
+                          </Label>
+                          <Input
+                            value={it.batch_no ?? ""}
+                            onChange={(e) => updateItem(idx, { batch_no: e.target.value })}
+                            placeholder="Auto"
+                            autoComplete="off"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Mfg (optional)</Label>
+                          <Input
+                            type="date"
+                            value={it.mfg_date ?? ""}
+                            onChange={(e) => updateItem(idx, { mfg_date: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Expiry (optional)</Label>
+                          <Input
+                            type="date"
+                            value={it.expiry_date ?? ""}
+                            onChange={(e) => updateItem(idx, { expiry_date: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">
+                            Location (optional)
+                          </Label>
+                          <Select
+                            value={it.location_id ?? "auto"}
+                            onValueChange={(v) =>
+                              updateItem(idx, { location_id: v === "auto" ? undefined : v })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Auto" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="auto">Auto (first store)</SelectItem>
+                              {(locations ?? [])
+                                .filter((l) => l.is_active)
+                                .map((l) => (
+                                  <SelectItem key={l.id} value={l.id}>
+                                    {l.name}
+                                    {l.rack ? ` · ${l.rack}` : ""}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

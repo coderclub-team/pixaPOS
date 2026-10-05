@@ -34,6 +34,8 @@ import {
 } from "@pixa/ui/base-ui/dialog";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { SortTh, useSorting } from "@/components/sort-th";
+import type { CsvColumn } from "@/features/system/lib/csv";
 
 function statusClass(s: string) {
   if (s === "posted" || s === "applied") return "text-green-600";
@@ -41,8 +43,66 @@ function statusClass(s: string) {
   return "text-destructive";
 }
 
+export const supplierAdjustmentExportColumns: CsvColumn<SupplierAdjustment>[] = [
+  { key: "adjustment_number", label: "Adjustment #", get: (a) => a.adjustment_number },
+  { key: "type", label: "Type", get: (a) => a.type },
+  { key: "supplier_name", label: "Supplier", get: (a) => a.supplier_name ?? "" },
+  {
+    key: "purchase_number",
+    label: "Linked Purchase",
+    get: (a) => a.purchase_number ?? "",
+  },
+  {
+    key: "category",
+    label: "Category",
+    get: (a) => a.category.replaceAll("_", " "),
+  },
+  { key: "bill_date", label: "Bill Date", get: (a) => a.bill_date },
+  { key: "reference", label: "Reference", get: (a) => a.reference ?? "" },
+  { key: "amount", label: "Amount", get: (a) => `₹${a.amount.toFixed(2)}` },
+  {
+    key: "tax_amount",
+    label: "Tax",
+    get: (a) => (a.tax_amount !== undefined ? `₹${a.tax_amount.toFixed(2)}` : ""),
+  },
+  {
+    key: "subtotal",
+    label: "Subtotal",
+    get: (a) => (a.subtotal !== undefined ? `₹${a.subtotal.toFixed(2)}` : ""),
+  },
+  {
+    key: "applied_amount",
+    label: "Applied",
+    get: (a) => (a.applied_amount !== undefined ? `₹${a.applied_amount.toFixed(2)}` : ""),
+  },
+  {
+    key: "available",
+    label: "Available",
+    get: (a) =>
+      a.applied_amount !== undefined ? `₹${(a.amount - a.applied_amount).toFixed(2)}` : "",
+  },
+  { key: "status", label: "Status", get: (a) => a.status },
+];
+
 export function SupplierAdjustmentList({ adjustments }: { adjustments: SupplierAdjustment[] }) {
-  if (adjustments.length === 0)
+  const { sortKey, sortDir, toggle, sorted } = useSorting<SupplierAdjustment>("bill_date", "desc");
+  const rows = sorted(adjustments, {
+    adjustment_number: (a) => a.adjustment_number,
+    type: (a) => a.type,
+    supplier_name: (a) => a.supplier_name ?? "",
+    purchase_number: (a) => a.purchase_number ?? "",
+    category: (a) => a.category,
+    bill_date: (a) => a.bill_date,
+    reference: (a) => a.reference ?? "",
+    amount: (a) => a.amount,
+    tax_amount: (a) => a.tax_amount ?? 0,
+    subtotal: (a) => a.subtotal ?? 0,
+    applied_amount: (a) => a.applied_amount ?? 0,
+    available: (a) => a.amount - (a.applied_amount ?? 0),
+    status: (a) => a.status,
+  });
+
+  if (rows.length === 0)
     return (
       <Card>
         <CardContent className="py-12 text-center">
@@ -65,18 +125,74 @@ export function SupplierAdjustmentList({ adjustments }: { adjustments: SupplierA
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Adjustment #</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Supplier</TableHead>
-              <TableHead>Linked Purchase</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Amount</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>
+                <SortTh
+                  label="Adjustment #"
+                  column="adjustment_number"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Type"
+                  column="type"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Supplier"
+                  column="supplier_name"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Linked Purchase"
+                  column="purchase_number"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Category"
+                  column="category"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Amount"
+                  column="amount"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Status"
+                  column="status"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {adjustments.map((a) => (
+            {rows.map((a) => (
               <Row key={a.id} adj={a} />
             ))}
           </TableBody>

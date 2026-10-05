@@ -36,12 +36,22 @@ import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { SortTh, useSorting } from "@/components/sort-th";
 
 interface CustomerListProps {
   customers: CustomerWithDerived[];
 }
 
 export function CustomerList({ customers }: CustomerListProps) {
+  const { sortKey, sortDir, toggle, sorted } = useSorting<CustomerWithDerived>("name");
+  const rows = sorted(customers, {
+    name: (c) => c.name,
+    phone: (c) => c.phone,
+    city: (c) => c.primary_address?.city ?? "",
+    orders: (c) => c.orders_count,
+    status: (c) => c.is_active,
+  });
+
   if (customers.length === 0) {
     return (
       <Card>
@@ -66,16 +76,56 @@ export function CustomerList({ customers }: CustomerListProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Customer</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>City</TableHead>
-              <TableHead>Orders</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>
+                <SortTh
+                  label="Customer"
+                  column="name"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Phone"
+                  column="phone"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="City"
+                  column="city"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Orders"
+                  column="orders"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Status"
+                  column="status"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {customers.map((c) => (
+            {rows.map((c) => (
               <TableRow key={c.id}>
                 <TableCell>
                   <div className="flex items-center gap-2">

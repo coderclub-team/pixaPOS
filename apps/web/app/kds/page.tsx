@@ -4,6 +4,7 @@ import KdsWallboard from "./wallboard";
 
 export const metadata: Metadata = {
   title: "KDS Wallboard",
+  manifest: "/kds/manifest.webmanifest",
   description: "Live kitchen display — installable, works offline.",
 };
 

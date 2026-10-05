@@ -1,10 +1,11 @@
 /**
- * pixaPOS KDS service worker — offline shell for the wallboard.
+ * pixaPOS offline shell — installable app shells for /pos, /kds, /kiosk, /qr.
  *
  * Strategy (no build deps, plain JS):
- * - install: precache the /kds shell + icons + manifest.
- * - navigations to /kds (+ /dashboard/kitchen): cache first, refresh in
- *   background (stale-while-revalidate) so airplane-mode reloads render.
+ * - install: precache the four app shells + icons + manifest.
+ * - navigations to /pos, /kds, /kiosk, /qr, /kot (+ /dashboard/kitchen):
+ *   cache first, refresh in background (stale-while-revalidate) so
+ *   airplane-mode reloads render.
  * - /api/*: network first with cache fallback for GETs; mutations always hit
  *   network (local-first services own offline writes, never the cache).
  * - static chunks/_next: stale-while-revalidate.
@@ -15,14 +16,32 @@
  *
  * Version the cache name to roll updates; old caches are purged on activate.
  * Ticket data itself lives in localStorage/IndexedDB — the SW only caches
- * the app shell, so the board renders offline with live local data.
+ * the app shell, so boards render offline with live local data.
  *
- * NOTE: registration is skipped on localhost (see wallboard) — dev servers
- * recompile constantly and a caching SW turns every transient 500 into a
- * permanent-looking stall. Offline testing happens on preview builds.
+ * NOTE: registration is skipped on localhost (see use-service-worker hook) —
+ * dev servers recompile constantly and a caching SW turns every transient
+ * 500 into a permanent-looking stall. Offline testing happens on preview
+ * builds.
  */
-const VERSION = "kds-v3";
-const SHELL = ["/kds", "/kot", "/icon.png", "/apple-icon.png", "/manifest.webmanifest"];
+const VERSION = "pwa-v4";
+const SHELL = [
+  "/pos",
+  "/kds",
+  "/kiosk",
+  "/qr",
+  "/kot",
+  "/dispatch",
+  "/rider",
+  "/icon.png",
+  "/apple-icon.png",
+  "/manifest.webmanifest",
+  "/pos/manifest.webmanifest",
+  "/kds/manifest.webmanifest",
+  "/kiosk/manifest.webmanifest",
+  "/qr/manifest.webmanifest",
+  "/dispatch/manifest.webmanifest",
+  "/rider/manifest.webmanifest",
+];
 
 function putOk(cache, request, res) {
   if (!res || !res.ok) return res;
@@ -63,9 +82,16 @@ function isApi(url) {
 function isShellNav(request, url) {
   return (
     request.mode === "navigate" &&
-    (url.pathname === "/kds" ||
+    (url.pathname === "/pos" ||
+      url.pathname === "/kds" ||
+      url.pathname === "/kiosk" ||
+      url.pathname === "/qr" ||
       url.pathname === "/kot" ||
-      url.pathname.startsWith("/dashboard/kitchen"))
+      url.pathname === "/dispatch" ||
+      url.pathname.startsWith("/dispatch/") ||
+      url.pathname === "/rider" ||
+      url.pathname.startsWith("/dashboard/kitchen") ||
+      url.pathname.startsWith("/dashboard"))
   );
 }
 
@@ -90,7 +116,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // KDS/KOT shell navigations: cache first, refresh in background.
+  // App shell navigations: cache first, refresh in background.
   if (isShellNav(request, url)) {
     const cacheKey = url.pathname;
     event.respondWith(
@@ -109,8 +135,11 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Static assets: stale-while-revalidate.
-  if (url.pathname.startsWith("/_next/") || url.pathname.match(/\.(png|ico|svg|woff2?)$/)) {
+  // Static assets + manifests: stale-while-revalidate.
+  if (
+    url.pathname.startsWith("/_next/") ||
+    url.pathname.match(/\.(png|ico|svg|woff2?|webmanifest)$/)
+  ) {
     event.respondWith(
       caches.match(request).then((cached) => {
         const refresh = fetch(request)

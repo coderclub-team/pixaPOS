@@ -5,7 +5,7 @@ import { baHas, baMemberRole, baOrgId, baUser } from "./auth-session";
 import { hasDevBypass } from "./authz";
 
 export type OrgContext = {
-  source: "better" | "clerk" | null;
+  source: "better" | null;
   orgId: string | null;
   role: string | null;
   permissions: string[];

@@ -13,3 +13,14 @@ export function formatINR(paise: number): string {
     maximumFractionDigits: 2,
   })}`;
 }
+
+/**
+ * Thermal-printer-safe amount (ASCII only). ESC/POS code pages have no rupee
+ * glyph — raw UTF-8 ₹ bytes render as mojibake (â + junk). Receipts print Rs.
+ */
+export function formatReceiptAmount(paise: number): string {
+  return `Rs.${(paise / 100).toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}

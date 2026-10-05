@@ -3,7 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "next dev -p 3000 -H 0.0.0.0",
+    "predev": "pkill -f 'next/dist/bin/next dev' 2>/dev/null || true",
+    "dev:https": "next dev -p 3000 -H 0.0.0.0 --experimental-https --experimental-https-key ./certificates/local.key --experimental-https-cert ./certificates/local.crt",
+    "predev:https": "pkill -f 'next/dist/bin/next dev' 2>/dev/null || true",
+    "dev:domain": "next dev -p 443 -H 0.0.0.0 --experimental-https --experimental-https-key ./certificates/local.key --experimental-https-cert ./certificates/local.crt",
+    "predev:domain": "pkill -f 'next/dist/bin/next dev' 2>/dev/null || true",
     "build": "next build",
     "start": "next start"
   },
@@ -22,6 +27,8 @@
     "@tanstack/react-form": "^1.28.5",
     "@tanstack/react-query": "5.95.2",
     "@tanstack/react-query-devtools": "5.95.2",
+    "@tanstack/react-table": "^8.21.3",
+    "@vis.gl/react-google-maps": "^1.10.1",
     "better-auth": "^1.7.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -57,3 +64,4 @@
     "@types/react-dom": "^19.0.0"
   }
 }
+

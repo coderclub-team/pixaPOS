@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import PageContainer from "@/components/layout/page-container";
-import { RecipeList } from "@/features/inventory/components/recipe-list";
+import { RecipeList, recipeExportColumns } from "@/features/inventory/components/recipe-list";
 import { recipesQueryOptions } from "@/features/inventory/api/queries";
 import { useQuery } from "@tanstack/react-query";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
@@ -16,6 +16,7 @@ import {
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
+import { ExportButton } from "@/features/system/components/io-dialog";
 
 export default function RecipesPage() {
   const [search, setSearch] = React.useState("");
@@ -70,6 +71,7 @@ export default function RecipesPage() {
             <SelectItem value="inactive">Inactive</SelectItem>
           </SelectContent>
         </Select>
+        <ExportButton filename="recipes" rows={recipes ?? []} columns={recipeExportColumns} />
       </div>
       <RecipeList recipes={recipes ?? []} />
     </PageContainer>

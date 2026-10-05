@@ -27,15 +27,25 @@ import {
 } from "@pixa/ui/base-ui/dialog";
 import { Icons } from "@pixa/ui/icons";
 import { StatusDot } from "@pixa/ui/base-ui/status-dot";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { deleteRawMaterial } from "../api/service";
-import { inventoryKeys } from "../api/queries";
+import { batchSummaryQueryOptions, inventoryKeys } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { SortTh, useSorting } from "@/components/sort-th";
 
 export function RawMaterialList({ materials }: { materials: RawMaterial[] }) {
+  const { sortKey, sortDir, toggle, sorted } = useSorting<RawMaterial>("name");
+  const rows = sorted(materials, {
+    name: (m) => m.name,
+    category: (m) => m.category,
+    stock: (m) => m.stock_qty,
+    valuation: (m) => m.stock_qty * m.avg_cost,
+    status: (m) => m.is_active,
+  });
+
   if (materials.length === 0) {
     return (
       <Card>
@@ -60,16 +70,58 @@ export function RawMaterialList({ materials }: { materials: RawMaterial[] }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Material</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Stock</TableHead>
-              <TableHead className="text-right">Valuation</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>
+                <SortTh
+                  label="Material"
+                  column="name"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Category"
+                  column="category"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Stock"
+                  column="stock"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>Batches</TableHead>
+              <TableHead className="text-right">
+                <SortTh
+                  label="Valuation"
+                  column="valuation"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                  className="ml-auto"
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Status"
+                  column="status"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {materials.map((m) => (
+            {rows.map((m) => (
               <RawMaterialRow key={m.id} m={m} />
             ))}
           </TableBody>
@@ -147,6 +199,9 @@ function RawMaterialRow({ m }: { m: RawMaterial }) {
             Threshold {m.low_stock_threshold} • Value ₹{stockValue.toFixed(2)}
           </div>
         </TableCell>
+        <TableCell>
+          <BatchChips materialId={m.id} />
+        </TableCell>
         <TableCell className="text-right">
           <div className="flex flex-col items-end text-xs">
             <span className="font-mono font-medium">₹{m.avg_cost.toFixed(2)}</span>
@@ -190,5 +245,25 @@ function RawMaterialRow({ m }: { m: RawMaterial }) {
         </TableCell>
       </TableRow>
     </>
+  );
+}
+
+/** Batch badges per goods item: lot count + nearest expiry (FEFO order). */
+function BatchChips({ materialId }: { materialId: string }) {
+  const { data } = useQuery(batchSummaryQueryOptions(materialId));
+  if (!data || data.batches === 0) return <span className="text-muted-foreground">—</span>;
+  const expiring =
+    data.nearest_expiry && new Date(data.nearest_expiry).getTime() - Date.now() < 30 * 86400000;
+  return (
+    <div className="flex flex-col gap-1 text-[11px]">
+      <span className="rounded border bg-muted px-1.5 py-0.5 font-mono">
+        {data.batches} lot{data.batches === 1 ? "" : "s"}
+      </span>
+      {data.nearest_expiry && (
+        <span className={expiring ? "font-semibold text-destructive" : "text-muted-foreground"}>
+          exp {data.nearest_expiry}
+        </span>
+      )}
+    </div>
   );
 }

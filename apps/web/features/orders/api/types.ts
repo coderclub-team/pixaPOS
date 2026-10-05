@@ -1,4 +1,11 @@
-export type OrderChannel = "dine_in" | "takeaway" | "delivery" | "zomato" | "swiggy" | "own_online";
+export type OrderChannel =
+  | "dine_in"
+  | "counter"
+  | "takeaway"
+  | "delivery"
+  | "zomato"
+  | "swiggy"
+  | "own_online";
 
 export type OrderStatus =
   | "DRAFT"
@@ -7,8 +14,15 @@ export type OrderStatus =
   | "PREPARING"
   | "READY"
   | "SERVED"
+  | "OUT_FOR_DELIVERY"
+  | "DELIVERED"
   | "COMPLETED"
   | "CANCELLED";
+
+/** Channels fulfilled by a rider instead of table service. Kitchen
+ * aggregation caps these at READY — item-served events never auto-advance
+ * them; the dispatch flow owns OUT_FOR_DELIVERY → DELIVERED. */
+export const DISPATCH_CHANNELS: OrderChannel[] = ["delivery", "zomato", "swiggy", "own_online"];
 
 export type OrderItemSnapshot = {
   id: string;
@@ -20,7 +34,12 @@ export type OrderItemSnapshot = {
   unit_price_paise: number;
   tax_percent_snapshot: number;
   recipe_id_snapshot?: string;
-  modifiers: { modifier_id: string; name_snapshot: string; price_paise: number }[];
+  modifiers: {
+    modifier_id: string;
+    name_snapshot: string;
+    alias_snapshot?: string;
+    price_paise: number;
+  }[];
   qty: number;
   line_total_paise: number;
   line_tax_paise: number;
@@ -61,6 +80,23 @@ export type RestaurantOrder = {
   customer_id?: string;
   customer_name?: string;
   customer_phone?: string;
+  /** Drop-address snapshot for dispatch channels — captured at order start
+   * (own-fleet delivery requires it), printed on the dispatch sheet. */
+  delivery_address_snapshot?: string;
+  /** Rider owning the run — set by assignRider, required before dispatch. */
+  rider_name?: string;
+  /** Fulfillment timestamps for the dispatch trail. */
+  dispatched_at?: string;
+  delivered_at?: string;
+  /** Free-text customer notes — allergies, accessibility, special requests.
+   * Captured at order start, printed on KOTs so the kitchen sees them. */
+  customer_notes?: string;
+  /** Taken outside business hours under the outlet off-hours pref —
+   * always paired with an ORDER_OFF_HOURS audit event. */
+  off_hours?: boolean;
+  off_hours_reason?: string;
+  /** Future fire slot (ISO) for scheduled-mode channels — fired manually. */
+  scheduled_for?: string;
   external_ref?: string;
   status: OrderStatus;
   items: OrderItemSnapshot[];
@@ -71,6 +107,13 @@ export type RestaurantOrder = {
   discount_percent?: number;
   discount_paise?: number;
   discount_reason?: string;
+  /** Applied promo code (discount_reason = `PROMO:<CODE>`). Promo and manual
+   * discounts are mutually exclusive — last write wins. */
+  promo_code?: string;
+  promo_id?: string;
+  /** Reward points tendered on this bill (discount_reason = `REWARDS:<n>pts`).
+   * Promo, manual discount and rewards are mutually exclusive — last wins. */
+  reward_points?: number;
   grand_total_paise: number;
   payment_status: PaymentState;
   split?: BillSplit;
@@ -123,6 +166,15 @@ export type CreateOrderInput = {
   occupancy_group_id?: string;
   customer_name?: string;
   customer_phone?: string;
+  customer_notes?: string;
+  /** Drop address for own-fleet delivery — required when channel is delivery. */
+  delivery_address?: string;
+  scheduled_for?: string;
+  /** Staff-initiated creation (terminal, dashboard) bypasses the
+   * scheduled-mode slot requirement — customer surfaces must pass a slot. */
+  staff_initiated?: boolean;
+  /** Reason for an off-hours order (required when the outlet demands it). */
+  off_hours_reason?: string;
   external_ref?: string;
   created_by?: string;
   /** /new cart flow passes DRAFT; terminal/seed keep the CONFIRMED default. */
@@ -135,6 +187,25 @@ export type AddItemInput = {
   modifier_ids?: string[];
   qty?: number;
   instructions?: string;
+};
+
+export type ItemSalesFilters = {
+  from?: string; // ISO date (inclusive)
+  to?: string; // ISO date (inclusive)
+  channel?: OrderChannel;
+};
+
+export type ItemSalesStat = {
+  menu_item_id: string;
+  variant_id?: string;
+  name: string;
+  variant_name?: string;
+  category_name?: string;
+  qty: number; // live servings (returned qty excluded)
+  gross_paise: number; // pre-discount line value
+  discount_paise: number; // pro-rata share of bill discount
+  net_paise: number;
+  orders: number; // distinct orders containing it
 };
 
 export type OrderFilters = {

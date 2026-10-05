@@ -22,7 +22,7 @@ export type PosPermissionKey = (typeof POS_PERMISSIONS)[keyof typeof POS_PERMISS
 
 /**
  * Human-readable metadata for every POS permission. The `key` must match a value
- * in POS_PERMISSIONS and an existing Clerk organization permission for it to be
+ * in POS_PERMISSIONS and an existing organization permission for it to be
  * assignable to a role/membership.
  */
 export const POS_PERMISSION_META: { key: PosPermissionKey; label: string; group: string }[] = [
@@ -45,7 +45,7 @@ export const POS_PERMISSION_META: { key: PosPermissionKey; label: string; group:
   { key: POS_PERMISSIONS.wasteManage, label: "Manage waste", group: "Inventory" },
 ];
 
-// Role -> permissions mapping (for docs / future Clerk setup)
+// Role -> permissions mapping (used by the Better Auth access-control roles)
 export const ROLE_PERMISSIONS: Record<string, string[]> = {
   "org:admin": Object.values(POS_PERMISSIONS),
   "org:manager": [

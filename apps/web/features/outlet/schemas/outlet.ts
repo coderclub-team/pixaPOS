@@ -7,7 +7,16 @@ export const outletTypeOptions = [
   { label: "Fine Dine", value: "fine_dine" },
   { label: "Cafe", value: "cafe" },
   { label: "Bakery", value: "bakery" },
+  { label: "Grocery", value: "grocery" },
+  { label: "Pharmacy", value: "pharmacy" },
+  { label: "Retail Store", value: "retail" },
+  { label: "Salon & Services", value: "salon" },
 ] as const;
+
+/** Retail (goods) outlets sell products off shelves; food outlets consume raw materials. */
+export function isRetailOutletType(type?: string): boolean {
+  return type === "grocery" || type === "pharmacy" || type === "retail";
+}
 
 export const basicInformationSchema = z.object({
   name: z.string().min(2, "Outlet name must be at least 2 characters"),
@@ -82,6 +91,17 @@ export const fssaiSchema = z.object({
     .or(z.literal("")),
 });
 
+/** UPI VPA for bill collect-QR (Print Studio). Empty = no QR printed. */
+export const upiSchema = z.object({
+  upi_id: z
+    .string()
+    .regex(/^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/, "Enter a valid UPI ID (e.g. outlet@okhdfc)")
+    .optional()
+    .or(z.literal("")),
+});
+
+export type UPIValues = z.infer<typeof upiSchema>;
+
 export const businessDetailsSchema = z
   .object({
     legal_name: z.string().min(2, "Legal name required"),
@@ -117,6 +137,46 @@ export const timezoneSchema = z.object({
   is_active: z.boolean(),
 });
 
+const timeRe = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
+
+export const dayHoursSchema = z.object({
+  day: z.number().int().min(0).max(6),
+  open: z.string().regex(timeRe, "HH:MM"),
+  close: z.string().regex(timeRe, "HH:MM"),
+  closed: z.boolean(),
+});
+
+export const channelHoursSchema = z.object({
+  use_outlet_hours: z.boolean(),
+  days: z.array(dayHoursSchema).length(7).optional(),
+  mode: z.enum(["open", "closed", "scheduled"]).optional(),
+  cutoff_minutes: z.number().int().min(0).max(240).optional(),
+});
+
+export const businessHoursSchema = z.object({
+  days: z.array(dayHoursSchema).length(7),
+  channels: z
+    .object({
+      dine_in: channelHoursSchema.optional(),
+      counter: channelHoursSchema.optional(),
+      takeaway: channelHoursSchema.optional(),
+      delivery: channelHoursSchema.optional(),
+      own_online: channelHoursSchema.optional(),
+      kiosk: channelHoursSchema.optional(),
+      qr: channelHoursSchema.optional(),
+      website: channelHoursSchema.optional(),
+      zomato: channelHoursSchema.optional(),
+      swiggy: channelHoursSchema.optional(),
+    })
+    .optional(),
+});
+
+export const orderSettingsSchema = z.object({
+  ask_customer_details: z.boolean(),
+  allow_off_hours_orders: z.boolean(),
+  require_off_hours_reason: z.boolean(),
+});
+
 export type BasicInformationValues = z.infer<typeof basicInformationSchema>;
 export type ContactValues = z.infer<typeof contactSchema>;
 export type AddressValues = z.infer<typeof addressSchema>;
@@ -124,6 +184,8 @@ export type GSTValues = z.infer<typeof gstSchema>;
 export type FSSAIValues = z.infer<typeof fssaiSchema>;
 export type BusinessDetailsValues = z.infer<typeof businessDetailsSchema>;
 export type TimezoneValues = z.infer<typeof timezoneSchema>;
+export type BusinessHoursValues = z.infer<typeof businessHoursSchema>;
+export type OrderSettingsValues = z.infer<typeof orderSettingsSchema>;
 
 export const outletSchema = z.object({
   id: z.string().optional(),

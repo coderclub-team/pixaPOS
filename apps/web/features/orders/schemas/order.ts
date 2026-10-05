@@ -2,6 +2,7 @@ import * as z from "zod";
 
 export const orderChannelOptions = [
   { label: "Dine-in", value: "dine_in" },
+  { label: "Counter", value: "counter" },
   { label: "Takeaway", value: "takeaway" },
   { label: "Delivery", value: "delivery" },
   { label: "Zomato", value: "zomato" },
@@ -10,11 +11,13 @@ export const orderChannelOptions = [
 ] as const;
 
 export const createOrderSchema = z.object({
-  channel: z.enum(["dine_in", "takeaway", "delivery", "zomato", "swiggy", "own_online"]),
+  channel: z.enum(["dine_in", "counter", "takeaway", "delivery", "zomato", "swiggy", "own_online"]),
   table_id: z.string().optional(),
   occupancy_group_id: z.string().optional(),
   customer_name: z.string().max(60).optional(),
   customer_phone: z.string().max(15).optional(),
+  customer_notes: z.string().max(300).optional(),
+  scheduled_for: z.string().max(30).optional(),
   external_ref: z.string().max(40).optional(),
 });
 

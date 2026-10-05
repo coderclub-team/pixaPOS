@@ -37,7 +37,7 @@ export async function baMemberRole(orgId: string, userId: string): Promise<strin
   return rows[0]?.role ?? null;
 }
 
-/** Clerk has({permission}) equivalent for org:resource:action strings. */
+/** Permission check for org:resource:action strings. */
 export async function baHas(permission: string): Promise<boolean> {
   const session = await baSession();
   if (!session?.user) return false;
@@ -51,7 +51,24 @@ export async function baHas(permission: string): Promise<boolean> {
 }
 
 export async function requireBaUser() {
-  const user = await baUser();
-  if (!user) redirect("/auth/sign-in");
-  return user;
+  try {
+    const user = await baUser();
+    if (user) return user;
+  } catch {
+    // Session store unreachable (offline): honor a paired device session.
+    // Online-but-anonymous still falls through to sign-in below.
+    const { readDeviceCookie, verifyDeviceToken } = await import("./device-token");
+    const raw = readDeviceCookie((await headers()).get("cookie"));
+    if (raw) {
+      const claims = await verifyDeviceToken(raw);
+      if (claims) {
+        return {
+          id: claims.user_id ?? `device:${claims.device_id}`,
+          email: undefined,
+          name: claims.kiosk ? "Kiosk" : undefined,
+        } as unknown as NonNullable<Awaited<ReturnType<typeof baUser>>>;
+      }
+    }
+  }
+  redirect("/auth/sign-in");
 }

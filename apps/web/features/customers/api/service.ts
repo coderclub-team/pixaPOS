@@ -14,10 +14,48 @@ const CUSTOMER_STORAGE_KEY = "pixaCustomers";
 
 let mockCustomers: Customer[] = [];
 
+/** Durable SQLite mirror (fire-and-forget; repo never throws). */
+function mirrorCustomers() {
+  if (typeof window === "undefined") return;
+  import("@/lib/db/repo").then(({ writeScope }) => {
+    void writeScope(
+      "customers",
+      mockCustomers.map((c) => ({
+        id: c.id,
+        outlet_id: (c as { outlet_id?: string }).outlet_id ?? null,
+        data: c,
+        version: (c as { version?: number }).version ?? 1,
+        updated_at: (c as { updated_at?: string }).updated_at ?? new Date().toISOString(),
+        deleted_at: (c as { deleted_at?: string | null }).deleted_at ?? null,
+      })),
+    );
+  });
+}
+
+/** Adopt the durable mirror on app startup — only when localStorage is
+ * missing/empty. Never overwrites existing localStorage. */
+export async function hydrateCustomersFromMirror(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(CUSTOMER_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(parsed?.customers) && parsed.customers.length > 0) return;
+    const { readScope } = await import("@/lib/db/repo");
+    const docs = await readScope("customers");
+    if (docs.length === 0) return;
+    localStorage.setItem(
+      CUSTOMER_STORAGE_KEY,
+      JSON.stringify({ customers: docs.map((d) => d.data) }),
+    );
+    loadCustomers();
+  } catch {}
+}
+
 function saveCustomers() {
   if (typeof window !== "undefined") {
     try {
       localStorage.setItem(CUSTOMER_STORAGE_KEY, JSON.stringify({ customers: mockCustomers }));
+      mirrorCustomers();
     } catch {}
   }
 }

@@ -29,9 +29,76 @@ export type Outlet = {
   currency: string;
   timezone: string;
   locale: string;
+  /** Ask for customer name/phone when starting counter/takeaway/delivery
+   * orders on /kot. Default false = skip straight to the menu. */
+  ask_customer_details: boolean;
+  /** Staff may take orders outside business hours — every such order is
+   * flagged off_hours with an ORDER_OFF_HOURS audit event. Default false. */
+  allow_off_hours_orders: boolean;
+  /** Off-hours orders need a mandatory reason (default true). */
+  require_off_hours_reason: boolean;
+  /** Weekly hours: outlet base + per-channel overrides. Missing = always open. */
+  business_hours?: BusinessHours;
+  /** UPI VPAs for bill collect-QR (Print Studio). Exactly one may be default. */
+  upi_ids: UpiAccount[];
+  /** Salted kiosk PIN hash (see hashKioskPin). Absent = kiosk pairing unset. */
+  kiosk_pin_hash?: string;
+  /** @deprecated single-VPA era; migrated into upi_ids on read. */
+  upi_id?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
 };
 
 export type OutletPayload = Partial<Outlet>;
+
+/** One weekday's hours (day: 0 = Sunday). close <= open spans midnight. */
+export type DayHours = {
+  day: number;
+  open: string;
+  close: string;
+  closed: boolean;
+};
+
+export type OrderChannelKey =
+  | "dine_in"
+  | "counter"
+  | "takeaway"
+  | "delivery"
+  | "own_online"
+  | "kiosk"
+  | "qr"
+  | "website"
+  | "zomato"
+  | "swiggy";
+
+/** Per-channel override: inherit the outlet base, or keep own week grid. */
+export type ChannelHours = {
+  use_outlet_hours: boolean;
+  days?: DayHours[];
+  /** open: normal hours; closed: block creation; scheduled: accept now, fire later manually. */
+  mode?: "open" | "closed" | "scheduled";
+  /** Stop ASAP orders this many minutes before close (Toast-style cut-off). */
+  cutoff_minutes?: number;
+};
+
+export type BusinessHours = {
+  days: DayHours[];
+  channels?: Partial<Record<OrderChannelKey, ChannelHours>>;
+};
+
+export type UpiAccount = {
+  id: string;
+  label: string;
+  vpa: string;
+  is_active: boolean;
+  created_at: string;
+};
+
+/** Explicit default VPA, or null when none is active (QR disabled). */
+export function activeUpiId(outlet: Pick<Outlet, "upi_ids" | "upi_id">): string | null {
+  const hit = (outlet.upi_ids ?? []).find((u) => u.is_active);
+  if (hit) return hit.vpa;
+  if (outlet.upi_id) return outlet.upi_id;
+  return null;
+}
