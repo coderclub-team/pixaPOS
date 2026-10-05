@@ -25,7 +25,9 @@ export function LoginForm() {
         setError(data?.error ?? "sign-in failed");
         return;
       }
-      router.push("/admin");
+      // Replace (not push): the login page leaves the history stack, so
+      // Back from /admin never lands back on a stale sign-in form.
+      router.replace("/admin");
       router.refresh();
     } catch {
       setError("sign-in failed");
