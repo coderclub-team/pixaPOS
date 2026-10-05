@@ -10,10 +10,7 @@ const TEAM = [
 
 export default function Team() {
   return (
-    <section
-      id="team"
-      className="overflow-hidden bg-gray-1 pt-20 pb-12 lg:pt-[120px] lg:pb-[90px] dark:bg-dark-2"
-    >
+    <section id="team" className="overflow-hidden bg-gray-1 pt-20 pb-12 lg:pt-[120px] lg:pb-[90px]">
       <div className="container">
         <div className="mb-[60px]">
           <SectionTitle

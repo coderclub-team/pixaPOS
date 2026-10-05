@@ -15,24 +15,22 @@ export default function Contact() {
   };
 
   const inputCls =
-    "w-full rounded-md border border-stroke bg-transparent px-5 py-3 text-base text-dark outline-none placeholder:text-body-color/70 focus:border-primary focus-visible:shadow-none dark:border-dark-3 dark:text-white";
+    "w-full rounded-md border border-stroke bg-transparent px-5 py-3 text-base text-dark outline-none placeholder:text-body-color/70 focus:border-primary focus-visible:shadow-none";
 
   return (
     <section id="contact" className="relative py-20 md:py-[120px]">
-      <div className="absolute top-0 left-0 -z-[1] h-full w-full dark:bg-dark" />
-      <div className="absolute top-0 left-0 -z-[1] h-1/2 w-full bg-primary/10 lg:h-[45%] xl:h-1/2 dark:bg-dark-700" />
+      <div className="absolute top-0 left-0 -z-[1] h-full w-full" />
+      <div className="absolute top-0 left-0 -z-[1] h-1/2 w-full bg-primary/10 lg:h-[45%] xl:h-1/2" />
       <div className="container px-4">
         <div className="-mx-4 flex flex-wrap items-center">
           <div className="w-full px-4 lg:w-7/12 xl:w-8/12">
             <div className="ud-contact-content-wrapper">
               <div className="ud-contact-title mb-12 lg:mb-[150px]">
-                <span className="mb-6 block text-base font-medium text-dark dark:text-white">
-                  CONTACT US
-                </span>
-                <h2 className="max-w-[260px] text-[35px] leading-[1.14] font-semibold text-dark dark:text-white">
+                <span className="mb-6 block text-base font-medium text-dark">CONTACT US</span>
+                <h2 className="max-w-[260px] text-[35px] leading-[1.14] font-semibold text-dark">
                   Let&apos;s talk about your restaurant.
                 </h2>
-                <p className="mt-4 max-w-[300px] text-base text-body-color dark:text-dark-6">
+                <p className="mt-4 max-w-[300px] text-base text-body-color">
                   Trial questions, pricing or onboarding — we reply within one business day.
                 </p>
               </div>
@@ -44,12 +42,8 @@ export default function Contact() {
                     </svg>
                   </div>
                   <div>
-                    <h3 className="mb-[18px] text-lg font-semibold text-dark dark:text-white">
-                      Our Location
-                    </h3>
-                    <p className="text-base text-body-color dark:text-dark-6">
-                      Chennai, Tamil Nadu, India
-                    </p>
+                    <h3 className="mb-[18px] text-lg font-semibold text-dark">Our Location</h3>
+                    <p className="text-base text-body-color">Chennai, Tamil Nadu, India</p>
                   </div>
                 </div>
                 <div className="mb-8 flex w-[330px] max-w-full">
@@ -59,31 +53,22 @@ export default function Contact() {
                     </svg>
                   </div>
                   <div>
-                    <h3 className="mb-[18px] text-lg font-semibold text-dark dark:text-white">
-                      How Can We Help?
-                    </h3>
-                    <p className="text-base text-body-color dark:text-dark-6">
-                      hello@pixapos.store
-                    </p>
-                    <p className="mt-1 text-base text-body-color dark:text-dark-6">
-                      Trial, pricing and onboarding
-                    </p>
+                    <h3 className="mb-[18px] text-lg font-semibold text-dark">How Can We Help?</h3>
+                    <p className="text-base text-body-color">hello@pixapos.store</p>
+                    <p className="mt-1 text-base text-body-color">Trial, pricing and onboarding</p>
                   </div>
                 </div>
               </div>
             </div>
           </div>
           <div className="w-full px-4 lg:w-5/12 xl:w-4/12">
-            <div className="rounded-lg bg-white px-8 py-10 shadow-testimonial sm:px-10 sm:py-12 md:p-[60px] lg:p-10 lg:px-10 lg:py-12 2xl:p-[60px] dark:bg-dark-2 dark:shadow-none">
-              <h3 className="mb-8 text-2xl font-semibold text-dark md:text-[28px] md:leading-[1.42] dark:text-white">
+            <div className="rounded-lg bg-white px-8 py-10 shadow-testimonial sm:px-10 sm:py-12 md:p-[60px] lg:p-10 lg:px-10 lg:py-12 2xl:p-[60px]">
+              <h3 className="mb-8 text-2xl font-semibold text-dark md:text-[28px] md:leading-[1.42]">
                 Send us a Message
               </h3>
               <form onSubmit={send}>
                 <div className="mb-[22px]">
-                  <label
-                    htmlFor="fullName"
-                    className="mb-4 block text-sm text-body-color dark:text-dark-6"
-                  >
+                  <label htmlFor="fullName" className="mb-4 block text-sm text-body-color">
                     Full Name*
                   </label>
                   <input
@@ -97,10 +82,7 @@ export default function Contact() {
                   />
                 </div>
                 <div className="mb-[22px]">
-                  <label
-                    htmlFor="email"
-                    className="mb-4 block text-sm text-body-color dark:text-dark-6"
-                  >
+                  <label htmlFor="email" className="mb-4 block text-sm text-body-color">
                     Email*
                   </label>
                   <input
@@ -114,10 +96,7 @@ export default function Contact() {
                   />
                 </div>
                 <div className="mb-[30px]">
-                  <label
-                    htmlFor="message"
-                    className="mb-4 block text-sm text-body-color dark:text-dark-6"
-                  >
+                  <label htmlFor="message" className="mb-4 block text-sm text-body-color">
                     Message*
                   </label>
                   <textarea
