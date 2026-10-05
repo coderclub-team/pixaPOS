@@ -31,12 +31,19 @@ layer(base);
  * THOSE names — nearer-ancestor inheritance makes them win inside marketing
  * pages only, in both light and dark mode (the template keeps one palette).
  * The dark: variants already in the components handle dark surfaces. */
+/* Marketing brand palette (mosaic-P logo hues: blue #138AF2, green #17BF71,
+ * orange #F2911B, red #F24949), scoped under .site-theme so the POS app theme
+ * is untouched. Utilities like bg-primary resolve via var(--primary), so the
+ * brand colors must override THOSE names — nearer-ancestor inheritance makes
+ * them win inside marketing pages only, in both modes (the template keeps one
+ * palette). Roles: blue = primary actions/hero, green = secondary highlights,
+ * orange = warm accents + warn states, red reserved for errors. */
 .site-theme {
   --primary: #138af2;
   --primary-foreground: #ffffff;
   --secondary: #17bf71;
   --secondary-foreground: #ffffff;
-  --accent: #f2a516;
+  --accent: #f2911b;
   --accent-foreground: #ffffff;
   font-family: "Inter", sans-serif;
   scroll-behavior: smooth;

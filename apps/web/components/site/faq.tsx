@@ -78,9 +78,9 @@ export default function Faq() {
       <div>
         <span className="absolute top-4 left-4 -z-[1]">
           <svg width="48" height="134" viewBox="0 0 48 134" fill="none">
-            <circle cx="45.6673" cy="132" r="1.66667" fill="#13C296" />
-            <circle cx="30.3333" cy="132" r="1.66667" fill="#13C296" />
-            <circle cx="15" cy="132" r="1.66667" fill="#13C296" />
+            <circle cx="45.6673" cy="132" r="1.66667" fill="#17BF71" />
+            <circle cx="30.3333" cy="132" r="1.66667" fill="#17BF71" />
+            <circle cx="15" cy="132" r="1.66667" fill="#17BF71" />
           </svg>
         </span>
       </div>
