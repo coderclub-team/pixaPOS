@@ -1,5 +1,3 @@
-import Link from "next/link";
-import { signUpUrl } from "@/lib/site/site";
 import { Icons } from "@pixa/ui/icons";
 import SectionTitle from "@/components/site/section-title";
 
@@ -59,15 +57,7 @@ export default function Surfaces() {
                   <h3 className="mb-3 text-xl font-bold text-dark dark:text-white">
                     {feature.title}
                   </h3>
-                  <p className="mb-8 text-body-color lg:mb-11 dark:text-dark-6">
-                    {feature.paragraph}
-                  </p>
-                  <Link
-                    href={signUpUrl()}
-                    className="text-base font-medium text-dark hover:text-primary dark:text-white dark:hover:text-primary"
-                  >
-                    Learn More
-                  </Link>
+                  <p className="text-body-color lg:mb-11 dark:text-dark-6">{feature.paragraph}</p>
                 </div>
               </div>
             );
