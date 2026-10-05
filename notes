@@ -1,1 +1,3 @@
 next-shadcn-dashboard-starter
+./scripts/update-local-host.sh
+    "dev": "next dev -p 443 -H 0.0.0.0 --experimental-https --experimental-https-key ./certificates/local.key --experimental-https-cert ./certificates/local.crt",

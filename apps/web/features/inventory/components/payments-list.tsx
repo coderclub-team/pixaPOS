@@ -34,14 +34,43 @@ import {
 } from "@pixa/ui/base-ui/dialog";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { SortTh, useSorting } from "@/components/sort-th";
+import type { CsvColumn } from "@/features/system/lib/csv";
 
 function statusClass(s: string) {
   if (s === "posted") return "text-green-600";
   return "text-destructive";
 }
 
+export const supplierPaymentExportColumns: CsvColumn<SupplierPayment>[] = [
+  { key: "payment_number", label: "Payment #", get: (p) => p.payment_number },
+  { key: "supplier_name", label: "Supplier", get: (p) => p.supplier_name ?? "" },
+  {
+    key: "purchase_number",
+    label: "Linked Purchase",
+    get: (p) => p.purchase_number ?? "",
+  },
+  { key: "bill_date", label: "Bill Date", get: (p) => p.bill_date },
+  { key: "reference", label: "Reference", get: (p) => p.reference ?? "" },
+  { key: "amount", label: "Amount", get: (p) => `₹${p.amount.toFixed(2)}` },
+  { key: "payment_mode", label: "Mode", get: (p) => p.payment_mode },
+  { key: "status", label: "Status", get: (p) => p.status },
+];
+
 export function PaymentsList({ payments }: { payments: SupplierPayment[] }) {
-  if (payments.length === 0)
+  const { sortKey, sortDir, toggle, sorted } = useSorting<SupplierPayment>("bill_date", "desc");
+  const rows = sorted(payments, {
+    payment_number: (p) => p.payment_number,
+    supplier_name: (p) => p.supplier_name ?? "",
+    purchase_number: (p) => p.purchase_number ?? "",
+    bill_date: (p) => p.bill_date,
+    reference: (p) => p.reference ?? "",
+    amount: (p) => p.amount,
+    payment_mode: (p) => p.payment_mode,
+    status: (p) => p.status,
+  });
+
+  if (rows.length === 0)
     return (
       <Card>
         <CardContent className="py-12 text-center">
@@ -64,17 +93,65 @@ export function PaymentsList({ payments }: { payments: SupplierPayment[] }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Payment #</TableHead>
-              <TableHead>Supplier</TableHead>
-              <TableHead>Linked Purchase</TableHead>
-              <TableHead>Amount</TableHead>
-              <TableHead>Mode</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>
+                <SortTh
+                  label="Payment #"
+                  column="payment_number"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Supplier"
+                  column="supplier_name"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Linked Purchase"
+                  column="purchase_number"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Amount"
+                  column="amount"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Mode"
+                  column="payment_mode"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Status"
+                  column="status"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {payments.map((p) => (
+            {rows.map((p) => (
               <Row key={p.id} pay={p} />
             ))}
           </TableBody>

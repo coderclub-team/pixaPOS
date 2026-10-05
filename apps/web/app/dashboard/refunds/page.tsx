@@ -34,9 +34,12 @@ import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { formatINR } from "@/lib/money";
 import { paymentKeys, refundsQueryOptions } from "@/features/payments/api/queries";
-import type { Refund } from "@/features/payments/api/types";
+import type { Refund, RefundWithMethod } from "@/features/payments/api/types";
 import { getQueryClient } from "@/lib/query-client";
 import { useCrossTabSync } from "@/lib/use-cross-tab-sync";
+import { SortTh, useSorting } from "@/components/sort-th";
+import { ExportButton } from "@/features/system/components/io-dialog";
+import type { CsvColumn } from "@/features/system/lib/csv";
 
 const STATUSES: { value: Refund["status"] | "all"; label: string }[] = [
   { value: "all", label: "All statuses" },
@@ -66,6 +69,17 @@ function StatusPill({ status }: { status: Refund["status"] }) {
   );
 }
 
+const refundExportColumns: CsvColumn<RefundWithMethod>[] = [
+  { key: "refund_id", label: "Refund ID", get: (r) => r.id.slice(-6).toUpperCase() },
+  { key: "order_number", label: "Order #", get: (r) => r.order_number ?? "" },
+  { key: "method", label: "Method", get: (r) => r.method?.replaceAll("_", " ") ?? "" },
+  { key: "reason", label: "Reason", get: (r) => r.reason },
+  { key: "status", label: "Status", get: (r) => r.status },
+  { key: "qty", label: "Qty", get: (r) => r.qty ?? "" },
+  { key: "amount", label: "Amount", get: (r) => formatINR(r.amount_paise) },
+  { key: "created_at", label: "Created At", get: (r) => r.created_at },
+];
+
 export default function RefundsPage() {
   useCrossTabSync();
   const router = useRouter();
@@ -79,6 +93,18 @@ export default function RefundsPage() {
       status: status === "all" ? undefined : status,
     }),
     refetchInterval: 10000,
+  });
+
+  const { sortKey, sortDir, toggle, sorted } = useSorting<RefundWithMethod>("created_at", "desc");
+  const rows = sorted(refunds ?? [], {
+    refund_id: (r) => r.id,
+    order_number: (r) => r.order_number ?? "",
+    method: (r) => r.method ?? "",
+    reason: (r) => r.reason,
+    status: (r) => r.status,
+    qty: (r) => r.qty ?? 0,
+    amount: (r) => r.amount_paise / 100,
+    created_at: (r) => r.created_at,
   });
 
   if (isPending) {
@@ -134,9 +160,10 @@ export default function RefundsPage() {
             ))}
           </SelectContent>
         </Select>
+        <ExportButton filename="refunds" rows={rows} columns={refundExportColumns} />
       </div>
 
-      {(refunds ?? []).length === 0 ? (
+      {rows.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <div className="rounded-full border border-dashed p-3">
@@ -154,18 +181,75 @@ export default function RefundsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Refund</TableHead>
-                  <TableHead>Order</TableHead>
-                  <TableHead>Method</TableHead>
-                  <TableHead>Reason</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Refund"
+                      column="refund_id"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Order"
+                      column="order_number"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Method"
+                      column="method"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Reason"
+                      column="reason"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Status"
+                      column="status"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Date"
+                      column="created_at"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <SortTh
+                      label="Amount"
+                      column="amount"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                      className="ml-auto"
+                    />
+                  </TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(refunds ?? []).map((r) => (
+                {rows.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell className="font-mono text-xs">
                       #{r.id.slice(-6).toUpperCase()}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
@@ -14,16 +14,31 @@ import { toast } from "sonner";
 /** shadcn-style sign-up matching the sign-in card. */
 export default function BaSignUpForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Landing funnel params (?trial=14d&plan=...) — shown as a banner and
+  // stashed in a short-lived cookie so they survive the Google round-trip
+  // (OAuth drops unknown state) and reach /onboarding.
+  const trial = searchParams.get("trial");
+  const plan = searchParams.get("plan");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [fieldError, setFieldError] = useState<string | null>(null);
 
+  const stashFunnel = () => {
+    if (!trial && !plan) return;
+    try {
+      const value = encodeURIComponent(JSON.stringify({ trial, plan }));
+      document.cookie = `pixa_funnel=${value}; Path=/; Max-Age=3600; SameSite=Lax`;
+    } catch {}
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFieldError(null);
     setPending(true);
+    stashFunnel();
     const { error } = await authClient.signUp.email(
       { name: name.trim(), email: email.trim(), password, callbackURL: "/dashboard" },
       { onError: () => setPending(false) },
@@ -41,6 +56,7 @@ export default function BaSignUpForm() {
 
   const google = async () => {
     setPending(true);
+    stashFunnel();
     const { error } = await authClient.signIn.social(
       { provider: "google", callbackURL: "/dashboard" },
       { onError: () => setPending(false) },
@@ -57,7 +73,11 @@ export default function BaSignUpForm() {
         <Card>
           <CardHeader className="text-center">
             <CardTitle className="text-xl">Create your account</CardTitle>
-            <CardDescription>Enter your details below to get started</CardDescription>
+            <CardDescription>
+              {trial === "14d"
+                ? `14-day free trial${plan ? ` · ${plan}` : ""} — no credit card required`
+                : "Enter your details below to get started"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4">

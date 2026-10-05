@@ -1,4 +1,5 @@
 import { delay } from "@/constants/mock-api";
+import { MENU_SEED_VERSION, seedCategories, seedMenuItems } from "./seed-data";
 import type {
   MenuCategory,
   MenuCategoryFilters,
@@ -8,163 +9,9 @@ import type {
   MenuItemPayload,
 } from "./types";
 
-let mockCategories: MenuCategory[] = [
-  {
-    id: "mc_001",
-    name: "Starters",
-    slug: "starters",
-    sort_order: 1,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "mc_002",
-    name: "Biryani",
-    slug: "biryani",
-    sort_order: 2,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "mc_003",
-    name: "Beverages",
-    slug: "beverages",
-    sort_order: 3,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "mc_004",
-    name: "Main Course",
-    slug: "main-course",
-    sort_order: 4,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
+let mockCategories: MenuCategory[] = [...seedCategories];
 
-let mockMenuItems: MenuItem[] = [
-  {
-    id: "mi_001",
-    name: "Chicken Biryani",
-    slug: "chicken-biryani",
-    category_id: "mc_002",
-    category_name: "Biryani",
-    description: "Hyderabadi dum biryani",
-    item_type: "service",
-    product_type: "variant",
-    veg_type: "nonveg",
-    taxable: true,
-    tax_type: "GST",
-    tax_percent: 5,
-    hsn_code: "996331",
-    images: [],
-    image_urls: [],
-    available_channels: ["dine_in", "pickup", "delivery"],
-    modifier_group_ids: [],
-    variants: [
-      {
-        id: "mv_001",
-        menu_item_id: "mi_001",
-        name: "Half",
-        sku: "BIRY-CB-HALF",
-        selling_price: 199,
-        qty: 500,
-        unit: "gr",
-        is_active: true,
-      },
-      {
-        id: "mv_002",
-        menu_item_id: "mi_001",
-        name: "Full",
-        sku: "BIRY-CB-FULL",
-        selling_price: 349,
-        qty: 1000,
-        unit: "gr",
-        is_active: true,
-      },
-    ],
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "mi_002",
-    name: "Cold Coffee",
-    slug: "cold-coffee",
-    category_id: "mc_003",
-    category_name: "Beverages",
-    veg_type: "veg",
-    item_type: "service",
-    product_type: "simple",
-    taxable: false,
-    images: [],
-    image_urls: [],
-    available_channels: ["dine_in", "delivery", "zomato"],
-    modifier_group_ids: [],
-    variants: [
-      {
-        id: "mv_003",
-        menu_item_id: "mi_002",
-        name: "Regular",
-        sku: "BEV-CC-REG",
-        selling_price: 129,
-        is_active: true,
-      },
-    ],
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "mi_003",
-    name: "Butter Cookies",
-    slug: "butter-cookies",
-    category_id: "mc_003",
-    category_name: "Beverages",
-    description: "Premium biscuits — goods",
-    item_type: "goods",
-    product_type: "variant",
-    veg_type: "veg",
-    taxable: true,
-    tax_type: "GST",
-    tax_percent: 18,
-    hsn_code: "19059040",
-    images: [],
-    image_urls: [],
-    available_channels: ["dine_in", "pickup", "delivery", "zomato", "swiggy"],
-    modifier_group_ids: [],
-    variants: [
-      {
-        id: "mv_004",
-        menu_item_id: "mi_003",
-        name: "100gr",
-        sku: "BSC-BC-100",
-        selling_price: 99,
-        qty: 100,
-        unit: "gr",
-        is_active: true,
-      },
-      {
-        id: "mv_005",
-        menu_item_id: "mi_003",
-        name: "250gr",
-        sku: "BSC-BC-250",
-        selling_price: 199,
-        qty: 250,
-        unit: "gr",
-        is_active: true,
-      },
-    ],
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
+let mockMenuItems: MenuItem[] = [...seedMenuItems];
 
 // Modifiers skeleton — no raw material mapping this phase
 let mockModifierGroups: import("./types").ModifierGroup[] = [
@@ -205,18 +52,79 @@ function slugify(s: string) {
 
 const MENU_STORAGE_KEY = "pixaMenu";
 
+function toDoc(o: {
+  id: string;
+  outlet_id?: string;
+  version?: number;
+  updated_at?: string;
+  deleted_at?: string | null;
+}) {
+  return {
+    id: o.id,
+    outlet_id: o.outlet_id ?? null,
+    data: o,
+    version: o.version ?? 1,
+    updated_at: o.updated_at ?? new Date().toISOString(),
+    deleted_at: o.deleted_at ?? null,
+  };
+}
+
+/** Durable SQLite mirror (fire-and-forget; repo never throws). */
+function mirrorMenu() {
+  if (typeof window === "undefined") return;
+  import("@/lib/db/repo").then(({ writeScope }) => {
+    void writeScope("menu_categories", mockCategories.map(toDoc));
+    void writeScope("menu_items", mockMenuItems.map(toDoc));
+    void writeScope("modifier_groups", mockModifierGroups.map(toDoc));
+    void writeScope("modifiers", mockModifiers.map(toDoc));
+  });
+}
+
+/** Adopt the durable mirror on app startup — only when localStorage is
+ * missing/empty. Never overwrites existing localStorage (the seed-version
+ * reseed in loadMenu stays authoritative for shape changes). */
+export async function hydrateMenuFromMirror(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(MENU_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (parsed && (parsed?.version ?? 1) === MENU_SEED_VERSION) return;
+    const { readScope } = await import("@/lib/db/repo");
+    const [cats, items, groups, mods] = await Promise.all([
+      readScope("menu_categories"),
+      readScope("menu_items"),
+      readScope("modifier_groups"),
+      readScope("modifiers"),
+    ]);
+    if (cats.length + items.length + groups.length + mods.length === 0) return;
+    localStorage.setItem(
+      MENU_STORAGE_KEY,
+      JSON.stringify({
+        version: MENU_SEED_VERSION,
+        categories: cats.map((d) => d.data),
+        items: items.map((d) => d.data),
+        modifierGroups: groups.map((d) => d.data),
+        modifiers: mods.map((d) => d.data),
+      }),
+    );
+    loadMenu();
+  } catch {}
+}
+
 function saveMenu() {
   if (typeof window !== "undefined") {
     try {
       localStorage.setItem(
         MENU_STORAGE_KEY,
         JSON.stringify({
+          version: MENU_SEED_VERSION,
           categories: mockCategories,
           items: mockMenuItems,
           modifierGroups: mockModifierGroups,
           modifiers: mockModifiers,
         }),
       );
+      mirrorMenu();
     } catch {}
   }
 }
@@ -227,6 +135,14 @@ function loadMenu(): void {
       const raw = localStorage.getItem(MENU_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
+        // Stale dev cache (pre-seed or older version) → reseed with the
+        // current seed-data and persist, so code changes reach every tab.
+        if ((parsed?.version ?? 1) !== MENU_SEED_VERSION) {
+          mockCategories = [...seedCategories];
+          mockMenuItems = [...seedMenuItems];
+          saveMenu();
+          return;
+        }
         if (Array.isArray(parsed?.categories)) mockCategories = parsed.categories;
         if (Array.isArray(parsed?.items))
           // Backfill arrays for rows written before they were guaranteed.
@@ -316,8 +232,12 @@ export async function getMenuItems(filters?: MenuItemFilters): Promise<MenuItem[
       (m) =>
         m.name.toLowerCase().includes(q) ||
         m.slug.includes(q) ||
+        (m as any).barcode?.toLowerCase().includes(q) ||
         (m.variants ?? []).some(
-          (v) => v.sku.toLowerCase().includes(q) || v.name.toLowerCase().includes(q),
+          (v) =>
+            v.sku.toLowerCase().includes(q) ||
+            v.name.toLowerCase().includes(q) ||
+            v.barcode?.toLowerCase().includes(q),
         ),
     );
   }
@@ -406,6 +326,7 @@ export async function createMenuItem(payload: MenuItemPayload): Promise<MenuItem
     image_urls,
     item_type: itemType,
     product_type: productType,
+    barcode: (payload as any).barcode?.trim() || undefined,
     veg_type: (payload as any).veg_type ?? "veg",
     spice_level: (payload as any).spice_level,
     prep_time_min: (payload as any).prep_time_min,
@@ -415,6 +336,9 @@ export async function createMenuItem(payload: MenuItemPayload): Promise<MenuItem
     tax_percent: (payload as any).tax_percent,
     hsn_code: (payload as any).hsn_code,
     available_channels: (payload as any).available_channels ?? ["dine_in", "pickup", "delivery"],
+    nutrition: (payload as any).nutrition ?? undefined,
+    pairs_well_with: (payload as any).pairs_well_with ?? [],
+    is_bestseller: (payload as any).is_bestseller ?? false,
     variants,
     modifier_group_ids: (payload as any).modifier_group_ids ?? [],
     is_active: (payload as any).is_active ?? true,
@@ -492,12 +416,208 @@ export async function getModifierGroups(): Promise<import("./types").ModifierGro
   loadMenu();
   return [...mockModifierGroups];
 }
+export async function getModifierGroupById(
+  id: string,
+): Promise<import("./types").ModifierGroup | null> {
+  await delay(200);
+  loadMenu();
+  return mockModifierGroups.find((g) => g.id === id) ?? null;
+}
 export async function getModifiers(groupId?: string): Promise<import("./types").Modifier[]> {
   await delay(300);
   loadMenu();
   let r = [...mockModifiers];
   if (groupId) r = r.filter((m) => m.modifier_group_id === groupId);
-  return r;
+  return r.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+}
+
+function nextModifierSort(groupId: string): number {
+  const orders = mockModifiers
+    .filter((m) => m.modifier_group_id === groupId)
+    .map((m) => m.sort_order ?? 0);
+  return orders.length ? Math.max(...orders) + 1 : 0;
+}
+
+export async function createModifierGroup(payload: {
+  name: string;
+  selection_type?: "single" | "multiple";
+  min_selection?: number;
+  max_selection?: number;
+}): Promise<import("./types").ModifierGroup> {
+  await delay(400);
+  loadMenu();
+  const name = payload.name.trim();
+  if (name.length < 2) throw new Error("Group name must be at least 2 characters");
+  if (mockModifierGroups.some((g) => g.name.toLowerCase() === name.toLowerCase())) {
+    throw new Error("Add-on group already exists");
+  }
+  const min = Math.max(0, Math.floor(payload.min_selection ?? 0));
+  const max = Math.max(
+    1,
+    Math.floor(payload.max_selection ?? (payload.selection_type === "single" ? 1 : 3)),
+  );
+  if (max < min) throw new Error("Max must be greater than or equal to min");
+  const now = new Date().toISOString();
+  const group = {
+    id: `mg_${Date.now().toString(36)}`,
+    name,
+    selection_type: (max === 1 ? "single" : (payload.selection_type ?? "multiple")) as
+      | "single"
+      | "multiple",
+    min_selection: min,
+    max_selection: max,
+    is_active: true,
+    created_at: now,
+    updated_at: now,
+  };
+  mockModifierGroups.push(group);
+  saveMenu();
+  return { ...group };
+}
+
+export async function updateModifierGroup(
+  id: string,
+  payload: Partial<
+    Pick<
+      import("./types").ModifierGroup,
+      "name" | "selection_type" | "min_selection" | "max_selection" | "is_active"
+    >
+  >,
+): Promise<import("./types").ModifierGroup> {
+  await delay(400);
+  loadMenu();
+  const idx = mockModifierGroups.findIndex((g) => g.id === id);
+  if (idx === -1) throw new Error("Add-on group not found");
+  const current = mockModifierGroups[idx];
+  const min =
+    payload.min_selection !== undefined
+      ? Math.max(0, Math.floor(payload.min_selection))
+      : current.min_selection;
+  const max =
+    payload.max_selection !== undefined
+      ? Math.max(1, Math.floor(payload.max_selection))
+      : current.max_selection;
+  if (max < min) throw new Error("Max must be greater than or equal to min");
+  if (payload.name !== undefined) {
+    const name = payload.name.trim();
+    if (name.length < 2) throw new Error("Group name must be at least 2 characters");
+    if (
+      mockModifierGroups.some((g) => g.id !== id && g.name.toLowerCase() === name.toLowerCase())
+    ) {
+      throw new Error("Add-on group already exists");
+    }
+  }
+  mockModifierGroups[idx] = {
+    ...current,
+    ...(payload.name !== undefined ? { name: payload.name.trim() } : {}),
+    ...(payload.selection_type !== undefined ? { selection_type: payload.selection_type } : {}),
+    min_selection: min,
+    max_selection: max,
+    selection_type: max === 1 ? "single" : (payload.selection_type ?? current.selection_type),
+    ...(payload.is_active !== undefined ? { is_active: payload.is_active } : {}),
+    updated_at: new Date().toISOString(),
+  };
+  saveMenu();
+  return { ...mockModifierGroups[idx] };
+}
+
+export async function deleteModifierGroup(id: string): Promise<void> {
+  await delay(400);
+  loadMenu();
+  const idx = mockModifierGroups.findIndex((g) => g.id === id);
+  if (idx === -1) throw new Error("Add-on group not found");
+  if (mockMenuItems.some((m) => ((m as any).modifier_group_ids ?? []).includes(id))) {
+    throw new Error("Group is linked to menu items — unlink it first");
+  }
+  mockModifierGroups.splice(idx, 1);
+  mockModifiers = mockModifiers.filter((m) => m.modifier_group_id !== id);
+  saveMenu();
+}
+
+export async function createModifier(payload: {
+  modifier_group_id: string;
+  name: string;
+  alias?: string;
+  price?: number;
+}): Promise<import("./types").Modifier> {
+  await delay(400);
+  loadMenu();
+  const group = mockModifierGroups.find((g) => g.id === payload.modifier_group_id);
+  if (!group) throw new Error("Add-on group not found");
+  const name = payload.name.trim();
+  if (name.length < 2) throw new Error("Add-on name must be at least 2 characters");
+  const price = Number(payload.price ?? 0);
+  if (!Number.isFinite(price) || price < 0) throw new Error("Price must be 0 or more");
+  const now = new Date().toISOString();
+  const mod = {
+    id: `mod_${Date.now().toString(36)}`,
+    modifier_group_id: group.id,
+    name,
+    alias: payload.alias?.trim() || undefined,
+    price,
+    sort_order: nextModifierSort(group.id),
+    is_active: true,
+  };
+  mockModifiers.push(mod);
+  saveMenu();
+  return { ...mod };
+}
+
+export async function updateModifier(
+  id: string,
+  payload: Partial<Pick<import("./types").Modifier, "name" | "alias" | "price" | "is_active">>,
+): Promise<import("./types").Modifier> {
+  await delay(300);
+  loadMenu();
+  const idx = mockModifiers.findIndex((m) => m.id === id);
+  if (idx === -1) throw new Error("Add-on not found");
+  if (payload.name !== undefined && payload.name.trim().length < 2) {
+    throw new Error("Add-on name must be at least 2 characters");
+  }
+  if (
+    payload.price !== undefined &&
+    (!Number.isFinite(Number(payload.price)) || Number(payload.price) < 0)
+  ) {
+    throw new Error("Price must be 0 or more");
+  }
+  mockModifiers[idx] = {
+    ...mockModifiers[idx],
+    ...(payload.name !== undefined ? { name: payload.name.trim() } : {}),
+    alias:
+      payload.alias !== undefined ? payload.alias.trim() || undefined : mockModifiers[idx].alias,
+    ...(payload.price !== undefined ? { price: Number(payload.price) } : {}),
+    ...(payload.is_active !== undefined ? { is_active: payload.is_active } : {}),
+  };
+  saveMenu();
+  return { ...mockModifiers[idx] };
+}
+
+export async function deleteModifier(id: string): Promise<void> {
+  await delay(300);
+  loadMenu();
+  const idx = mockModifiers.findIndex((m) => m.id === id);
+  if (idx === -1) throw new Error("Add-on not found");
+  mockModifiers.splice(idx, 1);
+  saveMenu();
+}
+
+export async function moveModifier(id: string, direction: -1 | 1): Promise<void> {
+  await delay(200);
+  loadMenu();
+  const mod = mockModifiers.find((m) => m.id === id);
+  if (!mod) throw new Error("Add-on not found");
+  const siblings = mockModifiers
+    .filter((m) => m.modifier_group_id === mod.modifier_group_id)
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const pos = siblings.findIndex((m) => m.id === id);
+  const swapWith = siblings[pos + direction];
+  if (!swapWith) return;
+  const a = mockModifiers.find((m) => m.id === id)!;
+  const b = mockModifiers.find((m) => m.id === swapWith.id)!;
+  const tmp = a.sort_order ?? 0;
+  a.sort_order = b.sort_order ?? 0;
+  b.sort_order = tmp;
+  saveMenu();
 }
 export async function deleteMenuItem(id: string): Promise<void> {
   await delay(400);

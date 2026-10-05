@@ -100,6 +100,9 @@ export function renderText(doc: PrintDoc, paper: PaperSize, cols?: number): stri
         out.push(align("[QR]", width, "center"));
         if (line.label) out.push(align(sanitizeReceiptText(line.label), width, "center"));
         break;
+      case "image":
+        out.push(align("[LOGO]", width, "center"));
+        break;
       case "pair":
         out.push(...pair(sanitizeReceiptText(line.left), sanitizeReceiptText(line.right), width));
         break;
@@ -113,8 +116,11 @@ export function renderText(doc: PrintDoc, paper: PaperSize, cols?: number): stri
   return out;
 }
 
-/** QR via GS ( k — model 2, auto size/ECC, print. Raw data capped at 400 bytes. */
-function qrBytes(data: string): number[] {
+/** QR via GS ( k — model 2, auto size/ECC, print. Raw data capped at 400 bytes.
+ * `withMode` keeps the Epson `0x30` mode byte (python-escpos convention —
+ * required by real Epson hardware). Some emulators (escpresso) misrender it
+ * as a leading "0"; those printers set `qr_mode_byte: false`. */
+export function qrBytes(data: string, withMode = true): number[] {
   const raw = Buffer.from(data.slice(0, 400), "utf8");
   const out: number[] = [];
   const store = (fn: number, payload: number[]) => {
@@ -126,15 +132,22 @@ function qrBytes(data: string): number[] {
   store(0x43, [0x04]); // module size
   store(0x45, [0x31]); // ECC level M
   const d = [...raw];
-  const len = d.length + 3;
-  out.push(GS, 0x28, 0x6b, len & 0xff, (len >> 8) & 0xff, 0x31, 0x50, 0x30, ...d); // store
+  const body = withMode ? [0x30, ...d] : d;
+  const len = body.length + 2;
+  out.push(GS, 0x28, 0x6b, len & 0xff, (len >> 8) & 0xff, 0x31, 0x50, ...body); // store
   const plen = 3;
   out.push(GS, 0x28, 0x6b, plen & 0xff, (plen >> 8) & 0xff, 0x31, 0x51, 0x30); // print
   return out;
 }
 
-/** PrintDoc -> ESC/POS byte array. `cols` overrides the paper default. */
-export function renderEscPos(doc: PrintDoc, paper: PaperSize, cols?: number): Uint8Array {
+/** PrintDoc -> ESC/POS byte array. `cols` overrides the paper default;
+ * `qrMode` keeps (true, default) or drops (false, escpresso) the QR mode byte. */
+export function renderEscPos(
+  doc: PrintDoc,
+  paper: PaperSize,
+  cols?: number,
+  qrMode = true,
+): Uint8Array {
   const text = renderText(doc, paper, cols);
   const width = cols ?? charsFor(paper);
   const out: number[] = [ESC, 0x40]; // init
@@ -176,16 +189,47 @@ export function renderEscPos(doc: PrintDoc, paper: PaperSize, cols?: number): Ui
       }
       case "qr": {
         out.push(ESC, 0x61, 0x01);
-        out.push(...qrBytes(line.data));
+        out.push(...qrBytes(line.data, qrMode));
         out.push(0x0a);
         if (line.label)
           pushText(align(sanitizeReceiptText(line.label), width, "center"), { align: "center" });
         out.push(ESC, 0x61, 0x00);
         break;
       }
+      case "image": {
+        out.push(ESC, 0x61, 0x01);
+        out.push(...rasterBytes(line.rows));
+        out.push(0x0a);
+        out.push(ESC, 0x61, 0x00);
+        ti += 1; // skips the matching "[LOGO]" preview line
+        break;
+      }
     }
   }
   return Uint8Array.from(out);
+}
+
+/** 1-bit rows -> GS v 0 raster (m=0 normal). Rows pad to byte width. */
+export function rasterBytes(rows: boolean[][]): number[] {
+  if (rows.length === 0) return [];
+  const width = Math.max(...rows.map((r) => r.length));
+  const stride = Math.ceil(width / 8);
+  const out: number[] = [GS, 0x76, 0x30, 0x00];
+  const xL = stride & 0xff;
+  const xH = (stride >> 8) & 0xff;
+  const yL = rows.length & 0xff;
+  const yH = (rows.length >> 8) & 0xff;
+  out.push(xL, xH, yL, yH);
+  for (const row of rows) {
+    for (let b = 0; b < stride; b++) {
+      let byte = 0;
+      for (let bit = 0; bit < 8; bit++) {
+        if (row[b * 8 + bit]) byte |= 0x80 >> bit;
+      }
+      out.push(byte);
+    }
+  }
+  return out;
 }
 
 /** Paper cut (GS V) + feed trailer. */

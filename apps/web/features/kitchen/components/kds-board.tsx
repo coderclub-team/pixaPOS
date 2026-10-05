@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
@@ -13,9 +13,18 @@ import {
 } from "@pixa/ui/base-ui/dialog";
 import { Input } from "@pixa/ui/base-ui/input";
 import { Label } from "@pixa/ui/base-ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@pixa/ui/base-ui/select";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
+import { formatAge } from "@/lib/utils";
 import { kitchenKeys, kitchenTicketsQueryOptions } from "@/features/kitchen/api/queries";
+import { ordersQueryOptions } from "@/features/orders/api/queries";
 import {
   acceptKOT,
   acceptKOTLine,
@@ -31,11 +40,21 @@ import { getQueryClient } from "@/lib/query-client";
 import { useCrossTabSync } from "@/lib/use-cross-tab-sync";
 import { useKitchenFeed } from "@/features/kitchen/api/use-kitchen-feed";
 import { toast } from "sonner";
+import { RecipeDialogButton } from "./recipe-dialog";
 
 type BoardFilter = KOTStatus | "ALL";
 type BoardView = "kanban" | "cards";
+type BoardChannel = "ALL" | "dine_in" | "counter" | "takeaway" | "delivery";
 
 const VIEW_STORAGE_KEY = "pixa-kitchen-view";
+
+const CHANNELS: { channel: BoardChannel; label: string }[] = [
+  { channel: "ALL", label: "All types" },
+  { channel: "dine_in", label: "Dine-in" },
+  { channel: "counter", label: "Counter" },
+  { channel: "takeaway", label: "Takeaway" },
+  { channel: "delivery", label: "Delivery" },
+];
 
 const TABS: { status: BoardFilter; label: string }[] = [
   { status: "ALL", label: "Live" },
@@ -67,6 +86,7 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
   useCrossTabSync();
   const feed = useKitchenFeed();
   const [filter, setFilter] = useState<BoardFilter>("ALL");
+  const [channel, setChannel] = useState<BoardChannel>("ALL");
   const [view, setViewState] = useState<BoardView>(() => {
     if (typeof window === "undefined") return "kanban";
     try {
@@ -105,7 +125,20 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
   }
 
   const live = (tickets ?? []).filter((t) => t.status !== "SERVED" && t.status !== "CANCELLED");
-  const scoped = live.filter((t) => filter === "ALL" || t.status === filter);
+  // Rider names live on the order, not the ticket — one orders read builds
+  // the lookup so delivery cards can show who owns the run.
+  const ordersQuery = useQuery({ ...ordersQueryOptions(), staleTime: 15000 });
+  const riderByOrder = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const o of ordersQuery.data ?? []) {
+      if (o.rider_name?.trim()) map.set(o.id, o.rider_name.trim());
+    }
+    return map;
+  }, [ordersQuery.data]);
+  const scoped = live.filter(
+    (t) =>
+      (filter === "ALL" || t.status === filter) && (channel === "ALL" || t.channel === channel),
+  );
   const countFor = (s: BoardFilter) =>
     s === "ALL" ? live.length : live.filter((t) => t.status === s).length;
 
@@ -179,7 +212,7 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
           {feed === "live" ? "Live" : "Polling"}
         </span>
       </div>
-      <div className="mb-4 flex flex-wrap items-center gap-1.5">
+      <div className="mb-4 hidden flex-wrap items-center gap-1.5 sm:flex">
         {TABS.map((c) => (
           <Button
             key={c.status}
@@ -190,6 +223,44 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
             {c.label} · {countFor(c.status)}
           </Button>
         ))}
+        <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden />
+        {CHANNELS.map((c) => (
+          <Button
+            key={c.channel}
+            variant={channel === c.channel ? "default" : "outline"}
+            size="sm"
+            onClick={() => setChannel(c.channel)}
+            title="Filter by order type"
+          >
+            {c.label}
+          </Button>
+        ))}
+      </div>
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:hidden">
+        <Select value={filter} onValueChange={(v) => setFilter(v as BoardFilter)}>
+          <SelectTrigger aria-label="Board status" className="min-h-11 w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TABS.map((c) => (
+              <SelectItem key={c.status} value={c.status}>
+                {c.label} · {countFor(c.status)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={channel} onValueChange={(v) => setChannel(v as BoardChannel)}>
+          <SelectTrigger aria-label="Order type" className="min-h-11 w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CHANNELS.map((c) => (
+              <SelectItem key={c.channel} value={c.channel}>
+                {c.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       {scoped.length === 0 ? (
         <Card>
@@ -212,7 +283,10 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
             return (
               <div
                 key={s}
-                className={cn("shrink-0 space-y-2", compact ? "w-[260px]" : "w-[300px]")}
+                className={cn(
+                  "w-full shrink-0 space-y-2",
+                  compact ? "sm:w-[260px]" : "sm:w-[300px]",
+                )}
               >
                 <p className="px-1 text-xs font-medium uppercase text-muted-foreground">
                   {COLUMN_LABEL[s]} · {col.length}
@@ -222,16 +296,28 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
                     No tickets
                   </div>
                 ) : (
-                  col.map((t) => <TicketCard key={t.id} ticket={t} compact={compact} />)
+                  col.map((t) => (
+                    <TicketCard
+                      key={t.id}
+                      ticket={t}
+                      compact={compact}
+                      riderName={riderByOrder.get(t.order_id)}
+                    />
+                  ))
                 )}
               </div>
             );
           })}
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           {scoped.map((t) => (
-            <TicketCard key={t.id} ticket={t} compact={compact} />
+            <TicketCard
+              key={t.id}
+              ticket={t}
+              compact={compact}
+              riderName={riderByOrder.get(t.order_id)}
+            />
           ))}
         </div>
       )}
@@ -248,9 +334,11 @@ function invalidateBoard() {
 function TicketCard({
   ticket: t,
   compact = false,
+  riderName,
 }: {
   ticket: KitchenTicketWithDerived;
   compact?: boolean;
+  riderName?: string;
 }) {
   const [voidOpen, setVoidOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -313,7 +401,7 @@ function TicketCard({
   });
 
   return (
-    <Card className={cn(t.age_minutes >= 20 && "border-amber-500")}>
+    <Card className={cn("flex h-full flex-col", t.age_minutes >= 20 && "border-amber-500")}>
       <CardHeader className="pb-2">
         <CardTitle
           className={cn("flex items-center justify-between", compact ? "text-sm" : "text-base")}
@@ -321,97 +409,130 @@ function TicketCard({
           <span>
             KOT #{t.kot_number} · {t.order_number_snapshot}
           </span>
-          <span className="text-xs font-normal text-muted-foreground">{t.age_minutes}m ago</span>
+          <span className="text-xs font-normal text-muted-foreground">
+            {formatAge(t.fired_at)} ago
+          </span>
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           {t.table_number_snapshot ? `Table ${t.table_number_snapshot} · ` : ""}
           <span className="capitalize">{t.channel.replace("_", " ")}</span> ·{" "}
           <span className="capitalize">{t.status.toLowerCase()}</span>
+          {riderName ? (
+            <span className="ml-1 inline-flex items-center gap-0.5 rounded-full bg-violet-100 px-1.5 py-px font-medium text-violet-700 dark:bg-violet-950 dark:text-violet-300">
+              {riderName}
+            </span>
+          ) : null}
         </p>
       </CardHeader>
-      <CardContent className="space-y-1">
-        {t.lines.map((l) => (
-          <div
-            key={l.id}
-            className={cn(
-              "flex items-center justify-between gap-2 rounded-md px-2 text-sm",
-              compact ? "py-1" : "py-1.5",
-              l.status === "VOIDED" && "bg-destructive/10 text-destructive line-through",
-              l.status === "ACCEPTED" && "bg-sky-500/10",
-              l.status === "PREPARING" && "bg-amber-500/10",
-              l.status === "READY" && "bg-green-500/10",
-            )}
-          >
-            <span>
-              {l.qty - l.voided_qty}× {l.item_name_snapshot}
-              {l.variant_name_snapshot ? ` (${l.variant_name_snapshot})` : ""}
-              {l.modifiers_snapshot.length > 0 && (
-                <span className="text-xs text-muted-foreground">
-                  {" "}
-                  + {l.modifiers_snapshot.join(", ")}
-                </span>
-              )}
-              {l.instructions && <span className="block text-xs italic">“{l.instructions}”</span>}
-            </span>
-            {l.status === "PREPARING" && (
+      <CardContent className="flex min-h-0 flex-1 flex-col space-y-1">
+        {t.lines.map((l) => {
+          // Fixed action cluster: status action always sits in the same slot
+          // with the delete icon pinned after it — spacers hold both slots
+          // when a line has no action, so positions never shift with names.
+          const statusAction =
+            l.status === "PREPARING" ? (
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon-sm"
+                className="h-9 w-9"
                 disabled={lineMut.isPending}
                 onClick={() => lineMut.mutate(l.id)}
+                title="Mark ready"
+                aria-label={`Mark ${l.item_name_snapshot} ready`}
               >
-                <Icons.check className="mr-1 h-4 w-4" /> Ready
+                <Icons.check className="size-4" />
               </Button>
-            )}
-            {l.status === "ACCEPTED" && (
+            ) : l.status === "ACCEPTED" ? (
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon-sm"
+                className="h-9 w-9"
                 disabled={startLineMut.isPending}
                 onClick={() => startLineMut.mutate(l.id)}
                 title="Start preparing this item"
+                aria-label={`Start preparing ${l.item_name_snapshot}`}
               >
-                <Icons.kitchen className="mr-1 h-4 w-4" /> Start
+                <Icons.kitchen className="size-4" />
               </Button>
-            )}
-            {l.status === "PENDING" && t.status !== "SERVED" && t.status !== "CANCELLED" && (
+            ) : l.status === "PENDING" && t.status !== "SERVED" && t.status !== "CANCELLED" ? (
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon-sm"
+                className="h-9 w-9"
                 disabled={acceptLineMut.isPending}
                 onClick={() => acceptLineMut.mutate(l.id)}
                 title="Accept this item"
+                aria-label={`Accept ${l.item_name_snapshot}`}
               >
-                <Icons.check className="mr-1 h-4 w-4" /> Accept
+                <Icons.check className="size-4" />
               </Button>
-            )}
-            {(l.status === "PENDING" ||
+            ) : (
+              <span className="w-9" aria-hidden />
+            );
+          const canVoid =
+            (l.status === "PENDING" ||
               l.status === "ACCEPTED" ||
               l.status === "PREPARING" ||
               l.status === "READY") &&
-              t.status !== "SERVED" &&
-              t.status !== "CANCELLED" && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive"
-                  disabled={voidLineMut.isPending}
-                  onClick={() => {
-                    setLineVoidReason("");
-                    setLineVoidQty(l.qty - l.voided_qty);
-                    setLineVoid({
-                      lineId: l.id,
-                      name: l.item_name_snapshot,
-                      max: l.qty - l.voided_qty,
-                    });
-                  }}
-                  title="Void this item with a reason"
-                >
-                  <Icons.trash className="size-4" />
-                </Button>
+            t.status !== "SERVED" &&
+            t.status !== "CANCELLED";
+          return (
+            <div
+              key={l.id}
+              className={cn(
+                "flex items-center justify-between gap-1.5 rounded-md px-2 text-sm",
+                compact ? "py-1" : "py-1.5",
+                l.status === "VOIDED" && "bg-destructive/10 text-destructive line-through",
+                l.status === "ACCEPTED" && "bg-sky-500/10",
+                l.status === "PREPARING" && "bg-amber-500/10",
+                l.status === "READY" && "bg-green-500/10",
               )}
-          </div>
-        ))}
+            >
+              <span className="min-w-0 flex-1">
+                {l.qty - l.voided_qty}× {l.item_name_snapshot}
+                {l.variant_name_snapshot ? ` (${l.variant_name_snapshot})` : ""}
+                {l.modifiers_snapshot.length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {" "}
+                    + {l.modifiers_snapshot.join(", ")}
+                  </span>
+                )}
+                {l.instructions && <span className="block text-xs italic">“{l.instructions}”</span>}
+              </span>
+              <RecipeDialogButton
+                orderId={t.order_id}
+                orderLineId={l.order_line_id}
+                itemName={l.item_name_snapshot}
+              />
+              <span className="flex shrink-0 items-center">
+                {statusAction}
+                {canVoid ? (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="h-9 w-9 text-destructive"
+                    disabled={voidLineMut.isPending}
+                    onClick={() => {
+                      setLineVoidReason("");
+                      setLineVoidQty(l.qty - l.voided_qty);
+                      setLineVoid({
+                        lineId: l.id,
+                        name: l.item_name_snapshot,
+                        max: l.qty - l.voided_qty,
+                      });
+                    }}
+                    title="Void this item with a reason"
+                    aria-label={`Void ${l.item_name_snapshot}`}
+                  >
+                    <Icons.trash className="size-4" />
+                  </Button>
+                ) : (
+                  <span className="w-9" aria-hidden />
+                )}
+              </span>
+            </div>
+          );
+        })}
         {t.voids.length > 0 && (
           <div className="border-t pt-1">
             {t.voids.map((v) => (
@@ -421,7 +542,7 @@ function TicketCard({
             ))}
           </div>
         )}
-        <div className="flex flex-wrap gap-1.5 pt-2">
+        <div className="mt-auto flex flex-wrap gap-1.5 pt-2">
           {t.status === "NEW" && (
             <Button size="sm" disabled={acceptMut.isPending} onClick={() => acceptMut.mutate()}>
               Accept

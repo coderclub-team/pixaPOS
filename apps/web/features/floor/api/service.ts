@@ -37,6 +37,53 @@ let mockFloors: Floor[] = [
 // Persist mock floors to localStorage so created floors survive dev-server
 // restarts (same PO_STORAGE_KEY pattern as inventory service).
 const FLOOR_STORAGE_KEY = "pixaFloors";
+
+function toDoc(o: {
+  id: string;
+  outlet_id?: string;
+  version?: number;
+  updated_at?: string;
+  deleted_at?: string | null;
+}) {
+  return {
+    id: o.id,
+    outlet_id: o.outlet_id ?? null,
+    data: o,
+    version: o.version ?? 1,
+    updated_at: o.updated_at ?? new Date().toISOString(),
+    deleted_at: o.deleted_at ?? null,
+  };
+}
+
+/** Durable SQLite mirror (fire-and-forget; repo never throws). */
+function mirrorFloors() {
+  if (typeof window === "undefined") return;
+  import("@/lib/db/repo").then(({ writeScope }) => {
+    void writeScope("floors", mockFloors.map(toDoc));
+    void writeScope("floor_objects", mockObjects.map(toDoc));
+  });
+}
+
+/** Adopt the durable mirror on app startup — only when localStorage is
+ * missing/empty. Never overwrites existing localStorage. */
+export async function hydrateFloorsFromMirror(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(FLOOR_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    const floors = Array.isArray(parsed) ? parsed : parsed?.floors;
+    if (Array.isArray(floors) && floors.length > 0) return;
+    const { readScope } = await import("@/lib/db/repo");
+    const [fd, od] = await Promise.all([readScope("floors"), readScope("floor_objects")]);
+    if (fd.length + od.length === 0) return;
+    localStorage.setItem(
+      FLOOR_STORAGE_KEY,
+      JSON.stringify({ floors: fd.map((d) => d.data), objects: od.map((d) => d.data) }),
+    );
+    loadFloors();
+  } catch {}
+}
+
 function saveFloors() {
   if (typeof window !== "undefined") {
     try {
@@ -44,6 +91,7 @@ function saveFloors() {
         FLOOR_STORAGE_KEY,
         JSON.stringify({ floors: mockFloors, objects: mockObjects }),
       );
+      mirrorFloors();
     } catch {}
   }
 }

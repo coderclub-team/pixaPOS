@@ -34,6 +34,7 @@ import { floorKeys, floorLayoutQueryOptions } from "../api/queries";
 import { toast } from "sonner";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { SortTh, useSorting } from "@/components/sort-th";
 
 interface FloorListProps {
   floors: Floor[];
@@ -61,6 +62,17 @@ export function FloorList({ floors, onEdit }: FloorListProps) {
     }),
   );
 
+  const { sortKey, sortDir, toggle, sorted } = useSorting<Floor>("sort_order");
+  const rows = sorted(floors, {
+    name: (f) => f.name,
+    code: (f) => f.code,
+    level: (f) => f.level,
+    capacity: (f) => f.capacity,
+    tables: (f) => summaryByFloor.get(f.id)?.tables ?? 0,
+    sort_order: (f) => f.sort_order,
+    status: (f) => f.is_active,
+  });
+
   if (floors.length === 0) {
     return (
       <Card>
@@ -85,18 +97,74 @@ export function FloorList({ floors, onEdit }: FloorListProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Code</TableHead>
-              <TableHead>Level</TableHead>
-              <TableHead>Capacity</TableHead>
-              <TableHead>Tables · Live</TableHead>
-              <TableHead>Sort</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>
+                <SortTh
+                  label="Name"
+                  column="name"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Code"
+                  column="code"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Level"
+                  column="level"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Capacity"
+                  column="capacity"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Tables · Live"
+                  column="tables"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Sort"
+                  column="sort_order"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Status"
+                  column="status"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {floors.map((floor) => (
+            {rows.map((floor) => (
               <FloorRow
                 key={floor.id}
                 floor={floor}

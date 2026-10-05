@@ -20,6 +20,11 @@ import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
 import { useQuery as useFloorQuery } from "@tanstack/react-query";
 import { floorsQueryOptions } from "@/features/floor/api/queries";
+import { ExportButton, ImportDialog } from "@/features/system/components/io-dialog";
+import { importTables, tableColumns, tableSample } from "@/features/table/lib/io";
+import { tableKeys } from "@/features/table/api/queries";
+import { floorKeys } from "@/features/floor/api/queries";
+import { getQueryClient } from "@/lib/query-client";
 
 export default function TablesPage() {
   const [search, setSearch] = React.useState("");
@@ -38,6 +43,10 @@ export default function TablesPage() {
         sharing === "all" ? true : sharing === "shared" ? t.allows_sharing : !t.allows_sharing,
       ),
     [tables, sharing],
+  );
+  const floorNameById = React.useMemo(
+    () => new Map((floors ?? []).map((f) => [f.id, f.name])),
+    [floors],
   );
   const [inputValue, setInputValue] = React.useState("");
   // Debounce search input
@@ -116,6 +125,25 @@ export default function TablesPage() {
             <SelectItem value="exclusive">Exclusive only</SelectItem>
           </SelectContent>
         </Select>
+        <span className="ml-auto flex gap-2">
+          <ExportButton
+            filename="tables"
+            rows={visibleTables}
+            columns={tableColumns(floorNameById)}
+          />
+          <ImportDialog
+            title="Bulk import tables"
+            sampleFilename="tables"
+            columns={tableColumns(floorNameById)}
+            sampleRows={tableSample}
+            onImport={importTables}
+            onDone={() => {
+              const qc = getQueryClient();
+              qc.invalidateQueries({ queryKey: tableKeys.all });
+              qc.invalidateQueries({ queryKey: floorKeys.all });
+            }}
+          />
+        </span>
       </div>
 
       <TableList tables={visibleTables} />

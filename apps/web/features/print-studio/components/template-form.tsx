@@ -17,6 +17,13 @@ const QR_OPTIONS = [
   { value: "NONE", label: "No QR" },
 ];
 
+const PAPER_OPTIONS = [
+  { value: "PRINTER", label: "Use printer paper" },
+  { value: "P58", label: "58mm — 48 chars, small receipts & tickets" },
+  { value: "P78", label: "78mm — 72 chars, standard receipts" },
+  { value: "P80", label: "80mm — 80 chars, large receipts & invoices" },
+];
+
 export default function TemplateForm({
   purpose,
   initialData,
@@ -61,6 +68,19 @@ export default function TemplateForm({
           }}
         >
           <FieldGroup>
+            <form.AppField
+              name="paper"
+              children={(field) => <field.SelectField label="Paper size" options={PAPER_OPTIONS} />}
+            />
+            <form.AppField
+              name="show_logo"
+              children={(field) => (
+                <field.SwitchField
+                  label="Outlet logo"
+                  description="Shows in previews now; thermal raster printing follows in a later phase"
+                />
+              )}
+            />
             <form.AppField
               name="auto_print"
               children={(field) => (
@@ -115,6 +135,16 @@ export default function TemplateForm({
               children={(field) => <field.SelectField label="QR code" options={QR_OPTIONS} />}
             />
             <form.AppField
+              name="tracking_base_url"
+              children={(field) => (
+                <field.TextField
+                  label="Tracking URL base"
+                  placeholder="https://order.pixapos.store/t/"
+                  description="Order/tracking number is appended for ORDER QR. Empty disables it."
+                />
+              )}
+            />
+            <form.AppField
               name="footer_lines"
               children={(field) => (
                 <field.TextareaField
@@ -166,6 +196,8 @@ export default function TemplateForm({
 export function templateToValues(t: PrintTemplate): TemplateValues {
   return {
     show_logo: t.show_logo,
+    paper: t.paper ?? "PRINTER",
+    tracking_base_url: t.tracking_base_url ?? "",
     header_lines: linesToText(t.header_lines),
     show_outlet_address: t.show_outlet_address,
     show_gstin: t.show_gstin,

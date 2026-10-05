@@ -2,6 +2,10 @@
 
 export type PaperSize = "P58" | "P78" | "P80";
 
+/** Template paper choice: follow the printer or a fixed size. Custom widths
+ * live on the printer (chars_per_line) — one home for width tuning. */
+export type TemplatePaper = "PRINTER" | PaperSize;
+
 /** Paper profiles: printable chars per line + head dots (203dpi class). */
 export const PAPER_PROFILES: Record<
   PaperSize,
@@ -14,6 +18,23 @@ export const PAPER_PROFILES: Record<
 
 export type PrinterConnection = "NETWORK" | "USB" | "BLUETOOTH";
 
+/** Effective printable columns: printer override wins, then template paper,
+ * then the printer's paper profile. Dots are always chars × 8 (Font A). */
+export function effectiveChars(
+  template: { paper?: TemplatePaper },
+  printer: { paper: PaperSize; chars_per_line?: number },
+): number {
+  if (printer.chars_per_line && printer.chars_per_line > 0) return printer.chars_per_line;
+  if (template.paper && template.paper !== "PRINTER") return PAPER_PROFILES[template.paper].chars;
+  return PAPER_PROFILES[printer.paper].chars;
+}
+
+export function effectiveDots(
+  template: { paper?: TemplatePaper },
+  printer: { paper: PaperSize; chars_per_line?: number },
+): number {
+  return effectiveChars(template, printer) * 8;
+}
 export type Printer = {
   id: string;
   outlet_id: string;
@@ -26,6 +47,11 @@ export type Printer = {
   paper: PaperSize;
   /** Printable columns override (e.g. 42 for Epson Font A on 58mm). Blank = paper default. */
   chars_per_line?: number;
+  /** Raster (GS v 0) support. Off for emulators that drop graphics. Default on. */
+  supports_raster?: boolean;
+  /** QR store mode byte (Epson/python-escpos convention). Off for escpresso,
+   * which misrenders it as a leading "0". Default on (real hardware). */
+  qr_mode_byte?: boolean;
   is_default: boolean;
   is_active: boolean;
   created_at: string;
@@ -61,6 +87,10 @@ export type PrintTemplate = {
   outlet_id: string;
   purpose: PrintPurpose;
   show_logo: boolean;
+  /** Paper size for this template. PRINTER = follow the printer's paper. */
+  paper: TemplatePaper;
+  /** Base URL composed with the order/token number for ORDER tracking QR. */
+  tracking_base_url?: string;
   header_lines: string[];
   show_outlet_address: boolean;
   show_gstin: boolean;
@@ -96,6 +126,9 @@ export type PrintJob = {
   status: PrintJobStatus;
   attempts: number;
   last_error?: string;
+  /** QR/logo gate outcomes (shown|suppressed/omitted:<reason>) — answers "why text-only" in History. */
+  qr?: string;
+  logo?: string;
   created_by?: string;
   created_at: string;
   updated_at: string;

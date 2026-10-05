@@ -34,9 +34,60 @@ import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { SortTh, useSorting } from "@/components/sort-th";
+import type { CsvColumn } from "@/features/system/lib/csv";
+
+export const recipeExportColumns: CsvColumn<Recipe>[] = [
+  { key: "name", label: "Recipe", get: (r) => r.name },
+  { key: "yields", label: "Yields", get: (r) => r.yields },
+  { key: "yield_unit", label: "Yield Unit", get: (r) => r.yield_unit ?? "" },
+  {
+    key: "ingredients_count",
+    label: "Ingredients Count",
+    get: (r) => r.ingredients.length,
+  },
+  {
+    key: "ingredients_list",
+    label: "Ingredients List",
+    get: (r) => r.ingredients.map((ing) => `${ing.material_name} ${ing.qty}${ing.unit}`).join(", "),
+  },
+  { key: "steps_count", label: "Steps Count", get: (r) => (r.steps ?? []).length },
+  {
+    key: "cost_per_serve",
+    label: "Cost/Serve",
+    get: (r) => `₹${r.cost_per_serve.toFixed(2)}`,
+  },
+  {
+    key: "selling_price",
+    label: "Selling Price",
+    get: (r) => (r.selling_price ? `₹${r.selling_price.toFixed(2)}` : ""),
+  },
+  {
+    key: "margin",
+    label: "Margin %",
+    get: (r) => {
+      const margin = r.selling_price
+        ? Math.round(((r.selling_price - r.cost_per_serve) / r.selling_price) * 100)
+        : 0;
+      return `${margin}%`;
+    },
+  },
+  { key: "status", label: "Status", get: (r) => (r.is_active ? "active" : "inactive") },
+];
 
 export function RecipeList({ recipes }: { recipes: Recipe[] }) {
-  if (recipes.length === 0)
+  const { sortKey, sortDir, toggle, sorted } = useSorting<Recipe>("name");
+  const rows = sorted(recipes, {
+    name: (r) => r.name,
+    ingredients_count: (r) => r.ingredients.length,
+    steps_count: (r) => (r.steps ?? []).length,
+    cost_per_serve: (r) => r.cost_per_serve,
+    selling_price: (r) => r.selling_price ?? 0,
+    margin: (r) => (r.selling_price ? (r.selling_price - r.cost_per_serve) / r.selling_price : 0),
+    status: (r) => r.is_active,
+  });
+
+  if (rows.length === 0)
     return (
       <Card>
         <CardContent className="py-12 text-center text-muted-foreground">
@@ -50,18 +101,74 @@ export function RecipeList({ recipes }: { recipes: Recipe[] }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Recipe</TableHead>
-              <TableHead>Ingredients</TableHead>
-              <TableHead>Steps</TableHead>
-              <TableHead>Cost/Serve</TableHead>
-              <TableHead>Selling</TableHead>
-              <TableHead>Margin</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>
+                <SortTh
+                  label="Recipe"
+                  column="name"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Ingredients"
+                  column="ingredients_count"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Steps"
+                  column="steps_count"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Cost/Serve"
+                  column="cost_per_serve"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Selling"
+                  column="selling_price"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Margin"
+                  column="margin"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Status"
+                  column="status"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {recipes.map((r) => (
+            {rows.map((r) => (
               <RecipeRow key={r.id} recipe={r} />
             ))}
           </TableBody>

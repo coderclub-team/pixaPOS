@@ -121,7 +121,7 @@ export default function PaymentsCard({
           </p>
         )}
 
-        {order.status === "SERVED" && (
+        {(order.status === "SERVED" || order.status === "DELIVERED") && (
           <Button
             className="w-full"
             disabled={completeMut.isPending || balance > 0}

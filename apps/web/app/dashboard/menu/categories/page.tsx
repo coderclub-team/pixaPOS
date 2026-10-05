@@ -6,6 +6,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { deleteMenuCategory, updateMenuCategory } from "@/features/menu/api/service";
 import { menuKeys } from "@/features/menu/api/queries";
 import { getQueryClient } from "@/lib/query-client";
+import type { MenuCategory } from "@/features/menu/api/types";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
 import { Input } from "@pixa/ui/base-ui/input";
@@ -47,6 +48,13 @@ import { Label } from "@pixa/ui/base-ui/label";
 import Link from "next/link";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
 import { cn } from "@pixa/ui/lib/utils";
+import { SortTh, useSorting } from "@/components/sort-th";
+import { ExportButton, ImportDialog } from "@/features/system/components/io-dialog";
+import {
+  importMenuCategories,
+  menuCategoryColumns,
+  menuCategorySample,
+} from "@/features/menu/lib/io-categories";
 
 export default function CategoriesPage() {
   const [search, setSearch] = React.useState("");
@@ -68,6 +76,14 @@ export default function CategoriesPage() {
   const [editActive, setEditActive] = React.useState(true);
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
+
+  const { sortKey, sortDir, toggle, sorted } = useSorting<MenuCategory>("name");
+  const rows = sorted(cats ?? [], {
+    name: (c) => c.name,
+    slug: (c) => c.slug,
+    sort_order: (c) => c.sort_order ?? 0,
+    status: (c) => c.is_active,
+  });
 
   const delMut = useMutation({
     mutationFn: (id: string) => deleteMenuCategory(id),
@@ -125,20 +141,68 @@ export default function CategoriesPage() {
             <SelectItem value="inactive">Inactive</SelectItem>
           </SelectContent>
         </Select>
+        <span className="ml-auto flex gap-2">
+          <ExportButton
+            filename="menu-categories"
+            rows={cats ?? []}
+            columns={menuCategoryColumns}
+          />
+          <ImportDialog
+            title="Bulk import menu categories"
+            sampleFilename="menu-categories"
+            columns={menuCategoryColumns}
+            sampleRows={menuCategorySample}
+            onImport={importMenuCategories}
+            onDone={() => getQueryClient().invalidateQueries({ queryKey: menuKeys.all })}
+          />
+        </span>
       </div>
       <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Slug</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>
+                  <SortTh
+                    label="Name"
+                    column="name"
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onToggle={toggle}
+                  />
+                </TableHead>
+                <TableHead>
+                  <SortTh
+                    label="Slug"
+                    column="slug"
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onToggle={toggle}
+                  />
+                </TableHead>
+                <TableHead>
+                  <SortTh
+                    label="Sort Order"
+                    column="sort_order"
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onToggle={toggle}
+                  />
+                </TableHead>
+                <TableHead>
+                  <SortTh
+                    label="Status"
+                    column="status"
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onToggle={toggle}
+                  />
+                </TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(cats ?? []).map((c) => (
+              {rows.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -155,6 +219,7 @@ export default function CategoriesPage() {
                     </div>
                   </TableCell>
                   <TableCell className="font-mono text-xs">{c.slug}</TableCell>
+                  <TableCell className="text-sm">{c.sort_order ?? "-"}</TableCell>
                   <TableCell>
                     <StatusDot isActive={c.is_active} />
                   </TableCell>
@@ -238,7 +303,7 @@ export default function CategoriesPage() {
           <DialogHeader>
             <DialogTitle>Delete category?</DialogTitle>
             <DialogDescription>
-              Are you sure? Menu items using it will block delete.
+              Are you sure? Products using it will block delete.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2">

@@ -86,7 +86,7 @@ export default function CheckoutDialog({
   const paid = paidList.reduce((s, p) => s + p.amount_paise, 0) - refunded;
   const grand = order?.grand_total_paise ?? 0;
   const balance = Math.max(0, grand - paid);
-  const served = order?.status === "SERVED";
+  const served = order?.status === "SERVED" || order?.status === "DELIVERED";
   const settled = balance <= 0;
   const needsForce = !!order && !served;
 

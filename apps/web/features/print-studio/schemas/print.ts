@@ -9,6 +9,8 @@ export const printerSchema = z.object({
   paper: z.enum(["P58", "P78", "P80"]),
   /** Blank = paper default (48/72/80). Epson Font A on 58mm needs 42. */
   chars_per_line: z.string().optional(),
+  supports_raster: z.boolean(),
+  qr_mode_byte: z.enum(["auto", "on", "off"]),
   is_default: z.boolean(),
   is_active: z.boolean(),
 });
@@ -17,6 +19,8 @@ export type PrinterValues = z.infer<typeof printerSchema>;
 
 export const templateSchema = z.object({
   show_logo: z.boolean(),
+  paper: z.enum(["PRINTER", "P58", "P78", "P80"]),
+  tracking_base_url: z.string().optional().or(z.literal("")),
   header_lines: z.string(),
   show_outlet_address: z.boolean(),
   show_gstin: z.boolean(),

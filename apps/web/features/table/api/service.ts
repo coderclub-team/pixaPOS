@@ -60,6 +60,64 @@ let mockHolds: ReservationHold[] = [];
 // Persist mock state to localStorage so created tables/groups survive dev-server
 // restarts (same PO_STORAGE_KEY pattern as inventory service).
 const TABLE_STORAGE_KEY = "pixaTables";
+
+function toDoc(o: {
+  id: string;
+  outlet_id?: string;
+  version?: number;
+  updated_at?: string;
+  deleted_at?: string | null;
+}) {
+  return {
+    id: o.id,
+    outlet_id: o.outlet_id ?? null,
+    data: o,
+    version: o.version ?? 1,
+    updated_at: o.updated_at ?? new Date().toISOString(),
+    deleted_at: o.deleted_at ?? null,
+  };
+}
+
+/** Durable SQLite mirror (fire-and-forget; repo never throws). */
+function mirrorTables() {
+  if (typeof window === "undefined") return;
+  import("@/lib/db/repo").then(({ writeScope }) => {
+    void writeScope("tables", mockTables.map(toDoc));
+    void writeScope("occupancy_groups", mockGroups.map(toDoc));
+    void writeScope("table_blocks", mockBlocks.map(toDoc));
+    void writeScope("reservation_holds", mockHolds.map(toDoc));
+  });
+}
+
+/** Adopt the durable mirror on app startup — only when localStorage is
+ * missing/empty. Never overwrites existing localStorage. */
+export async function hydrateTablesFromMirror(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(TABLE_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(parsed?.tables) && parsed.tables.length > 0) return;
+    const { readScope } = await import("@/lib/db/repo");
+    const [tables, groups, blocks, holds] = await Promise.all([
+      readScope("tables"),
+      readScope("occupancy_groups"),
+      readScope("table_blocks"),
+      readScope("reservation_holds"),
+    ]);
+    if (tables.length + groups.length + blocks.length + holds.length === 0) return;
+    localStorage.setItem(
+      TABLE_STORAGE_KEY,
+      JSON.stringify({
+        tables: tables.map((d) => d.data),
+        groups: groups.map((d) => d.data),
+        blocks: blocks.map((d) => d.data),
+        holds: holds.map((d) => d.data),
+      }),
+    );
+    loadTables();
+  } catch {}
+}
+
 function saveTables() {
   if (typeof window !== "undefined") {
     try {
@@ -72,6 +130,7 @@ function saveTables() {
           holds: mockHolds,
         }),
       );
+      mirrorTables();
     } catch {}
   }
 }

@@ -1,5 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import {
+  batchSummary,
+  getBatches,
   getPaymentById,
   getPayments,
   getPriceHistory,
@@ -14,6 +16,7 @@ import {
   getPurchaseOrders,
   getPurchaseOrderById,
   getStockLedger,
+  getStorageLocations,
   getSupplierAdjustmentById,
   getSupplierAdjustments,
   getSupplierById,
@@ -23,6 +26,7 @@ import {
   getWasteLogs,
 } from "./service";
 import type {
+  BatchFilters,
   PaymentFilters,
   PurchaseFilters,
   PurchaseOrderFilters,
@@ -35,6 +39,18 @@ import type {
   SupplierLedgerFilters,
   WasteFilters,
 } from "./types";
+
+export const batchesQueryOptions = (filters?: BatchFilters) =>
+  queryOptions({ queryKey: inventoryKeys.batches(filters), queryFn: () => getBatches(filters) });
+
+export const locationsQueryOptions = () =>
+  queryOptions({ queryKey: inventoryKeys.locations(), queryFn: getStorageLocations });
+
+export const batchSummaryQueryOptions = (materialId: string) =>
+  queryOptions({
+    queryKey: [...inventoryKeys.all, "batch-summary", materialId] as const,
+    queryFn: () => batchSummary(materialId),
+  });
 
 export const inventoryKeys = {
   all: ["inventory"] as const,
@@ -66,6 +82,8 @@ export const inventoryKeys = {
   payment: (id: string) => [...inventoryKeys.all, "payment", id] as const,
   waste: (filters?: WasteFilters) => [...inventoryKeys.all, "waste", filters ?? {}] as const,
   stock: (filters?: StockLedgerFilters) => [...inventoryKeys.all, "stock", filters ?? {}] as const,
+  batches: (filters?: BatchFilters) => [...inventoryKeys.all, "batches", filters ?? {}] as const,
+  locations: () => [...inventoryKeys.all, "locations"] as const,
   priceHistory: (materialId?: string) =>
     [...inventoryKeys.all, "price-history", materialId ?? "all"] as const,
 };
