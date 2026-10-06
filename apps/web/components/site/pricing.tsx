@@ -19,7 +19,6 @@ import { cn } from "@pixa/ui/lib/utils";
 /** Differentiating usage/Neon quotas — Starter and Growth share features but not limits. */
 function limitRows(l: LimitMap): { label: string; value: string }[] {
   const num = (v: number | null) => (v === null ? "Custom" : v.toLocaleString("en-IN"));
-  const storage = formatBytes((l.databaseStorage ?? 0) + (l.objectStorage ?? 0));
   return [
     { label: "Outlets", value: num(l.outlets) },
     { label: "Users", value: num(l.users) },
@@ -27,7 +26,7 @@ function limitRows(l: LimitMap): { label: string; value: string }[] {
     { label: "Orders / month", value: num(l.orders) },
     { label: "Products", value: num(l.products) },
     { label: "Customers", value: num(l.customers) },
-    { label: "Storage", value: storage },
+    { label: "Storage", value: formatBytes(l.objectStorage ?? 0) },
   ];
 }
 
