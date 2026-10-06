@@ -11,8 +11,6 @@ import {
 import { estimateInfraCost, type LimitMap } from "@pixa/db/plans";
 import { RESOURCE_META, formatBytes } from "@/lib/usage-types";
 
-const USD_TO_INR = Number(process.env.USD_TO_INR ?? 87);
-
 export type CostPlan = {
   id: string;
   name: string;
@@ -25,8 +23,8 @@ function fmtUsd(usd: number): string {
   return `$${usd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 3 })}`;
 }
 
-function fmtInr(usd: number): string {
-  return `₹${Math.round(usd * USD_TO_INR).toLocaleString("en-IN")}`;
+function fmtInr(usd: number, rate: number): string {
+  return `₹${Math.round(usd * rate).toLocaleString("en-IN")}`;
 }
 
 function priceLabel(paise: number | null): string {
@@ -35,9 +33,9 @@ function priceLabel(paise: number | null): string {
   return `₹${(paise / 100).toLocaleString("en-IN")}/month`;
 }
 
-function PlanCostCard({ plan }: { plan: CostPlan }) {
+function PlanCostCard({ plan, usdToInr }: { plan: CostPlan; usdToInr: number }) {
   const { lines, totalUsd } = estimateInfraCost(plan.limits);
-  const costInr = totalUsd * USD_TO_INR;
+  const costInr = totalUsd * usdToInr;
   const revenueInr = plan.monthlyPaise === null ? null : plan.monthlyPaise / 100;
   const marginInr = revenueInr === null ? null : revenueInr - costInr;
   const marginPct =
@@ -100,7 +98,7 @@ function PlanCostCard({ plan }: { plan: CostPlan }) {
               <TableCell className="text-right font-semibold tabular-nums">
                 {fmtUsd(totalUsd)}
                 <span className="ml-2 text-xs font-normal text-muted-foreground">
-                  ≈ {fmtInr(totalUsd)}
+                  ≈ {fmtInr(totalUsd, usdToInr)}
                 </span>
               </TableCell>
             </TableRow>
@@ -123,11 +121,11 @@ function PlanCostCard({ plan }: { plan: CostPlan }) {
 }
 
 /** Internal cost/margin analysis for the owner console. Never customer-facing. */
-export function PlanCostBreakdown({ plans }: { plans: CostPlan[] }) {
+export function PlanCostBreakdown({ plans, usdToInr }: { plans: CostPlan[]; usdToInr: number }) {
   return (
     <div className="grid gap-4 xl:grid-cols-2">
       {plans.map((p) => (
-        <PlanCostCard key={p.id} plan={p} />
+        <PlanCostCard key={p.id} plan={p} usdToInr={usdToInr} />
       ))}
     </div>
   );

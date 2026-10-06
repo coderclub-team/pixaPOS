@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from "@pixa/ui/base-ui/alert";
 import { Icons } from "@pixa/ui/icons";
 import PageContainer from "@/components/layout/page-container";
 import { PlanCostBreakdown, type CostPlan } from "@/components/billing/plan-cost";
+import { getUsdToInr } from "@/lib/fx";
 import { PlansManager } from "./plans-manager";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +51,7 @@ export default async function BillingPage() {
   }
   const known = new Set(plans.map((p) => p.id));
   const orphaned = Object.entries(dist).filter(([id]) => !known.has(id));
+  const fx = await getUsdToInr();
   return (
     <PageContainer
       pageTitle="Plans & billing"
@@ -74,10 +76,16 @@ export default async function BillingPage() {
               <h2 className="text-lg font-semibold tracking-tight">Infrastructure cost & margin</h2>
               <p className="text-sm text-muted-foreground">
                 What each plan would cost at full usage on Neon Launch rates, versus its price.
-                Internal only — never shown to customers.
+                Internal only — never shown to customers. USD→INR {fx.rate.toFixed(2)}
+                {fx.source === "live"
+                  ? fx.updatedAt
+                    ? ` (live, ${fx.updatedAt})`
+                    : " (live)"
+                  : " (fallback)"}
+                .
               </p>
             </div>
-            <PlanCostBreakdown plans={costPlans} />
+            <PlanCostBreakdown plans={costPlans} usdToInr={fx.rate} />
           </section>
         )}
       </div>
