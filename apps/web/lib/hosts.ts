@@ -18,6 +18,7 @@
 const KNOWN_BASES = [
   process.env.NEXT_PUBLIC_BASE_DOMAIN ?? "",
   "pixapos.store",
+  "develop.pixapos.store",
   "dev.pixapos.store",
   "local.pixapos.store",
 ]
