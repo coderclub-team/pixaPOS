@@ -124,124 +124,103 @@ However, design the abstraction so that a very large enterprise could eventually
 
 Implement three plan tiers.
 
-## Starter — Free
+### Critical Product Principle
 
-This plan is intentionally restrictive.
+**Starter and Growth have identical features.**  
+There is **no feature gating** between Starter and Growth.
 
-Recommended initial limits:
+Both plans include the full pixaPOS operating system:
 
 ```text
-Organizations: 1
-Outlets: 1
-Users: 2
-POS/KOT Devices: 2
-
-Database Storage: 100 MB
-Object Storage: 250 MB
-
-Monthly Compute Budget: very low
-Monthly Function Invocation Budget: very low
-
-Orders/month: 500
-Customers: 250
-Products/Menu Items: 100
-
-Online Ordering: No
-Multi-outlet: No
-Advanced Reports: No
-Chain Dashboard: No
-API Access: No
-Custom Domain: No
-
-Data Retention:
-Limited / reasonable startup-friendly period
-
-Support:
-Community/basic
+• Multi-outlet dashboard & reports
+• Central menu, pricing & tax
+• Online ordering, kiosk & QR ordering
+• Inventory, batches & wastage
+• Promos, rewards & customers
+• Zomato / Swiggy relay
+• Table, counter, takeaway & delivery
+• KOT, KDS and billing workflow
+• PWA POS across phone, tablet and desktop
+• POS, KDS, KOT & tables
+• UPI / cash collection
+• Daily sales reports
+• Priority support (Growth+)
 ```
 
-These values are starting recommendations.
+The only differences between Starter and Growth are **limits** (outlets, users, devices, orders, storage, etc.).
 
-Make them configuration-driven.
+---
 
-Do NOT hardcode these numbers throughout the application.
+## Starter — Full platform access (Restrictive Limits)
+
+```text
+Price:                  ₹499 / outlet / month
+Outlets:                1
+Users:                  2
+POS/KOT Devices:        2
+Orders / month:         500
+Products / Menu Items:  100
+Customers:              250
+Database Storage:       250–500 MB
+Object Storage:         250 MB
+```
+
+Starter includes the complete product. The commercial model uses strict limits to protect infrastructure costs.
 
 ---
 
 ## Growth Plan
 
-Growth should be suitable for a small restaurant chain.
-
-Suggested initial limits:
+Suitable for small restaurant chains / multi-outlet businesses.
 
 ```text
-Outlets: 5
-Users: 25
-POS/KOT Devices: 20
-
-Database Storage: 2 GB
-Object Storage: 5 GB
-
-Orders/month: 10,000
-Customers: 10,000
-Products/Menu Items: 2,000
-
-Online Ordering: Yes
-Multi-outlet: Yes
-Central Menu: Yes
-Advanced Reports: Yes
-Chain Dashboard: Yes
-API: Limited
-Custom Domain: Optional
+Price:                  ₹1,599 / outlet / month
+Outlets:                5
+Users:                  25
+POS/KOT Devices:        20
+Orders / month:         10,000
+Products / Menu Items:  2,000
+Customers:              10,000
+Database Storage:       2–7 GB
+Object Storage:         5–7 GB
 ```
 
-Again:
-
-**All limits must be configurable.**
-
-Do not assume these values can never change.
+All features same as Starter.
 
 ---
 
 ## Custom Plan
 
-Custom is for:
+For chains, franchises and enterprise customers.
 
-- restaurant chains
-- franchises
-- large organizations
-- enterprise customers
-
-Everything should be configurable:
+Everything is configurable:
 
 ```text
 maxOutlets
 maxUsers
 maxDevices
-maxOrders
+maxOrdersPerMonth
 maxProducts
 maxCustomers
-maxDatabaseStorage
-maxObjectStorage
-maxCompute
-maxFunctions
-maxTransfer
+maxDatabaseStorageBytes
+maxObjectStorageBytes
+maxComputeCuHours
+maxFunctionInvocations
+maxTransferBytes
 feature flags
 API limits
 retention
 support level
 ```
 
-Custom plans should support organization-specific overrides.
+Custom plans support organization-specific overrides.
 
 Example:
 
 ```text
-Base Plan:
-CUSTOM
+Base Plan: CUSTOM
 
 Overrides:
-
 maxOutlets = 50
 maxUsers = 300
 maxDevices = 200
@@ -259,27 +238,13 @@ There are two different quota systems.
 
 ## A. Product / Business Entitlements
 
-Examples:
-
 ```text
 maxOutlets
 maxUsers
 maxDevices
-maxOrders
+maxOrdersPerMonth
 maxProducts
 maxCustomers
-```
-
-And feature entitlements:
-
-```text
-multiOutlet
-onlineOrdering
-advancedReports
-centralMenu
-api
-customDomain
-chainDashboard
 ```
 
 ## B. Infrastructure Quotas
@@ -296,9 +261,8 @@ serverless function invocations
 serverless function execution
 ```
 
-Neon is an infrastructure cost layer.
-
-Do NOT expose Neon pricing directly as the customer-facing pricing model.
+Neon is an infrastructure cost layer.  
+Do **not** expose Neon pricing directly as the customer-facing pricing model.
 
 ---
 
@@ -327,17 +291,14 @@ type PlanLimits = {
 };
 
 type PlanFeatures = {
-  multiOutlet: boolean;
-  onlineOrdering: boolean;
-  centralMenu: boolean;
-  advancedReports: boolean;
-  chainDashboard: boolean;
-  api: boolean;
-  customDomain: boolean;
+  // Intentionally empty / all true for Starter & Growth
+  // Only used for future Custom feature flags if needed
 };
 ```
 
-But adapt this to the existing database architecture rather than blindly creating duplicate models.
+Adapt this to the existing database architecture rather than blindly creating duplicate models.
+
+**Important:** Since Starter and Growth have the same features, the `PlanFeatures` object should return `true` for all standard features on both plans.
 
 ---
 
@@ -647,7 +608,7 @@ Starter:
 1 outlet
 2 users
 2 devices
-100 MB DB
+250–500 MB DB
 250 MB object storage
 500 orders/month
 100 products
@@ -1649,3 +1610,10 @@ The primary business objective is:
 > **Protect pixaPOS from uncontrolled free-tier infrastructure costs while creating a clean path from one small restaurant → multi-outlet restaurant → chain/franchise.**
 
 Before writing code, inspect the existing repository and produce a concise implementation plan identifying the exact files/models/services that need modification. Then implement the changes incrementally without breaking existing functionality.
+```
+
+The file is ready. You can download it here:
+
+**[Download pixaPOS-SaaS-Plans-Strict-Limits-Neon-Quotas.md](sandbox:/home/workdir/artifacts/pixaPOS-SaaS-Plans-Strict-Limits-Neon-Quotas.md)**
+
+Would you like any further adjustments (exact MB/GB values, pricing, etc.) before you start implementation?

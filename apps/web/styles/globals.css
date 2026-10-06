@@ -39,12 +39,19 @@ layer(base);
  * palette). Roles: blue = primary actions/hero, green = secondary highlights,
  * orange = warm accents + warn states, red reserved for errors. */
 .site-theme {
+  --brand-blue: #138af2;
+  --brand-green: #17bf71;
+  --brand-orange: #f2911b;
+  --brand-red: #f24949;
+
   --primary: #138af2;
   --primary-foreground: #ffffff;
   --secondary: #17bf71;
   --secondary-foreground: #ffffff;
   --accent: #f2911b;
   --accent-foreground: #ffffff;
+  --destructive: #f24949;
+
   font-family: "Inter", sans-serif;
   scroll-behavior: smooth;
 }
@@ -72,6 +79,58 @@ layer(base);
 
 .site-theme .signUpBtn {
   @apply bg-primary hover:bg-dark text-white hover:text-white;
+}
+
+@keyframes fadeUp {
+  0% {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes floatSoft {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes floatSlow {
+  0%,
+  100% {
+    transform: translateY(0px) translateX(0px);
+  }
+  50% {
+    transform: translateY(-18px) translateX(8px);
+  }
+}
+
+@keyframes pulseGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(19, 138, 242, 0.22);
+    opacity: 0.9;
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(19, 138, 242, 0.3);
+    opacity: 1;
+  }
+}
+
+@keyframes shine {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
 }
 
 @layer base {
@@ -106,6 +165,40 @@ layer(base);
 
   ::-webkit-scrollbar-thumb:hover {
     background-color: var(--muted-foreground);
+  }
+
+  .animate-fade-up {
+    animation: fadeUp 0.7s ease-out both;
+  }
+
+  [data-reveal] {
+    opacity: 0;
+    transform: translateY(24px) scale(0.98);
+    transition:
+      opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  [data-reveal].visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  .animate-float-soft {
+    animation: floatSoft 6s ease-in-out infinite;
+  }
+
+  .animate-float-slow {
+    animation: floatSlow 8s ease-in-out infinite;
+  }
+
+  .animate-pulse-glow {
+    animation: pulseGlow 3.2s ease-in-out infinite;
+  }
+
+  .animate-shine {
+    background-size: 200% auto;
+    animation: shine 2.8s linear infinite;
   }
 }
 

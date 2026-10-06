@@ -10,8 +10,9 @@ import { signInUrl, signUpUrl } from "@/lib/site/site";
 import { TRIAL_DAYS } from "@/lib/site/plans";
 
 const MENU = [
-  { title: "Surfaces", path: "/#surfaces" },
+  { title: "Features", path: "/features" },
   { title: "Pricing", path: "/#pricing" },
+  { title: "Careers", path: "/careers" },
   { title: "FAQ", path: "/#faq" },
 ];
 

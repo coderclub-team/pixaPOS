@@ -10,6 +10,7 @@ import Faq from "@/components/site/faq";
 import Team from "@/components/site/team";
 import BlogSection from "@/components/site/blog-section";
 import Contact from "@/components/site/contact";
+import Careers from "@/components/site/careers";
 import Clients from "@/components/site/clients";
 import Footer from "@/components/site/footer";
 import ScrollToTop from "@/components/site/scroll-to-top";
@@ -17,11 +18,25 @@ import { getMarketingPlans } from "@/lib/site/plans-server";
 
 export const metadata: Metadata = {
   title: {
-    default: "pixaPOS — Restaurant OS with a 14-day free trial",
+    default: "pixaPOS — Restaurant POS for Indian food businesses",
     template: "%s | pixaPOS",
   },
   description:
-    "Local-first restaurant operations: POS, KDS, KOT, kiosk, QR ordering and dispatch. Start your 14-day free trial — no credit card required.",
+    "pixaPOS is a PWA-first restaurant POS for Indian cafés, QSRs, cloud kitchens, and multi-outlet food brands. Run billing, kitchen display, inventory, loyalty, and delivery operations from any device.",
+  keywords: [
+    "restaurant pos software india",
+    "restaurant billing software",
+    "pos for restaurant",
+    "restaurant management system",
+    "multi outlet pos",
+    "pwa restaurant pos",
+    "kitchen display system",
+    "cloud kitchen software",
+    "restaurant pos for cafes and qsr",
+  ],
+  alternates: {
+    canonical: "https://pixapos.store",
+  },
 };
 
 /**
@@ -44,6 +59,7 @@ export default async function MarketingPage() {
       <Faq />
       <Team />
       <BlogSection />
+      <Careers />
       <Contact />
       <Clients />
       <Footer />

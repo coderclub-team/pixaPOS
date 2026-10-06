@@ -25,61 +25,62 @@ export type Plan = {
   ctaHref?: string;
   featured?: boolean;
   features: string[];
-  /** Usage limits loaded from the DB plan catalog (absent on the static fallback). */
+  /** Plan detail values loaded from the DB catalog when available. */
   limits?: LimitMap;
 };
 
 export const TRIAL_DAYS = 14;
 
+/** Starter and Growth share the full platform feature list (only limits differ). */
+export const CORE_FEATURES: string[] = [
+  "Multi-outlet dashboard & reports",
+  "Central menu, pricing & tax",
+  "Online ordering, kiosk & QR ordering",
+  "Inventory, batches & wastage",
+  "Promos, rewards & customers",
+  "Zomato / Swiggy relay",
+  "Table, counter, takeaway & delivery",
+  "KOT, KDS and billing workflow",
+  "PWA POS across phone, tablet and desktop",
+  "POS, KDS, KOT & tables",
+  "UPI / cash collection",
+  "Daily sales reports",
+];
+
 export const PLANS: Plan[] = [
   {
     id: "starter",
     name: "Starter",
-    tagline: "Single outlet",
+    tagline: "Simple & fast for growing restaurateurs",
     monthly_paise: 49900,
     annual_discount_pct: 25,
     cta: "Start 14-day free trial",
-    features: [
-      "All features included",
-      "POS, KDS, KOT & tables",
-      "UPI / cash collection",
-      "Daily sales reports",
-    ],
+    features: CORE_FEATURES,
   },
   {
     id: "growth",
     name: "Growth",
-    tagline: "Growing restaurants & small groups",
+    tagline: "Built for multi-outlet restaurant groups",
     monthly_paise: 159900,
     annual_discount_pct: 25,
     cta: "Start 14-day free trial",
     featured: true,
-    features: [
-      "Everything in Starter",
-      "Multi-outlet dashboard & reports",
-      "Central menu, pricing & tax",
-      "Online ordering, kiosk & QR",
-      "Inventory, batches & wastage",
-      "Promos, rewards & customers",
-      "Zomato / Swiggy relay",
-      "Priority support",
-    ],
+    features: CORE_FEATURES,
   },
   {
     id: "custom",
     name: "Custom",
-    tagline: "Chains, franchises & enterprise",
+    tagline: "Chains & enterprise",
     monthly_paise: null,
     annual_discount_pct: 25,
     cta: "Talk to sales",
     ctaHref: "/#contact",
     features: [
-      "Everything in Growth",
-      "Volume pricing for 5+ outlets",
-      "Franchise & head-office controls",
-      "SSO, audit trail, API access",
-      "Dedicated onboarding manager",
-      "SLA + priority support",
+      "Everything in Growth, across every outlet",
+      "Advanced support and onboarding",
+      "Custom workflows, expansions and data access",
+      "Franchise and group-level governance",
+      "Dedicated implementation and account support",
     ],
   },
 ];

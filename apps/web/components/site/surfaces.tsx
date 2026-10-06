@@ -36,7 +36,7 @@ const FEATURES = [
 
 export default function Surfaces() {
   return (
-    <section id="surfaces" className="pt-20 pb-8 lg:pt-[120px] lg:pb-[70px] dark:bg-dark">
+    <section id="surfaces" className="pt-14 pb-6 lg:pt-[90px] lg:pb-[40px] dark:bg-dark">
       <div className="container">
         <SectionTitle
           subtitle="Features"
@@ -44,12 +44,12 @@ export default function Surfaces() {
           paragraph="There are many variations of passages of Lorem Ipsum available but the majority have suffered alteration in some form."
         />
 
-        <div className="-mx-4 mt-12 flex flex-wrap lg:mt-20">
+        <div className="-mx-4 mt-8 flex flex-wrap lg:mt-12">
           {FEATURES.map((feature) => {
             const Icon = Icons[feature.icon];
             return (
               <div key={feature.title} className="w-full px-4 md:w-1/2 lg:w-1/4">
-                <div className="group mb-12">
+                <div className="group mb-8">
                   <div className="relative z-10 mb-8 flex h-[70px] w-[70px] items-center justify-center rounded-2xl bg-primary">
                     <span className="absolute top-0 left-0 z-[-1] mb-8 flex h-[70px] w-[70px] rotate-[25deg] items-center justify-center rounded-2xl bg-primary/20 duration-300 group-hover:rotate-45" />
                     <Icon className="size-8 text-white" aria-hidden />
