@@ -3,6 +3,7 @@ import Navbar from "@/components/site/navbar";
 import Hero from "@/components/site/hero";
 import Surfaces from "@/components/site/surfaces";
 import About from "@/components/site/about";
+import CompareSection from "@/components/site/compare";
 import CtaBanner from "@/components/site/cta-banner";
 import Pricing from "@/components/site/pricing";
 import Testimonials from "@/components/site/testimonials";
@@ -13,6 +14,7 @@ import Contact from "@/components/site/contact";
 import Careers from "@/components/site/careers";
 import Clients from "@/components/site/clients";
 import Footer from "@/components/site/footer";
+import ScrollReveal from "@/components/site/scroll-reveal";
 import ScrollToTop from "@/components/site/scroll-to-top";
 import { getMarketingPlans } from "@/lib/site/plans-server";
 
@@ -49,20 +51,23 @@ export default async function MarketingPage() {
   return (
     <main className="site-theme">
       <ScrollToTop />
-      <Navbar />
-      <Hero />
-      <Surfaces />
-      <About />
-      <CtaBanner />
-      <Pricing plans={plans} />
-      <Testimonials />
-      <Faq />
-      <Team />
-      <BlogSection />
-      <Careers />
-      <Contact />
-      <Clients />
-      <Footer />
+      <ScrollReveal>
+        <Navbar />
+        <Hero />
+        <Surfaces />
+        <About />
+        <CompareSection />
+        <CtaBanner />
+        <Pricing plans={plans} />
+        <Testimonials />
+        <Faq />
+        <Team />
+        <BlogSection />
+        <Careers />
+        <Contact />
+        <Clients />
+        <Footer />
+      </ScrollReveal>
     </main>
   );
 }

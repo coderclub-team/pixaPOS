@@ -6,7 +6,7 @@
 import { adminDb } from "@/lib/saas-admin";
 import { saasPlans } from "@pixa/db";
 import { resolveLimits, type LimitMap } from "@pixa/db/plans";
-import { PLANS as STATIC_PLANS, type Plan } from "./plans";
+import { PLANS as STATIC_PLANS, planPricing, type Plan } from "./plans";
 
 function parseArray(raw: string | null): string[] {
   try {
@@ -39,6 +39,7 @@ export async function getMarketingPlans(): Promise<Plan[]> {
         tagline: p.tagline ?? "",
         monthly_paise: p.monthlyPaise,
         annual_discount_pct: p.annualDiscountPct,
+        ...planPricing(p.monthlyPaise, p.annualDiscountPct),
         cta: custom ? "Talk to sales" : "Start 14-day free trial",
         ctaHref: custom ? "/#contact" : undefined,
         featured: p.id === "growth",

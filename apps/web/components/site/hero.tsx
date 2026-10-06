@@ -5,7 +5,7 @@ import { Icons } from "@pixa/ui/icons";
 
 const PLATFORMS = ["PWA", "Android", "iPad", "Windows", "Web", "Offline-ready"];
 const HIGHLIGHTS = [
-  "All modules included",
+  "Free restaurant website ordering",
   "Multi-outlet ready",
   "PWA across devices",
   "Offline-first billing",
@@ -29,11 +29,6 @@ export default function Hero() {
             <div className="animate-fade-up mb-5 flex flex-wrap items-center justify-center gap-3 lg:justify-start [animation-delay:0.05s]">
               <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white/90 backdrop-blur-sm">
                 {TRIAL_DAYS}-day free trial · No card required
-              </span>
-
-              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/40 bg-emerald-400/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-100 shadow-[0_0_30px_rgba(23,191,113,0.2)]">
-                <span className="size-2 rounded-full bg-[#17BF71] animate-pulse" aria-hidden />
-                Unlimited outlets, devices & users
               </span>
             </div>
 

@@ -7,7 +7,7 @@ const POSTS = [
     slug: "offline-first-restaurant-pos",
     title: "Why offline-first wins the lunch rush",
     excerpt:
-      "There are many variations of passages of Lorem Ipsum available but the majority have suffered alteration in some form.",
+      "When internet drops during peak hours, a reliable POS keeps billing, kitchen prep, and order tracking moving without disruption.",
     date: "Oct 01, 2026",
     tint: "bg-primary",
   },
@@ -15,7 +15,7 @@ const POSTS = [
     slug: "delivery-dispatch-done-right",
     title: "Dispatch boards that end delivery chaos",
     excerpt:
-      "There are many variations of passages of Lorem Ipsum available but the majority have suffered alteration in some form.",
+      "Clear rider assignment, status updates, and live order movement help teams reduce late deliveries and improve customer experience.",
     date: "Sep 24, 2026",
     tint: "bg-secondary",
   },
@@ -23,7 +23,7 @@ const POSTS = [
     slug: "per-outlet-pricing-explained",
     title: "Per-outlet pricing, explained honestly",
     excerpt:
-      "There are many variations of passages of Lorem Ipsum available but the majority have suffered alteration in some form.",
+      "A single, transparent plan structure helps food brands grow from one outlet to a multi-branch operation without workflow complexity.",
     date: "Sep 16, 2026",
     tint: "bg-warn",
   },
@@ -37,7 +37,7 @@ export default function BlogSection() {
           <SectionTitle
             subtitle="Our Blogs"
             title="Our Recent News"
-            paragraph="There are many variations of passages of Lorem Ipsum available but the majority have suffered alteration in some form."
+            paragraph="Insights for restaurant teams managing service speed, outlet growth, stock visibility, and better customer retention."
             width="640px"
             center
           />

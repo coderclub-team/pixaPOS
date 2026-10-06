@@ -7,10 +7,12 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   {
     title: "Product",
     links: [
-      { label: "Surfaces", href: "/#surfaces" },
-      { label: "Pricing", href: "/#pricing" },
-      { label: "Customers", href: "/#customers" },
-      { label: "Careers", href: "/#careers" },
+      { label: "Features", href: "/features" },
+      { label: "Solutions", href: "/solutions" },
+      { label: "Pricing", href: "/pricing" },
+      { label: "About", href: "/about" },
+      { label: "Careers", href: "/careers" },
+      { label: "Contact", href: "/contact" },
       { label: "FAQ", href: "/#faq" },
     ],
   },
@@ -30,15 +32,16 @@ export default function Footer() {
         <div className="-mx-4 flex flex-wrap">
           <div className="w-full px-4 sm:w-1/2 lg:w-4/12 xl:w-3/12">
             <div className="mb-10 w-full">
-              <Link href="/" className="mb-6 inline-flex items-center gap-2">
+              <Link href="/" className="mb-6 inline-flex items-center gap-3">
                 <Image
                   src="/logo.png"
                   alt="pixaPOS"
                   width={36}
                   height={36}
-                  className="size-9 rounded-lg"
+                  priority
+                  className="h-9 w-9 shrink-0 rounded-lg object-cover ring-1 ring-white/10"
                 />
-                <span className="text-2xl font-bold text-white">pixaPOS</span>
+                <span className="text-2xl font-bold tracking-tight text-white">pixaPOS</span>
               </Link>
               <p className="mb-8 max-w-[270px] text-base text-gray-7">
                 Local-first restaurant operations — POS, kitchen, delivery. One account, one

@@ -184,6 +184,14 @@ layer(base);
     transform: translateY(0) scale(1);
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    [data-reveal] {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+  }
+
   .animate-float-soft {
     animation: floatSoft 6s ease-in-out infinite;
   }

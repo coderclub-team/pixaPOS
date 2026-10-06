@@ -11,8 +11,11 @@ import { TRIAL_DAYS } from "@/lib/site/plans";
 
 const MENU = [
   { title: "Features", path: "/features" },
-  { title: "Pricing", path: "/#pricing" },
+  { title: "Solutions", path: "/solutions" },
+  { title: "Pricing", path: "/pricing" },
+  { title: "About", path: "/about" },
   { title: "Careers", path: "/careers" },
+  { title: "Contact", path: "/contact" },
   { title: "FAQ", path: "/#faq" },
 ];
 
@@ -107,11 +110,11 @@ export default function Header() {
                         onClick={() => setNavbarOpen(false)}
                         scroll={false}
                         href={menuItem.path}
-                        className={`ud-menu-scroll flex py-2 text-base transition-colors lg:inline-flex lg:px-0 lg:py-6 ${
+                        className={`ud-menu-scroll flex py-2 text-base transition-all duration-200 lg:inline-flex lg:px-0 lg:py-6 ${
                           sticky
                             ? "text-slate-900 hover:text-primary dark:text-slate-100 dark:hover:text-primary"
-                            : "text-slate-900 hover:text-primary lg:text-white lg:hover:text-primary dark:text-slate-100 dark:hover:text-primary"
-                        }`}
+                            : "text-slate-900 hover:text-white lg:text-white lg:hover:text-white dark:text-slate-100 dark:hover:text-white"
+                        } relative after:absolute after:-bottom-1 after:left-0 after:h-0.5 after:w-full after:origin-left after:scale-x-0 after:rounded-full after:bg-white after:transition-transform after:duration-200 hover:after:scale-x-100`}
                       >
                         {menuItem.title}
                       </Link>

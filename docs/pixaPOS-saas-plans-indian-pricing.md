@@ -129,11 +129,12 @@ Implement three plan tiers.
 **Starter and Growth have identical features.**  
 There is **no feature gating** between Starter and Growth.
 
-Both plans include the full pixaPOS operating system:
+Both plans include the full pixaPOS operating system with no module-based restrictions:
 
 ```text
 • Multi-outlet dashboard & reports
 • Central menu, pricing & tax
+• Free restaurant ecommerce website with delivery radius control
 • Online ordering, kiosk & QR ordering
 • Inventory, batches & wastage
 • Promos, rewards & customers

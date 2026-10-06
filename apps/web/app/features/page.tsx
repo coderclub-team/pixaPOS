@@ -1,7 +1,21 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Footer from "@/components/site/footer";
 import Navbar from "@/components/site/navbar";
 import { signUpUrl } from "@/lib/site/site";
+
+export const metadata: Metadata = {
+  title: "Restaurant POS Features",
+  description:
+    "Explore pixaPOS restaurant features: billing, KOT/KDS, loyalty, inventory, QR ordering, and multi-outlet reporting for growing food businesses.",
+  keywords: [
+    "restaurant pos features",
+    "kitchen display system",
+    "qr ordering software",
+    "restaurant loyalty software",
+    "multi outlet reporting",
+  ],
+};
 
 const featureHighlights = [
   {
@@ -30,7 +44,8 @@ const featureHighlights = [
 const capabilityRows = [
   "QR ordering from table",
   "Self-ordering kiosk",
-  "Free restaurant website ordering",
+  "Free restaurant ecommerce website with delivery radius control",
+  "Website ordering for dine-in, takeaway, and home delivery",
   "Captain app and rider app",
   "Customer loyalty, discounts & coupons",
   "Feedback, complaints & redressal flow",
@@ -132,9 +147,9 @@ export default function FeaturesPage() {
                 Designed to handle every guest journey.
               </h2>
               <p className="max-w-xl text-lg leading-8 text-slate-600 dark:text-slate-300">
-                Whether customers order at the table, on a kiosk, through a website, or via
-                aggregator apps, every channel connects to the same kitchen, billing, inventory, and
-                customer data layer.
+                Whether customers order at the table, on a kiosk, through a free restaurant
+                ecommerce website with delivery radius limits, or via aggregator apps, every channel
+                connects to the same kitchen, billing, inventory, and customer data layer.
               </p>
             </div>
 

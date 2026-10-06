@@ -10,6 +10,11 @@ export default function ScrollReveal({ children }: { children: React.ReactNode }
 
     if (!elements.length) return;
 
+    if (!("IntersectionObserver" in window)) {
+      elements.forEach((element) => element.classList.add("visible"));
+      return;
+    }
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {

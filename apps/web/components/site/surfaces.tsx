@@ -32,6 +32,12 @@ const FEATURES = [
     title: "QR ordering",
     paragraph: "Scan-to-order from the table — menu, cart and payment.",
   },
+  {
+    icon: "product",
+    title: "Product website",
+    paragraph:
+      "Launch a branded restaurant ecommerce website with menus, delivery radius, order capture, and store-ready online sales.",
+  },
 ] as const;
 
 export default function Surfaces() {
@@ -41,7 +47,7 @@ export default function Surfaces() {
         <SectionTitle
           subtitle="Features"
           title="Main Features Of pixaPOS"
-          paragraph="There are many variations of passages of Lorem Ipsum available but the majority have suffered alteration in some form."
+          paragraph="From single counters to multi-outlet food businesses, pixaPOS keeps billing, kitchen flow, stock, and customer retention connected in one operational system."
         />
 
         <div className="-mx-4 mt-8 flex flex-wrap lg:mt-12">

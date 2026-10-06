@@ -19,7 +19,7 @@ export default function Team() {
           <SectionTitle
             subtitle="Our Team"
             title="Meet Our Team"
-            paragraph="There are many variations of passages of Lorem Ipsum available but the majority have suffered alteration in some form."
+            paragraph="We build practical restaurant software for operators who need speed, accountability, and dependable day-to-day execution."
             width="640px"
             center
           />

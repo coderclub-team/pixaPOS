@@ -20,6 +20,10 @@ export type Plan = {
   tagline: string;
   monthly_paise: number | null; // null = custom (talk to sales)
   annual_discount_pct: number;
+  /** Regular annual total (monthly list × 12) before discount. null = custom. */
+  regular_paise: number | null;
+  /** Effective annual total after the annual discount. null = custom. */
+  discount_paise: number | null;
   cta: string;
   /** Optional CTA override — e.g. Custom plan goes to contact, not signup. */
   ctaHref?: string;
@@ -29,12 +33,24 @@ export type Plan = {
   limits?: LimitMap;
 };
 
+/** Derive the regular vs discounted annual prices from the catalog values. */
+export function planPricing(
+  monthlyPaise: number | null,
+  annualDiscountPct: number,
+): { regular_paise: number | null; discount_paise: number | null } {
+  if (monthlyPaise == null) return { regular_paise: null, discount_paise: null };
+  const regular = monthlyPaise * 12;
+  const discount = Math.round((regular * (100 - annualDiscountPct)) / 100);
+  return { regular_paise: regular, discount_paise: discount };
+}
+
 export const TRIAL_DAYS = 14;
 
 /** Starter and Growth share the full platform feature list (only limits differ). */
 export const CORE_FEATURES: string[] = [
   "Multi-outlet dashboard & reports",
   "Central menu, pricing & tax",
+  "Free restaurant ecommerce website with delivery radius control",
   "Online ordering, kiosk & QR ordering",
   "Inventory, batches & wastage",
   "Promos, rewards & customers",
@@ -47,7 +63,7 @@ export const CORE_FEATURES: string[] = [
   "Daily sales reports",
 ];
 
-export const PLANS: Plan[] = [
+const RAW_PLANS: Omit<Plan, "regular_paise" | "discount_paise">[] = [
   {
     id: "starter",
     name: "Starter",
@@ -76,14 +92,29 @@ export const PLANS: Plan[] = [
     cta: "Talk to sales",
     ctaHref: "/#contact",
     features: [
-      "Everything in Growth, across every outlet",
-      "Advanced support and onboarding",
-      "Custom workflows, expansions and data access",
-      "Franchise and group-level governance",
-      "Dedicated implementation and account support",
+      "Multi-store chains and franchise groups",
+      "Custom workflows, extra data access and integrations",
+      "API access, partner integrations and white-labeling",
+      "Advanced support and dedicated onboarding",
+      "Tailored governance for group operations and reporting",
     ],
   },
 ];
+
+export const PLANS: Plan[] = RAW_PLANS.map((p) => ({
+  ...p,
+  ...planPricing(p.monthly_paise, p.annual_discount_pct),
+}));
+
+export function sharedAnnualDiscountPct(plans: Plan[]): number {
+  const discounts = plans
+    .map((plan) => plan.annual_discount_pct)
+    .filter((value) => Number.isFinite(value) && value > 0);
+
+  if (discounts.length === 0) return 0;
+  const uniqueDiscounts = new Set(discounts);
+  return uniqueDiscounts.size === 1 ? discounts[0] : 0;
+}
 
 export function planPrice(plan: Plan, cycle: BillingCycle): number | null {
   if (plan.monthly_paise == null) return null;
