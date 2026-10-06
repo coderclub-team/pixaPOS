@@ -1,17 +1,18 @@
 import { desc } from "drizzle-orm";
 import { adminDb } from "@/lib/saas-admin";
-import { baMember, baOrganization, orgProfiles } from "@pixa/db";
+import { baMember, baOrganization, orgProfiles, orgUsage, saasPlans } from "@pixa/db";
+import { resolveLimits, type LimitMap } from "@pixa/db/plans";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@pixa/ui/base-ui/empty";
 import { Icons } from "@pixa/ui/icons";
 import Link from "next/link";
 import PageContainer from "@/components/layout/page-container";
-import { OrgList, type OrgRow } from "./org-list";
+import { OrgList, type OrgRow, type OrgUsageSummary } from "./org-list";
 
 export const dynamic = "force-dynamic";
 
-async function load(): Promise<OrgRow[] | null> {
+async function load(): Promise<{ rows: OrgRow[]; usage: Record<string, OrgUsageSummary> } | null> {
   try {
     const db = adminDb();
     const orgs = await db
@@ -24,23 +25,71 @@ async function load(): Promise<OrgRow[] | null> {
     const members = await db.select().from(baMember);
     const counts = new Map<string, number>();
     for (const m of members) counts.set(m.organizationId, (counts.get(m.organizationId) ?? 0) + 1);
-    return orgs.map((o) => ({
-      id: o.id,
-      name: o.name,
-      slug: o.slug,
-      createdAt: o.createdAt,
-      profile: pmap.get(o.id)
-        ? { lifecycle: pmap.get(o.id)!.lifecycle, plan: pmap.get(o.id)!.plan }
-        : null,
-      seats: counts.get(o.id) ?? 0,
-    }));
+
+    // Plan limit maps (DB rows, fallback to seeded defaults).
+    const planLimitMap = new Map<string, LimitMap>();
+    try {
+      for (const p of await db.select().from(saasPlans)) {
+        try {
+          planLimitMap.set(p.id, JSON.parse(p.limits) as LimitMap);
+        } catch {
+          /* ignore malformed */
+        }
+      }
+    } catch {
+      /* plans unavailable — defaults used below */
+    }
+
+    const usageRows = await db.select().from(orgUsage);
+    const umap = new Map(usageRows.map((u) => [u.organizationId, u]));
+
+    const usage: Record<string, OrgUsageSummary> = {};
+    for (const o of orgs) {
+      const profile = pmap.get(o.id);
+      const overrides = (() => {
+        try {
+          return profile?.planOverrides
+            ? (JSON.parse(profile.planOverrides) as Partial<LimitMap>)
+            : null;
+        } catch {
+          return null;
+        }
+      })();
+      const limits = { ...resolveLimits(profile?.plan ?? "starter", overrides) };
+      if (planLimitMap.has(profile?.plan ?? "starter")) {
+        for (const [k, v] of Object.entries(planLimitMap.get(profile?.plan ?? "starter")!)) {
+          if (typeof v === "number" || v === null) (limits as Record<string, unknown>)[k] = v;
+        }
+      }
+      const u = umap.get(o.id);
+      usage[o.id] = {
+        orders: u?.ordersCount ?? 0,
+        ordersLimit: limits.orders ?? null,
+        storageBytes: (u?.databaseStorageBytes ?? 0) + (u?.objectStorageBytes ?? 0),
+        storageLimit: (limits.databaseStorage ?? 0) + (limits.objectStorage ?? 0) || null,
+      };
+    }
+
+    return {
+      rows: orgs.map((o) => ({
+        id: o.id,
+        name: o.name,
+        slug: o.slug,
+        createdAt: o.createdAt,
+        profile: pmap.get(o.id)
+          ? { lifecycle: pmap.get(o.id)!.lifecycle, plan: pmap.get(o.id)!.plan }
+          : null,
+        seats: counts.get(o.id) ?? 0,
+      })),
+      usage,
+    };
   } catch {
     return null;
   }
 }
 
 export default async function OrgsPage() {
-  const rows = await load();
+  const data = await load();
 
   return (
     <PageContainer
@@ -53,7 +102,7 @@ export default async function OrgsPage() {
         </Button>
       }
     >
-      {!rows ? (
+      {!data ? (
         <Card className="border-dashed">
           <CardContent className="p-8 text-center">
             <Empty>
@@ -67,7 +116,7 @@ export default async function OrgsPage() {
           </CardContent>
         </Card>
       ) : (
-        <OrgList initial={rows} />
+        <OrgList initial={data.rows} usage={data.usage} />
       )}
     </PageContainer>
   );

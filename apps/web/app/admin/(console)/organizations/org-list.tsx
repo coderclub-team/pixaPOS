@@ -18,6 +18,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@pixa/ui/base-
 import { Icons } from "@pixa/ui/icons";
 import { Input } from "@pixa/ui/base-ui/input";
 import { Label } from "@pixa/ui/base-ui/label";
+import { Progress } from "@pixa/ui/base-ui/progress";
 import {
   Select,
   SelectContent,
@@ -41,6 +42,14 @@ import {
   useResponsiveTableRows,
 } from "@/components/admin/data-pagination";
 import { SortTh, useSorting } from "@/components/sort-th";
+import {
+  buildBar,
+  severityIndicatorClass,
+  formatBytes,
+  formatNumber,
+  type UsageBarData,
+} from "@/lib/usage-types";
+import { cn } from "@pixa/ui/lib/utils";
 
 export type OrgRow = {
   id: string;
@@ -49,6 +58,13 @@ export type OrgRow = {
   createdAt: string | Date;
   profile: { lifecycle: string | null; plan: string | null } | null;
   seats: number;
+};
+
+export type OrgUsageSummary = {
+  orders: number;
+  ordersLimit: number | null;
+  storageBytes: number;
+  storageLimit: number | null;
 };
 
 const LIFECYCLES = ["trial", "active", "past_due", "suspended", "churned"];
@@ -72,7 +88,47 @@ export function LifecycleBadge({ value }: { value: string }) {
   );
 }
 
-export function OrgList({ initial }: { initial: OrgRow[] }) {
+function fmt(value: number, limit: number | null, unit: "bytes" | "count" | "cuHours"): string {
+  const f = unit === "bytes" ? formatBytes : formatNumber;
+  return `${f(value)}/${limit === null ? "∞" : f(limit)}`;
+}
+
+function MiniBar({ label, bar }: { label: string; bar: UsageBarData }) {
+  return (
+    <div className="grid gap-1">
+      <div className="flex justify-between text-[10px] text-muted-foreground">
+        <span>{label}</span>
+        <span className="tabular-nums">{fmt(bar.current, bar.limit, bar.meta.unit)}</span>
+      </div>
+      <Progress
+        value={bar.limit === null ? 0 : bar.pct}
+        aria-label={`${label} usage`}
+        className={cn("w-full", severityIndicatorClass(bar.severity))}
+      />
+    </div>
+  );
+}
+
+function CompactUsage({ summary }: { summary?: OrgUsageSummary }) {
+  if (!summary) return <span className="text-xs text-muted-foreground">—</span>;
+  return (
+    <div className="grid w-40 gap-1.5">
+      <MiniBar label="Orders" bar={buildBar("orders", summary.orders, summary.ordersLimit)} />
+      <MiniBar
+        label="Storage"
+        bar={buildBar("databaseStorage", summary.storageBytes, summary.storageLimit)}
+      />
+    </div>
+  );
+}
+
+export function OrgList({
+  initial,
+  usage = {},
+}: {
+  initial: OrgRow[];
+  usage?: Record<string, OrgUsageSummary>;
+}) {
   const [search, setSearch] = useState("");
   const [lifecycle, setLifecycle] = useState("all");
   const { sortKey, sortDir, toggle, sorted } = useSorting<OrgRow>("createdAt", "desc");
@@ -179,6 +235,7 @@ export function OrgList({ initial }: { initial: OrgRow[] }) {
                       onToggle={toggle}
                     />
                   </TableHead>
+                  <TableHead>Usage</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -198,6 +255,9 @@ export function OrgList({ initial }: { initial: OrgRow[] }) {
                     <TableCell>{o.seats}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(o.createdAt).toLocaleDateString("en-IN")}
+                    </TableCell>
+                    <TableCell>
+                      <CompactUsage summary={usage[o.id]} />
                     </TableCell>
                     <TableCell className="text-right">
                       <OrgRowActions org={o} />

@@ -16,6 +16,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@pixa/ui/base-ui/empty";
 import { Icons } from "@pixa/ui/icons";
 import PageContainer from "@/components/layout/page-container";
+import { UsageBars, buildAllBars } from "@/components/billing/usage-bars";
+import { getLimits, getPlan } from "@/lib/entitlements";
+import { getUsageSnapshot } from "@/lib/usage";
 import { LifecycleBadge } from "../org-list";
 import { OrgActions } from "./actions";
 
@@ -28,11 +31,11 @@ export default async function OrgDetail({ params }: { params: Promise<{ id: stri
     members: unknown[] = [],
     invites: unknown[] = [],
     plans: { id: string; name: string }[] = [];
+  let dbDown = false;
   try {
     const db = adminDb();
     const rows = await db.select().from(baOrganization).where(eq(baOrganization.id, id));
     org = rows[0];
-    if (!org) notFound();
     profile =
       (await db.select().from(orgProfiles).where(eq(orgProfiles.organizationId, id)))[0] ?? null;
     members = await db.select().from(baMember).where(eq(baMember.organizationId, id));
@@ -41,6 +44,10 @@ export default async function OrgDetail({ params }: { params: Promise<{ id: stri
       (p) => ({ id: p.id, name: p.name }),
     );
   } catch {
+    dbDown = true;
+  }
+
+  if (dbDown) {
     return (
       <PageContainer pageTitle="Organisation">
         <Card className="border-dashed">
@@ -58,6 +65,14 @@ export default async function OrgDetail({ params }: { params: Promise<{ id: stri
       </PageContainer>
     );
   }
+  if (!org) notFound();
+
+  const [planInfo, limits, snapshot] = await Promise.all([
+    getPlan(id),
+    getLimits(id),
+    getUsageSnapshot(id),
+  ]);
+  const bars = buildAllBars(snapshot.usage, limits);
 
   return (
     <PageContainer
@@ -113,6 +128,27 @@ export default async function OrgDetail({ params }: { params: Promise<{ id: stri
             </CardContent>
           </Card>
         </div>
+
+        <UsageBars
+          variant="admin"
+          planName={planInfo.name}
+          planPriceLabel={
+            planInfo.monthlyPaise === null
+              ? "Custom"
+              : planInfo.monthlyPaise === 0
+                ? "Free"
+                : `₹${(planInfo.monthlyPaise / 100).toLocaleString("en-IN")}/mo`
+          }
+          bars={bars}
+          periodLabel={`${new Date(snapshot.periodStart).toLocaleDateString("en-IN")} – ${new Date(
+            snapshot.periodEnd,
+          ).toLocaleDateString("en-IN")}`}
+          syncLabel={
+            snapshot.infraSyncedAt
+              ? `Infra synced ${new Date(snapshot.infraSyncedAt).toLocaleString("en-IN")}`
+              : "Infra sync pending"
+          }
+        />
 
         <Card>
           <CardHeader>

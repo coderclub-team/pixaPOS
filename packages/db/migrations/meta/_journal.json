@@ -50,6 +50,13 @@
       "when": 1791212744171,
       "tag": "0006_loving_the_initiative",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791270249050,
+      "tag": "0007_awesome_dragon_man",
+      "breakpoints": true
     }
   ]
 }

@@ -43,6 +43,8 @@ export const orgProfiles = pgTable("org_profiles", {
   organizationId: text("organization_id").primaryKey(),
   lifecycle: text("lifecycle").default("trial").notNull(),
   plan: text("plan").default("starter").notNull(),
+  /** JSON map of organization-specific limit overrides (ResourceLimit → number). */
+  planOverrides: text("plan_overrides"),
   trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
   mrrPaise: integer("mrr_paise").default(0).notNull(),
   ownerEmail: text("owner_email"),
@@ -99,12 +101,51 @@ export const saasPlans = pgTable("saas_plans", {
   monthlyPaise: integer("monthly_paise"),
   annualDiscountPct: integer("annual_discount_pct").default(0).notNull(),
   features: text("features").notNull().default("[]"),
+  /** JSON map of resource limits (ResourceLimit → number|null). */
+  limits: text("limits").notNull().default("{}"),
+  /** JSON map of boolean feature flags (Feature → boolean). */
+  flags: text("flags").notNull().default("{}"),
   outletLimit: integer("outlet_limit"),
   sortOrder: integer("sort_order").default(0).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/**
+ * Per-organization usage snapshot. Product counts are recomputed live from
+ * operational tables; infrastructure metrics (storage/compute/functions/
+ * transfer/written data) are synchronized periodically from Neon consumption
+ * data. Monthly resources reset with the billing period; persistent resources
+ * do not. One row per organization (current period).
+ */
+export const orgUsage = pgTable(
+  "org_usage",
+  {
+    organizationId: text("organization_id").primaryKey(),
+    periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+    periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
+
+    databaseStorageBytes: integer("database_storage_bytes").default(0).notNull(),
+    objectStorageBytes: integer("object_storage_bytes").default(0).notNull(),
+
+    computeCuHours: integer("compute_cu_hours").default(0).notNull(),
+    functionInvocations: integer("function_invocations").default(0).notNull(),
+    dataTransferBytes: integer("data_transfer_bytes").default(0).notNull(),
+    writtenDataBytes: integer("written_data_bytes").default(0).notNull(),
+
+    ordersCount: integer("orders_count").default(0).notNull(),
+    productsCount: integer("products_count").default(0).notNull(),
+    customersCount: integer("customers_count").default(0).notNull(),
+    usersCount: integer("users_count").default(0).notNull(),
+    outletsCount: integer("outlets_count").default(0).notNull(),
+    devicesCount: integer("devices_count").default(0).notNull(),
+
+    infraSyncedAt: timestamp("infra_synced_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("org_usage_period_idx").on(t.periodStart)],
+);
 
 /** Server-side owner sessions (opaque bearer, sha256 at rest, revocable).
  * Checked per request from the `pixa_owner` httpOnly cookie. */
