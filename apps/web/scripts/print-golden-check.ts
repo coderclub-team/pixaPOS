@@ -4,7 +4,14 @@
  * and asserts ESC/POS framing bytes. Exits non-zero on any failure.
  */
 import { buildBillDoc, buildKOTDoc, buildTokenDoc } from "../features/print-studio/api/docs";
-import { charsFor, cutBytes, renderEscPos, renderText } from "../features/print-studio/api/render";
+import {
+  charsFor,
+  cutBytes,
+  qrBytes,
+  rasterBytes,
+  renderEscPos,
+  renderText,
+} from "../features/print-studio/api/render";
 import { PAPER_PROFILES, type PaperSize } from "../features/print-studio/api/types";
 import type { BillingView } from "../features/orders/api/types";
 import type { Payment } from "../features/payments/api/types";
@@ -13,6 +20,10 @@ import type { Outlet } from "../features/outlet/api/types";
 import type { PrintTemplate } from "../features/print-studio/api/types";
 import { activeUpiId } from "../features/outlet/api/types";
 import { enqueuePrint } from "../features/print-studio/api/service";
+import { floydSteinberg } from "../features/print-studio/api/logo";
+import { defaultQrMode } from "../features/print-studio/api/service";
+import { effectiveChars, effectiveDots } from "../features/print-studio/api/types";
+import { printerSupportsRaster } from "../features/print-studio/api/service";
 
 let failures = 0;
 function check(name: string, cond: boolean, extra = ""): void {
@@ -41,6 +52,7 @@ function template(purpose: PrintTemplate["purpose"]): PrintTemplate {
     outlet_id: "out_001",
     purpose,
     show_logo: false,
+    paper: "PRINTER",
     header_lines: ["Spice Route"],
     show_outlet_address: true,
     show_gstin: true,
@@ -216,6 +228,19 @@ for (const paper of papers) {
     `qr framing valid ${paper}`,
     joined.includes(String.fromCharCode(0x1d, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41)),
   );
+  // QR store carries the Epson mode byte 0x30 (31 50 30) by default —
+  // python-escpos convention for real hardware. Opt-out variant (escpresso)
+  // drops it and shortens pL by one.
+  check(`qr store mode byte ${paper}`, joined.includes(String.fromCharCode(0x31, 0x50, 0x30)));
+  {
+    const noMode = qrBytes("upi://pay?pa=a@b", false);
+    const hex = String.fromCharCode(...noMode);
+    check(
+      `qr opt-out drops mode byte ${paper}`,
+      !hex.includes(String.fromCharCode(0x31, 0x50, 0x30)) &&
+        hex.includes(String.fromCharCode(0x1d, 0x28, 0x6b)),
+    );
+  }
   check(
     `ascii only ${paper}`,
     billText.every((l) => [...l].every((ch) => ch.charCodeAt(0) < 128)),
@@ -281,10 +306,117 @@ for (const paper of papers) {
 console.log(failures === 0 ? "\nALL GOLDEN CHECKS PASSED (sync)" : `\n${failures} FAILURES`);
 
 async function asyncChecks(): Promise<void> {
-  // Never-throw enqueue: missing order / no printer leaves a FAILED trace.
+  // Logo raster framing: 16x8 checkerboard -> GS v 0 m=0, xL=2, yL=8, 16 bytes.
+  const checker = Array.from({ length: 8 }, (_, y) =>
+    Array.from({ length: 16 }, (_, x) => (x + y) % 2 === 0),
+  );
+  const raster = rasterBytes(checker);
+  check(
+    "raster framing",
+    raster[0] === 0x1d &&
+      raster[1] === 0x76 &&
+      raster[2] === 0x30 &&
+      raster[3] === 0x00 &&
+      raster[4] === 2 &&
+      raster[5] === 0 &&
+      raster[6] === 8 &&
+      raster[7] === 0 &&
+      raster.length === 8 + 16,
+  );
+  const logoBill = buildBillDoc({
+    billing,
+    payments,
+    outlet,
+    template: template("BILL"),
+    logoRows: checker,
+  });
+  check("logo bill starts with image", logoBill.lines[0].kind === "image");
+  check("logo preview marker", renderText(logoBill, "P80")[0].includes("[LOGO]"));
+  const logoKot = buildKOTDoc({ ticket, outlet, template: template("KOT"), logoRows: checker });
+  check("logo KOT starts with image", logoKot.lines[0].kind === "image");
+  const logoToken = buildTokenDoc({
+    orderNumber: "A-1024",
+    tokenNo: "T-42",
+    outlet,
+    template: template("TOKEN"),
+    logoRows: checker,
+  });
+  check("logo token starts with image", logoToken.lines[0].kind === "image");
+  // Tracking QR: ORDER kind + base URL prints it on token and KOT.
+  const trackedToken = buildTokenDoc({
+    orderNumber: "A-1024",
+    tokenNo: "T-42",
+    outlet,
+    template: {
+      ...template("TOKEN"),
+      qr: "ORDER",
+      tracking_base_url: "https://order.pixapos.store/t/",
+    },
+    trackingUrl: "https://order.pixapos.store/t/T-42",
+  });
+  check(
+    "token tracking QR prints",
+    renderText(trackedToken, "P80").some((l) => l.includes("[QR]")),
+  );
+  const trackedKot = buildKOTDoc({
+    ticket,
+    outlet,
+    template: { ...template("KOT"), qr: "ORDER" },
+    trackingUrl: "https://order.pixapos.store/t/A-1024",
+  });
+  check(
+    "KOT tracking QR prints",
+    renderText(trackedKot, "P80").some((l) => l.includes("[QR]")),
+  );
+  const quietKot = buildKOTDoc({ ticket, outlet, template: template("KOT") });
+  check("KOT default has no QR", !renderText(quietKot, "P80").some((l) => l.includes("[QR]")));
+  // Dither preserves tone: 32-step gray ramp should heat ~half the dots
+  // (flat threshold would cliff at the midpoint with banding).
+  const ramp = Array.from({ length: 16 }, () =>
+    Array.from({ length: 32 }, (_, x) => Math.round((x / 31) * 255)),
+  );
+  const dithered = floydSteinberg(ramp);
+  const total = 16 * 32;
+  const heated = dithered.flat().filter(Boolean).length;
+  const ratio = heated / total;
+  check("dither keeps dims", dithered.length === 16 && dithered.every((r) => r.length === 32));
+  check("dither preserves mid tone", ratio > 0.4 && ratio < 0.6, `ratio=${ratio.toFixed(2)}`);
+  const leftHeat = dithered.flatMap((r) => r.slice(0, 8)).filter(Boolean).length;
+  const rightHeat = dithered.flatMap((r) => r.slice(24)).filter(Boolean).length;
+  check("dither gradients dark-to-light", leftHeat > rightHeat + 40);
+  // QR mode default: explicit wins; dev hosts compatible, real domains spec.
+  const noprinter = {};
+  check("qr explicit wins", defaultQrMode({ qr_mode_byte: true } as never, "localhost") === true);
+  check("qr localhost compatible", defaultQrMode(noprinter as never, "localhost") === false);
+  check(
+    "qr vercel preview compatible",
+    defaultQrMode(noprinter as never, "pixapos-dev.vercel.app") === false,
+  );
+  check("qr real domain spec", defaultQrMode(noprinter as never, "app.pixapos.store") === true);
+  // Template paper resolution: printer override > template > printer profile.
+  check(
+    "printer override wins",
+    effectiveChars({ paper: "P58" }, { paper: "P80", chars_per_line: 42 }) === 42,
+  );
+  check("template fixed wins", effectiveChars({ paper: "P58" }, { paper: "P80" }) === 48);
+  check(
+    "template PRINTER follows printer",
+    effectiveChars({ paper: "PRINTER" }, { paper: "P78" }) === 72,
+  );
+  check("dots follow chars", effectiveDots({ paper: "P58" }, { paper: "P80" }) === 384);
+  // Raster capability: explicit flag wins; localhost unset means incapable.
+  const lan = { address: "192.168.1.50" } as never;
+  const local = { address: "localhost" } as never;
+  check("lan unset capable", printerSupportsRaster(lan) === true);
+  check("localhost unset incapable", printerSupportsRaster(local) === false);
+  check(
+    "explicit wins",
+    printerSupportsRaster({ address: "localhost", supports_raster: true } as never) === true &&
+      printerSupportsRaster({ address: "192.168.1.50", supports_raster: false } as never) === false,
+  ); // Never-throw enqueue: missing order / no printer leaves a FAILED trace.
   const job = await enqueuePrint("BILL", "order_that_does_not_exist");
   check("failed assemble parks FAILED job", job.status === "FAILED" && !!job.last_error);
-
+  check("parked job carries gate reasons", job.qr === "error");
   // Multi-UPI default resolution: exactly one default feeds the QR.
   const multi = {
     upi_ids: [

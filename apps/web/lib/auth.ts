@@ -70,6 +70,7 @@ let cached: AuthInstance | null = null;
 function getAuth(): AuthInstance {
   if (!cached) {
     cached = betterAuth({
+      baseURL: process.env.BETTER_AUTH_URL,
       database: drizzleAdapter(db(), {
         provider: "pg",
         schema: {
@@ -83,6 +84,61 @@ function getAuth(): AuthInstance {
         },
       }),
       emailAndPassword: { enabled: true },
+      // Single-app subdomains: every product host below serves this same
+      // Next.js app (see lib/hosts.ts). Local + LAN origins included —
+      // local.pixapos.store has a real public suffix so origin checks pass
+      // where bare .local names are rejected.
+      trustedOrigins: [
+        "http://localhost:3000",
+        "https://localhost:3000",
+        "http://localhost:443",
+        "https://localhost:443",
+        "http://local.pixapos.store:3000",
+        "https://local.pixapos.store:3000",
+        "https://local.pixapos.store",
+        "https://admin.local.pixapos.store",
+        "https://app.local.pixapos.store",
+        "https://pos.local.pixapos.store",
+        "https://kot.local.pixapos.store",
+        "https://kds.local.pixapos.store",
+        "https://kiosk.local.pixapos.store",
+        "https://order.local.pixapos.store",
+        "https://shop.local.pixapos.store",
+        "https://pixapos.store",
+        "https://www.pixapos.store",
+        "https://develop.pixapos.store",
+        "https://app.develop.pixapos.store",
+        "https://admin.develop.pixapos.store",
+        "https://pos.develop.pixapos.store",
+        "https://captain.develop.pixapos.store",
+        "https://kot.develop.pixapos.store",
+        "https://kds.develop.pixapos.store",
+        "https://kiosk.develop.pixapos.store",
+        "https://order.develop.pixapos.store",
+        "https://qr.develop.pixapos.store",
+        "https://shop.develop.pixapos.store",
+        "https://admin.pixapos.store",
+        "https://app.pixapos.store",
+        "https://pos.pixapos.store",
+        "https://kot.pixapos.store",
+        "https://kds.pixapos.store",
+        "https://kiosk.pixapos.store",
+        "https://order.pixapos.store",
+        "https://shop.pixapos.store",
+      ],
+      // Cross-subdomain session: production cookies are scoped to the parent
+      // domain so one sign-in works on app/pos/kds/... Default cookie names
+      // are kept (changing the prefix would orphan live sessions).
+      // Localhost keeps host-only cookies (a domain cookie would break local
+      // logins). Never use the hostname as authorization — gates check
+      // session + role.
+      ...(process.env.COOKIE_DOMAIN
+        ? {
+            advanced: {
+              crossSubDomainCookies: { enabled: true, domain: process.env.COOKIE_DOMAIN },
+            },
+          }
+        : {}),
       // Google is registered only when credentials exist — email/password
       // keeps working in environments without OAuth configured.
       ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET

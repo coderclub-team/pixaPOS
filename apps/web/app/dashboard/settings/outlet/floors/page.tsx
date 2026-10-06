@@ -10,6 +10,10 @@ import { Input } from "@pixa/ui/base-ui/input";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
+import { ExportButton, ImportDialog } from "@/features/system/components/io-dialog";
+import { floorColumns, floorSample, importFloors } from "@/features/floor/lib/io";
+import { floorKeys } from "@/features/floor/api/queries";
+import { getQueryClient } from "@/lib/query-client";
 
 export default function FloorsPage() {
   const [search, setSearch] = React.useState("");
@@ -44,13 +48,24 @@ export default function FloorsPage() {
         </Link>
       }
     >
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <Input
           placeholder="Search floors by name or code..."
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           className="max-w-sm"
         />
+        <span className="ml-auto flex gap-2">
+          <ExportButton filename="floors" rows={floors ?? []} columns={floorColumns} />
+          <ImportDialog
+            title="Bulk import floors"
+            sampleFilename="floors"
+            columns={floorColumns}
+            sampleRows={floorSample}
+            onImport={importFloors}
+            onDone={() => getQueryClient().invalidateQueries({ queryKey: floorKeys.all })}
+          />
+        </span>
       </div>
 
       <FloorList floors={floors ?? []} />

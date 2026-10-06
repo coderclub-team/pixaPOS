@@ -36,12 +36,23 @@ import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { SortTh, useSorting } from "@/components/sort-th";
 
 interface TableListProps {
   tables: RestaurantTable[];
 }
 
 export function TableList({ tables }: TableListProps) {
+  const { sortKey, sortDir, toggle, sorted } = useSorting<RestaurantTable>("number");
+  const rows = sorted(tables, {
+    number: (t) => t.number,
+    floor: (t) => t.floor_name ?? t.floor_id,
+    capacity: (t) => t.capacity,
+    shape: (t) => t.shape,
+    sharing: (t) => t.allows_sharing,
+    status: (t) => t.status,
+  });
+
   if (tables.length === 0) {
     return (
       <Card>
@@ -67,17 +78,65 @@ export function TableList({ tables }: TableListProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Table</TableHead>
-              <TableHead>Floor</TableHead>
-              <TableHead>Capacity</TableHead>
-              <TableHead>Shape</TableHead>
-              <TableHead>Sharing</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>
+                <SortTh
+                  label="Table"
+                  column="number"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Floor"
+                  column="floor"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Capacity"
+                  column="capacity"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Shape"
+                  column="shape"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Sharing"
+                  column="sharing"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Status"
+                  column="status"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {tables.map((table) => (
+            {rows.map((table) => (
               <TableRow key={table.id}>
                 <TableCell>
                   <div className="flex items-center gap-2">

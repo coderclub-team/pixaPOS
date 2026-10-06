@@ -430,10 +430,48 @@ let mockPurchaseOrders: PurchaseOrder[] = [
   },
 ];
 const PO_STORAGE_KEY = "pixaPOs";
+
+/** Durable SQLite mirror (fire-and-forget; repo never throws). Only
+ * purchase orders persist today — materials/recipes/ledger are seed-static
+ * and rehydrate from code. */
+function mirrorPOs() {
+  if (typeof window === "undefined") return;
+  import("@/lib/db/repo").then(({ writeScope }) => {
+    void writeScope(
+      "purchase_orders",
+      mockPurchaseOrders.map((p) => ({
+        id: (p as { id: string }).id,
+        outlet_id: (p as { outlet_id?: string }).outlet_id ?? null,
+        data: p,
+        version: (p as { version?: number }).version ?? 1,
+        updated_at: (p as { updated_at?: string }).updated_at ?? new Date().toISOString(),
+        deleted_at: (p as { deleted_at?: string | null }).deleted_at ?? null,
+      })),
+    );
+  });
+}
+
+/** Adopt the durable mirror on app startup — only when localStorage is
+ * missing/empty. Never overwrites existing localStorage. */
+export async function hydrateInventoryFromMirror(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(PO_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(parsed) && parsed.length > 0) return;
+    const { readScope } = await import("@/lib/db/repo");
+    const docs = await readScope("purchase_orders");
+    if (docs.length === 0) return;
+    localStorage.setItem(PO_STORAGE_KEY, JSON.stringify(docs.map((d) => d.data)));
+    loadPOs();
+  } catch {}
+}
+
 function savePOs() {
   if (typeof window !== "undefined") {
     try {
       localStorage.setItem(PO_STORAGE_KEY, JSON.stringify(mockPurchaseOrders));
+      mirrorPOs();
     } catch {}
   }
 }
@@ -1263,6 +1301,17 @@ function applyStockForPurchase(pur: Purchase) {
     mockRawMaterials[matIdx].avg_cost = roundedAvg;
     mockRawMaterials[matIdx].cost_price = item.unit_cost;
     mockRawMaterials[matIdx].updated_at = new Date().toISOString();
+    const batch = receiveBatch({
+      material_id: item.material_id,
+      material_name: mockRawMaterials[matIdx].name,
+      qty: item.qty,
+      batch_no: (item as any).batch_no,
+      mfg_date: (item as any).mfg_date,
+      expiry_date: (item as any).expiry_date,
+      location_id: (item as any).location_id,
+      purchase_id: pur.id,
+      supplier_name: pur.supplier_name,
+    });
     mockStockLedger.push({
       id: `stk_${Date.now().toString(36)}_${item.material_id}`,
       material_id: item.material_id,
@@ -1271,6 +1320,9 @@ function applyStockForPurchase(pur: Purchase) {
       qty_delta: item.qty,
       reason: pur.purchase_number + (landed > 0 ? ` + landed ₹${landedShare.toFixed(2)}` : ""),
       reference_id: pur.id,
+      lot_number: batch.batch_no,
+      expiry_date: batch.expiry_date,
+      location_id: batch.location_id,
       previous_qty: prev,
       new_qty: newQty,
       unit_cost: Math.round(effectiveUnitCost * 100) / 100,
@@ -1327,11 +1379,9 @@ export async function createPurchase(payload: PurchasePayload): Promise<Purchase
   // Standard: only sent POs can be billed, and only once (invoiced hidden)
   if (po) {
     if (po.status !== "sent")
-      throw new Error("Only sent POs can be billed (Odoo: draft/received/cancelled not billable)");
+      throw new Error("Only sent POs can be billed (draft/received/cancelled not billable)");
     if (mockPurchases.some((p) => p.po_id === po.id))
-      throw new Error(
-        "PO already billed — duplicate purchase not allowed (Odoo: already invoiced)",
-      );
+      throw new Error("PO already billed — duplicate purchase not allowed (already invoiced)");
   }
   const enriched = payload.items.map((it) => ({
     material_id: it.material_id,
@@ -1580,14 +1630,20 @@ function applyStockForReturn(ret: PurchaseReturn) {
     mockRawMaterials[matIdx].stock_qty = newQty;
     mockRawMaterials[matIdx].avg_cost = roundedAvg;
     mockRawMaterials[matIdx].updated_at = new Date().toISOString();
+    const retPicks = consumeBatchesFEFO(item.material_id, item.qty_returned);
     mockStockLedger.push({
       id: `stk_${Date.now().toString(36)}_${item.material_id}_ret`,
       material_id: item.material_id,
       material_name: mockRawMaterials[matIdx].name,
       type: "purchase_return",
       qty_delta: -item.qty_returned,
-      reason: ret.return_number,
+      reason:
+        ret.return_number +
+        (retPicks.length > 0
+          ? ` [${retPicks.map((p) => `${p.batch_no}×${p.qty}`).join(", ")}]`
+          : ""),
       reference_id: ret.id,
+      lot_number: retPicks[0]?.batch_no,
       previous_qty: prev,
       new_qty: newQty,
       unit_cost: item.unit_cost,
@@ -1944,6 +2000,7 @@ export async function createWasteLog(payload: WastePayload): Promise<WasteLog> {
   const mat = payload.material_id ? materials[payload.material_id] : undefined;
   const costLoss = (mat?.avg_cost ?? 0) * payload.qty;
   const prev = mat?.stock_qty ?? 0;
+  const picks = payload.material_id ? consumeBatchesFEFO(payload.material_id, payload.qty) : [];
   if (mat) {
     const newQty = Math.max(0, prev - payload.qty);
     const idx = mockRawMaterials.findIndex((m) => m.id === payload.material_id);
@@ -1956,8 +2013,11 @@ export async function createWasteLog(payload: WastePayload): Promise<WasteLog> {
         material_name: mat.name,
         type: "waste",
         qty_delta: -payload.qty,
-        reason: payload.reason,
+        reason:
+          payload.reason +
+          (picks.length > 0 ? ` [${picks.map((p) => `${p.batch_no}×${p.qty}`).join(", ")}]` : ""),
         reference_id: "",
+        lot_number: picks[0]?.batch_no,
         previous_qty: prev,
         new_qty: newQty,
         unit_cost: mat.avg_cost,
@@ -2043,6 +2103,7 @@ export async function recordWasteForCancelledOrder(
     const unitCost = mat?.avg_cost ?? 0;
     const costLoss = Math.round(unitCost * a.qty * 100) / 100;
     const prev = mat?.stock_qty ?? 0;
+    const picks = consumeBatchesFEFO(material_id, a.qty);
     if (mat) {
       const newQty = Math.max(0, prev - a.qty);
       const idx = mockRawMaterials.findIndex((m) => m.id === material_id);
@@ -2055,8 +2116,9 @@ export async function recordWasteForCancelledOrder(
           material_name: mat.name,
           type: "waste",
           qty_delta: -a.qty,
-          reason: `order_cancelled ${input.order_number ?? input.order_id}`,
+          reason: `order_cancelled ${input.order_number ?? input.order_id}${picks.length > 0 ? ` [${picks.map((p) => `${p.batch_no}×${p.qty}`).join(", ")}]` : ""}`,
           reference_id: input.order_id,
+          lot_number: picks[0]?.batch_no,
           previous_qty: prev,
           new_qty: newQty,
           unit_cost: mat.avg_cost,
@@ -2398,4 +2460,324 @@ export async function getSupplierPriceComparison(materialId: string) {
     supplier_name: mockSuppliers.find((s) => s.id === g.supplier_id)?.name ?? g.supplier_id,
     avg_cost: Math.round(g.avg_cost * 100) / 100,
   }));
+}
+
+/* ------------------------------------------------------------------ */
+/* Storage locations + goods batches (lot/mfg/expiry, FEFO)            */
+/* ------------------------------------------------------------------ */
+
+const LOC_KEY = "pixaLocations";
+const BATCH_KEY = "pixaBatches";
+const BATCH_BACKFILL_KEY = "pixaBatchesBackfilled";
+
+let mockLocations: import("./types").StorageLocation[] = [];
+let mockBatches: import("./types").StockBatch[] = [];
+let batchLoaded = false;
+
+function defaultLocations(): import("./types").StorageLocation[] {
+  const now = new Date().toISOString();
+  return [
+    {
+      id: "loc_main",
+      name: "Main Store",
+      floor: "Ground",
+      rack: "A1",
+      is_active: true,
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      id: "loc_kitchen",
+      name: "Kitchen",
+      floor: "First",
+      rack: "B1",
+      is_active: true,
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      id: "loc_cold",
+      name: "Cold Room",
+      floor: "Ground",
+      rack: "C1",
+      is_active: true,
+      created_at: now,
+      updated_at: now,
+    },
+  ];
+}
+
+function loadBatches() {
+  if (batchLoaded) return;
+  batchLoaded = true;
+  try {
+    const raw = localStorage.getItem(LOC_KEY);
+    mockLocations = raw ? (JSON.parse(raw).locations ?? defaultLocations()) : defaultLocations();
+  } catch {
+    mockLocations = defaultLocations();
+  }
+  try {
+    const raw = localStorage.getItem(BATCH_KEY);
+    mockBatches = raw ? (JSON.parse(raw).batches ?? []) : [];
+  } catch {
+    mockBatches = [];
+  }
+  // One OPENING batch per stocked material (legacy stock attribution).
+  try {
+    if (!localStorage.getItem(BATCH_BACKFILL_KEY)) {
+      const now = new Date().toISOString();
+      const loc = mockLocations[0]?.id;
+      for (const m of mockRawMaterials) {
+        if (m.stock_qty > 0 && !mockBatches.some((b) => b.material_id === m.id)) {
+          mockBatches.push({
+            id: `bt_${Date.now().toString(36)}_${m.id}`,
+            material_id: m.id,
+            material_name: m.name,
+            batch_no: "OPENING",
+            qty_received: m.stock_qty,
+            qty_on_hand: m.stock_qty,
+            location_id: loc,
+            location_name: mockLocations[0]?.name,
+            status: "active",
+            created_at: now,
+            updated_at: now,
+          });
+        }
+      }
+      localStorage.setItem(BATCH_BACKFILL_KEY, "1");
+      saveBatches();
+    }
+  } catch {}
+}
+
+function saveBatches() {
+  try {
+    localStorage.setItem(LOC_KEY, JSON.stringify({ locations: mockLocations }));
+    localStorage.setItem(BATCH_KEY, JSON.stringify({ batches: mockBatches }));
+  } catch {}
+}
+
+function locationName(id?: string): string | undefined {
+  return mockLocations.find((l) => l.id === id)?.name;
+}
+
+export async function getStorageLocations(): Promise<import("./types").StorageLocation[]> {
+  await delay(150);
+  loadBatches();
+  return [...mockLocations].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function createStorageLocation(
+  payload: import("./types").StorageLocationPayload,
+): Promise<import("./types").StorageLocation> {
+  await delay(300);
+  loadBatches();
+  if (!payload.name?.trim()) throw new Error("Location name is required");
+  const now = new Date().toISOString();
+  const loc: import("./types").StorageLocation = {
+    id: `loc_${Date.now().toString(36)}`,
+    name: payload.name.trim(),
+    floor: payload.floor?.trim() || undefined,
+    rack: payload.rack?.trim() || undefined,
+    column: payload.column?.trim() || undefined,
+    is_active: payload.is_active ?? true,
+    created_at: now,
+    updated_at: now,
+  };
+  mockLocations.push(loc);
+  saveBatches();
+  return { ...loc };
+}
+
+export async function updateStorageLocation(
+  id: string,
+  payload: Partial<import("./types").StorageLocationPayload>,
+): Promise<import("./types").StorageLocation> {
+  await delay(300);
+  loadBatches();
+  const idx = mockLocations.findIndex((l) => l.id === id);
+  if (idx === -1) throw new Error("Location not found");
+  mockLocations[idx] = { ...mockLocations[idx], ...payload, updated_at: new Date().toISOString() };
+  for (const b of mockBatches) {
+    if (b.location_id === id) b.location_name = mockLocations[idx].name;
+  }
+  saveBatches();
+  return { ...mockLocations[idx] };
+}
+
+/** Delete a location — blocked while stocked batches live there. */
+export async function deleteStorageLocation(id: string): Promise<void> {
+  await delay(300);
+  loadBatches();
+  const idx = mockLocations.findIndex((l) => l.id === id);
+  if (idx === -1) throw new Error("Location not found");
+  const residents = mockBatches.filter((b) => b.location_id === id && b.qty_on_hand > 0);
+  if (residents.length > 0) {
+    const names = [...new Set(residents.map((b) => b.material_name ?? b.batch_no))].slice(0, 3);
+    throw new Error(
+      `Move stock out first — ${residents.length} batch${residents.length === 1 ? "" : "es"} live here (${names.join(", ")})`,
+    );
+  }
+  for (const b of mockBatches) {
+    if (b.location_id === id) {
+      b.location_id = undefined;
+      b.location_name = undefined;
+    }
+  }
+  mockLocations.splice(idx, 1);
+  saveBatches();
+}
+
+export async function getBatches(
+  filters?: import("./types").BatchFilters,
+): Promise<import("./types").StockBatch[]> {
+  await delay(250);
+  loadBatches();
+  refreshBatchStatus();
+  let r = [...mockBatches].sort((a, b) =>
+    (a.expiry_date ?? "9999") < (b.expiry_date ?? "9999") ? -1 : 1,
+  );
+  if (filters?.material_id) r = r.filter((b) => b.material_id === filters.material_id);
+  if (filters?.location_id) r = r.filter((b) => b.location_id === filters.location_id);
+  if (filters?.status) r = r.filter((b) => b.status === filters.status);
+  if (filters?.expired) {
+    const today = new Date().toISOString().slice(0, 10);
+    r = r.filter((b) => (b.expiry_date ?? "9999") < today && b.qty_on_hand > 0);
+  }
+  if (filters?.expiring_within_days != null) {
+    const cut = new Date(Date.now() + filters.expiring_within_days * 86400000)
+      .toISOString()
+      .slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    r = r.filter(
+      (b) =>
+        b.qty_on_hand > 0 && (b.expiry_date ?? "9999") >= today && (b.expiry_date ?? "9999") <= cut,
+    );
+  }
+  if (filters?.search) {
+    const q = filters.search.toLowerCase();
+    r = r.filter(
+      (b) =>
+        b.batch_no.toLowerCase().includes(q) || (b.material_name ?? "").toLowerCase().includes(q),
+    );
+  }
+  return r;
+}
+
+function refreshBatchStatus() {
+  const today = new Date().toISOString().slice(0, 10);
+  for (const b of mockBatches) {
+    b.status =
+      b.qty_on_hand <= 0 ? "exhausted" : (b.expiry_date ?? "9999") < today ? "expired" : "active";
+  }
+}
+
+export async function updateBatch(
+  id: string,
+  payload: { mfg_date?: string; expiry_date?: string; location_id?: string },
+): Promise<import("./types").StockBatch> {
+  await delay(300);
+  loadBatches();
+  const idx = mockBatches.findIndex((b) => b.id === id);
+  if (idx === -1) throw new Error("Batch not found");
+  if (payload.mfg_date && payload.expiry_date && payload.mfg_date > payload.expiry_date)
+    throw new Error("Mfg date must be before expiry");
+  mockBatches[idx] = {
+    ...mockBatches[idx],
+    mfg_date: payload.mfg_date ?? mockBatches[idx].mfg_date,
+    expiry_date: payload.expiry_date ?? mockBatches[idx].expiry_date,
+    location_id: payload.location_id ?? mockBatches[idx].location_id,
+    location_name: payload.location_id
+      ? locationName(payload.location_id)
+      : mockBatches[idx].location_name,
+    updated_at: new Date().toISOString(),
+  };
+  refreshBatchStatus();
+  saveBatches();
+  return { ...mockBatches[idx] };
+}
+
+/** Create a receipt batch (called from applyStockForPurchase). */
+export function receiveBatch(o: {
+  material_id: string;
+  material_name: string;
+  qty: number;
+  batch_no?: string;
+  mfg_date?: string;
+  expiry_date?: string;
+  location_id?: string;
+  purchase_id?: string;
+  supplier_name?: string;
+}): import("./types").StockBatch {
+  loadBatches();
+  const now = new Date().toISOString();
+  const b: import("./types").StockBatch = {
+    id: `bt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    material_id: o.material_id,
+    material_name: o.material_name,
+    batch_no: o.batch_no?.trim() || "AUTO",
+    mfg_date: o.mfg_date,
+    expiry_date: o.expiry_date,
+    qty_received: o.qty,
+    qty_on_hand: o.qty,
+    location_id: o.location_id ?? mockLocations[0]?.id,
+    location_name: locationName(o.location_id ?? mockLocations[0]?.id),
+    purchase_id: o.purchase_id,
+    supplier_name: o.supplier_name,
+    status: "active",
+    created_at: now,
+    updated_at: now,
+  };
+  if (b.batch_no === "AUTO") b.batch_no = `${b.id.slice(3, 9).toUpperCase()}`;
+  mockBatches.push(b);
+  refreshBatchStatus();
+  saveBatches();
+  return { ...b };
+}
+
+/**
+ * FEFO allocation: earliest-expiry-first (nulls last), across active batches.
+ * Returns per-batch picks; unattributed remainder (legacy stock) is normal.
+ */
+export function consumeBatchesFEFO(
+  materialId: string,
+  qty: number,
+): { batch_id: string; batch_no: string; qty: number }[] {
+  loadBatches();
+  refreshBatchStatus();
+  const cands = mockBatches
+    .filter((b) => b.material_id === materialId && b.status === "active" && b.qty_on_hand > 0)
+    .sort((a, b) => ((a.expiry_date ?? "9999") < (b.expiry_date ?? "9999") ? -1 : 1));
+  const picks: { batch_id: string; batch_no: string; qty: number }[] = [];
+  let left = qty;
+  for (const b of cands) {
+    if (left <= 0) break;
+    const take = Math.min(b.qty_on_hand, left);
+    b.qty_on_hand = Math.round((b.qty_on_hand - take) * 100) / 100;
+    b.updated_at = new Date().toISOString();
+    picks.push({ batch_id: b.id, batch_no: b.batch_no, qty: take });
+    left = Math.round((left - take) * 100) / 100;
+  }
+  refreshBatchStatus();
+  saveBatches();
+  return picks;
+}
+
+export async function batchSummary(materialId: string): Promise<{
+  batches: number;
+  on_hand: number;
+  nearest_expiry?: string;
+}> {
+  loadBatches();
+  refreshBatchStatus();
+  const live = mockBatches.filter((b) => b.material_id === materialId && b.qty_on_hand > 0);
+  const dated = live
+    .map((b) => b.expiry_date)
+    .filter(Boolean)
+    .sort() as string[];
+  return {
+    batches: live.length,
+    on_hand: Math.round(live.reduce((s, b) => s + b.qty_on_hand, 0) * 100) / 100,
+    nearest_expiry: dated[0],
+  };
 }

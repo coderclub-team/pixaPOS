@@ -13,7 +13,14 @@ import { activeUpiId } from "@/features/outlet/api/types";
 import { getPayments } from "@/features/payments/api/service";
 import { buildBillDoc, buildKOTDoc, buildTokenDoc, type PrintDoc } from "./docs";
 import { beepBytes, charsFor, cutBytes, renderEscPos } from "./render";
-import { HttpRelayTransport, type PrintTransport } from "./transport";
+import { rasterizeLogoUrl } from "./logo";
+import { PAPER_PROFILES, effectiveChars, effectiveDots } from "./types";
+import {
+  HttpRelayTransport,
+  WebBluetoothTransport,
+  WebUSBTransport,
+  type PrintTransport,
+} from "./transport";
 import type {
   EBillPayload,
   Printer,
@@ -57,6 +64,7 @@ function defaultTemplate(outlet_id: string, purpose: PrintPurpose): PrintTemplat
     outlet_id,
     purpose,
     show_logo: false,
+    paper: "PRINTER",
     header_lines: [],
     show_outlet_address: true,
     show_gstin: true,
@@ -82,6 +90,13 @@ export function setPrintTransport(t: PrintTransport): void {
   transport = t;
 }
 
+/** Connection-aware transport: network goes through the relay, USB/BT direct. */
+function transportFor(printer: Printer): PrintTransport {
+  if (printer.connection === "USB") return new WebUSBTransport();
+  if (printer.connection === "BLUETOOTH") return new WebBluetoothTransport();
+  return transport;
+}
+
 /* ---------- registry ---------- */
 
 export async function getPrinters(outlet_id = OUTLET_ID): Promise<Printer[]> {
@@ -101,6 +116,7 @@ export async function getPrinters(outlet_id = OUTLET_ID): Promise<Printer[]> {
         address: "localhost",
         port: 9100,
         paper: "P80",
+        supports_raster: false,
         is_default: true,
         is_active: true,
         created_at: now(),
@@ -227,7 +243,7 @@ export async function saveTemplate(
 async function assembleDoc(
   purpose: PrintPurpose,
   ref_id: string,
-  opts?: { isDuplicate?: boolean; reprintReason?: string },
+  opts?: { isDuplicate?: boolean; reprintReason?: string; logoRows?: boolean[][] },
 ): Promise<{ doc: PrintDoc; outlet_id: string; refLabel: string; qr: string }> {
   const outlet = await getOutlet();
   const template = await getTemplate(purpose, outlet.id);
@@ -261,6 +277,7 @@ async function assembleDoc(
         upiId: showQR && defaultVpa ? defaultVpa : undefined,
         upiTr: order.order_number,
         qrAmountPaise: paid > 0 ? balance : order.grand_total_paise,
+        logoRows: opts?.logoRows,
       }),
       outlet_id: outlet.id,
       refLabel: order.order_number,
@@ -270,26 +287,53 @@ async function assembleDoc(
   if (purpose === "KOT") {
     const ticket = await getTicketById(ref_id);
     if (!ticket) throw new Error("KOT not found");
+    const trackingUrl = trackingUrlFor(template, ticket.order_number_snapshot);
+    // Allergy/order notes ride on every KOT so the kitchen never misses a
+    // late-added flag — resolved live from the order at print time.
+    const ticketOrder = await getOrderById(ticket.order_id).catch(() => null);
+    const customerNotes = ticketOrder?.customer_notes?.trim() || undefined;
     return {
-      doc: buildKOTDoc({ ticket, outlet, template }),
+      doc: buildKOTDoc({
+        ticket,
+        outlet,
+        template,
+        logoRows: opts?.logoRows,
+        trackingUrl,
+        customerNotes,
+      }),
       outlet_id: outlet.id,
       refLabel: `KOT-${ticket.kot_number}`,
-      qr: "n/a",
+      qr: trackingUrl ? "shown" : template.qr === "ORDER" ? "suppressed:no-tracking-url" : "n/a",
     };
   }
   const order = await getOrderById(ref_id);
   if (!order) throw new Error("order not found");
+  const tokenTrackingUrl = trackingUrlFor(template, order.order_number);
   return {
     doc: buildTokenDoc({
       orderNumber: order.order_number,
       tokenNo: order.order_number,
       outlet,
       template,
+      trackingUrl: tokenTrackingUrl,
+      logoRows: opts?.logoRows,
     }),
     outlet_id: outlet.id,
     refLabel: order.order_number,
-    qr: template.qr === "ORDER" ? "shown" : "n/a",
+    qr: tokenTrackingUrl ? "shown" : template.qr === "ORDER" ? "suppressed:no-tracking-url" : "n/a",
   };
+}
+
+/** Tracking URL for ORDER-kind QR (KOT expedite / token slip). Null unless the
+ * template selects ORDER kind AND a base URL is configured. */
+function trackingUrlFor(
+  template: { qr: PrintTemplate["qr"]; tracking_base_url?: string },
+  ref: string,
+): string | undefined {
+  if (template.qr !== "ORDER") return undefined;
+  const base = (template.tracking_base_url ?? "").trim().replace(/\/?$/, "/");
+  if (!base.startsWith("http")) return undefined;
+  return `${base}${encodeURIComponent(ref)}`;
 }
 
 /* ---------- outbox ---------- */
@@ -329,14 +373,15 @@ async function sendJob(job: PrintJob, doc: PrintDoc, printer: Printer): Promise<
   };
   try {
     const template = await getTemplate(job.purpose, job.outlet_id);
-    const cols = printer.chars_per_line ?? charsFor(printer.paper);
-    let bytes = renderEscPos(doc, printer.paper, cols);
+    const cols = effectiveChars(template, printer);
+    const qrMode = defaultQrMode(printer);
+    let bytes = renderEscPos(doc, printer.paper, cols, qrMode);
     const copies =
       Math.max(1, template.copies) +
       (template.merchant_copy && job.purpose === "BILL" && !job.is_reprint ? 1 : 0);
     for (let c = 0; c < copies; c++) {
       const chunk = template.cut_after ? concatBytes(bytes, cutBytes(true)) : bytes;
-      const res = await transport.send(
+      const res = await transportFor(printer).send(
         printer,
         template.beep && c === 0 ? concatBytes(chunk, beepBytes()) : chunk,
       );
@@ -407,19 +452,58 @@ export async function enqueuePrint(
   save(JOB_KEY, jobs);
 
   try {
-    const { doc, outlet_id, qr } = await assembleDoc(purpose, ref_id, opts);
-    const printer = await resolvePrinter(purpose, outlet_id);
+    const pre = await assembleDoc(purpose, ref_id, opts);
+    const printer = await resolvePrinter(purpose, pre.outlet_id);
     if (!printer) {
-      return parkJob(job, "no active printer: add one in Print Studio settings", qr, outlet_id);
+      return parkJob(
+        job,
+        "no active printer: add one in Print Studio settings",
+        pre.qr,
+        pre.outlet_id,
+      );
     }
-    Object.assign(job, { outlet_id, printer_id: printer.id, doc_hash: doc.hash });
+    // Logo: rasterize the outlet logo to the printer's dot width when the
+    // template asks for it. Source prefers the local mirror, falling back to
+    // the organization logo (server truth) so fresh hosts print it too.
+    // Offline/undecodable -> omit, never fail. The reason rides in metadata
+    // so History answers "why text-only" without a debugger.
+    let doc = pre.doc;
+    let logo = "omitted:toggle-off";
+    {
+      const outlet = await getOutlet();
+      const template = await getTemplate(purpose, outlet.id);
+      let logoUrl = typeof outlet.logo_url === "string" ? outlet.logo_url : "";
+      if (!logoUrl.startsWith("http")) {
+        const { getOrganizationLogo } = await import("@/features/outlet/api/service");
+        logoUrl = (await getOrganizationLogo().catch(() => null)) ?? "";
+      }
+      if (!template.show_logo) {
+        logo = "omitted:toggle-off";
+      } else if (!printerSupportsRaster(printer)) {
+        logo = "omitted:no-raster-support";
+      } else if (!logoUrl.startsWith("http")) {
+        logo = "omitted:no-logo-url";
+      } else {
+        const dots = effectiveDots(template, printer);
+        const rows = await rasterizeLogoUrl(logoUrl, dots).catch(() => null);
+        if (rows) {
+          const rebuilt = await assembleDoc(purpose, ref_id, { ...opts, logoRows: rows });
+          doc = rebuilt.doc;
+          logo = "shown";
+        } else {
+          logo = "omitted:raster-failed";
+        }
+      }
+    }
+    const { outlet_id, qr } = pre;
+    Object.assign(job, { outlet_id, printer_id: printer.id, doc_hash: doc.hash, qr, logo });
     save(JOB_KEY, jobs);
     await recordEvent({
       outlet_id,
       entity_type: "PRINT_JOB",
       entity_id: job.id,
       event_type: "PRINT_QUEUED",
-      metadata: { purpose, ref_id, printer_id: printer.id, doc_hash: doc.hash, qr },
+      metadata: { purpose, ref_id, printer_id: printer.id, doc_hash: doc.hash, qr, logo },
       actor_id: opts?.created_by,
     });
     await sendJob({ ...job }, doc, printer);
@@ -436,6 +520,7 @@ async function parkJob(
   error: string,
   qr: string,
   outlet_id: string,
+  logo = "n/a",
 ): Promise<PrintJob> {
   const jobs = readJobs();
   const idx = jobs.findIndex((j) => j.id === job.id);
@@ -445,6 +530,8 @@ async function parkJob(
     status: "FAILED" as const,
     attempts: job.attempts + 1,
     last_error: error,
+    qr,
+    logo,
     updated_at: now(),
   };
   if (idx >= 0) jobs[idx] = updated;
@@ -456,7 +543,13 @@ async function parkJob(
     entity_id: job.id,
     event_type: "PRINT_FAILED",
     reason_text: error,
-    metadata: { purpose: job.purpose, ref_id: job.ref_id, attempt: updated.attempts, qr },
+    metadata: {
+      purpose: job.purpose,
+      ref_id: job.ref_id,
+      attempt: updated.attempts,
+      qr,
+      logo: updated.logo ?? "n/a",
+    },
     actor_id: job.created_by,
   });
   return { ...updated };
@@ -492,6 +585,27 @@ export async function maybeAutoPrintBill(order_id: string, by?: string): Promise
   } catch (e) {
     console.error("[print-studio] auto bill print failed", e);
   }
+}
+
+/** Raster capability: explicit flag wins; unset means capable except on
+ * localhost (emulators live there and drop GS v 0 graphics). */
+export function printerSupportsRaster(printer: Printer): boolean {
+  if (printer.supports_raster !== undefined) return printer.supports_raster;
+  return printer.address !== "localhost" && printer.address !== "127.0.0.1";
+}
+
+/** QR mode byte: explicit flag wins; otherwise spec bytes on real domains,
+ * compatible bytes on dev hosts (localhost, *.vercel.app, *.local) where
+ * escpresso-style parsers live. `host` is injectable for tests. */
+export function defaultQrMode(printer: Printer, host?: string): boolean {
+  if (printer.qr_mode_byte !== undefined) return printer.qr_mode_byte;
+  const h = host ?? (typeof window !== "undefined" ? window.location.hostname : undefined) ?? "";
+  return !(
+    h === "localhost" ||
+    h === "127.0.0.1" ||
+    h.endsWith(".vercel.app") ||
+    h.endsWith(".local")
+  );
 }
 
 /** Latest job for a purpose+ref — lets settle/fire toasts tell the truth. */

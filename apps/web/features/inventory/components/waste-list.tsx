@@ -27,9 +27,46 @@ import {
   DialogTitle,
 } from "@pixa/ui/base-ui/dialog";
 import { Icons } from "@pixa/ui/icons";
+import { SortTh, useSorting } from "@/components/sort-th";
+import type { CsvColumn } from "@/features/system/lib/csv";
+
+export const wasteExportColumns: CsvColumn<WasteLog>[] = [
+  {
+    key: "material",
+    label: "Material / Recipe",
+    get: (w) => w.material_name ?? w.material_id ?? w.recipe_name ?? "",
+  },
+  { key: "qty", label: "Qty", get: (w) => `${w.qty} ${w.unit}` },
+  {
+    key: "reason",
+    label: "Reason",
+    get: (w) => w.reason.replaceAll("_", " "),
+  },
+  { key: "order_number", label: "Order #", get: (w) => w.order_number ?? "" },
+  { key: "recipe_name", label: "Recipe", get: (w) => w.recipe_name ?? "" },
+  {
+    key: "variant_name",
+    label: "Variant",
+    get: (w) => w.variant_name ?? "",
+  },
+  { key: "cost_loss", label: "Cost Loss", get: (w) => `₹${w.cost_loss.toFixed(2)}` },
+  { key: "created_at", label: "Created At", get: (w) => w.created_at },
+];
 
 export function WasteList({ logs }: { logs: WasteLog[] }) {
-  if (logs.length === 0)
+  const { sortKey, sortDir, toggle, sorted } = useSorting<WasteLog>("created_at", "desc");
+  const rows = sorted(logs, {
+    material: (w) => w.material_name ?? w.material_id ?? w.recipe_name ?? "",
+    qty: (w) => w.qty,
+    reason: (w) => w.reason,
+    order_number: (w) => w.order_number ?? "",
+    recipe_name: (w) => w.recipe_name ?? "",
+    variant_name: (w) => w.variant_name ?? "",
+    cost_loss: (w) => w.cost_loss,
+    created_at: (w) => w.created_at,
+  });
+
+  if (rows.length === 0)
     return (
       <Card>
         <CardContent className="py-12 text-center text-muted-foreground">
@@ -43,17 +80,65 @@ export function WasteList({ logs }: { logs: WasteLog[] }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Material</TableHead>
-              <TableHead>Qty</TableHead>
-              <TableHead>Reason</TableHead>
-              <TableHead>Order</TableHead>
-              <TableHead>Cost Loss</TableHead>
-              <TableHead>Date</TableHead>
+              <TableHead>
+                <SortTh
+                  label="Material"
+                  column="material"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Qty"
+                  column="qty"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Reason"
+                  column="reason"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Order"
+                  column="order_number"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Cost Loss"
+                  column="cost_loss"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Date"
+                  column="created_at"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {logs.map((w) => (
+            {rows.map((w) => (
               <WasteRow key={w.id} log={w} />
             ))}
           </TableBody>

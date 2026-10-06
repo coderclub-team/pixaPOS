@@ -31,6 +31,7 @@ import {
   updateMemberRoleAction,
 } from "../actions";
 import type { OrgMember, RolesPermissionsData } from "../api/types";
+import { SortTh, useSorting } from "@/components/sort-th";
 
 function displayName(member: OrgMember) {
   const name = [member.firstName, member.lastName].filter(Boolean).join(" ");
@@ -49,6 +50,29 @@ export function RolesPermissionsPage({ data }: { data: RolesPermissionsData }) {
   const [isSyncing, startSync] = React.useTransition();
   const [busyCell, setBusyCell] = React.useState<string | null>(null);
   const [busyMember, setBusyMember] = React.useState<string | null>(null);
+
+  const {
+    sortKey: memberSortKey,
+    sortDir: memberSortDir,
+    toggle: toggleMember,
+    sorted: sortMembers,
+  } = useSorting<OrgMember>("name");
+  const sortedMembers = sortMembers(members, {
+    name: (m) => displayName(m),
+    role: (m) => m.role,
+    permissions: (m) => m.permissions.length,
+  });
+
+  const {
+    sortKey: permSortKey,
+    sortDir: permSortDir,
+    toggle: togglePerm,
+    sorted: sortPermissions,
+  } = useSorting<{ id: string; name: string; key: string }>("name");
+  const sortedPermissions = sortPermissions(permissions, {
+    name: (p) => p.name || p.key,
+    key: (p) => p.key,
+  });
 
   const missingPermissions = React.useMemo(
     () => POS_PERMISSION_META.filter((p) => !permissions.some((e) => e.key === p.key)),
@@ -122,13 +146,37 @@ export function RolesPermissionsPage({ data }: { data: RolesPermissionsData }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Member</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Effective permissions</TableHead>
+                <TableHead>
+                  <SortTh
+                    label="Member"
+                    column="name"
+                    sortKey={memberSortKey}
+                    sortDir={memberSortDir}
+                    onToggle={toggleMember}
+                  />
+                </TableHead>
+                <TableHead>
+                  <SortTh
+                    label="Role"
+                    column="role"
+                    sortKey={memberSortKey}
+                    sortDir={memberSortDir}
+                    onToggle={toggleMember}
+                  />
+                </TableHead>
+                <TableHead>
+                  <SortTh
+                    label="Effective permissions"
+                    column="permissions"
+                    sortKey={memberSortKey}
+                    sortDir={memberSortDir}
+                    onToggle={toggleMember}
+                  />
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {members.map((member) => (
+              {sortedMembers.map((member) => (
                 <TableRow key={member.userId}>
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -180,7 +228,7 @@ export function RolesPermissionsPage({ data }: { data: RolesPermissionsData }) {
                   </TableCell>
                 </TableRow>
               ))}
-              {members.length === 0 && (
+              {sortedMembers.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
                     No members in this organization.
@@ -212,7 +260,15 @@ export function RolesPermissionsPage({ data }: { data: RolesPermissionsData }) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="min-w-[260px]">Permission</TableHead>
+                  <TableHead className="min-w-[260px]">
+                    <SortTh
+                      label="Permission"
+                      column="name"
+                      sortKey={permSortKey}
+                      sortDir={permSortDir}
+                      onToggle={togglePerm}
+                    />
+                  </TableHead>
                   {roles.map((role) => (
                     <TableHead key={role.id} className="text-center">
                       {role.name}
@@ -221,7 +277,7 @@ export function RolesPermissionsPage({ data }: { data: RolesPermissionsData }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {permissions.map((permission) => (
+                {sortedPermissions.map((permission) => (
                   <TableRow key={permission.id}>
                     <TableCell>
                       <p className="font-medium">{permission.name || permission.key}</p>
@@ -246,7 +302,7 @@ export function RolesPermissionsPage({ data }: { data: RolesPermissionsData }) {
                     })}
                   </TableRow>
                 ))}
-                {permissions.length === 0 && (
+                {sortedPermissions.length === 0 && (
                   <TableRow>
                     <TableCell
                       colSpan={roles.length + 1}

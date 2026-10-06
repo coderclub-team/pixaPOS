@@ -1,7 +1,10 @@
 "use client";
 import * as React from "react";
 import PageContainer from "@/components/layout/page-container";
-import { StockLedger } from "@/features/inventory/components/stock-ledger";
+import {
+  StockLedger,
+  stockLedgerExportColumns,
+} from "@/features/inventory/components/stock-ledger";
 import {
   stockLedgerQueryOptions,
   rawMaterialsQueryOptions,
@@ -28,6 +31,7 @@ import {
 } from "@pixa/ui/base-ui/command";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
+import { ExportButton } from "@/features/system/components/io-dialog";
 
 export default function StockPage() {
   const [search, setSearch] = React.useState("");
@@ -84,7 +88,7 @@ export default function StockPage() {
   return (
     <PageContainer
       pageTitle="Stock Ledger"
-      pageDescription="Global stock history — Odoo Stock Moves / Zoho Stock Movement. Qty, valuation, running balance per entry. Filters: material, type, date, search."
+      pageDescription="Global stock history — stock moves / stock movement. Qty, valuation, running balance per entry. Filters: material, type, date, search."
     >
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <Card>
@@ -215,6 +219,11 @@ export default function StockPage() {
             Clear
           </Button>
         )}
+        <ExportButton
+          filename="stock-ledger"
+          rows={entries ?? []}
+          columns={stockLedgerExportColumns}
+        />
       </div>
 
       <div className="mt-4">

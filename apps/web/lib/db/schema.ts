@@ -2,6 +2,12 @@
  * Local SQLite DDL (mirror of @pixa/db Postgres schema, SQLite dialect).
  * Foundation subset: identity, outbox, events, sync cursor + core entities.
  * Money is integer paise; IDs are ULIDs; deletes are soft.
+ *
+ * The `documents` table is the generic durable mirror for every domain
+ * collection (orders, tickets, tables, menu, …): services keep their exact
+ * in-memory + localStorage hot path and additionally persist whole-entity
+ * JSON docs here. localStorage stays the cross-tab bus; SQLite is the
+ * eviction-proof store and the sync processor's read source.
  */
 export const LOCAL_DDL: string[] = [
   `CREATE TABLE IF NOT EXISTS kv_meta (
@@ -102,4 +108,15 @@ export const LOCAL_DDL: string[] = [
     version INTEGER NOT NULL DEFAULT 1,
     deleted_at TEXT
   )`,
+  `CREATE TABLE IF NOT EXISTS documents (
+    scope TEXT NOT NULL,
+    id TEXT NOT NULL,
+    outlet_id TEXT,
+    data TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT,
+    PRIMARY KEY (scope, id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS documents_scope_idx ON documents (scope, updated_at)`,
 ];

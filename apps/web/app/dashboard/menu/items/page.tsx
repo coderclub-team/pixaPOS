@@ -2,7 +2,12 @@
 import * as React from "react";
 import PageContainer from "@/components/layout/page-container";
 import { MenuList } from "@/features/menu/components/menu-list";
-import { menuCategoriesQueryOptions, menuItemsQueryOptions } from "@/features/menu/api/queries";
+import {
+  menuCategoriesQueryOptions,
+  menuItemsQueryOptions,
+  menuKeys,
+} from "@/features/menu/api/queries";
+import { getQueryClient } from "@/lib/query-client";
 import { useQuery } from "@tanstack/react-query";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
 import { Input } from "@pixa/ui/base-ui/input";
@@ -16,6 +21,8 @@ import {
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
+import { ExportButton, ImportDialog } from "@/features/system/components/io-dialog";
+import { importMenuItems, menuItemColumns, menuItemSample } from "@/features/menu/lib/io";
 
 export default function MenuItemsPage() {
   const [search, setSearch] = React.useState("");
@@ -42,20 +49,20 @@ export default function MenuItemsPage() {
   );
   if (isPending)
     return (
-      <PageContainer pageTitle="Menu Items" pageDescription="Menu — Catalog" isLoading>
+      <PageContainer pageTitle="Products" pageDescription="Catalog — Products" isLoading>
         <div />
       </PageContainer>
     );
   return (
     <PageContainer
-      pageTitle="Menu Items"
-      pageDescription="Dishes — list like other inventory pages. Pricing per variant, GST optional, recipe link."
+      pageTitle="Products"
+      pageDescription="Products — pricing per variant, GST optional, recipe link."
       pageHeaderAction={
         <Link
           href="/dashboard/menu/items/new"
           className={cn(buttonVariants(), "text-xs md:text-sm")}
         >
-          <Icons.add className="mr-2 h-4 w-4" /> Add Dish
+          <Icons.add className="mr-2 h-4 w-4" /> Add Product
         </Link>
       }
     >
@@ -136,6 +143,17 @@ export default function MenuItemsPage() {
             <SelectItem value="inactive">Inactive</SelectItem>
           </SelectContent>
         </Select>
+        <span className="ml-auto flex gap-2">
+          <ExportButton filename="menu-items" rows={items ?? []} columns={menuItemColumns} />
+          <ImportDialog
+            title="Bulk import menu items"
+            sampleFilename="menu-items"
+            columns={menuItemColumns}
+            sampleRows={menuItemSample}
+            onImport={importMenuItems}
+            onDone={() => getQueryClient().invalidateQueries({ queryKey: menuKeys.all })}
+          />
+        </span>
       </div>
       <MenuList items={items ?? []} />
     </PageContainer>

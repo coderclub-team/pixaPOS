@@ -1,5 +1,6 @@
 "use client";
 import { Button } from "@pixa/ui/base-ui/button";
+import { Badge } from "@pixa/ui/base-ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@pixa/ui/base-ui/card";
 import { Field, FieldGroup, FieldLabel } from "@pixa/ui/base-ui/field";
 import { Input } from "@pixa/ui/base-ui/input";
@@ -12,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@pixa/ui/base-ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@pixa/ui/base-ui/collapsible";
 import { Popover, PopoverContent, PopoverTrigger } from "@pixa/ui/base-ui/popover";
 import {
   Command,
@@ -27,7 +29,12 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createMenuItem, updateMenuItem } from "../api/service";
-import { menuKeys, menuCategoriesQueryOptions } from "../api/queries";
+import {
+  menuKeys,
+  menuCategoriesQueryOptions,
+  menuItemsQueryOptions,
+  modifierGroupsQueryOptions,
+} from "../api/queries";
 import { recipesQueryOptions } from "@/features/inventory/api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import type { MenuItem, ProductType, ItemType } from "../api/types";
@@ -77,6 +84,8 @@ export default function MenuForm({
       (initialData && initialData.variants.length > 1 ? "variant" : "simple"),
   );
   const [itemType, setItemType] = useState<ItemType>((initialData as any)?.item_type ?? "service");
+  // Item-level barcode — goods (packaged products) only; services hide it.
+  const [itemBarcode, setItemBarcode] = useState((initialData as any)?.barcode ?? "");
   const initialImages: string[] =
     ((initialData as any)?.image_urls as string[]) ??
     ((initialData as any)?.images ? (initialData as any).images.map((i: any) => i.url) : []) ??
@@ -113,6 +122,52 @@ export default function MenuForm({
   const [availableChannels, setAvailableChannels] = useState<string[]>(
     initialData?.available_channels ?? ["dine_in", "pickup", "delivery"],
   );
+  const [isBestseller, setIsBestseller] = useState(initialData?.is_bestseller ?? false);
+  const [pairIds, setPairIds] = useState<string[]>(initialData?.pairs_well_with ?? []);
+  const [pairSearch, setPairSearch] = useState("");
+  // Nutrition per serve (FSSAI 5(3) set) — strings in state, numbers on save.
+  const NUTRI_FIELDS = [
+    ["serving_size", "Serving size", "", "250"],
+    ["energy_kcal", "Energy", "kcal", "450"],
+    ["protein_g", "Protein", "g", "12"],
+    ["carbs_g", "Carbs", "g", "30"],
+    ["sugar_g", "Sugar", "g", "8"],
+    ["fat_g", "Fat", "g", "15"],
+    ["saturated_fat_g", "Sat. fat", "g", "6"],
+    ["trans_fat_g", "Trans fat", "g", "0"],
+    ["cholesterol_mg", "Cholesterol", "mg", "45"],
+    ["sodium_mg", "Sodium", "mg", "600"],
+    ["fiber_g", "Fiber", "g", "3"],
+  ] as const;
+  const UNIT_OPTIONS = ["g", "kg", "ml", "l", "pcs", "plate", "bowl", "cup", "slice", "serving"];
+  const [servingUnit, setServingUnit] = useState<string>(
+    (initialData as any)?.nutrition?.serving_unit ?? "",
+  );
+  // Collapsed when empty — nutrition is fully optional.
+  const [nutriOpen, setNutriOpen] = useState<boolean>(
+    Object.keys((initialData as any)?.nutrition ?? {}).length > 0,
+  );
+  const [nutrition, setNutrition] = useState<Record<string, string>>(() => {
+    const n = (initialData as any)?.nutrition ?? {};
+    const out: Record<string, string> = {};
+    for (const [k] of NUTRI_FIELDS) if (n[k] !== undefined && n[k] !== null) out[k] = String(n[k]);
+    return out;
+  });
+  const cleanNutrition = () => {
+    const out: Record<string, number | string> = {};
+    let empty = true;
+    for (const [k] of NUTRI_FIELDS) {
+      const raw = (nutrition[k] ?? "").trim();
+      if (!raw) continue;
+      empty = false;
+      out[k] = Number(raw);
+    }
+    if (servingUnit.trim()) {
+      empty = false;
+      out.serving_unit = servingUnit.trim();
+    }
+    return empty ? undefined : out;
+  };
 
   const syncFromUploader = async (files: File[]) => {
     const remaining = 6 - images.length;
@@ -157,6 +212,7 @@ export default function MenuForm({
         ...v,
         item_type: itemType,
         product_type: productType,
+        barcode: itemType === "goods" ? itemBarcode.trim() || undefined : undefined,
         image_urls: images,
         images: images.map((url, i) => ({ url, sort_order: i })),
         variants:
@@ -188,10 +244,14 @@ export default function MenuForm({
                 recipe_id: (x.recipe_id as string) || undefined,
               })),
         available_channels: availableChannels,
+        modifier_group_ids: linkedGroups,
+        nutrition: cleanNutrition(),
+        pairs_well_with: pairIds,
+        is_bestseller: isBestseller,
       }),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: menuKeys.all });
-      toast.success("Menu item created");
+      toast.success("Product created");
       router.push("/dashboard/menu/items");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -202,6 +262,7 @@ export default function MenuForm({
         ...v,
         item_type: itemType,
         product_type: productType,
+        barcode: itemType === "goods" ? itemBarcode.trim() || undefined : undefined,
         image_urls: images,
         images: images.map((url, i) => ({ url, sort_order: i })),
         variants:
@@ -233,10 +294,14 @@ export default function MenuForm({
                 recipe_id: (x.recipe_id as string) || undefined,
               })),
         available_channels: availableChannels,
+        modifier_group_ids: linkedGroups,
+        nutrition: cleanNutrition(),
+        pairs_well_with: pairIds,
+        is_bestseller: isBestseller,
       }),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: menuKeys.all });
-      toast.success("Menu item updated");
+      toast.success("Product updated");
       router.push("/dashboard/menu/items");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -345,6 +410,12 @@ export default function MenuForm({
     setAvailableChannels((prev) =>
       prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch],
     );
+  const { data: modifierGroups } = useQuery(modifierGroupsQueryOptions());
+  const [linkedGroups, setLinkedGroups] = useState<string[]>(
+    ((initialData as any)?.modifier_group_ids as string[]) ?? [],
+  );
+  const toggleGroup = (id: string) =>
+    setLinkedGroups((prev) => (prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id]));
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
@@ -359,9 +430,9 @@ export default function MenuForm({
         <Card>
           <CardHeader>
             <CardTitle className="text-left text-2xl font-bold">
-              {pageTitle ?? (isEdit ? "Update Menu Item" : "New Menu Item")}
+              {pageTitle ?? (isEdit ? "Update Product" : "New Product")}
             </CardTitle>
-            <CardDescription>Dish — category, veg type, description.</CardDescription>
+            <CardDescription>Product — category, veg type, description.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <FieldGroup>
@@ -447,6 +518,16 @@ export default function MenuForm({
                       ? "Supply of Goods — 5% / 18% (HSN)"
                       : "Supply of Service — 5% (SAC 996331)"}
                   </p>
+                  {itemType === "goods" && (
+                    <div className="space-y-1.5 pt-1">
+                      <Label className="text-xs text-muted-foreground">Barcode (EAN/UPC)</Label>
+                      <Input
+                        placeholder="8901234567890"
+                        value={itemBarcode}
+                        onChange={(e) => setItemBarcode(e.target.value)}
+                      />
+                    </div>
+                  )}
                 </div>
                 <form.AppField
                   name="veg_type"
@@ -1089,7 +1170,201 @@ export default function MenuForm({
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Add-ons</CardTitle>
+            <CardDescription>
+              Link add-on groups — required groups block firing until satisfied. Manage groups under
+              Menu → Add-ons.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {(modifierGroups ?? []).filter((g) => g.is_active).length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No add-on groups yet — create them under Menu → Add-ons first.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {(modifierGroups ?? [])
+                  .filter((g) => g.is_active)
+                  .map((g) => (
+                    <label
+                      key={g.id}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded border px-2 py-1 text-xs",
+                        linkedGroups.includes(g.id) &&
+                          "bg-primary text-primary-foreground border-primary",
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={linkedGroups.includes(g.id)}
+                        onChange={() => toggleGroup(g.id)}
+                        className="sr-only"
+                      />
+                      <span>
+                        {g.name}
+                        <span className="ml-1 opacity-70">
+                          {g.min_selection > 0 ? "req." : "opt."} {g.min_selection}–
+                          {g.max_selection}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Collapsible open={nutriOpen} onOpenChange={setNutriOpen} render={<Card />}>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1 text-left">
+                <CardTitle className="text-base">Nutrition · per serve</CardTitle>
+                <CardDescription>
+                  FSSAI set — kcal shows on menu cards; full table feeds aggregators and the
+                  website. Optional — leave blank what you don&apos;t know.
+                </CardDescription>
+              </div>
+              <Badge variant="outline" className="shrink-0">
+                Optional
+              </Badge>
+              <CollapsibleTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={nutriOpen ? "Hide nutrition" : "Show nutrition"}
+                  />
+                }
+              >
+                <Icons.chevronDown
+                  className={cn("size-4 transition-transform", nutriOpen && "rotate-180")}
+                />
+              </CollapsibleTrigger>
+            </div>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Serving unit</Label>
+                  <Select value={servingUnit} onValueChange={setServingUnit}>
+                    <SelectTrigger aria-label="Serving unit" className="w-full">
+                      <SelectValue placeholder="Pick unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {UNIT_OPTIONS.map((u) => (
+                        <SelectItem key={u} value={u}>
+                          {u}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {NUTRI_FIELDS.map(([key, label, unit, example]) => (
+                  <div key={key} className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">
+                      {label}
+                      {unit ? ` (${unit})` : ""}
+                    </Label>
+                    <Input
+                      inputMode="decimal"
+                      placeholder={example}
+                      value={nutrition[key] ?? ""}
+                      onChange={(e) => setNutrition((p) => ({ ...p, [key]: e.target.value }))}
+                    />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Upsell · pairs well with</CardTitle>
+            <CardDescription>
+              Bestseller badge shows on menu cards; pair links feed picker suggestions and
+              aggregator payloads.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="bestseller">Bestseller</Label>
+              <Switch id="bestseller" checked={isBestseller} onCheckedChange={setIsBestseller} />
+            </div>
+            <PairPicker
+              selfId={initialData?.id}
+              pairIds={pairIds}
+              onChange={setPairIds}
+              search={pairSearch}
+              onSearchChange={setPairSearch}
+            />
+          </CardContent>
+        </Card>
       </form>
+    </div>
+  );
+}
+
+function PairPicker({
+  selfId,
+  pairIds,
+  onChange,
+  search,
+  onSearchChange,
+}: {
+  selfId?: string;
+  pairIds: string[];
+  onChange: (ids: string[]) => void;
+  search: string;
+  onSearchChange: (v: string) => void;
+}) {
+  const { data: items = [] } = useQuery(
+    menuItemsQueryOptions({ search: search.trim() || undefined }),
+  );
+  const selected = items.filter((i) => pairIds.includes(i.id));
+  const candidates = items.filter((i) => i.id !== selfId && !pairIds.includes(i.id)).slice(0, 8);
+  return (
+    <div className="space-y-2">
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selected.map((i) => (
+            <Badge key={i.id} variant="secondary" className="gap-1">
+              {i.name}
+              <button
+                type="button"
+                aria-label={`Remove ${i.name}`}
+                onClick={() => onChange(pairIds.filter((id) => id !== i.id))}
+              >
+                <Icons.close className="size-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+      <Input
+        placeholder="Search items to pair…"
+        value={search}
+        onChange={(e) => onSearchChange(e.target.value)}
+      />
+      {search.trim() && candidates.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {candidates.map((i) => (
+            <Button
+              key={i.id}
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onChange([...pairIds, i.id])}
+            >
+              <Icons.add className="size-3" /> {i.name}
+            </Button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

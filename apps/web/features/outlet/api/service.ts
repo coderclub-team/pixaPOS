@@ -1,5 +1,5 @@
 import { delay } from "@/constants/mock-api";
-import type { Outlet, OutletPayload } from "./types";
+import type { BusinessHours, DayHours, Outlet, OutletPayload } from "./types";
 
 const OUTLET_STORAGE_KEY = "pixaOutlet";
 
@@ -21,8 +21,6 @@ function loadOutlet(): void {
     }
   } catch {}
 }
-
-loadOutlet();
 
 let mockOutlet: Outlet = {
   id: "out_001",
@@ -55,12 +53,152 @@ let mockOutlet: Outlet = {
   currency: "INR",
   timezone: "Asia/Kolkata",
   locale: "en-IN",
+  ask_customer_details: false,
+  allow_off_hours_orders: false,
+  require_off_hours_reason: true,
+  business_hours: defaultBusinessHours(),
   upi_id: "",
   upi_ids: [],
   is_active: true,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
 };
+
+// Restore persisted edits (logo, UPI IDs, details) after the base is defined.
+loadOutlet();
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+/** Default week: Mon–Sun 09:00–21:00, every channel inherits the base. */
+export function defaultBusinessHours(): BusinessHours {
+  const days: DayHours[] = Array.from({ length: 7 }, (_, day) => ({
+    day,
+    open: "09:00",
+    close: "21:00",
+    closed: false,
+  }));
+  return { days };
+}
+
+function toMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + (m || 0);
+}
+
+function dayPartsInTz(at: Date, timeZone: string): { day: number; minutes: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(at);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  const day = WEEKDAYS.indexOf(get("weekday").slice(0, 3) as (typeof WEEKDAYS)[number]);
+  return {
+    day: day === -1 ? at.getDay() : day,
+    minutes: Number(get("hour")) * 60 + Number(get("minute")),
+  };
+}
+
+/**
+ * Is the outlet open for a channel right now? Missing hours = always open
+ * (legacy outlets). close <= open spans midnight (e.g. 18:00–02:00 belongs
+ * to the opening day). Mode is ignored here — see channelMode().
+ */
+export function isChannelOpen(
+  outlet: Pick<Outlet, "business_hours" | "timezone">,
+  channel: string,
+  at: Date = new Date(),
+): boolean {
+  const bh = outlet.business_hours;
+  if (!bh) return true;
+  const conf = bh.channels?.[channel as keyof NonNullable<BusinessHours["channels"]>];
+  const days =
+    conf && !conf.use_outlet_hours && conf.days && conf.days.length === 7 ? conf.days : bh.days;
+  if (!days || days.length !== 7) return true;
+  let tz = "Asia/Kolkata";
+  try {
+    tz = outlet.timezone || tz;
+    void new Intl.DateTimeFormat("en-US", { timeZone: tz }).format(at);
+  } catch {
+    tz = "Asia/Kolkata";
+  }
+  const { day, minutes } = dayPartsInTz(at, tz);
+  const today = days.find((d) => d.day === day);
+  if (!today || today.closed) return false;
+  const open = toMinutes(today.open);
+  const close = toMinutes(today.close);
+  if (close <= open) return minutes >= open || minutes < close;
+  return minutes >= open && minutes < close;
+}
+
+/** Next opening time today for a closed channel (null when open or closed all day). */
+export function nextOpeningToday(
+  outlet: Pick<Outlet, "business_hours" | "timezone">,
+  channel: string,
+  at: Date = new Date(),
+): string | null {
+  const bh = outlet.business_hours;
+  if (!bh || isChannelOpen(outlet, channel, at)) return null;
+  const conf = bh.channels?.[channel as keyof NonNullable<BusinessHours["channels"]>];
+  const days =
+    conf && !conf.use_outlet_hours && conf.days && conf.days.length === 7 ? conf.days : bh.days;
+  let tz = outlet.timezone || "Asia/Kolkata";
+  const { day } = dayPartsInTz(at, tz);
+  const today = days?.find((d) => d.day === day);
+  return today && !today.closed ? today.open : null;
+}
+
+/** Channel mode: open | closed | scheduled (inherit → open). */
+export function channelMode(
+  outlet: Pick<Outlet, "business_hours">,
+  channel: string,
+): "open" | "closed" | "scheduled" {
+  const conf =
+    outlet.business_hours?.channels?.[channel as keyof NonNullable<BusinessHours["channels"]>];
+  return conf && !conf.use_outlet_hours ? (conf.mode ?? "open") : "open";
+}
+
+/** Cut-off minutes for a channel (0 = none). */
+export function channelCutoff(outlet: Pick<Outlet, "business_hours">, channel: string): number {
+  const conf =
+    outlet.business_hours?.channels?.[channel as keyof NonNullable<BusinessHours["channels"]>];
+  if (!conf || conf.use_outlet_hours) return 0;
+  return Math.max(0, Math.min(240, Math.floor(conf.cutoff_minutes ?? 0)));
+}
+
+/** Minutes until close for an open channel (null when closed/unknown). */
+export function minutesToClose(
+  outlet: Pick<Outlet, "business_hours" | "timezone">,
+  channel: string,
+  at: Date = new Date(),
+): number | null {
+  const bh = outlet.business_hours;
+  if (!bh) return null;
+  if (!isChannelOpen(outlet, channel, at)) return null;
+  const conf = bh.channels?.[channel as keyof NonNullable<BusinessHours["channels"]>];
+  const days =
+    conf && !conf.use_outlet_hours && conf.days && conf.days.length === 7 ? conf.days : bh.days;
+  let tz = outlet.timezone || "Asia/Kolkata";
+  const { day, minutes } = dayPartsInTz(at, tz);
+  const today = days?.find((d) => d.day === day);
+  if (!today || today.closed) return null;
+  const open = toMinutes(today.open);
+  const close = toMinutes(today.close);
+  if (close <= open) {
+    if (minutes >= open) return 24 * 60 - minutes + close;
+    // Past midnight: attribute to yesterday's overnight span if it covers now.
+    const prev = days?.find((d) => d.day === (day + 6) % 7);
+    if (prev && !prev.closed) {
+      const pClose = toMinutes(prev.close);
+      const pOpen = toMinutes(prev.open);
+      if (pClose <= pOpen && minutes < pClose) return pClose - minutes;
+    }
+    return close - minutes;
+  }
+  return close - minutes;
+}
 
 export async function getOutlet(): Promise<Outlet> {
   await delay(500);
@@ -77,6 +215,34 @@ export async function updateOutlet(payload: OutletPayload): Promise<Outlet> {
 export async function getOutletById(id: string): Promise<Outlet | null> {
   await delay(300);
   return mockOutlet.id === id ? { ...mockOutlet } : null;
+}
+
+/**
+ * Verify (or first-set, when unset) the kiosk PIN for device pairing.
+ * First-set requires the caller to have verified a manager out-of-band —
+ * the pair endpoint enforces outletManage before calling with allowSet.
+ * Returns true when the PIN is accepted.
+ */
+export async function checkKioskPin(
+  outletId: string,
+  pin: string,
+  opts?: { allowSet?: boolean },
+): Promise<boolean> {
+  await delay(200);
+  if (mockOutlet.id !== outletId) return false;
+  if (!/^[0-9]{4,8}$/.test(pin)) return false;
+  const { hashKioskPin } = await import("@/lib/device-token");
+  if (!mockOutlet.kiosk_pin_hash) {
+    if (!opts?.allowSet) return false;
+    mockOutlet = {
+      ...mockOutlet,
+      kiosk_pin_hash: await hashKioskPin(pin, outletId),
+      updated_at: new Date().toISOString(),
+    };
+    saveOutlet();
+    return true;
+  }
+  return (await hashKioskPin(pin, outletId)) === mockOutlet.kiosk_pin_hash;
 }
 
 const VPA_RE = /^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/;
@@ -154,5 +320,45 @@ function loadOutletIds(): void {
         created_at: new Date().toISOString(),
       },
     ];
+  }
+}
+
+/**
+ * Server truth for the outlet logo: Better Auth `organization.logo`
+ * (Neon, per-tenant, visible on every host). Throws when no organization
+ * is available or the role may not manage it — callers mirror into the
+ * outlet mock only after this succeeds.
+ */
+export async function setOrganizationLogo(url: string): Promise<void> {
+  const m = (await import("@/lib/auth-client")) as unknown as {
+    authClient: { organization: { update: (args: unknown) => Promise<unknown> } };
+    baOrgs: { list: () => Promise<{ data: { id: string }[] | null }> };
+  };
+  const orgs = await m.baOrgs.list().catch(() => ({ data: null }));
+  const orgId = orgs.data?.[0]?.id;
+  if (!orgId) throw new Error("No organization — sign in and create one first");
+  await m.authClient.organization.update({ data: { logo: url }, organizationId: orgId });
+}
+
+/** Organization logo (server truth) or null when unavailable/offline. */
+export async function getOrganizationLogo(): Promise<string | null> {
+  try {
+    const m = (await import("@/lib/auth-client")) as unknown as {
+      baOrgs: {
+        list: () => Promise<{ data: { id: string }[] | null }>;
+        getFull: (args: { query: { organizationId: string } }) => Promise<{
+          data: { logo?: string | null } | null;
+        }>;
+      };
+    };
+    const orgs = await m.baOrgs.list().catch(() => ({ data: null }));
+    const orgId = orgs.data?.[0]?.id;
+    if (!orgId) return null;
+    const full = await m.baOrgs
+      .getFull({ query: { organizationId: orgId } })
+      .catch(() => ({ data: null }));
+    return full.data?.logo ?? null;
+  } catch {
+    return null;
   }
 }

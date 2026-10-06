@@ -29,6 +29,34 @@
       "when": 1789720510162,
       "tag": "0003_salty_killer_shrike",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791081852380,
+      "tag": "0004_red_moondragon",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791202607435,
+      "tag": "0005_condemned_sphinx",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791212744171,
+      "tag": "0006_loving_the_initiative",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791270249050,
+      "tag": "0007_awesome_dragon_man",
+      "breakpoints": true
     }
   ]
 }

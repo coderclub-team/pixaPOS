@@ -20,6 +20,7 @@ export type DocLine =
   | { kind: "rule" }
   | { kind: "pair"; left: string; right: string; bold?: boolean }
   | { kind: "qr"; data: string; label?: string }
+  | { kind: "image"; rows: boolean[][] }
   | { kind: "feed"; lines: number };
 
 export type PrintDoc = {
@@ -101,6 +102,8 @@ export function buildBillDoc(args: {
   upiTr?: string;
   /** QR amount override — the outstanding balance on partial pays. */
   qrAmountPaise?: number;
+  /** Pre-rasterized outlet logo (1-bit rows) — prints top-center when present. */
+  logoRows?: boolean[][];
   trackingUrl?: string;
 }): PrintDoc {
   const {
@@ -112,10 +115,12 @@ export function buildBillDoc(args: {
     upiId,
     upiTr,
     qrAmountPaise,
+    logoRows,
     trackingUrl,
   } = args;
   const order = billing.order;
   const lines: DocLine[] = [
+    ...(logoRows && logoRows.length > 0 ? [{ kind: "image" as const, rows: logoRows }] : []),
     ...headerLines(outlet, template),
     {
       kind: "text",
@@ -220,9 +225,13 @@ export function buildKOTDoc(args: {
   outlet: Outlet;
   template: PrintTemplate;
   tokenNo?: string;
+  logoRows?: boolean[][];
+  trackingUrl?: string;
+  customerNotes?: string;
 }): PrintDoc {
-  const { ticket, outlet, template, tokenNo } = args;
+  const { ticket, outlet, template, tokenNo, logoRows, trackingUrl, customerNotes } = args;
   const lines: DocLine[] = [
+    ...(logoRows && logoRows.length > 0 ? [{ kind: "image" as const, rows: logoRows }] : []),
     {
       kind: "text",
       text: `*** KOT #${ticket.kot_number} ***`,
@@ -249,6 +258,9 @@ export function buildKOTDoc(args: {
       : []),
     { kind: "text", text: `${stamp(ticket.fired_at)}  ${ticket.channel}` },
     { kind: "rule" },
+    ...(customerNotes
+      ? [{ kind: "text" as const, text: `!! ALLERGY/NOTES: ${customerNotes}`, bold: true }]
+      : []),
   ];
   for (const line of ticket.lines) {
     const liveQty = line.qty - line.voided_qty - line.returned_qty;
@@ -262,6 +274,9 @@ export function buildKOTDoc(args: {
       lines.push({ kind: "text", text: `  !! ${line.instructions}`, bold: true });
   }
   if (ticket.fired_by) lines.push({ kind: "text", text: `Fired by: ${ticket.fired_by}` });
+  if (template.qr === "ORDER" && trackingUrl) {
+    lines.push({ kind: "qr", data: trackingUrl, label: "Track order" });
+  }
   lines.push(...footerLines(template));
   return { lines, hash: hashDoc(lines) };
 }
@@ -274,9 +289,11 @@ export function buildTokenDoc(args: {
   template: PrintTemplate;
   trackingUrl?: string;
   itemCount?: number;
+  logoRows?: boolean[][];
 }): PrintDoc {
-  const { orderNumber, tokenNo, outlet, template, trackingUrl, itemCount } = args;
+  const { orderNumber, tokenNo, outlet, template, trackingUrl, itemCount, logoRows } = args;
   const lines: DocLine[] = [
+    ...(logoRows && logoRows.length > 0 ? [{ kind: "image" as const, rows: logoRows }] : []),
     ...headerLines(outlet, template),
     { kind: "text", text: "*** TAKEAWAY TOKEN ***", align: "center", bold: true },
     { kind: "text", text: tokenNo, align: "center", bold: true, double: true },

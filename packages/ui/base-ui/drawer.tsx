@@ -68,8 +68,12 @@ function DrawerOverlay({ className, ...props }: DrawerPrimitive.Backdrop.Props) 
   return (
     <DrawerPrimitive.Backdrop
       data-slot="drawer-overlay"
+      style={{
+        opacity:
+          "max(var(--drawer-overlay-min-opacity, 0), calc(1 - var(--drawer-swipe-progress)))",
+      }}
       className={cn(
-        "fixed inset-0 z-50 min-h-dvh bg-black/10 opacity-[max(var(--drawer-overlay-min-opacity,0),calc(1-var(--drawer-swipe-progress)))] transition-opacity duration-450 ease-[cubic-bezier(0.32,0.72,0,1)] select-none data-ending-style:pointer-events-none data-ending-style:opacity-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-snap-points:[--drawer-overlay-min-opacity:0.5] data-starting-style:opacity-0 data-swiping:duration-0 supports-backdrop-filter:backdrop-blur-xs supports-[-webkit-touch-callout:none]:absolute",
+        "fixed inset-0 z-50 min-h-dvh bg-black/10 transition-opacity duration-450 ease-[cubic-bezier(0.32,0.72,0,1)] select-none data-ending-style:pointer-events-none data-ending-style:opacity-0 data-ending-style:duration-[calc(var(--drawer-swipe-strength)*400ms)] data-snap-points:[--drawer-overlay-min-opacity:0.5] data-starting-style:opacity-0 data-swiping:duration-0 supports-backdrop-filter:backdrop-blur-xs supports-[-webkit-touch-callout:none]:absolute",
         className,
       )}
       {...props}
@@ -91,13 +95,29 @@ function DrawerSwipeHandle({ className, ...props }: React.ComponentProps<"div">)
   );
 }
 
-function DrawerContent({ className, children, ...props }: DrawerPrimitive.Popup.Props) {
+function DrawerContent({
+  className,
+  children,
+  keepMounted,
+  container,
+  overlayClassName,
+  ...props
+}: DrawerPrimitive.Popup.Props & {
+  keepMounted?: boolean;
+  container?: DrawerPrimitive.Portal.Props["container"];
+  overlayClassName?: DrawerPrimitive.Backdrop.Props["className"];
+}) {
   const { hasSnapPoints, modal, showSwipeHandle, swipeDirection } = useDrawer();
   const swipeAxis = swipeDirection === "down" || swipeDirection === "up" ? "y" : "x";
 
   return (
-    <DrawerPortal data-slot="drawer-portal">
-      {modal === true && <DrawerOverlay data-snap-points={hasSnapPoints ? "" : undefined} />}
+    <DrawerPortal data-slot="drawer-portal" keepMounted={keepMounted} container={container}>
+      {modal === true && (
+        <DrawerOverlay
+          data-snap-points={hasSnapPoints ? "" : undefined}
+          className={overlayClassName}
+        />
+      )}
       <DrawerPrimitive.Viewport
         data-slot="drawer-viewport"
         data-modal={modal}

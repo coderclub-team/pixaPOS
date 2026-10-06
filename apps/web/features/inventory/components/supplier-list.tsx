@@ -34,8 +34,17 @@ import { inventoryKeys } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { SortTh, useSorting } from "@/components/sort-th";
 
 export function SupplierList({ suppliers }: { suppliers: Supplier[] }) {
+  const { sortKey, sortDir, toggle, sorted } = useSorting<Supplier>("name");
+  const rows = sorted(suppliers, {
+    name: (s) => s.name,
+    phone: (s) => s.phone,
+    gstin: (s) => s.gstin ?? "",
+    status: (s) => s.is_active,
+  });
+
   if (suppliers.length === 0)
     return (
       <Card>
@@ -58,15 +67,47 @@ export function SupplierList({ suppliers }: { suppliers: Supplier[] }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Supplier</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>GSTIN</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>
+                <SortTh
+                  label="Supplier"
+                  column="name"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Phone"
+                  column="phone"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="GSTIN"
+                  column="gstin"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
+              <TableHead>
+                <SortTh
+                  label="Status"
+                  column="status"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggle}
+                />
+              </TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {suppliers.map((s) => (
+            {rows.map((s) => (
               <SupplierRow key={s.id} supplier={s} />
             ))}
           </TableBody>

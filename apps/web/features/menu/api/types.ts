@@ -15,6 +15,26 @@ export type VegType = "veg" | "nonveg" | "egg";
 export type TaxTypeMenu = "GST" | "VAT";
 export type Channel = "dine_in" | "pickup" | "delivery" | "zomato" | "swiggy" | "ondc";
 
+/**
+ * Per-serve nutrition (FSSAI Labelling & Display Regs 2020, 5(3) core set:
+ * energy + macros + sodium, plus serving size). Displayed as kcal on menu
+ * surfaces; full table feeds aggregator/website listings.
+ */
+export type NutritionInfo = {
+  serving_size?: number;
+  serving_unit?: string;
+  energy_kcal?: number;
+  protein_g?: number;
+  carbs_g?: number;
+  sugar_g?: number;
+  fat_g?: number;
+  saturated_fat_g?: number;
+  trans_fat_g?: number;
+  cholesterol_mg?: number;
+  sodium_mg?: number;
+  fiber_g?: number;
+};
+
 export type MenuItemVariant = {
   id: string;
   menu_item_id: string;
@@ -32,20 +52,22 @@ export type MenuItemVariant = {
 };
 
 export type ProductType = "simple" | "variant";
-export type ItemType = "goods" | "service"; // Zoho Goods|Service / Odoo Goods|Service/Combo; RistaPOS goods vs service (packing charge)
+export type ItemType = "goods" | "service"; // Goods|Service split; RistaPOS goods vs service (packing charge)
 export type MenuItemImage = { url: string; sort_order: number };
 export type MenuItem = {
   id: string;
   name: string;
   slug: string;
+  /** Item-level barcode for goods (packaged products) — scannable in search/POS. */
+  barcode?: string;
   category_id: string;
   category_name?: string;
   description?: string;
   image_url?: string; // deprecated alias = images[0].url
-  images?: MenuItemImage[]; // gallery max 6 (Zoho 15 but POS cap 6)
+  images?: MenuItemImage[]; // gallery max 6 (POS cap 6)
   image_urls?: string[]; // flat alias for form
   item_type: ItemType; // goods = Supply of Goods (HSN + 5%/18%), service = Supply of Service (SAC 9973/9997 + 5%)
-  product_type: ProductType; // simple = no variants (Regular), variant = has variants (Petpooja/Zoho)
+  product_type: ProductType; // simple = no variants (Regular), variant = has variants (Petpooja)
   veg_type: VegType;
   spice_level?: "mild" | "medium" | "spicy";
   prep_time_min?: number;
@@ -55,6 +77,10 @@ export type MenuItem = {
   tax_percent?: number;
   hsn_code?: string; // HSN for goods (4-8 digits) or SAC for service (6 digits 9973/9997)
   available_channels: Channel[]; // dine_in, pickup, delivery, zomato, swiggy, ondc
+  nutrition?: NutritionInfo;
+  /** Manual upsell links ("pairs well with") — surfaced in pickers and carts. */
+  pairs_well_with?: string[];
+  is_bestseller?: boolean;
   variants: MenuItemVariant[];
   modifier_group_ids?: string[]; // skeleton, no raw material mapping this phase
   is_active: boolean;
@@ -76,7 +102,10 @@ export type Modifier = {
   id: string;
   modifier_group_id: string;
   name: string;
+  /** Kitchen/printer alias — shown on KOTs instead of the name when set. */
+  alias?: string;
   price: number;
+  sort_order?: number;
   is_active: boolean;
 };
 

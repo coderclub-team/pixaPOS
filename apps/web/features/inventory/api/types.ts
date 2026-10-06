@@ -13,7 +13,8 @@ export type RawMaterial = {
   sku: string;
   category: string;
   unit: "kg" | "g" | "l" | "ml" | "pcs" | "box"; // base (stock) unit — recipes, ledger, costing
-  purchase_unit?: "kg" | "g" | "l" | "ml" | "pcs" | "box"; // buying unit (Odoo purchase UoM)
+  manufacturer?: string; // goods maker (retail label + batch default)
+  purchase_unit?: "kg" | "g" | "l" | "ml" | "pcs" | "box"; // buying unit (purchase UoM)
   purchase_to_base_rate?: number; // 1 purchase_unit = X base units (e.g. 1 box = 12 pcs)
   stock_qty: number;
   low_stock_threshold: number; // simple threshold for reorder alerts
@@ -97,10 +98,10 @@ export type RecipeVariantQty = {
 export type RecipeIngredient = {
   material_id: string;
   material_name?: string;
-  qty: number; // base qty = simple-dish qty + fallback for variants without override (Odoo blank = all)
+  qty: number; // base qty = simple-dish qty + fallback for variants without override (blank = all)
   unit: string;
   wastage_percent?: number;
-  step_no?: number; // which method step consumes it (Odoo consumed-in-operation lite)
+  step_no?: number; // which method step consumes it (consumed-in-operation lite)
   variant_qtys?: RecipeVariantQty[]; // per-variant overrides, only when linked dish has variants
 };
 
@@ -228,7 +229,7 @@ export type StockLedgerEntry = {
   total_cost?: number;
   avg_cost_before?: number;
   avg_cost_after?: number;
-  location_id?: string; // e.g., main, kitchen, waste — Odoo location
+  location_id?: string; // e.g., main, kitchen, waste — storage location
   lot_number?: string; // batch for expiry trace
   supplier_name?: string;
   expiry_date?: string;
@@ -271,6 +272,65 @@ export type PurchaseItem = {
   purchase_qty?: number; // as-bought qty (audit)
   purchase_unit?: string; // as-bought unit
   purchase_unit_cost?: number; // price per purchase unit
+  /** Goods traceability (batch auto-created on receipt when absent). */
+  batch_no?: string;
+  mfg_date?: string; // YYYY-MM-DD
+  expiry_date?: string; // YYYY-MM-DD
+  location_id?: string;
+};
+
+/** Storage master: floor + rack per goods item (storage location pattern). */
+export type StorageLocation = {
+  id: string;
+  outlet_id?: string;
+  name: string; // Main Store, Kitchen, Cold Room…
+  floor?: string; // Ground, First…
+  rack?: string; // A, B…
+  column?: string; // 1, 2… — rack + column pin the shelf (retail locator)
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type StorageLocationPayload = {
+  name: string;
+  floor?: string;
+  rack?: string;
+  column?: string;
+  is_active?: boolean;
+};
+
+/**
+ * Goods batch (lot): badge number + mfg/expiry + location per receipt.
+ * Allocation overlay on material stock_qty (source of truth stays stock_qty;
+ * unattributed remainder = legacy/pre-batch stock).
+ */
+export type StockBatch = {
+  id: string;
+  material_id: string;
+  material_name?: string;
+  batch_no: string;
+  manufacturer?: string;
+  mfg_date?: string;
+  expiry_date?: string;
+  qty_received: number;
+  qty_on_hand: number;
+  location_id?: string;
+  location_name?: string;
+  purchase_id?: string;
+  supplier_name?: string;
+  status: "active" | "exhausted" | "expired";
+  created_at: string;
+  updated_at: string;
+};
+
+export type BatchFilters = {
+  search?: string;
+  material_id?: string;
+  location_id?: string;
+  expiring_within_days?: number;
+  expired?: boolean;
+  status?: StockBatch["status"];
 };
 
 export type PurchasePaymentStatus = "unpaid" | "partial" | "paid";

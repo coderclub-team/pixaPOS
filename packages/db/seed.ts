@@ -5,9 +5,32 @@
  */
 import { db } from "./index";
 import { floors, tables } from "./schema";
+import { saasPlans } from "./saas-schema";
+import { DEFAULT_PLANS } from "./plans";
 
 async function main() {
   const database = db();
+  // Default subscription plans (Starter/Growth/Custom). Fully upserted so the
+  // seed is the source of truth for launch pricing/limits/flags. Run manually.
+  for (const p of DEFAULT_PLANS) {
+    const values = {
+      id: p.id,
+      name: p.name,
+      tagline: p.tagline,
+      monthlyPaise: p.monthlyPaise,
+      annualDiscountPct: p.annualDiscountPct,
+      features: JSON.stringify(p.features),
+      limits: JSON.stringify(p.limits),
+      flags: JSON.stringify(p.flags),
+      outletLimit: p.limits.outlets,
+      sortOrder: p.sortOrder,
+      isActive: p.isActive,
+    };
+    await database
+      .insert(saasPlans)
+      .values(values)
+      .onConflictDoUpdate({ target: saasPlans.id, set: values });
+  }
   await database
     .insert(floors)
     .values({

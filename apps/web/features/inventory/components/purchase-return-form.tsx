@@ -142,7 +142,7 @@ export default function PurchaseReturnForm({ purchaseId }: { purchaseId?: string
       return true;
     })
     .filter((p) => {
-      // only returnable bills like Odoo -- at least one item with returnable >0
+      // only returnable bills — at least one item with returnable >0
       // if not loaded allReturns yet, show all
       if (!allReturns) return true;
       return p.items.some((it) => {
@@ -245,7 +245,7 @@ export default function PurchaseReturnForm({ purchaseId }: { purchaseId?: string
             <CardTitle className="text-left text-2xl font-bold">Create Purchase Return</CardTitle>
             <CardDescription>
               Credit Note for purchase — partial or full. Approved deducts stock (if Restock) and
-              acts as vendor credit. Odoo: reverse entry.
+              acts as vendor credit (reversing entry).
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -316,7 +316,7 @@ export default function PurchaseReturnForm({ purchaseId }: { purchaseId?: string
                     </p>
                   ) : (
                     <p className="text-xs text-muted-foreground">
-                      Pick supplier first — purchase list narrows like Odoo/Zoho (1k → 80).
+                      Pick supplier first — purchase list narrows (1k → 80).
                     </p>
                   )}
                 </div>

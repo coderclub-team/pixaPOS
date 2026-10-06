@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "ai-sdk": {
+      "source": "vercel/ai",
+      "sourceType": "github",
+      "skillPath": "skills/use-ai-sdk/SKILL.md",
+      "computedHash": "aee5bf7ecb066b54eae76799610fa8a9be9ff1ca9a000ea92d17c14ec862938b"
+    },
     "better-auth-ui-core": {
       "source": "better-auth-ui/better-auth-ui",
       "sourceType": "github",
@@ -18,6 +24,12 @@
       "sourceType": "github",
       "skillPath": ".agents/skills/gddy/SKILL.md",
       "computedHash": "6f27de08162f9375c0a0e87a4f1b39179f59a3a5f5338aecef8e5f3d3ad8c09e"
+    },
+    "migrate-ai-sdk-v6-to-v7": {
+      "source": "vercel/ai",
+      "sourceType": "github",
+      "skillPath": "skills/migrate-ai-sdk-v6-to-v7/SKILL.md",
+      "computedHash": "92a68769c5a82e6bd35cb8fe13537a80f6341742306d6a23c52afb6c1f7b5ab9"
     },
     "neon": {
       "source": "neondatabase/agent-skills",

@@ -6,7 +6,7 @@ export type BillingPlan = {
   id: string;
   name: string;
   billing_period: BillingPeriod;
-  /** Tax-exclusive monthly price (Zoho-style); GST applied at invoice render. */
+  /** Tax-exclusive monthly price (list price); GST applied at invoice render. */
   amount_paise: number;
   currency: "INR";
   trial_days: number;
@@ -41,14 +41,17 @@ export type SubscriptionStatus = "trialing" | "active" | "grace" | "blocked" | "
 
 export type Subscription = {
   id: string;
-  outlet_id: string;
+  /** Workspace scope (ADR-0021): one subscription per organization. */
+  organization_id: string;
+  /** @deprecated single-outlet era; read for legacy rows, never written. */
+  outlet_id?: string;
   plan_id: string;
   /** Trial clock anchor. Pinned first-wins: Better Auth org createdAt when available,
    * else local first-seen (documented tradeoff — a data wipe restarts it). */
   trial_started_at: string;
   razorpay_subscription_id?: string;
   razorpay_customer_id?: string;
-  /** Zoho pattern: stays usable until the paid period ends, then cancelled. */
+  /** Grace pattern: stays usable until the paid period ends, then cancelled. */
   cancel_at_period_end: boolean;
   current_period_start?: string;
   current_period_end?: string;
@@ -62,7 +65,9 @@ export type InvoiceStatus = "paid" | "pending" | "failed";
 
 export type SubscriptionInvoice = {
   id: string;
-  outlet_id: string;
+  organization_id: string;
+  /** @deprecated single-outlet era; read for legacy rows, never written. */
+  outlet_id?: string;
   subscription_id: string;
   invoice_number: string;
   period_start: string;

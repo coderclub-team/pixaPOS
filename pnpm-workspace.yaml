@@ -7,8 +7,8 @@ packages:
 # (lightningcss, oxlint, esbuild) and broke `next dev` / lint outright.
 # Disk cost is modest; mixed-arch contributors stay working.
 supportedArchitectures:
-  os: [darwin, linux]
-  cpu: [arm64, x64]
+  os: [ darwin, linux ]
+  cpu: [ arm64, x64 ]
 overrides:
   next: 16.2.12
   react: 19.2.4
@@ -20,3 +20,4 @@ allowBuilds:
   '@sentry/cli': true
   esbuild: true
   sharp: true
+  tailgrids: true

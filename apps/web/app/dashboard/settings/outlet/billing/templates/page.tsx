@@ -64,7 +64,9 @@ function useSampleDoc(purpose: PrintPurpose, outletId: string) {
         payments: [],
         outlet,
         template,
-        upiId: "sample@upi",
+        upiId: template.qr === "UPI" ? "sample@upi" : undefined,
+        upiTr: "A-1024",
+        qrAmountPaise: 54600,
       });
     }
     if (purpose === "KOT") {
@@ -117,6 +119,7 @@ function useSampleDoc(purpose: PrintPurpose, outletId: string) {
 export default function TemplatesPage() {
   const [purpose, setPurpose] = useState<PrintPurpose>("BILL");
   const { data: template, isPending } = useQuery(templateQueryOptions(purpose));
+  const { data: outlet } = useQuery(outletQueryOptions);
   const doc = useSampleDoc(purpose, "out_001");
 
   return (
@@ -148,7 +151,22 @@ export default function TemplatesPage() {
               purpose={purpose}
               initialData={templateToValues(template)}
             />
-            {doc && <ReceiptPreview doc={doc} title={`${purpose} preview`} />}
+            {doc && (
+              <ReceiptPreview
+                doc={doc}
+                title={`${purpose} preview`}
+                initialPaper={
+                  template.paper === "P58" || template.paper === "P78" || template.paper === "P80"
+                    ? template.paper
+                    : "P80"
+                }
+                logoUrl={
+                  template.show_logo && outlet?.logo_url && typeof outlet.logo_url === "string"
+                    ? outlet.logo_url
+                    : undefined
+                }
+              />
+            )}
           </>
         )}
       </div>

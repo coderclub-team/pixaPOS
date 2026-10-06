@@ -4,8 +4,8 @@ Date: 2026-09-11 · Status: accepted
 
 ## Context
 
-Tables and occupancy exist but no order entity. Reference parity (Odoo POS
-Restaurant, Zoho POS, Petpooja POSS, Rista) requires: channel-aware orders,
+Tables and occupancy exist but no order entity. Reference parity (POS
+Restaurant, Petpooja POSS, Rista) requires: channel-aware orders,
 draft → fired kitchen tickets (1 order → N KOTs), void-with-reason recorded on
 the ticket, a kitchen display board, and multi-tender/split payments.
 No competitor names appear in the UI.

@@ -1,7 +1,10 @@
 "use client";
 import * as React from "react";
 import PageContainer from "@/components/layout/page-container";
-import { SupplierLedger } from "@/features/inventory/components/supplier-ledger";
+import {
+  SupplierLedger,
+  supplierLedgerExportColumns,
+} from "@/features/inventory/components/supplier-ledger";
 import {
   supplierLedgerQueryOptions,
   supplierOutstandingQueryOptions,
@@ -17,6 +20,7 @@ import {
   SelectValue,
 } from "@pixa/ui/base-ui/select";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
+import { ExportButton } from "@/features/system/components/io-dialog";
 
 export default function SupplierLedgerPage() {
   const [supplierId, setSupplierId] = React.useState<string | undefined>(undefined);
@@ -53,7 +57,7 @@ export default function SupplierLedgerPage() {
     return (
       <PageContainer
         pageTitle="Supplier Ledger"
-        pageDescription="Global payables — Odoo Journals / Zoho Vendor Statement"
+        pageDescription="Global payables — journals / vendor statement"
         isLoading
       >
         <div />
@@ -126,6 +130,11 @@ export default function SupplierLedgerPage() {
             <SelectItem value="return">Return</SelectItem>
           </SelectContent>
         </Select>
+        <ExportButton
+          filename="supplier-ledger"
+          rows={entries ?? []}
+          columns={supplierLedgerExportColumns}
+        />
       </div>
 
       {(outstanding ?? []).length > 0 && (

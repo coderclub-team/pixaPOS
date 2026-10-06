@@ -16,6 +16,67 @@ const PAYMENT_STORAGE_KEY = "pixaPayments";
 let mockPayments: Payment[] = [];
 let mockRefunds: Refund[] = [];
 
+/** Durable SQLite mirror (fire-and-forget; repo never throws). */
+function mirrorPayments() {
+  if (typeof window === "undefined") return;
+  import("@/lib/db/repo").then(({ writeScope }) => {
+    void writeScope(
+      "payments",
+      mockPayments.map((p) => ({
+        id: p.id,
+        outlet_id: (p as { outlet_id?: string }).outlet_id ?? null,
+        data: p,
+        version: (p as { version?: number }).version ?? 1,
+        updated_at: (p as { updated_at?: string }).updated_at ?? new Date().toISOString(),
+        deleted_at: (p as { deleted_at?: string | null }).deleted_at ?? null,
+      })),
+    );
+    void writeScope(
+      "payment_refunds",
+      mockRefunds.map((r) => ({
+        id: r.id,
+        outlet_id: (r as { outlet_id?: string }).outlet_id ?? null,
+        data: r,
+        version: (r as { version?: number }).version ?? 1,
+        updated_at: (r as { updated_at?: string }).updated_at ?? new Date().toISOString(),
+        deleted_at: (r as { deleted_at?: string | null }).deleted_at ?? null,
+      })),
+    );
+  });
+}
+
+/** Adopt the durable mirror on app startup — only when localStorage is
+ * missing/empty (fresh device or eviction recovery). Never overwrites
+ * existing localStorage: the mirror write lags it by design. */
+export async function hydratePaymentsFromMirror(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(PAYMENT_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (
+      (Array.isArray(parsed?.payments) && parsed.payments.length > 0) ||
+      (Array.isArray(parsed?.refunds) && parsed.refunds.length > 0)
+    ) {
+      return;
+    }
+    const { readScope } = await import("@/lib/db/repo");
+    const [payments, refunds] = await Promise.all([
+      readScope("payments"),
+      readScope("payment_refunds"),
+    ]);
+    if (payments.length > 0 || refunds.length > 0) {
+      localStorage.setItem(
+        PAYMENT_STORAGE_KEY,
+        JSON.stringify({
+          payments: payments.map((d) => d.data),
+          refunds: refunds.map((d) => d.data),
+        }),
+      );
+      loadPayments();
+    }
+  } catch {}
+}
+
 function savePayments() {
   if (typeof window !== "undefined") {
     try {
@@ -40,6 +101,21 @@ function loadPayments(): void {
   }
 }
 loadPayments();
+
+/**
+ * Current payment/refund snapshot for sync envelopes. Money always syncs —
+ * no eligibility gate. No delays: safe for the outbox path.
+ */
+export function getPaymentForSync(
+  id: string,
+): { kind: "PAYMENT" | "REFUND"; record: unknown } | null {
+  loadPayments();
+  const payment = mockPayments.find((p) => p.id === id);
+  if (payment) return { kind: "PAYMENT", record: payment };
+  const refund = mockRefunds.find((r) => r.id === id);
+  if (refund) return { kind: "REFUND", record: refund };
+  return null;
+}
 
 export async function getPayments(filters?: PaymentFilters): Promise<Payment[]> {
   await delay(200);
