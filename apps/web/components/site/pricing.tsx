@@ -12,7 +12,24 @@ import {
   type Plan,
 } from "@/lib/site/plans";
 import SectionTitle from "@/components/site/section-title";
+import type { LimitMap } from "@pixa/db/plans";
+import { formatBytes } from "@/lib/usage-types";
 import { cn } from "@pixa/ui/lib/utils";
+
+/** Differentiating usage/Neon quotas — Starter and Growth share features but not limits. */
+function limitRows(l: LimitMap): { label: string; value: string }[] {
+  const num = (v: number | null) => (v === null ? "Custom" : v.toLocaleString("en-IN"));
+  const storage = formatBytes((l.databaseStorage ?? 0) + (l.objectStorage ?? 0));
+  return [
+    { label: "Outlets", value: num(l.outlets) },
+    { label: "Users", value: num(l.users) },
+    { label: "Devices", value: num(l.devices) },
+    { label: "Orders / month", value: num(l.orders) },
+    { label: "Products", value: num(l.products) },
+    { label: "Customers", value: num(l.customers) },
+    { label: "Storage", value: storage },
+  ];
+}
 
 function planDetailRows(plan: Plan): { label: string; value: string }[] {
   const outletText =
@@ -126,6 +143,27 @@ export default function Pricing({ plans = PLANS }: { plans?: Plan[] }) {
                         ? "billed annually"
                         : "billed monthly"}
                   </p>
+
+                  {plan.limits && (
+                    <div className="mb-6 rounded-2xl border border-slate-200 bg-[#F8FBFF] p-4 dark:border-dark-3 dark:bg-dark-2">
+                      <p className="mb-3 text-[10px] font-semibold tracking-[0.16em] text-[#138AF2] uppercase">
+                        Usage limits
+                      </p>
+                      <dl className="space-y-2 text-sm">
+                        {limitRows(plan.limits).map((row) => (
+                          <div
+                            key={row.label}
+                            className="flex items-baseline justify-between gap-3"
+                          >
+                            <dt className="text-slate-500 dark:text-slate-400">{row.label}</dt>
+                            <dd className="font-semibold tabular-nums text-slate-900 dark:text-white">
+                              {row.value}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                  )}
 
                   <div className="mb-8 flex-1">
                     <ul className="space-y-2.5">
