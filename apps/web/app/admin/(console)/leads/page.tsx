@@ -6,6 +6,7 @@ import { Button } from "@pixa/ui/base-ui/button";
 import { Badge } from "@pixa/ui/base-ui/badge";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@pixa/ui/base-ui/empty";
+import PageContainer from "@/components/layout/page-container";
 import { LeadActions } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -32,76 +33,75 @@ export default async function LeadsPage({
   );
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Website registrations</h1>
-        <p className="text-sm text-muted-foreground">
-          Public form <code>POST /api/admin/leads</code> writes here. Triage each lead, then
-          <strong> Approve</strong> creates the Better Auth organisation (slug-unique, owner member,
-          trial profile).
-        </p>
-      </div>
-      <div className="flex flex-wrap gap-2 text-sm">
-        <FilterPill href="/admin/leads" active={!status} label={`All (${rows.length})`} />
-        {Object.entries(counts).map(([s, n]) => (
-          <FilterPill
-            key={s}
-            href={`/admin/leads?status=${s}`}
-            active={status === s}
-            label={`${s} (${n})`}
-          />
-        ))}
-      </div>
-      {dbDown ? (
-        <Card className="border-dashed">
-          <CardContent className="p-8 text-center">
-            <Empty>
-              <EmptyHeader>
-                <EmptyTitle>Database not connected</EmptyTitle>
-                <EmptyDescription>Set DATABASE_URL to review live registrations.</EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          </CardContent>
-        </Card>
-      ) : filtered.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="p-8 text-center">
-            <Empty>
-              <EmptyHeader>
-                <EmptyTitle>No registrations</EmptyTitle>
-                <EmptyDescription>
-                  New website signups will appear here with contact, city and planned outlets.
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-3">
-          {filtered.map((l) => (
-            <Card key={l.id}>
-              <CardContent className="pt-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold">{l.businessName}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {l.contactName} · {l.email} · {l.phone}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {l.city ?? "—"} · {l.outletsPlanned} outlet(s) · {l.source} ·{" "}
-                      {new Date(l.createdAt).toLocaleString("en-IN")}
-                    </p>
-                    {l.notes && <p className="mt-2 text-sm">{l.notes}</p>}
-                  </div>
-                  <StatusPill status={l.status} />
-                </div>
-                <LeadActions lead={l} />
-              </CardContent>
-            </Card>
+    <PageContainer
+      pageTitle="Website registrations"
+      pageDescription="Public form POST /api/admin/leads writes here. Triage each lead, then Approve creates the Better Auth organisation (slug-unique, owner member, trial profile)."
+    >
+      <div className="space-y-5">
+        <div className="flex flex-wrap gap-2 text-sm">
+          <FilterPill href="/admin/leads" active={!status} label={`All (${rows.length})`} />
+          {Object.entries(counts).map(([s, n]) => (
+            <FilterPill
+              key={s}
+              href={`/admin/leads?status=${s}`}
+              active={status === s}
+              label={`${s} (${n})`}
+            />
           ))}
         </div>
-      )}
-    </div>
+        {dbDown ? (
+          <Card className="border-dashed">
+            <CardContent className="p-8 text-center">
+              <Empty>
+                <EmptyHeader>
+                  <EmptyTitle>Database not connected</EmptyTitle>
+                  <EmptyDescription>
+                    Set DATABASE_URL to review live registrations.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            </CardContent>
+          </Card>
+        ) : filtered.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="p-8 text-center">
+              <Empty>
+                <EmptyHeader>
+                  <EmptyTitle>No registrations</EmptyTitle>
+                  <EmptyDescription>
+                    New website signups will appear here with contact, city and planned outlets.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-3">
+            {filtered.map((l) => (
+              <Card key={l.id}>
+                <CardContent className="pt-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold">{l.businessName}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {l.contactName} · {l.email} · {l.phone}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {l.city ?? "—"} · {l.outletsPlanned} outlet(s) · {l.source} ·{" "}
+                        {new Date(l.createdAt).toLocaleString("en-IN")}
+                      </p>
+                      {l.notes && <p className="mt-2 text-sm">{l.notes}</p>}
+                    </div>
+                    <StatusPill status={l.status} />
+                  </div>
+                  <LeadActions lead={l} />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </PageContainer>
   );
 }
 

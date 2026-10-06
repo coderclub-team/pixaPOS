@@ -2,6 +2,9 @@ import { desc } from "drizzle-orm";
 import { adminDb } from "@/lib/saas-admin";
 import { msgOutbox, msgProviders, msgTemplates } from "@pixa/db";
 import { maskConfig } from "@/lib/messaging-providers";
+import { Card, CardContent } from "@pixa/ui/base-ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@pixa/ui/base-ui/empty";
+import PageContainer from "@/components/layout/page-container";
 import { MessagingConsole } from "./console";
 
 export const dynamic = "force-dynamic";
@@ -21,18 +24,21 @@ export default async function MessagingPage() {
     dbDown = true;
   }
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Messaging</h1>
-        <p className="text-sm text-muted-foreground">
-          Promotion blasts and transactional sends across email, WhatsApp and SMS — templated, every
-          send ledgered, nothing silent.
-        </p>
-      </div>
+    <PageContainer
+      pageTitle="Messaging"
+      pageDescription="Promotion blasts and transactional sends across email, WhatsApp and SMS — templated, every send ledgered, nothing silent."
+    >
       {dbDown ? (
-        <p className="rounded-xl border border-dashed bg-white p-8 text-center text-sm text-zinc-600">
-          Database not connected.
-        </p>
+        <Card className="border-dashed">
+          <CardContent className="p-8 text-center">
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>Database not connected</EmptyTitle>
+                <EmptyDescription>Set DATABASE_URL to manage messaging.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          </CardContent>
+        </Card>
       ) : (
         <MessagingConsole
           initialTemplates={templates}
@@ -40,7 +46,7 @@ export default async function MessagingPage() {
           initialOutbox={outbox}
         />
       )}
-    </div>
+    </PageContainer>
   );
 }
 

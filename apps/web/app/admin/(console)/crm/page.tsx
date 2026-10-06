@@ -1,6 +1,9 @@
 import { desc } from "drizzle-orm";
 import { adminDb } from "@/lib/saas-admin";
 import { crmEnquiries } from "@pixa/db";
+import { Card, CardContent } from "@pixa/ui/base-ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@pixa/ui/base-ui/empty";
+import PageContainer from "@/components/layout/page-container";
 import { EnquiryBoard } from "./board";
 
 export const dynamic = "force-dynamic";
@@ -14,22 +17,25 @@ export default async function CrmPage() {
     dbDown = true;
   }
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">CRM</h1>
-        <p className="text-sm text-muted-foreground">
-          Customer enquiries, follow-ups and relationships. Enquiries are pre-organisation interest
-          — approving one can link it to a registration lead.
-        </p>
-      </div>
+    <PageContainer
+      pageTitle="CRM"
+      pageDescription="Customer enquiries, follow-ups and relationships. Enquiries are pre-organisation interest — approving one can link it to a registration lead."
+    >
       {dbDown ? (
-        <p className="rounded-xl border border-dashed bg-white p-8 text-center text-sm text-zinc-600">
-          Database not connected.
-        </p>
+        <Card className="border-dashed">
+          <CardContent className="p-8 text-center">
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>Database not connected</EmptyTitle>
+                <EmptyDescription>Set DATABASE_URL to review enquiries.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          </CardContent>
+        </Card>
       ) : (
         <EnquiryBoard initial={enquiries} />
       )}
-    </div>
+    </PageContainer>
   );
 }
 

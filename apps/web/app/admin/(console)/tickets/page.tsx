@@ -1,6 +1,9 @@
 import { desc } from "drizzle-orm";
 import { adminDb } from "@/lib/saas-admin";
 import { crmTickets } from "@pixa/db";
+import { Card, CardContent } from "@pixa/ui/base-ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@pixa/ui/base-ui/empty";
+import PageContainer from "@/components/layout/page-container";
 import { TicketBoard } from "./board";
 
 export const dynamic = "force-dynamic";
@@ -14,22 +17,25 @@ export default async function TicketsPage() {
     dbDown = true;
   }
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Complaint tickets</h1>
-        <p className="text-sm text-muted-foreground">
-          Addressing mechanism for restaurant complaints: triage, assign, resolve with a full note
-          trail. Nothing auto-closes — a human marks resolved.
-        </p>
-      </div>
+    <PageContainer
+      pageTitle="Complaint tickets"
+      pageDescription="Addressing mechanism for restaurant complaints: triage, assign, resolve with a full note trail. Nothing auto-closes — a human marks resolved."
+    >
       {dbDown ? (
-        <p className="rounded-xl border border-dashed bg-white p-8 text-center text-sm text-zinc-600">
-          Database not connected.
-        </p>
+        <Card className="border-dashed">
+          <CardContent className="p-8 text-center">
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>Database not connected</EmptyTitle>
+                <EmptyDescription>Set DATABASE_URL to review tickets.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          </CardContent>
+        </Card>
       ) : (
         <TicketBoard initial={tickets} />
       )}
-    </div>
+    </PageContainer>
   );
 }
 

@@ -95,6 +95,7 @@ function toBody(value: PlanValues, isEdit: boolean) {
 export function PlansManager({ initialPlans }: { initialPlans: CatalogPlan[] }) {
   const router = useRouter();
   const [editing, setEditing] = useState<CatalogPlan | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [deactivateTarget, setDeactivateTarget] = useState<CatalogPlan | null>(null);
 
@@ -113,6 +114,7 @@ export function PlansManager({ initialPlans }: { initialPlans: CatalogPlan[] }) 
         }
         form.reset();
         setEditing(null);
+        setFormOpen(false);
         router.refresh();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Save failed");
@@ -121,6 +123,12 @@ export function PlansManager({ initialPlans }: { initialPlans: CatalogPlan[] }) 
       }
     },
   });
+
+  function openCreate() {
+    setEditing(null);
+    form.reset(emptyValues);
+    setFormOpen(true);
+  }
 
   function startEdit(p: CatalogPlan) {
     setEditing(p);
@@ -134,10 +142,17 @@ export function PlansManager({ initialPlans }: { initialPlans: CatalogPlan[] }) 
       outletLimit: p.outletLimit === null ? "" : String(p.outletLimit),
       sortOrder: String(p.sortOrder),
     });
+    setFormOpen(true);
   }
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-end">
+        <Button onClick={openCreate}>
+          <Icons.add className="size-4" aria-hidden />
+          Add Plan
+        </Button>
+      </div>
       <div className="grid gap-3 md:grid-cols-3">
         {initialPlans.map((p) => (
           <Card key={p.id} className={cn(!p.isActive && "opacity-60")}>
@@ -181,11 +196,25 @@ export function PlansManager({ initialPlans }: { initialPlans: CatalogPlan[] }) 
         ))}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{editing ? `Edit plan ${editing.id}` : "New plan"}</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Dialog
+        open={formOpen}
+        onOpenChange={(v) => {
+          setFormOpen(v);
+          if (!v) {
+            setEditing(null);
+            form.reset(emptyValues);
+          }
+        }}
+      >
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editing ? `Edit plan ${editing.id}` : "New plan"}</DialogTitle>
+            <DialogDescription>
+              {editing
+                ? "Update catalog pricing and features. Changes apply to new signups immediately."
+                : "Add a plan to the owner-managed catalog. It becomes selectable on organisations once saved."}
+            </DialogDescription>
+          </DialogHeader>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -241,7 +270,18 @@ export function PlansManager({ initialPlans }: { initialPlans: CatalogPlan[] }) 
                 )}
               />
             </FieldGroup>
-            <div className="mt-4 flex gap-2">
+            <DialogFooter className="mt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setFormOpen(false);
+                  setEditing(null);
+                  form.reset(emptyValues);
+                }}
+              >
+                Cancel
+              </Button>
               <form.Subscribe selector={(s) => s.isSubmitting}>
                 {(submitting) => (
                   <Button type="submit" disabled={busy || submitting}>
@@ -249,22 +289,10 @@ export function PlansManager({ initialPlans }: { initialPlans: CatalogPlan[] }) 
                   </Button>
                 )}
               </form.Subscribe>
-              {editing && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setEditing(null);
-                    form.reset();
-                  }}
-                >
-                  Cancel
-                </Button>
-              )}
-            </div>
+            </DialogFooter>
           </form>
-        </CardContent>
-      </Card>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!deactivateTarget} onOpenChange={(v) => !v && setDeactivateTarget(null)}>
         <DialogContent>

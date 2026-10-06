@@ -2,6 +2,9 @@ import { asc } from "drizzle-orm";
 import { adminDb } from "@/lib/saas-admin";
 import { msgProviders } from "@pixa/db";
 import { maskConfig } from "@/lib/messaging-providers";
+import { Card, CardContent } from "@pixa/ui/base-ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@pixa/ui/base-ui/empty";
+import PageContainer from "@/components/layout/page-container";
 import { IntegrationsConsole } from "./console";
 
 export const dynamic = "force-dynamic";
@@ -15,22 +18,25 @@ export default async function IntegrationsPage() {
     dbDown = true;
   }
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Integrations</h1>
-        <p className="text-sm text-muted-foreground">
-          WhatsApp, SMS, email, Meta and Google Ads providers. Secrets are masked everywhere —
-          re-enter a value to rotate it, blank keeps the stored one. Test before activating.
-        </p>
-      </div>
+    <PageContainer
+      pageTitle="Integrations"
+      pageDescription="WhatsApp, SMS, email, Meta and Google Ads providers. Secrets are masked everywhere — re-enter a value to rotate it, blank keeps the stored one. Test before activating."
+    >
       {dbDown ? (
-        <p className="rounded-xl border border-dashed bg-white p-8 text-center text-sm text-zinc-600">
-          Database not connected.
-        </p>
+        <Card className="border-dashed">
+          <CardContent className="p-8 text-center">
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>Database not connected</EmptyTitle>
+                <EmptyDescription>Set DATABASE_URL to manage integrations.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          </CardContent>
+        </Card>
       ) : (
         <IntegrationsConsole initialProviders={providers} />
       )}
-    </div>
+    </PageContainer>
   );
 }
 

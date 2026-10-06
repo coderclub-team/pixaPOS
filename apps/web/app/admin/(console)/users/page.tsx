@@ -2,6 +2,7 @@ import { adminDb } from "@/lib/saas-admin";
 import { saasOwnerRoles, saasOwners } from "@pixa/db";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
 import { Empty, EmptyHeader, EmptyTitle } from "@pixa/ui/base-ui/empty";
+import PageContainer from "@/components/layout/page-container";
 import { OwnerActions } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -21,14 +22,10 @@ export default async function OwnerUsersPage() {
     dbDown = true;
   }
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Owner users</h1>
-        <p className="text-sm text-muted-foreground">
-          Singleton super owner + scoped staff. Separate identity plane from restaurant users —
-          these credentials never work on the app, and app credentials never work here.
-        </p>
-      </div>
+    <PageContainer
+      pageTitle="Owner users"
+      pageDescription="Singleton super owner + scoped staff. Separate identity plane from restaurant users — these credentials never work on the app, and app credentials never work here."
+    >
       {dbDown ? (
         <Card className="border-dashed">
           <CardContent className="p-8 text-center">
@@ -42,6 +39,6 @@ export default async function OwnerUsersPage() {
       ) : (
         <OwnerActions owners={owners} roles={roles} />
       )}
-    </div>
+    </PageContainer>
   );
 }

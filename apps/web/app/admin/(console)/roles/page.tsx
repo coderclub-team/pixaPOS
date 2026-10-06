@@ -3,6 +3,7 @@ import { saasOwnerRoles } from "@pixa/db";
 import { parsePermissions } from "@/lib/saas-owner";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
 import { Empty, EmptyHeader, EmptyTitle } from "@pixa/ui/base-ui/empty";
+import PageContainer from "@/components/layout/page-container";
 import { RolesManager } from "./manager";
 
 export const dynamic = "force-dynamic";
@@ -52,14 +53,10 @@ export default async function OwnerRolesPage() {
     }
   }
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Owner roles</h1>
-        <p className="text-sm text-muted-foreground">
-          Scoped permissions for owner-created staff. Scoped custom admins — each role sees only its
-          surfaces. The super owner always holds every permission.
-        </p>
-      </div>
+    <PageContainer
+      pageTitle="Owner roles"
+      pageDescription="Scoped permissions for owner-created staff. Scoped custom admins — each role sees only its surfaces. The super owner always holds every permission."
+    >
       {dbDown ? (
         <Card className="border-dashed">
           <CardContent className="p-8 text-center">
@@ -73,6 +70,6 @@ export default async function OwnerRolesPage() {
       ) : (
         <RolesManager initialRoles={roles} vocabulary={vocabulary} />
       )}
-    </div>
+    </PageContainer>
   );
 }

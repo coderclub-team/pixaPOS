@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@pixa/ui/base-ui/table";
+import PageContainer from "@/components/layout/page-container";
 
 export const dynamic = "force-dynamic";
 
@@ -34,13 +35,10 @@ export default async function AuditPage() {
     dbDown = true;
   }
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Audit log</h1>
-        <p className="text-sm text-muted-foreground">
-          Append-only trail of owner actions: lead triage, org creation, lifecycle changes.
-        </p>
-      </div>
+    <PageContainer
+      pageTitle="Audit log"
+      pageDescription="Append-only trail of owner actions: lead triage, org creation, lifecycle changes."
+    >
       {dbDown || rows.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="p-8 text-center">
@@ -84,6 +82,6 @@ export default async function AuditPage() {
           </Table>
         </Card>
       )}
-    </div>
+    </PageContainer>
   );
 }

@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@pixa/ui/base-ui/table";
 import { Icons } from "@pixa/ui/icons";
+import PageContainer from "@/components/layout/page-container";
 import { OrgFilters, ReviewRegistrationsButton } from "./filters";
 
 export const dynamic = "force-dynamic";
@@ -54,18 +55,11 @@ export default async function OrgsPage({ searchParams }: { searchParams: Promise
   const rows = await load(sp);
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Organisations</h1>
-          <p className="text-sm text-muted-foreground">
-            Every website registration becomes a lead first; approved leads become an organisation
-            (Better Auth row + lifecycle profile) below.
-          </p>
-        </div>
-        <ReviewRegistrationsButton />
-      </div>
-
+    <PageContainer
+      pageTitle="Organisations"
+      pageDescription="Every website registration becomes a lead first; approved leads become an organisation (Better Auth row + lifecycle profile) below."
+      pageHeaderAction={<ReviewRegistrationsButton />}
+    >
       <Suspense>
         <OrgFilters />
       </Suspense>
@@ -143,7 +137,7 @@ export default async function OrgsPage({ searchParams }: { searchParams: Promise
           </Table>
         </Card>
       )}
-    </div>
+    </PageContainer>
   );
 }
 

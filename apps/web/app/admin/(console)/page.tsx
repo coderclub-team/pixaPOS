@@ -7,6 +7,10 @@ import { Badge } from "@pixa/ui/base-ui/badge";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { Icons } from "@pixa/ui/icons";
+import PageContainer from "@/components/layout/page-container";
+import { AreaGraph } from "@/features/overview/components/area-graph";
+import { BarGraph } from "@/features/overview/components/bar-graph";
+import { PieGraph } from "@/features/overview/components/pie-graph";
 
 export const dynamic = "force-dynamic";
 
@@ -67,111 +71,120 @@ function Home({
     },
   ];
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Good morning, Owner</h1>
-        <p className="text-sm text-zinc-600">
-          SaaS health across every restaurant workspace — KPIs and pipeline status.
-        </p>
-      </div>
-      {dbDown && (
-        <Alert>
-          <Icons.warning className="size-4" aria-hidden />
-          <AlertTitle>Database not connected</AlertTitle>
-          <AlertDescription>
-            Set <code>DATABASE_URL</code> on <code>@pixa/admin</code> to see live KPIs. UI below is
-            the production layout.
-          </AlertDescription>
-        </Alert>
-      )}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {cards.map((c) => (
-          <Card key={c.label}>
-            <Link href={c.href} className="block" aria-label={`${c.label} — open`}>
-              <CardHeader className="pb-2">
-                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  {c.label}
+    <PageContainer
+      pageTitle="Overview"
+      pageDescription="SaaS health across every restaurant workspace — KPIs, growth and pipeline."
+    >
+      <div className="space-y-6">
+        {dbDown && (
+          <Alert>
+            <Icons.warning className="size-4" aria-hidden />
+            <AlertTitle>Database not connected</AlertTitle>
+            <AlertDescription>
+              Set <code>DATABASE_URL</code> to see live KPIs. UI below is the production layout.
+            </AlertDescription>
+          </Alert>
+        )}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {cards.map((c) => (
+            <Card key={c.label}>
+              <Link href={c.href} className="block" aria-label={`${c.label} — open`}>
+                <CardHeader className="pb-2">
+                  <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                    {c.label}
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-semibold">{c.value}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{c.hint}</p>
+                </CardContent>
+              </Link>
+            </Card>
+          ))}
+        </div>
+        <div className="grid gap-4 lg:grid-cols-7">
+          <div className="lg:col-span-4">
+            <AreaGraph />
+          </div>
+          <div className="lg:col-span-3">
+            <PieGraph />
+          </div>
+          <div className="lg:col-span-4">
+            <BarGraph />
+          </div>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Latest registrations</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {leads.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No leads yet — website form posts to <code>/api/admin/leads</code>.
                 </p>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-semibold">{c.value}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{c.hint}</p>
-              </CardContent>
-            </Link>
+              ) : (
+                <ul className="space-y-2 text-sm">
+                  {leads.map((l) => (
+                    <li
+                      key={l.id}
+                      className="flex items-center justify-between gap-2 rounded-lg bg-muted px-3 py-2"
+                    >
+                      <span className="min-w-0">
+                        <strong>{l.businessName}</strong>{" "}
+                        <span className="text-muted-foreground">· {l.email}</span>
+                      </span>
+                      <Badge variant="secondary" className="shrink-0 capitalize">
+                        {l.status}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <Button
+                variant="link"
+                size="sm"
+                nativeButton={false}
+                render={<Link href="/admin/leads" />}
+                className="mt-3 px-0"
+              >
+                Open pipeline
+                <Icons.arrowRight className="size-3.5" aria-hidden />
+              </Button>
+            </CardContent>
           </Card>
-        ))}
+          <Card>
+            <CardHeader>
+              <CardTitle>Owner checklist</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
+                <li>
+                  Run the migration in <code>packages/db/migrations/*saas*</code> on Neon.
+                </li>
+                <li>
+                  Point the website signup form at{" "}
+                  <code>https://admin.pixapos.store/api/admin/leads</code>.
+                </li>
+                <li>
+                  Triage{" "}
+                  <Link className="underline" href="/admin/leads">
+                    registrations
+                  </Link>{" "}
+                  → Approve creates the org + 14-day trial.
+                </li>
+                <li>
+                  Manage lifecycle on each{" "}
+                  <Link className="underline" href="/admin/organizations">
+                    organisation
+                  </Link>{" "}
+                  (suspend blocks login via profile check).
+                </li>
+              </ol>
+            </CardContent>
+          </Card>
+        </div>
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Latest registrations</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {leads.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No leads yet — website form posts to <code>/api/admin/leads</code>.
-              </p>
-            ) : (
-              <ul className="space-y-2 text-sm">
-                {leads.map((l) => (
-                  <li
-                    key={l.id}
-                    className="flex items-center justify-between gap-2 rounded-lg bg-muted px-3 py-2"
-                  >
-                    <span className="min-w-0">
-                      <strong>{l.businessName}</strong>{" "}
-                      <span className="text-muted-foreground">· {l.email}</span>
-                    </span>
-                    <Badge variant="secondary" className="shrink-0 capitalize">
-                      {l.status}
-                    </Badge>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <Button
-              variant="link"
-              size="sm"
-              nativeButton={false}
-              render={<Link href="/admin/leads" />}
-              className="mt-3 px-0"
-            >
-              Open pipeline
-              <Icons.arrowRight className="size-3.5" aria-hidden />
-            </Button>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Owner checklist</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
-              <li>
-                Run the migration in <code>packages/db/migrations/*saas*</code> on Neon.
-              </li>
-              <li>
-                Point the website signup form at{" "}
-                <code>https://admin.pixapos.store/api/admin/leads</code>.
-              </li>
-              <li>
-                Triage{" "}
-                <Link className="underline" href="/admin/leads">
-                  registrations
-                </Link>{" "}
-                → Approve creates the org + 14-day trial.
-              </li>
-              <li>
-                Manage lifecycle on each{" "}
-                <Link className="underline" href="/admin/organizations">
-                  organisation
-                </Link>{" "}
-                (suspend blocks login via profile check).
-              </li>
-            </ol>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+    </PageContainer>
   );
 }
