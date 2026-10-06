@@ -2,7 +2,25 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { adminDb } from "@/lib/saas-admin";
 import { auditOwnerAction, requireOwnerApi } from "@/lib/saas-owner";
-import { orgProfiles, saasPlans } from "@pixa/db";
+import { FEATURES, RESOURCE_LIMITS, orgProfiles, saasPlans } from "@pixa/db";
+
+function parseLimits(raw: unknown): Record<string, number | null> {
+  const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const out: Record<string, number | null> = {};
+  for (const key of RESOURCE_LIMITS) {
+    const v = obj[key];
+    if (v === null || v === undefined || v === "") out[key] = null;
+    else out[key] = Math.max(0, Math.floor(Number(v) || 0));
+  }
+  return out;
+}
+
+function parseFlags(raw: unknown): Record<string, boolean> {
+  const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const out: Record<string, boolean> = {};
+  for (const key of FEATURES) out[key] = obj[key] === undefined ? true : Boolean(obj[key]);
+  return out;
+}
 
 /**
  * PATCH a plan. Plans are never deleted while referenced — deactivate
@@ -46,6 +64,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     patch.outletLimit =
       body.outletLimit === null ? null : Math.max(1, Math.floor(Number(body.outletLimit) || 1));
   }
+  if (body?.limits !== undefined) {
+    const limits = parseLimits(body.limits);
+    patch.limits = JSON.stringify(limits);
+    patch.outletLimit = limits.outlets;
+  }
+  if (body?.flags !== undefined) patch.flags = JSON.stringify(parseFlags(body.flags));
   if (body?.sortOrder !== undefined) patch.sortOrder = Math.floor(Number(body.sortOrder) || 0);
   if (Object.keys(patch).length === 0 && body?.isActive === undefined) {
     return NextResponse.json({ ok: false, error: "nothing to update" }, { status: 400 });

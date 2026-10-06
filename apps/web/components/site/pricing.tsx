@@ -36,7 +36,7 @@ function planDetailRows(plan: Plan): { label: string; value: string }[] {
       ? "Multi-outlet ready"
       : plan.id === "growth"
         ? "Multi-outlet ready"
-        : "Unlimited outlets";
+        : "Custom outlet strategy";
 
   return [
     { label: "Platform", value: "Any device / PWA" },
@@ -48,6 +48,7 @@ function planDetailRows(plan: Plan): { label: string; value: string }[] {
 
 export default function Pricing({ plans = PLANS }: { plans?: Plan[] }) {
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
+  const annualDiscount = plans.reduce((max, p) => Math.max(max, p.annual_discount_pct || 0), 0);
 
   return (
     <section
@@ -77,7 +78,7 @@ export default function Pricing({ plans = PLANS }: { plans?: Plan[] }) {
                 )}
               >
                 {c}
-                {c === "annual" && " −25%"}
+                {c === "annual" && annualDiscount > 0 && ` −${annualDiscount}%`}
               </button>
             ))}
           </div>
@@ -87,6 +88,7 @@ export default function Pricing({ plans = PLANS }: { plans?: Plan[] }) {
           {plans.map((plan) => {
             const price = planPrice(plan, cycle);
             const detailRows = planDetailRows(plan);
+            const usageRows = plan.id === "custom" || !plan.limits ? [] : limitRows(plan.limits);
 
             return (
               <div key={plan.id} className="w-full px-4 md:w-1/2 lg:w-1/3">
@@ -130,39 +132,14 @@ export default function Pricing({ plans = PLANS }: { plans?: Plan[] }) {
                         <span className="-ml-1 -tracking-[2px]">{formatINR(price).slice(1)}</span>
                         <span className="text-base font-normal text-slate-500 dark:text-slate-400">
                           {" "}
-                          / outlet / month
+                          /{cycle === "annual" ? "year" : "month"}
                         </span>
                       </span>
                     )}
                   </h2>
                   <p className="mb-6 min-h-[24px] text-sm text-slate-500 dark:text-slate-400">
-                    {price == null
-                      ? "Talk to us about volume pricing"
-                      : cycle === "annual"
-                        ? "billed annually"
-                        : "billed monthly"}
+                    {price == null ? "Talk to us about volume pricing" : ""}
                   </p>
-
-                  {plan.limits && (
-                    <div className="mb-6 rounded-2xl border border-slate-200 bg-[#F8FBFF] p-4 dark:border-dark-3 dark:bg-dark-2">
-                      <p className="mb-3 text-[10px] font-semibold tracking-[0.16em] text-[#138AF2] uppercase">
-                        Usage limits
-                      </p>
-                      <dl className="space-y-2 text-sm">
-                        {limitRows(plan.limits).map((row) => (
-                          <div
-                            key={row.label}
-                            className="flex items-baseline justify-between gap-3"
-                          >
-                            <dt className="text-slate-500 dark:text-slate-400">{row.label}</dt>
-                            <dd className="font-semibold tabular-nums text-slate-900 dark:text-white">
-                              {row.value}
-                            </dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </div>
-                  )}
 
                   <div className="mb-8 flex-1">
                     <ul className="space-y-2.5">
@@ -183,13 +160,30 @@ export default function Pricing({ plans = PLANS }: { plans?: Plan[] }) {
                           </span>
                         </li>
                       ))}
+                      {usageRows.map((row) => (
+                        <li
+                          key={row.label}
+                          className="flex items-start gap-2.5 text-base text-slate-600 dark:text-slate-300"
+                        >
+                          <span
+                            className="mt-2 size-2 shrink-0 rounded-full bg-[#F2911B]"
+                            aria-hidden
+                          />
+                          <span>
+                            <span className="font-semibold text-slate-900 dark:text-white">
+                              {row.label}:
+                            </span>{" "}
+                            {row.value}
+                          </span>
+                        </li>
+                      ))}
                       {plan.features.map((f) => (
                         <li
                           key={f}
                           className="flex items-start gap-2.5 text-base text-slate-600 dark:text-slate-300"
                         >
                           <span
-                            className="mt-2 size-2 shrink-0 rounded-full bg-[#F2911B]"
+                            className="mt-2 size-2 shrink-0 rounded-full bg-[#138AF2]"
                             aria-hidden
                           />
                           <span>{f}</span>

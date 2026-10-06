@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { asc, eq } from "drizzle-orm";
 import { adminDb } from "@/lib/saas-admin";
 import { auditOwnerAction, requireOwnerApi } from "@/lib/saas-owner";
-import { saasPlans } from "@pixa/db";
+import { FEATURES, RESOURCE_LIMITS, saasPlans } from "@pixa/db";
 
 export const dynamic = "force-dynamic";
 
@@ -17,10 +17,32 @@ function parseFeatures(raw: unknown): string[] | null {
   return list;
 }
 
-/** Owner-managed subscription plan catalog (single source of truth). */
+/** Normalize an incoming limits map to every ResourceLimit key (number|null). */
+function parseLimits(raw: unknown): Record<string, number | null> {
+  const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const out: Record<string, number | null> = {};
+  for (const key of RESOURCE_LIMITS) {
+    const v = obj[key];
+    if (v === null || v === undefined || v === "") out[key] = null;
+    else out[key] = Math.max(0, Math.floor(Number(v) || 0));
+  }
+  return out;
+}
+
+/** Feature flags default to all-true (no feature gating between plans). */
+function parseFlags(raw: unknown): Record<string, boolean> {
+  const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const out: Record<string, boolean> = {};
+  for (const key of FEATURES) out[key] = obj[key] === undefined ? true : Boolean(obj[key]);
+  return out;
+}
+
+/**
+ * Public catalog read for marketing/site sync and admin plan views. Reads are
+ * intentionally unauthenticated so plan metadata, pricing and annual discount
+ * data stay in sync without a login gate.
+ */
 export async function GET() {
-  const auth = await requireOwnerApi(["billing:read"]);
-  if ("response" in auth) return auth.response;
   try {
     const rows = await adminDb()
       .select()
@@ -28,7 +50,11 @@ export async function GET() {
       .orderBy(asc(saasPlans.sortOrder), asc(saasPlans.name));
     return NextResponse.json({
       ok: true,
-      plans: rows.map((p) => ({ ...p, features: JSON.parse(p.features ?? "[]") })),
+      plans: rows.map((p) => ({
+        ...p,
+        annualDiscountPct: Number(p.annualDiscountPct ?? 0),
+        features: JSON.parse(p.features ?? "[]"),
+      })),
     });
   } catch {
     return NextResponse.json({ ok: false, error: "DATABASE_URL not set" }, { status: 503 });
@@ -73,9 +99,11 @@ export async function POST(req: Request) {
         Math.max(0, Math.floor(Number(body?.annualDiscountPct ?? 0) || 0)),
       ),
       features: JSON.stringify(features),
+      limits: JSON.stringify(parseLimits(body?.limits)),
+      flags: JSON.stringify(parseFlags(body?.flags)),
       outletLimit:
         body?.outletLimit === null || body?.outletLimit === undefined
-          ? null
+          ? parseLimits(body?.limits).outlets
           : Math.max(1, Math.floor(Number(body.outletLimit) || 1)),
       sortOrder: Math.floor(Number(body?.sortOrder ?? 0) || 0),
       isActive: body?.isActive === undefined ? true : Boolean(body.isActive),
