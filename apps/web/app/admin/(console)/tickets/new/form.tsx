@@ -65,67 +65,69 @@ export function NewTicketForm() {
   });
 
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void form.handleSubmit();
-          }}
-        >
-          <FieldGroup>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div className="mx-auto w-full max-w-2xl">
+      <Card>
+        <CardContent className="pt-6">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void form.handleSubmit();
+            }}
+          >
+            <FieldGroup>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <form.AppField
+                  name="subject"
+                  children={(field) => <field.TextField label="Subject" required />}
+                />
+                <form.AppField
+                  name="reporterEmail"
+                  children={(field) => <field.TextField label="Reporter email" type="email" />}
+                />
+                <form.AppField
+                  name="organizationId"
+                  children={(field) => <field.TextField label="Organisation ID (optional)" />}
+                />
+                <form.AppField
+                  name="priority"
+                  children={(field) => (
+                    <field.SelectField
+                      label="Priority"
+                      options={PRIORITIES.map((p) => ({ value: p, label: p }))}
+                    />
+                  )}
+                />
+                <form.AppField
+                  name="channel"
+                  children={(field) => (
+                    <field.SelectField
+                      label="Channel"
+                      options={CHANNELS.map((c) => ({ value: c, label: c }))}
+                    />
+                  )}
+                />
+              </div>
               <form.AppField
-                name="subject"
-                children={(field) => <field.TextField label="Subject" required />}
+                name="description"
+                children={(field) => <field.TextareaField label="Description" required rows={3} />}
               />
-              <form.AppField
-                name="reporterEmail"
-                children={(field) => <field.TextField label="Reporter email" type="email" />}
-              />
-              <form.AppField
-                name="organizationId"
-                children={(field) => <field.TextField label="Organisation ID (optional)" />}
-              />
-              <form.AppField
-                name="priority"
-                children={(field) => (
-                  <field.SelectField
-                    label="Priority"
-                    options={PRIORITIES.map((p) => ({ value: p, label: p }))}
-                  />
+            </FieldGroup>
+            <div className="mt-6 flex gap-2">
+              <form.Subscribe selector={(s) => s.isSubmitting}>
+                {(submitting) => (
+                  <Button type="submit" disabled={busy || submitting}>
+                    <Icons.add className="size-4" aria-hidden />
+                    Open ticket
+                  </Button>
                 )}
-              />
-              <form.AppField
-                name="channel"
-                children={(field) => (
-                  <field.SelectField
-                    label="Channel"
-                    options={CHANNELS.map((c) => ({ value: c, label: c }))}
-                  />
-                )}
-              />
+              </form.Subscribe>
+              <Button type="button" variant="outline" onClick={() => router.push("/admin/tickets")}>
+                Cancel
+              </Button>
             </div>
-            <form.AppField
-              name="description"
-              children={(field) => <field.TextareaField label="Description" required rows={3} />}
-            />
-          </FieldGroup>
-          <div className="mt-6 flex gap-2">
-            <form.Subscribe selector={(s) => s.isSubmitting}>
-              {(submitting) => (
-                <Button type="submit" disabled={busy || submitting}>
-                  <Icons.add className="size-4" aria-hidden />
-                  Open ticket
-                </Button>
-              )}
-            </form.Subscribe>
-            <Button type="button" variant="outline" onClick={() => router.push("/admin/tickets")}>
-              Cancel
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
