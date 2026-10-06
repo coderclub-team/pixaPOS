@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card"
 import { FieldGroup } from "@pixa/ui/base-ui/field";
 import { Input } from "@pixa/ui/base-ui/input";
 import { Label } from "@pixa/ui/base-ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@pixa/ui/base-ui/tabs";
 import { useAppForm } from "@/lib/form";
 import { Icons } from "@pixa/ui/icons";
 import { GB, MB, type LimitMap, type ResourceLimit } from "@pixa/db/plans";
@@ -147,116 +148,130 @@ export function PlanForm({ plan }: { plan: EditablePlan }) {
       }}
       className="space-y-5"
     >
-      <Card>
-        <CardHeader>
-          <CardTitle>Plan details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <FieldGroup>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <form.AppField
-                name="name"
-                children={(field) => <field.TextField label="Name" required />}
-              />
-              <form.AppField
-                name="tagline"
-                children={(field) => <field.TextField label="Tagline" />}
-              />
-              <form.AppField
-                name="monthlyInr"
-                children={(field) => (
-                  <field.TextField
-                    label="₹ / month"
-                    placeholder="1499"
-                    description="Blank = custom pricing"
-                  />
-                )}
-              />
-              <form.AppField
-                name="annualDiscountPct"
-                children={(field) => (
-                  <field.TextField
-                    label="Annual discount %"
-                    description="Shown on the landing page"
-                  />
-                )}
-              />
-              <form.AppField
-                name="sortOrder"
-                children={(field) => (
-                  <field.TextField label="Sort order" description="Lower shows first" />
-                )}
-              />
-            </div>
-          </FieldGroup>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="details">
+        <TabsList>
+          <TabsTrigger value="details">Plan details</TabsTrigger>
+          <TabsTrigger value="limits">Usage limits</TabsTrigger>
+          <TabsTrigger value="features">Features</TabsTrigger>
+        </TabsList>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Usage limits</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {LIMIT_FIELDS.map((f) => (
-              <div key={f.key} className="grid gap-2">
-                <Label htmlFor={`limit-${f.key}`}>
-                  {f.label}
-                  {UNIT_SUFFIX[f.unit] ? ` (${UNIT_SUFFIX[f.unit]})` : ""}
-                </Label>
-                <Input
-                  id={`limit-${f.key}`}
-                  inputMode="decimal"
-                  value={limits[f.key]}
-                  placeholder="Blank = custom"
-                  onChange={(e) => setLimits((prev) => ({ ...prev, [f.key]: e.target.value }))}
-                />
+        <TabsContent value="details" keepMounted className="pt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Plan details</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <FieldGroup>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <form.AppField
+                    name="name"
+                    children={(field) => <field.TextField label="Name" required />}
+                  />
+                  <form.AppField
+                    name="tagline"
+                    children={(field) => <field.TextField label="Tagline" />}
+                  />
+                  <form.AppField
+                    name="monthlyInr"
+                    children={(field) => (
+                      <field.TextField
+                        label="₹ / month"
+                        placeholder="1499"
+                        description="Blank = custom pricing"
+                      />
+                    )}
+                  />
+                  <form.AppField
+                    name="annualDiscountPct"
+                    children={(field) => (
+                      <field.TextField
+                        label="Annual discount %"
+                        description="Shown on the landing page"
+                      />
+                    )}
+                  />
+                  <form.AppField
+                    name="sortOrder"
+                    children={(field) => (
+                      <field.TextField label="Sort order" description="Lower shows first" />
+                    )}
+                  />
+                </div>
+              </FieldGroup>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="limits" keepMounted className="pt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Usage limits</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {LIMIT_FIELDS.map((f) => (
+                  <div key={f.key} className="grid gap-2">
+                    <Label htmlFor={`limit-${f.key}`}>
+                      {f.label}
+                      {UNIT_SUFFIX[f.unit] ? ` (${UNIT_SUFFIX[f.unit]})` : ""}
+                    </Label>
+                    <Input
+                      id={`limit-${f.key}`}
+                      inputMode="decimal"
+                      value={limits[f.key]}
+                      placeholder="Blank = custom"
+                      onChange={(e) => setLimits((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                    />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Features</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {features.map((f, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <span className="w-6 shrink-0 text-center text-xs text-muted-foreground tabular-nums">
-                {i + 1}
-              </span>
-              <Input
-                value={f}
-                aria-label={`Feature ${i + 1}`}
-                placeholder="e.g. Inventory, batches & wastage"
-                onChange={(e) =>
-                  setFeatures((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))
-                }
-              />
+        <TabsContent value="features" keepMounted className="pt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Features</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {features.map((f, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="w-6 shrink-0 text-center text-xs text-muted-foreground tabular-nums">
+                    {i + 1}
+                  </span>
+                  <Input
+                    value={f}
+                    aria-label={`Feature ${i + 1}`}
+                    placeholder="e.g. Inventory, batches & wastage"
+                    onChange={(e) =>
+                      setFeatures((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))
+                    }
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Remove feature ${i + 1}`}
+                    onClick={() => setFeatures((prev) => prev.filter((_, j) => j !== i))}
+                  >
+                    <Icons.trash className="size-4" />
+                  </Button>
+                </div>
+              ))}
               <Button
                 type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={`Remove feature ${i + 1}`}
-                onClick={() => setFeatures((prev) => prev.filter((_, j) => j !== i))}
+                variant="outline"
+                size="sm"
+                onClick={() => setFeatures((prev) => [...prev, ""])}
               >
-                <Icons.trash className="size-4" />
+                <Icons.add className="size-3.5" aria-hidden />
+                Add feature
               </Button>
-            </div>
-          ))}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setFeatures((prev) => [...prev, ""])}
-          >
-            <Icons.add className="size-3.5" aria-hidden />
-            Add feature
-          </Button>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       <div className="flex gap-2">
         <form.Subscribe selector={(s) => s.isSubmitting}>

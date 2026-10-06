@@ -1,13 +1,10 @@
-import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { adminDb } from "@/lib/saas-admin";
 import { saasPlans } from "@pixa/db";
 import { resolveLimits, type LimitMap } from "@pixa/db/plans";
-import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@pixa/ui/base-ui/empty";
-import { Icons } from "@pixa/ui/icons";
 import PageContainer from "@/components/layout/page-container";
 import { PlanForm, type EditablePlan } from "./form";
 
@@ -73,19 +70,7 @@ export default async function EditPlanPage({ params }: { params: Promise<{ planI
       pageTitle={`Edit plan — ${plan.name}`}
       pageDescription="Pricing, usage limits and features. Saved to the catalog and applied to new signups."
     >
-      <div className="mx-auto w-full max-w-2xl">
-        <div className="mb-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            nativeButton={false}
-            render={<Link href="/admin/billing" />}
-            className="px-0"
-          >
-            <Icons.chevronLeft className="size-3.5" aria-hidden />
-            All plans
-          </Button>
-        </div>
+      <div className="mx-auto w-full max-w-3xl">
         <PlanForm plan={plan} />
       </div>
     </PageContainer>
