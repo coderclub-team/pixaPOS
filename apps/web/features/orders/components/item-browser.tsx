@@ -100,7 +100,7 @@ function minPriceOf(item: MenuItem): number {
   return toPaise(Math.min(...prices));
 }
 
-/** Variant products expand inline (Odoo/Zoho pattern): one sub-row per
+/** Variant products expand inline (inline-expansion pattern): one sub-row per
  * variant with its own price + stepper, instead of overloading one row. */
 function hasVariantOptions(item: MenuItem): boolean {
   return (

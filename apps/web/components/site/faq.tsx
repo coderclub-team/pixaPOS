@@ -7,7 +7,7 @@ const LEFT = [
   },
   {
     q: "Is pricing per outlet or per user?",
-    a: "Per outlet, like Zoho POS. One subscription covers unlimited registers and staff at that outlet. Add outlets as you grow; each bills at the same plan rate with a ~20% annual discount.",
+    a: "Per outlet. One subscription covers unlimited registers and staff at that outlet. Add outlets as you grow; each bills at the same plan rate with a ~20% annual discount.",
   },
   {
     q: "What happens when the internet goes down?",
@@ -37,10 +37,10 @@ function FaqItem({ question, answer }: { question: string; answer: string }) {
         ?
       </div>
       <div className="w-full">
-        <h3 className="mb-6 text-xl font-semibold text-dark sm:text-2xl lg:text-xl xl:text-2xl">
+        <h3 className="mb-6 text-xl font-semibold text-dark sm:text-2xl lg:text-xl xl:text-2xl dark:text-white">
           {question}
         </h3>
-        <p className="text-base text-body-color">{answer}</p>
+        <p className="text-base text-body-color dark:text-dark-6">{answer}</p>
       </div>
     </div>
   );
@@ -50,7 +50,7 @@ export default function Faq() {
   return (
     <section
       id="faq"
-      className="relative z-20 overflow-hidden bg-white pt-20 pb-8 lg:pt-[120px] lg:pb-[50px]"
+      className="relative z-20 overflow-hidden bg-white pt-20 pb-8 lg:pt-[120px] lg:pb-[50px] dark:bg-dark"
     >
       <div className="container">
         <SectionTitle
@@ -78,9 +78,9 @@ export default function Faq() {
       <div>
         <span className="absolute top-4 left-4 -z-[1]">
           <svg width="48" height="134" viewBox="0 0 48 134" fill="none">
-            <circle cx="45.6673" cy="132" r="1.66667" fill="#13C296" />
-            <circle cx="30.3333" cy="132" r="1.66667" fill="#13C296" />
-            <circle cx="15" cy="132" r="1.66667" fill="#13C296" />
+            <circle cx="45.6673" cy="132" r="1.66667" fill="#17BF71" />
+            <circle cx="30.3333" cy="132" r="1.66667" fill="#17BF71" />
+            <circle cx="15" cy="132" r="1.66667" fill="#17BF71" />
           </svg>
         </span>
       </div>

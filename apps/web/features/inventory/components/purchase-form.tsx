@@ -275,7 +275,7 @@ export default function PurchaseForm({
     const po = (pos ?? []).find((p) => p.id === poId);
     if (!po) return;
     if (po.status !== "sent") {
-      toast.error("Only sent POs can be billed (Odoo: draft/received not selectable)");
+      toast.error("Only sent POs can be billed (draft/received not selectable)");
       form.setFieldValue("po_id" as any, "");
       return;
     }
@@ -329,7 +329,7 @@ export default function PurchaseForm({
       const po = pos.find((p) => p.id === prefillPoId);
       if (po) {
         if (po.status !== "sent") {
-          toast.error("Linked PO must be sent (Odoo: draft/received not billable)");
+          toast.error("Linked PO must be sent (draft/received not billable)");
           return;
         }
         if (billedPoIds.has(po.id)) {

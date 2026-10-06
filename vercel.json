@@ -13,5 +13,11 @@
   },
   "github": {
     "silent": true
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/usage-sync",
+      "schedule": "0 3 * * *"
+    }
+  ]
 }

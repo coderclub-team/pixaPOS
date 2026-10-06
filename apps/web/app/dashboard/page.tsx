@@ -1,11 +1,10 @@
 import { redirect } from "next/navigation";
-import SurfaceCards from "@/components/surface-cards";
 import { baMemberRole, baOrgId, baUser } from "@/lib/auth-session";
 
 /**
  * Dashboard home: role fast-paths stay (wall tablets must land directly),
- * everyone else gets the surface picker (folded in from the old `/`
- * launcher when `/` became the marketing site).
+ * everyone else lands on the overview dashboard. Surfaces are selected from
+ * the header switcher — never from in-page cards.
  */
 function targetForRole(role: string | null): string | null {
   const r = (role ?? "").replace(/^org:/, "");
@@ -23,6 +22,5 @@ export default async function DashboardPage() {
     if (orgId) role = await baMemberRole(orgId, user.id);
   } catch {}
   const fastPath = targetForRole(role);
-  if (fastPath) redirect(fastPath);
-  return <SurfaceCards userName={user.name} />;
+  redirect(fastPath ?? "/dashboard/overview");
 }

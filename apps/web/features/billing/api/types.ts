@@ -6,7 +6,7 @@ export type BillingPlan = {
   id: string;
   name: string;
   billing_period: BillingPeriod;
-  /** Tax-exclusive monthly price (Zoho-style); GST applied at invoice render. */
+  /** Tax-exclusive monthly price (list price); GST applied at invoice render. */
   amount_paise: number;
   currency: "INR";
   trial_days: number;
@@ -51,7 +51,7 @@ export type Subscription = {
   trial_started_at: string;
   razorpay_subscription_id?: string;
   razorpay_customer_id?: string;
-  /** Zoho pattern: stays usable until the paid period ends, then cancelled. */
+  /** Grace pattern: stays usable until the paid period ends, then cancelled. */
   cancel_at_period_end: boolean;
   current_period_start?: string;
   current_period_end?: string;

@@ -5,8 +5,8 @@ Date: 2026-09-11 · Status: accepted
 ## Context
 
 The order terminal captured items but had no billing surface: no discount, no
-tender methods, no paid marking, no splits — while reference parity (Odoo
-register + bill split, Zoho multi-tender, Petpooja equal/item-wise/custom
+tender methods, no paid marking, no splits — while reference parity (POS
+register + bill split, multi-tender, Petpooja equal/item-wise/custom
 splits + discounts, Rista partial payments) demands all of them. The panel is
 the Bill, never a "cart".
 

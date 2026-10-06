@@ -7,9 +7,12 @@ const COLUMNS: { title: string; links: { label: string; href: string }[] }[] = [
   {
     title: "Product",
     links: [
-      { label: "Surfaces", href: "/#surfaces" },
-      { label: "Pricing", href: "/#pricing" },
-      { label: "Customers", href: "/#customers" },
+      { label: "Features", href: "/features" },
+      { label: "Solutions", href: "/solutions" },
+      { label: "Pricing", href: "/pricing" },
+      { label: "About", href: "/about" },
+      { label: "Careers", href: "/careers" },
+      { label: "Contact", href: "/contact" },
       { label: "FAQ", href: "/#faq" },
     ],
   },
@@ -29,15 +32,16 @@ export default function Footer() {
         <div className="-mx-4 flex flex-wrap">
           <div className="w-full px-4 sm:w-1/2 lg:w-4/12 xl:w-3/12">
             <div className="mb-10 w-full">
-              <Link href="/" className="mb-6 inline-flex items-center gap-2">
+              <Link href="/" className="mb-6 inline-flex items-center gap-3">
                 <Image
                   src="/logo.png"
                   alt="pixaPOS"
                   width={36}
                   height={36}
-                  className="size-9 rounded-lg"
+                  priority
+                  className="h-9 w-9 shrink-0 rounded-lg object-cover ring-1 ring-white/10"
                 />
-                <span className="text-2xl font-bold text-white">pixaPOS</span>
+                <span className="text-2xl font-bold tracking-tight text-white">pixaPOS</span>
               </Link>
               <p className="mb-8 max-w-[270px] text-base text-gray-7">
                 Local-first restaurant operations — POS, kitchen, delivery. One account, one
@@ -81,20 +85,40 @@ export default function Footer() {
         </div>
       </div>
 
-      <div className="border-t border-white/10">
+      <div className="mt-12 border-t border-white/10 py-8 lg:mt-[60px]">
         <div className="container">
-          <div className="-mx-4 flex flex-wrap py-4">
+          <div className="-mx-4 flex flex-wrap">
             <div className="w-full px-4 md:w-2/3 lg:w-1/2">
-              <p className="text-base text-gray-7">
-                © 2026 pixaPOS · {TRIAL_DAYS}-day free trial · No credit card required
-              </p>
+              <div className="my-1">
+                <div className="-mx-3 flex items-center justify-center md:justify-start">
+                  <Link
+                    href="/#pricing"
+                    className="px-3 text-base text-gray-7 hover:text-white hover:underline"
+                  >
+                    Pricing
+                  </Link>
+                  <Link
+                    href="/#faq"
+                    className="px-3 text-base text-gray-7 hover:text-white hover:underline"
+                  >
+                    FAQ
+                  </Link>
+                  <Link
+                    href={signUpUrl()}
+                    className="px-3 text-base text-gray-7 hover:text-white hover:underline"
+                  >
+                    Terms of service
+                  </Link>
+                </div>
+              </div>
             </div>
             <div className="w-full px-4 md:w-1/3 lg:w-1/2">
               <div className="my-1 flex justify-center md:justify-end">
                 <p className="text-base text-gray-7">
-                  Local-first restaurant OS ·{" "}
-                  <Link href={signUpUrl()} className="text-gray-1 hover:underline">
-                    Start free
+                  Designed and developed by the pixaPOS team.
+                  <br />
+                  <Link href="tel:+919944781003" className="text-gray-1 hover:underline">
+                    +91 9944 7810 03
                   </Link>
                 </p>
               </div>

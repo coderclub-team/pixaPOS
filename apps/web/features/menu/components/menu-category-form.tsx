@@ -172,7 +172,7 @@ function MenuCategoryFormInner({
                     label="Parent Category"
                     options={parentOptions}
                     placeholder="Top level — no parent"
-                    description="Odoo parent category, flat if empty"
+                    description="Parent category, flat if empty"
                   />
                 )}
               />

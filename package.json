@@ -33,7 +33,13 @@
     "dev:mobile": "pnpm --filter @pixa/mobile dev",
     "dev:template": "pnpm --filter @pixa/template dev",
     "prepare": "husky",
-    "clean:cache": "rm -rf apps/web/.next .next"
+    "clean:cache": "rm -rf apps/web/.next .next",
+    "pipeline": "node scripts/pipeline.mjs",
+    "pipeline:status": "node scripts/pipeline.mjs status",
+    "pipeline:verify": "node scripts/pipeline.mjs verify",
+    "pipeline:migrate": "node scripts/pipeline.mjs migrate",
+    "pipeline:health": "node scripts/pipeline.mjs health",
+    "pipeline:deploy": "node scripts/pipeline.mjs deploy"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

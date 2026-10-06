@@ -16,7 +16,7 @@ import { useRouter } from "next/navigation";
 
 /**
  * Add-on group editor: name, min/max selection, active flag. Max 1 forces
- * single-choice (Odoo/Roller pattern); min 0 = optional, min ≥ 1 = required
+ * single-choice (exclusive-selection pattern); min 0 = optional, min ≥ 1 = required
  * at fire time with a named-group error.
  */
 export default function ModifierGroupForm({ initialData }: { initialData?: ModifierGroup }) {

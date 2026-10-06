@@ -7,6 +7,7 @@ import { useIdentity } from "@/hooks/use-identity";
 import { billingKeys } from "@/features/billing/api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import BillingView from "@/features/billing/components/billing-view";
+import { UsageLimitsPanel } from "@/components/billing/usage-limits";
 import { billingInfoContent } from "@/config/infoconfig";
 
 export default function BillingPage() {
@@ -52,13 +53,18 @@ export default function BillingPage() {
       }
     >
       {organization ? (
-        <BillingView
-          organizationId={organization.id}
-          organizationName={organization.name}
-          orgCreatedAt={
-            organization?.createdAt == null ? undefined : new Date(organization.createdAt).getTime()
-          }
-        />
+        <div className="space-y-6">
+          <UsageLimitsPanel />
+          <BillingView
+            organizationId={organization.id}
+            organizationName={organization.name}
+            orgCreatedAt={
+              organization?.createdAt == null
+                ? undefined
+                : new Date(organization.createdAt).getTime()
+            }
+          />
+        </div>
       ) : (
         <div className="text-center text-sm text-muted-foreground">Organization not found.</div>
       )}

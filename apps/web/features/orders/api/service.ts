@@ -1987,7 +1987,7 @@ export { canTransitionOrder };
 
 /**
  * Single shared rule deriving an order's kitchen step from ALL non-voided
- * tickets (Toast/Lightspeed/Odoo aggregation): an order is ready only when
+ * tickets (Toast/Lightspeed multi-ticket aggregation): an order is ready only when
  * every item is ready. Used by live sync AND load backfill alike, so the
  * list, detail, terminal and board can never disagree.
  */
@@ -2102,7 +2102,7 @@ export async function refreshOrderKitchenState(orderId: string): Promise<void> {
 }
 
 /**
- * Dispatch flow (Odoo Delivery-Screen rule): READY → OUT_FOR_DELIVERY →
+ * Dispatch flow (delivery-screen rule): READY → OUT_FOR_DELIVERY →
  * DELIVERED, owned by the dispatch console — never by item-served events.
  * Dispatch auto-serves the order's open KOTs (kitchen's job ends at handoff),
  * which clears the KDS board; the clamped derivation keeps the order itself

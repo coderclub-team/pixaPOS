@@ -12,6 +12,7 @@ import * as saasSchema from "./saas-schema";
 export * from "./schema";
 export * from "./auth-schema";
 export * from "./saas-schema";
+export * from "./plans";
 
 const fullSchema = { ...schema, ...authSchema, ...saasSchema };
 

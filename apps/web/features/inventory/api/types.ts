@@ -14,7 +14,7 @@ export type RawMaterial = {
   category: string;
   unit: "kg" | "g" | "l" | "ml" | "pcs" | "box"; // base (stock) unit — recipes, ledger, costing
   manufacturer?: string; // goods maker (retail label + batch default)
-  purchase_unit?: "kg" | "g" | "l" | "ml" | "pcs" | "box"; // buying unit (Odoo purchase UoM)
+  purchase_unit?: "kg" | "g" | "l" | "ml" | "pcs" | "box"; // buying unit (purchase UoM)
   purchase_to_base_rate?: number; // 1 purchase_unit = X base units (e.g. 1 box = 12 pcs)
   stock_qty: number;
   low_stock_threshold: number; // simple threshold for reorder alerts
@@ -98,10 +98,10 @@ export type RecipeVariantQty = {
 export type RecipeIngredient = {
   material_id: string;
   material_name?: string;
-  qty: number; // base qty = simple-dish qty + fallback for variants without override (Odoo blank = all)
+  qty: number; // base qty = simple-dish qty + fallback for variants without override (blank = all)
   unit: string;
   wastage_percent?: number;
-  step_no?: number; // which method step consumes it (Odoo consumed-in-operation lite)
+  step_no?: number; // which method step consumes it (consumed-in-operation lite)
   variant_qtys?: RecipeVariantQty[]; // per-variant overrides, only when linked dish has variants
 };
 
@@ -229,7 +229,7 @@ export type StockLedgerEntry = {
   total_cost?: number;
   avg_cost_before?: number;
   avg_cost_after?: number;
-  location_id?: string; // e.g., main, kitchen, waste — Odoo location
+  location_id?: string; // e.g., main, kitchen, waste — storage location
   lot_number?: string; // batch for expiry trace
   supplier_name?: string;
   expiry_date?: string;
@@ -279,7 +279,7 @@ export type PurchaseItem = {
   location_id?: string;
 };
 
-/** Storage master: floor + rack per goods item (Odoo location pattern). */
+/** Storage master: floor + rack per goods item (storage location pattern). */
 export type StorageLocation = {
   id: string;
   outlet_id?: string;
