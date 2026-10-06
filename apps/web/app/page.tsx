@@ -13,6 +13,7 @@ import Contact from "@/components/site/contact";
 import Clients from "@/components/site/clients";
 import Footer from "@/components/site/footer";
 import ScrollToTop from "@/components/site/scroll-to-top";
+import { getMarketingPlans } from "@/lib/site/plans-server";
 
 export const metadata: Metadata = {
   title: {
@@ -26,8 +27,10 @@ export const metadata: Metadata = {
 /**
  * Marketing site (moved from apps/landing). Public on pixapos.store and www;
  * every other surface host rewrites here only for unknown paths (see lib/hosts).
+ * Plans come from the owner-managed DB catalog (fallback: static catalog).
  */
-export default function MarketingPage() {
+export default async function MarketingPage() {
+  const plans = await getMarketingPlans();
   return (
     <main className="site-theme">
       <ScrollToTop />
@@ -36,7 +39,7 @@ export default function MarketingPage() {
       <Surfaces />
       <About />
       <CtaBanner />
-      <Pricing />
+      <Pricing plans={plans} />
       <Testimonials />
       <Faq />
       <Team />

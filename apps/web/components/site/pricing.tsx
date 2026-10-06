@@ -3,12 +3,22 @@
 import Link from "next/link";
 import { useState } from "react";
 import { signUpUrl } from "@/lib/site/site";
-import { PLANS, TRIAL_DAYS, formatINR, planPrice, type BillingCycle } from "@/lib/site/plans";
+import {
+  PLANS,
+  TRIAL_DAYS,
+  formatINR,
+  planPrice,
+  type BillingCycle,
+  type Plan,
+} from "@/lib/site/plans";
 import SectionTitle from "@/components/site/section-title";
+import { PlanLimitsDialog } from "@/components/site/plan-limits-dialog";
+import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 
-export default function Pricing() {
+export default function Pricing({ plans = PLANS }: { plans?: Plan[] }) {
   const [cycle, setCycle] = useState<BillingCycle>("annual");
+  const [limitsPlan, setLimitsPlan] = useState<Plan | null>(null);
 
   return (
     <section
@@ -45,7 +55,7 @@ export default function Pricing() {
         </div>
 
         <div className="-mx-4 flex flex-wrap justify-center">
-          {PLANS.map((plan) => {
+          {plans.map((plan) => {
             const price = planPrice(plan, cycle);
             return (
               <div key={plan.id} className="w-full px-4 md:w-1/2 lg:w-1/3">
@@ -55,9 +65,22 @@ export default function Pricing() {
                       Recommended
                     </p>
                   )}
-                  <span className="mb-5 block text-xl font-medium text-dark dark:text-white">
-                    {plan.name}
-                  </span>
+                  <div className="mb-5 flex items-center justify-between gap-2">
+                    <span className="block text-xl font-medium text-dark dark:text-white">
+                      {plan.name}
+                    </span>
+                    {plan.limits && (
+                      <button
+                        type="button"
+                        onClick={() => setLimitsPlan(plan)}
+                        title="Plan limits"
+                        aria-label={`What's included in ${plan.name}`}
+                        className="cursor-pointer rounded-full p-1 text-body-color transition hover:bg-gray-2 hover:text-primary dark:text-dark-6 dark:hover:bg-dark"
+                      >
+                        <Icons.info className="size-5" />
+                      </button>
+                    )}
+                  </div>
                   {/* min-h keeps the Features heading aligned across cards:
                       Custom/Free render one line, paid prices wrap to two. */}
                   <h2 className="mb-11 flex min-h-[104px] flex-col justify-center text-4xl font-semibold text-dark xl:text-[42px] xl:leading-[1.21] dark:text-white">
@@ -113,6 +136,12 @@ export default function Pricing() {
           — your data is never deleted.
         </p>
       </div>
+      <PlanLimitsDialog
+        open={!!limitsPlan}
+        onOpenChange={(v) => !v && setLimitsPlan(null)}
+        name={limitsPlan?.name ?? ""}
+        limits={limitsPlan?.limits ?? null}
+      />
     </section>
   );
 }

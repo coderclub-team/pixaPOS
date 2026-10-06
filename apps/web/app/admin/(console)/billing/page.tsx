@@ -4,7 +4,6 @@ import { resolveLimits, type LimitMap } from "@pixa/db/plans";
 import { Alert, AlertDescription, AlertTitle } from "@pixa/ui/base-ui/alert";
 import { Icons } from "@pixa/ui/icons";
 import PageContainer from "@/components/layout/page-container";
-import { PlanCostBreakdown, type CostPlan } from "@/components/billing/plan-cost";
 import { getUsdToInr } from "@/lib/fx";
 import { PlansManager } from "./plans-manager";
 
@@ -12,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export default async function BillingPage() {
   let plans: React.ComponentProps<typeof PlansManager>["initialPlans"] = [];
-  let costPlans: CostPlan[] = [];
+  const limitsById: Record<string, LimitMap> = {};
   const dist: Record<string, number> = {};
   try {
     const db = adminDb();
@@ -28,20 +27,15 @@ export default async function BillingPage() {
       sortOrder: p.sortOrder,
       isActive: p.isActive,
     }));
-    costPlans = rows.map((p) => {
+    for (const p of rows) {
       let dbLimits: Partial<LimitMap> | null = null;
       try {
         dbLimits = p.limits ? (JSON.parse(p.limits) as Partial<LimitMap>) : null;
       } catch {
         dbLimits = null;
       }
-      return {
-        id: p.id,
-        name: p.name,
-        monthlyPaise: p.monthlyPaise,
-        limits: resolveLimits(p.id, dbLimits),
-      };
-    });
+      limitsById[p.id] = resolveLimits(p.id, dbLimits);
+    }
     const profiles = await db.select().from(orgProfiles);
     for (const p of profiles) {
       dist[p.plan ?? ""] = (dist[p.plan ?? ""] ?? 0) + 1;
@@ -55,7 +49,7 @@ export default async function BillingPage() {
   return (
     <PageContainer
       pageTitle="Plans & billing"
-      pageDescription="Owner-managed plan catalog — the single source of truth. Razorpay reconciliation stays in the web app; this is the owner overview."
+      pageDescription="Owner-managed plan catalog — the single source of truth. Pricing, limits, feature flags and infrastructure cost/margin per plan."
     >
       <div className="space-y-6">
         {orphaned.length > 0 && (
@@ -68,26 +62,12 @@ export default async function BillingPage() {
             </AlertDescription>
           </Alert>
         )}
-        <PlansManager initialPlans={plans} />
-
-        {costPlans.length > 0 && (
-          <section className="space-y-3">
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight">Infrastructure cost & margin</h2>
-              <p className="text-sm text-muted-foreground">
-                What each plan would cost at full usage on Neon Launch rates, versus its price.
-                Internal only — never shown to customers. USD→INR {fx.rate.toFixed(2)}
-                {fx.source === "live"
-                  ? fx.updatedAt
-                    ? ` (live, ${fx.updatedAt})`
-                    : " (live)"
-                  : " (fallback)"}
-                .
-              </p>
-            </div>
-            <PlanCostBreakdown plans={costPlans} usdToInr={fx.rate} />
-          </section>
-        )}
+        <p className="text-xs text-muted-foreground">
+          Cost &amp; margin use live USD→INR {fx.rate.toFixed(2)}
+          {fx.source === "live" ? (fx.updatedAt ? ` (${fx.updatedAt})` : "") : " (fallback)"}. Open
+          the info icon on a plan to inspect it.
+        </p>
+        <PlansManager initialPlans={plans} limitsById={limitsById} usdToInr={fx.rate} />
       </div>
     </PageContainer>
   );

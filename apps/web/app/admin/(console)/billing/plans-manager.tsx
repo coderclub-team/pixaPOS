@@ -19,6 +19,8 @@ import { FieldGroup } from "@pixa/ui/base-ui/field";
 import { useAppForm } from "@/lib/form";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
+import { resolveLimits, type LimitMap } from "@pixa/db/plans";
+import { PlanCostDialog, type CostPlan } from "@/components/billing/plan-cost";
 
 export type CatalogPlan = {
   id: string;
@@ -92,12 +94,28 @@ function toBody(value: PlanValues, isEdit: boolean) {
   };
 }
 
-export function PlansManager({ initialPlans }: { initialPlans: CatalogPlan[] }) {
+export function PlansManager({
+  initialPlans,
+  limitsById = {},
+  usdToInr = 87,
+}: {
+  initialPlans: CatalogPlan[];
+  limitsById?: Record<string, LimitMap>;
+  usdToInr?: number;
+}) {
   const router = useRouter();
   const [editing, setEditing] = useState<CatalogPlan | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [deactivateTarget, setDeactivateTarget] = useState<CatalogPlan | null>(null);
+  const [costTargetId, setCostTargetId] = useState<string | null>(null);
+
+  const costPlans: CostPlan[] = initialPlans.map((p) => ({
+    id: p.id,
+    name: p.name,
+    monthlyPaise: p.monthlyPaise,
+    limits: limitsById[p.id] ?? resolveLimits(p.id),
+  }));
 
   const form = useAppForm({
     defaultValues: emptyValues,
@@ -157,10 +175,22 @@ export function PlansManager({ initialPlans }: { initialPlans: CatalogPlan[] }) 
         {initialPlans.map((p) => (
           <Card key={p.id} className={cn(!p.isActive && "opacity-60")}>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                {p.name}
-                {!p.isActive && <Badge variant="secondary">inactive</Badge>}
-              </CardTitle>
+              <div className="flex items-start justify-between gap-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  {p.name}
+                  {!p.isActive && <Badge variant="secondary">inactive</Badge>}
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 shrink-0 text-muted-foreground"
+                  title="Cost & margin"
+                  aria-label={`Cost and margin for ${p.name}`}
+                  onClick={() => setCostTargetId(p.id)}
+                >
+                  <Icons.info className="size-4" />
+                </Button>
+              </div>
               <p className="text-2xl font-semibold">{inr(p.monthlyPaise)}</p>
               {p.tagline && <p className="text-sm text-muted-foreground">{p.tagline}</p>}
             </CardHeader>
@@ -327,6 +357,13 @@ export function PlansManager({ initialPlans }: { initialPlans: CatalogPlan[] }) 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <PlanCostDialog
+        open={!!costTargetId}
+        onOpenChange={(v) => !v && setCostTargetId(null)}
+        plan={costPlans.find((c) => c.id === costTargetId) ?? null}
+        usdToInr={usdToInr}
+      />
     </div>
   );
 

@@ -1,5 +1,15 @@
+"use client";
+
 import { Badge } from "@pixa/ui/base-ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
+import { Button } from "@pixa/ui/base-ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@pixa/ui/base-ui/dialog";
 import {
   Table,
   TableBody,
@@ -33,7 +43,8 @@ function priceLabel(paise: number | null): string {
   return `₹${(paise / 100).toLocaleString("en-IN")}/month`;
 }
 
-function PlanCostCard({ plan, usdToInr }: { plan: CostPlan; usdToInr: number }) {
+/** Cost/margin table for a single plan (internal only). */
+export function PlanCostTable({ plan, usdToInr }: { plan: CostPlan; usdToInr: number }) {
   const { lines, totalUsd } = estimateInfraCost(plan.limits);
   const costInr = totalUsd * usdToInr;
   const revenueInr = plan.monthlyPaise === null ? null : plan.monthlyPaise / 100;
@@ -44,27 +55,17 @@ function PlanCostCard({ plan, usdToInr }: { plan: CostPlan; usdToInr: number }) 
       : null;
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              {plan.name}
-              <Badge variant="secondary">{priceLabel(plan.monthlyPaise)}</Badge>
-            </CardTitle>
-            <CardDescription>
-              Neon Launch rates — cost if every infrastructure limit is fully used.
-            </CardDescription>
-          </div>
-          {marginPct !== null && marginInr !== null && (
-            <Badge variant={marginInr >= 0 ? "default" : "destructive"}>
-              Margin {marginInr >= 0 ? "+" : "−"}₹
-              {Math.abs(Math.round(marginInr)).toLocaleString("en-IN")} ({marginPct}%)
-            </Badge>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="px-0">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="secondary">{priceLabel(plan.monthlyPaise)}</Badge>
+        {marginPct !== null && marginInr !== null && (
+          <Badge variant={marginInr >= 0 ? "default" : "destructive"}>
+            Margin {marginInr >= 0 ? "+" : "−"}₹
+            {Math.abs(Math.round(marginInr)).toLocaleString("en-IN")} ({marginPct}%)
+          </Badge>
+        )}
+      </div>
+      <div className="-mx-5 overflow-hidden border-y">
         <Table>
           <TableHeader>
             <TableRow>
@@ -103,30 +104,70 @@ function PlanCostCard({ plan, usdToInr }: { plan: CostPlan; usdToInr: number }) 
               </TableCell>
             </TableRow>
             {revenueInr !== null && (
-              <TableRow>
-                <TableCell className="text-muted-foreground">Revenue</TableCell>
-                <TableCell className="text-muted-foreground" colSpan={2}>
-                  Plan price
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  ₹{revenueInr.toLocaleString("en-IN")}
-                </TableCell>
-              </TableRow>
+              <>
+                <TableRow>
+                  <TableCell className="text-muted-foreground">Revenue</TableCell>
+                  <TableCell className="text-muted-foreground" colSpan={2}>
+                    Plan price
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    ₹{revenueInr.toLocaleString("en-IN")}
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="text-muted-foreground">Margin</TableCell>
+                  <TableCell className="text-muted-foreground" colSpan={2}>
+                    Price − infrastructure
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    <span className={marginInr !== null && marginInr < 0 ? "text-destructive" : ""}>
+                      {marginInr !== null && marginInr >= 0 ? "+" : "−"}₹
+                      {Math.abs(Math.round(marginInr ?? 0)).toLocaleString("en-IN")}
+                      {marginPct !== null ? ` (${marginPct}%)` : ""}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              </>
             )}
           </TableBody>
         </Table>
-      </CardContent>
-    </Card>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Neon Launch rates. Costs in USD; INR equivalent at live USD→INR {usdToInr.toFixed(2)}.
+        Internal only — never shown to customers.
+      </p>
+    </div>
   );
 }
 
-/** Internal cost/margin analysis for the owner console. Never customer-facing. */
-export function PlanCostBreakdown({ plans, usdToInr }: { plans: CostPlan[]; usdToInr: number }) {
+/** Info-dialog wrapper for the per-plan cost/margin breakdown. */
+export function PlanCostDialog({
+  open,
+  onOpenChange,
+  plan,
+  usdToInr,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  plan: CostPlan | null;
+  usdToInr: number;
+}) {
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
-      {plans.map((p) => (
-        <PlanCostCard key={p.id} plan={p} usdToInr={usdToInr} />
-      ))}
-    </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{plan?.name ?? "Plan"} — cost &amp; margin</DialogTitle>
+          <DialogDescription>
+            Cost if every infrastructure limit is fully used, versus the plan price.
+          </DialogDescription>
+        </DialogHeader>
+        {plan && <PlanCostTable plan={plan} usdToInr={usdToInr} />}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

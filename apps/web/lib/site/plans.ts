@@ -10,6 +10,8 @@
  * TODO(canonical): move this catalog into @pixa/contracts (billing plans)
  * so apps/web checkout reads the same source instead of duplicating it.
  */
+import type { LimitMap } from "@pixa/db/plans";
+
 export type BillingCycle = "monthly" | "annual";
 
 export type Plan = {
@@ -23,6 +25,8 @@ export type Plan = {
   ctaHref?: string;
   featured?: boolean;
   features: string[];
+  /** Usage limits loaded from the DB plan catalog (absent on the static fallback). */
+  limits?: LimitMap;
 };
 
 export const TRIAL_DAYS = 14;
