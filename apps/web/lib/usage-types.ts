@@ -146,12 +146,16 @@ const KB = 1024;
 const MIB = KB * 1024;
 const GIB = MIB * 1024;
 
+function trimZeros(value: number, decimals: number): string {
+  return value.toFixed(decimals).replace(/\.?0+$/, "");
+}
+
 export function formatBytes(bytes: number | null | undefined): string {
   const n = bytes ?? 0;
   if (n < KB) return `${n} B`;
-  if (n < MIB) return `${(n / KB).toFixed(1)} KB`;
-  if (n < GIB) return `${(n / MIB).toFixed(1)} MB`;
-  return `${(n / GIB).toFixed(2)} GB`;
+  if (n < MIB) return `${trimZeros(n / KB, 1)} KB`;
+  if (n < GIB) return `${trimZeros(n / MIB, 1)} MB`;
+  return `${trimZeros(n / GIB, 2)} GB`;
 }
 
 export function formatNumber(n: number | null | undefined): string {
