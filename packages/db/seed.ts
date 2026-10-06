@@ -7,15 +7,12 @@ import { db } from "./index";
 import { floors, tables } from "./schema";
 import { saasPlans } from "./saas-schema";
 import { DEFAULT_PLANS } from "./plans";
-import { eq } from "drizzle-orm";
 
 async function main() {
   const database = db();
-  // Default subscription plans (Starter/Growth/Custom). Insert when missing;
-  // fill limits/flags on rows that predate those columns (empty `{}`), but
-  // never overwrite owner-edited values.
+  // Default subscription plans (Starter/Growth/Custom). Fully upserted so the
+  // seed is the source of truth for launch pricing/limits/flags. Run manually.
   for (const p of DEFAULT_PLANS) {
-    const existing = (await database.select().from(saasPlans).where(eq(saasPlans.id, p.id)))[0];
     const values = {
       id: p.id,
       name: p.name,
@@ -29,14 +26,10 @@ async function main() {
       sortOrder: p.sortOrder,
       isActive: p.isActive,
     };
-    if (!existing) {
-      await database.insert(saasPlans).values(values);
-    } else if (!existing.limits || existing.limits === "{}" || existing.limits === "") {
-      await database
-        .update(saasPlans)
-        .set({ limits: values.limits, flags: values.flags, outletLimit: values.outletLimit })
-        .where(eq(saasPlans.id, p.id));
-    }
+    await database
+      .insert(saasPlans)
+      .values(values)
+      .onConflictDoUpdate({ target: saasPlans.id, set: values });
   }
   await database
     .insert(floors)

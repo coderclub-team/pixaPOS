@@ -95,8 +95,8 @@ export const DEFAULT_PLANS: DefaultPlan[] = [
   {
     id: "starter",
     name: "Starter",
-    tagline: "For a single outlet finding its feet",
-    monthlyPaise: 0,
+    tagline: "For a single outlet",
+    monthlyPaise: 49900,
     annualDiscountPct: 0,
     limits: {
       outlets: 1,
@@ -113,15 +113,22 @@ export const DEFAULT_PLANS: DefaultPlan[] = [
       writtenData: 100 * MB,
     },
     flags: {
-      multiOutlet: false,
-      centralMenu: false,
-      onlineOrdering: false,
-      advancedReports: false,
-      chainDashboard: false,
-      api: false,
-      customDomain: false,
+      multiOutlet: true,
+      centralMenu: true,
+      onlineOrdering: true,
+      advancedReports: true,
+      chainDashboard: true,
+      api: true,
+      customDomain: true,
     },
-    features: ["1 outlet", "2 users", "2 devices", "500 orders/month", "500 MB storage"],
+    features: [
+      "1 outlet",
+      "2 users",
+      "2 devices",
+      "500 orders/month",
+      "500 MB storage",
+      "All features included",
+    ],
     storageLabel: "500 MB storage",
     sortOrder: 1,
     isActive: true,
@@ -161,7 +168,7 @@ export const DEFAULT_PLANS: DefaultPlan[] = [
       "20 devices",
       "10,000 orders/month",
       "7 GB combined storage",
-      "Advanced reports & chain dashboard",
+      "All features included",
     ],
     storageLabel: "7 GB combined storage",
     sortOrder: 2,
@@ -220,4 +227,83 @@ export function planById(id: string): DefaultPlan | undefined {
 export function resolveLimits(planId: string, overrides?: Partial<LimitMap> | null): LimitMap {
   const base = (planById(planId) ?? planById(DEFAULT_PLAN_ID))!.limits;
   return { ...base, ...overrides };
+}
+
+/* ------------------------------------------------------------------ */
+/* Infrastructure cost model (internal only — never shown to customers). */
+/* Neon Launch-plan rates in USD. Written data is folded into storage.   */
+/* ------------------------------------------------------------------ */
+
+export const NEON_LAUNCH_RATES = {
+  computeUsdPerCuHour: 0.106,
+  databaseStorageUsdPerGbMonth: 0.35,
+  objectStorageUsdPerGbMonth: 0.023,
+  transferIncludedGb: 500,
+  transferUsdPerGb: 0.1,
+  functionsUsdPerMillion: 0.6,
+} as const;
+
+const BYTES_PER_GB = 1024 * 1024 * 1024;
+
+export type CostLine = {
+  resource: ResourceLimit;
+  limit: number | null;
+  rateLabel: string;
+  costUsd: number;
+  note?: string;
+};
+
+/** Cost of a plan if every infrastructure limit were fully consumed. */
+export function estimateInfraCost(limits: LimitMap): { lines: CostLine[]; totalUsd: number } {
+  const r = NEON_LAUNCH_RATES;
+  const gb = (bytes: number) => bytes / BYTES_PER_GB;
+  const lines: CostLine[] = [
+    {
+      resource: "compute",
+      limit: limits.compute,
+      rateLabel: `$${r.computeUsdPerCuHour}/CU-h`,
+      costUsd: limits.compute === null ? 0 : limits.compute * r.computeUsdPerCuHour,
+    },
+    {
+      resource: "databaseStorage",
+      limit: limits.databaseStorage,
+      rateLabel: `$${r.databaseStorageUsdPerGbMonth}/GB-month`,
+      costUsd:
+        limits.databaseStorage === null
+          ? 0
+          : gb(limits.databaseStorage) * r.databaseStorageUsdPerGbMonth,
+    },
+    {
+      resource: "objectStorage",
+      limit: limits.objectStorage,
+      rateLabel: `$${r.objectStorageUsdPerGbMonth}/GB-month`,
+      costUsd:
+        limits.objectStorage === null ? 0 : gb(limits.objectStorage) * r.objectStorageUsdPerGbMonth,
+    },
+    {
+      resource: "transfer",
+      limit: limits.transfer,
+      rateLabel: `${r.transferIncludedGb} GB incl, then $${r.transferUsdPerGb}/GB`,
+      costUsd:
+        limits.transfer === null
+          ? 0
+          : Math.max(0, gb(limits.transfer) - r.transferIncludedGb) * r.transferUsdPerGb,
+    },
+    {
+      resource: "functions",
+      limit: limits.functions,
+      rateLabel: `$${r.functionsUsdPerMillion}/M invocations`,
+      costUsd:
+        limits.functions === null ? 0 : (limits.functions / 1_000_000) * r.functionsUsdPerMillion,
+    },
+    {
+      resource: "writtenData",
+      limit: limits.writtenData,
+      rateLabel: "Folded into storage",
+      costUsd: 0,
+      note: "No longer a separate charge",
+    },
+  ];
+  const totalUsd = lines.reduce((s, l) => s + l.costUsd, 0);
+  return { lines, totalUsd };
 }
