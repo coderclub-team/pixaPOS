@@ -16,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@pixa/ui/base-ui/empty";
 import { Icons } from "@pixa/ui/icons";
 import PageContainer from "@/components/layout/page-container";
-import { LifecycleBadge } from "../page";
+import { LifecycleBadge } from "../org-list";
 import { OrgActions } from "./actions";
 
 export const dynamic = "force-dynamic";

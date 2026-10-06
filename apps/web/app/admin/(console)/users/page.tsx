@@ -1,9 +1,12 @@
+import Link from "next/link";
 import { adminDb } from "@/lib/saas-admin";
 import { saasOwnerRoles, saasOwners } from "@pixa/db";
+import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
-import { Empty, EmptyHeader, EmptyTitle } from "@pixa/ui/base-ui/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@pixa/ui/base-ui/empty";
+import { Icons } from "@pixa/ui/icons";
 import PageContainer from "@/components/layout/page-container";
-import { OwnerActions } from "./actions";
+import { OwnersTable } from "./table";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +28,12 @@ export default async function OwnerUsersPage() {
     <PageContainer
       pageTitle="Owner users"
       pageDescription="Singleton super owner + scoped staff. Separate identity plane from restaurant users — these credentials never work on the app, and app credentials never work here."
+      pageHeaderAction={
+        <Button nativeButton={false} render={<Link href="/admin/users/new" />}>
+          <Icons.add className="size-4" aria-hidden />
+          Invite owner
+        </Button>
+      }
     >
       {dbDown ? (
         <Card className="border-dashed">
@@ -32,12 +41,13 @@ export default async function OwnerUsersPage() {
             <Empty>
               <EmptyHeader>
                 <EmptyTitle>Database not connected</EmptyTitle>
+                <EmptyDescription>Set DATABASE_URL to manage owner users.</EmptyDescription>
               </EmptyHeader>
             </Empty>
           </CardContent>
         </Card>
       ) : (
-        <OwnerActions owners={owners} roles={roles} />
+        <OwnersTable owners={owners} roles={roles} />
       )}
     </PageContainer>
   );

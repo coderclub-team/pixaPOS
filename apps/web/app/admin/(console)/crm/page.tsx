@@ -1,10 +1,13 @@
+import Link from "next/link";
 import { desc } from "drizzle-orm";
 import { adminDb } from "@/lib/saas-admin";
 import { crmEnquiries } from "@pixa/db";
+import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@pixa/ui/base-ui/empty";
+import { Icons } from "@pixa/ui/icons";
 import PageContainer from "@/components/layout/page-container";
-import { EnquiryBoard } from "./board";
+import { EnquiriesTable } from "./table";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +23,12 @@ export default async function CrmPage() {
     <PageContainer
       pageTitle="CRM"
       pageDescription="Customer enquiries, follow-ups and relationships. Enquiries are pre-organisation interest — approving one can link it to a registration lead."
+      pageHeaderAction={
+        <Button nativeButton={false} render={<Link href="/admin/crm/new" />}>
+          <Icons.add className="size-4" aria-hidden />
+          Add enquiry
+        </Button>
+      }
     >
       {dbDown ? (
         <Card className="border-dashed">
@@ -33,12 +42,12 @@ export default async function CrmPage() {
           </CardContent>
         </Card>
       ) : (
-        <EnquiryBoard initial={enquiries} />
+        <EnquiriesTable initial={enquiries} />
       )}
     </PageContainer>
   );
 }
 
 async function fetchEnquiries() {
-  return adminDb().select().from(crmEnquiries).orderBy(desc(crmEnquiries.createdAt)).limit(200);
+  return adminDb().select().from(crmEnquiries).orderBy(desc(crmEnquiries.createdAt)).limit(500);
 }

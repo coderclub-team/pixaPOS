@@ -3,15 +3,8 @@ import { adminDb } from "@/lib/saas-admin";
 import { saasAudit } from "@pixa/db";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@pixa/ui/base-ui/empty";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@pixa/ui/base-ui/table";
 import PageContainer from "@/components/layout/page-container";
+import { AuditTable } from "./table";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +23,7 @@ export default async function AuditPage() {
       .select()
       .from(saasAudit)
       .orderBy(desc(saasAudit.createdAt))
-      .limit(100)) as typeof rows;
+      .limit(500)) as typeof rows;
   } catch {
     dbDown = true;
   }
@@ -39,48 +32,19 @@ export default async function AuditPage() {
       pageTitle="Audit log"
       pageDescription="Append-only trail of owner actions: lead triage, org creation, lifecycle changes."
     >
-      {dbDown || rows.length === 0 ? (
+      {dbDown ? (
         <Card className="border-dashed">
           <CardContent className="p-8 text-center">
             <Empty>
               <EmptyHeader>
-                <EmptyTitle>{dbDown ? "Database not connected" : "No audit events yet"}</EmptyTitle>
-                {dbDown && (
-                  <EmptyDescription>Set DATABASE_URL to review the trail.</EmptyDescription>
-                )}
+                <EmptyTitle>Database not connected</EmptyTitle>
+                <EmptyDescription>Set DATABASE_URL to review the trail.</EmptyDescription>
               </EmptyHeader>
             </Empty>
           </CardContent>
         </Card>
       ) : (
-        <Card className="overflow-hidden py-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>When</TableHead>
-                <TableHead>Action</TableHead>
-                <TableHead>Entity</TableHead>
-                <TableHead>Detail</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell className="text-muted-foreground">
-                    {new Date(r.createdAt).toLocaleString("en-IN")}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">{r.action}</TableCell>
-                  <TableCell className="text-xs">
-                    {r.entityType}/{String(r.entityId).slice(0, 12)}…
-                  </TableCell>
-                  <TableCell className="max-w-md truncate text-xs text-muted-foreground">
-                    {r.detail}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+        <AuditTable initial={rows} />
       )}
     </PageContainer>
   );
