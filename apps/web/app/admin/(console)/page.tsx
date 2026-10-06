@@ -49,25 +49,25 @@ function Home({
       label: "Organisations",
       value: String(stats.orgs),
       hint: "Better Auth org rows",
-      href: "/organizations",
+      href: "/admin/organizations",
     },
     {
       label: "Active trials",
       value: String(stats.trials),
       hint: "lifecycle = trial",
-      href: "/organizations?lifecycle=trial",
+      href: "/admin/organizations?lifecycle=trial",
     },
     {
       label: "MRR",
       value: `₹${(stats.mrrPaise / 100).toLocaleString("en-IN")}`,
       hint: "sum of org profiles",
-      href: "/billing",
+      href: "/admin/billing",
     },
     {
       label: "Open pipeline",
       value: String(leads.length),
       hint: "latest registrations",
-      href: "/leads",
+      href: "/admin/leads",
     },
   ];
   return (
