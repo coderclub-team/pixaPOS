@@ -5,12 +5,12 @@ import { Alert, AlertDescription, AlertTitle } from "@pixa/ui/base-ui/alert";
 import { Icons } from "@pixa/ui/icons";
 import PageContainer from "@/components/layout/page-container";
 import { getUsdToInr } from "@/lib/fx";
-import { PlansManager } from "./plans-manager";
+import { PlansTable, type CatalogPlan } from "./table";
 
 export const dynamic = "force-dynamic";
 
 export default async function BillingPage() {
-  let plans: React.ComponentProps<typeof PlansManager>["initialPlans"] = [];
+  let plans: CatalogPlan[] = [];
   const limitsById: Record<string, LimitMap> = {};
   const dist: Record<string, number> = {};
   try {
@@ -64,10 +64,10 @@ export default async function BillingPage() {
         )}
         <p className="text-xs text-muted-foreground">
           Cost &amp; margin use live USD→INR {fx.rate.toFixed(2)}
-          {fx.source === "live" ? (fx.updatedAt ? ` (${fx.updatedAt})` : "") : " (fallback)"}. Open
-          the info icon on a plan to inspect it.
+          {fx.source === "live" ? (fx.updatedAt ? ` (${fx.updatedAt})` : "") : " (fallback)"}. Use a
+          plan&apos;s row actions for cost &amp; margins.
         </p>
-        <PlansManager initialPlans={plans} limitsById={limitsById} usdToInr={fx.rate} />
+        <PlansTable initial={plans} limitsById={limitsById} usdToInr={fx.rate} />
       </div>
     </PageContainer>
   );

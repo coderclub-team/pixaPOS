@@ -65,7 +65,7 @@ export function PlanCostTable({ plan, usdToInr }: { plan: CostPlan; usdToInr: nu
           </Badge>
         )}
       </div>
-      <div className="-mx-5 overflow-hidden border-y">
+      <div className="overflow-hidden rounded-lg border">
         <Table>
           <TableHeader>
             <TableRow>

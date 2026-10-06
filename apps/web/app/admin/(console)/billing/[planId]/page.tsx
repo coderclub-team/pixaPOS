@@ -73,19 +73,21 @@ export default async function EditPlanPage({ params }: { params: Promise<{ planI
       pageTitle={`Edit plan — ${plan.name}`}
       pageDescription="Pricing, usage limits and features. Saved to the catalog and applied to new signups."
     >
-      <div className="mb-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          nativeButton={false}
-          render={<Link href="/admin/billing" />}
-          className="px-0"
-        >
-          <Icons.chevronLeft className="size-3.5" aria-hidden />
-          All plans
-        </Button>
+      <div className="mx-auto w-full max-w-2xl">
+        <div className="mb-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            nativeButton={false}
+            render={<Link href="/admin/billing" />}
+            className="px-0"
+          >
+            <Icons.chevronLeft className="size-3.5" aria-hidden />
+            All plans
+          </Button>
+        </div>
+        <PlanForm plan={plan} />
       </div>
-      <PlanForm plan={plan} />
     </PageContainer>
   );
 }
