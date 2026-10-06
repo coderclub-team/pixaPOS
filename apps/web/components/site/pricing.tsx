@@ -12,13 +12,26 @@ import {
   type Plan,
 } from "@/lib/site/plans";
 import SectionTitle from "@/components/site/section-title";
-import { PlanLimitsDialog } from "@/components/site/plan-limits-dialog";
-import { Icons } from "@pixa/ui/icons";
+import type { LimitMap } from "@pixa/db/plans";
+import { formatBytes } from "@/lib/usage-types";
 import { cn } from "@pixa/ui/lib/utils";
 
+function limitRows(l: LimitMap): { label: string; value: string }[] {
+  const num = (v: number | null) => (v === null ? "Custom" : v.toLocaleString("en-IN"));
+  const storage = formatBytes((l.databaseStorage ?? 0) + (l.objectStorage ?? 0));
+  return [
+    { label: "Outlets", value: num(l.outlets) },
+    { label: "Users", value: num(l.users) },
+    { label: "Devices", value: num(l.devices) },
+    { label: "Orders / month", value: num(l.orders) },
+    { label: "Products", value: num(l.products) },
+    { label: "Customers", value: num(l.customers) },
+    { label: "Storage", value: storage },
+  ];
+}
+
 export default function Pricing({ plans = PLANS }: { plans?: Plan[] }) {
-  const [cycle, setCycle] = useState<BillingCycle>("annual");
-  const [limitsPlan, setLimitsPlan] = useState<Plan | null>(null);
+  const [cycle, setCycle] = useState<BillingCycle>("monthly");
 
   return (
     <section
@@ -30,7 +43,7 @@ export default function Pricing({ plans = PLANS }: { plans?: Plan[] }) {
           <SectionTitle
             subtitle="Pricing Table"
             title={`Start with a ${TRIAL_DAYS}-day free trial, pay per outlet`}
-            paragraph="Trial includes every Growth feature with no credit card. Annual billing saves 20% — honest math, per-outlet pricing."
+            paragraph="Trial includes every Growth feature with no credit card. Bill monthly, or annually and save 25% — honest math, per-outlet pricing."
             center
           />
           <div className="mt-6 flex justify-center gap-3 text-base">
@@ -48,13 +61,13 @@ export default function Pricing({ plans = PLANS }: { plans?: Plan[] }) {
                 )}
               >
                 {c}
-                {c === "annual" && " −20%"}
+                {c === "annual" && " −25%"}
               </button>
             ))}
           </div>
         </div>
 
-        <div className="-mx-4 flex flex-wrap justify-center">
+        <div className="-mx-4 flex flex-wrap items-stretch justify-center">
           {plans.map((plan) => {
             const price = planPrice(plan, cycle);
             return (
@@ -65,25 +78,12 @@ export default function Pricing({ plans = PLANS }: { plans?: Plan[] }) {
                       Recommended
                     </p>
                   )}
-                  <div className="mb-5 flex items-center justify-between gap-2">
-                    <span className="block text-xl font-medium text-dark dark:text-white">
-                      {plan.name}
-                    </span>
-                    {plan.limits && (
-                      <button
-                        type="button"
-                        onClick={() => setLimitsPlan(plan)}
-                        title="Plan limits"
-                        aria-label={`What's included in ${plan.name}`}
-                        className="cursor-pointer rounded-full p-1 text-body-color transition hover:bg-gray-2 hover:text-primary dark:text-dark-6 dark:hover:bg-dark"
-                      >
-                        <Icons.info className="size-5" />
-                      </button>
-                    )}
-                  </div>
-                  {/* min-h keeps the Features heading aligned across cards:
-                      Custom/Free render one line, paid prices wrap to two. */}
-                  <h2 className="mb-11 flex min-h-[104px] flex-col justify-center text-4xl font-semibold text-dark xl:text-[42px] xl:leading-[1.21] dark:text-white">
+
+                  <span className="mb-3 block text-xl font-medium text-dark dark:text-white">
+                    {plan.name}
+                  </span>
+
+                  <h2 className="mb-2 flex min-h-[64px] items-end text-4xl font-semibold text-dark xl:text-[42px] xl:leading-[1.21] dark:text-white">
                     {price == null ? (
                       "Custom"
                     ) : price === 0 ? (
@@ -99,29 +99,64 @@ export default function Pricing({ plans = PLANS }: { plans?: Plan[] }) {
                         <span className="-ml-1 -tracking-[2px]">{formatINR(price).slice(1)}</span>
                         <span className="text-base font-normal text-body-color dark:text-dark-6">
                           {" "}
-                          / outlet / month{cycle === "annual" ? ", billed annually" : ""}
+                          / outlet / month
                         </span>
                       </span>
                     )}
                   </h2>
+                  <p className="mb-6 min-h-[24px] text-sm text-body-color dark:text-dark-6">
+                    {price == null
+                      ? "Talk to us about volume pricing"
+                      : cycle === "annual"
+                        ? "billed annually"
+                        : "billed monthly"}
+                  </p>
 
-                  <div className="mb-[50px] flex-1">
-                    <h3 className="mb-5 text-lg font-medium text-dark dark:text-white">Features</h3>
-                    <div className="mb-10">
-                      <p className="mb-3 text-base text-body-color dark:text-dark-6">
-                        {plan.tagline}
-                      </p>
-                      {plan.features.map((f) => (
-                        <p key={f} className="mb-1 text-base text-body-color dark:text-dark-6">
-                          {f}
-                        </p>
-                      ))}
+                  {plan.limits && (
+                    <div className="mb-6 rounded-lg border border-gray-2 p-4 dark:border-dark-3">
+                      <h3 className="mb-3 text-xs font-semibold tracking-wide text-body-color uppercase dark:text-dark-6">
+                        Usage limits
+                      </h3>
+                      <dl className="space-y-2 text-sm">
+                        {limitRows(plan.limits).map((row) => (
+                          <div
+                            key={row.label}
+                            className="flex items-baseline justify-between gap-3"
+                          >
+                            <dt className="text-body-color dark:text-dark-6">{row.label}</dt>
+                            <dd className="font-medium tabular-nums text-dark dark:text-white">
+                              {row.value}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
                     </div>
+                  )}
+
+                  <div className="mb-8 flex-1">
+                    <p className="mb-4 text-base text-body-color dark:text-dark-6">
+                      {plan.tagline}
+                    </p>
+                    <ul className="space-y-2">
+                      {plan.features.map((f) => (
+                        <li
+                          key={f}
+                          className="flex items-start gap-2 text-base text-body-color dark:text-dark-6"
+                        >
+                          <span
+                            className="mt-2 size-1.5 shrink-0 rounded-full bg-primary"
+                            aria-hidden
+                          />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <div className="w-full">
+
+                  <div className="mt-auto w-full">
                     <Link
                       href={plan.ctaHref ?? signUpUrl(plan.id)}
-                      className="inline-block cursor-pointer rounded-md bg-primary px-7 py-3 text-center text-base font-medium text-white transition duration-300 hover:bg-primary/90"
+                      className="block w-full cursor-pointer rounded-md bg-primary px-7 py-3 text-center text-base font-medium text-white transition duration-300 hover:bg-primary/90"
                     >
                       {plan.cta}
                     </Link>
@@ -136,12 +171,6 @@ export default function Pricing({ plans = PLANS }: { plans?: Plan[] }) {
           — your data is never deleted.
         </p>
       </div>
-      <PlanLimitsDialog
-        open={!!limitsPlan}
-        onOpenChange={(v) => !v && setLimitsPlan(null)}
-        name={limitsPlan?.name ?? ""}
-        limits={limitsPlan?.limits ?? null}
-      />
     </section>
   );
 }
