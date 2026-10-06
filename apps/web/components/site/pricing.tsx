@@ -16,17 +16,15 @@ import type { LimitMap } from "@pixa/db/plans";
 import { formatBytes } from "@/lib/usage-types";
 import { cn } from "@pixa/ui/lib/utils";
 
-function limitRows(l: LimitMap): { label: string; value: string }[] {
+function limitRows(l: LimitMap, bestFor: string): { label: string; value: string }[] {
   const num = (v: number | null) => (v === null ? "Custom" : v.toLocaleString("en-IN"));
   const storage = formatBytes((l.databaseStorage ?? 0) + (l.objectStorage ?? 0));
   return [
-    { label: "Outlets", value: num(l.outlets) },
-    { label: "Users", value: num(l.users) },
-    { label: "Devices", value: num(l.devices) },
     { label: "Orders / month", value: num(l.orders) },
     { label: "Products", value: num(l.products) },
     { label: "Customers", value: num(l.customers) },
     { label: "Storage", value: storage },
+    { label: "Best for", value: bestFor },
   ];
 }
 
@@ -118,7 +116,7 @@ export default function Pricing({ plans = PLANS }: { plans?: Plan[] }) {
                         Usage limits
                       </h3>
                       <dl className="space-y-2 text-sm">
-                        {limitRows(plan.limits).map((row) => (
+                        {limitRows(plan.limits, plan.tagline).map((row) => (
                           <div
                             key={row.label}
                             className="flex items-baseline justify-between gap-3"
@@ -134,9 +132,6 @@ export default function Pricing({ plans = PLANS }: { plans?: Plan[] }) {
                   )}
 
                   <div className="mb-8 flex-1">
-                    <p className="mb-4 text-base text-body-color dark:text-dark-6">
-                      {plan.tagline}
-                    </p>
                     <ul className="space-y-2">
                       {plan.features.map((f) => (
                         <li

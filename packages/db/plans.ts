@@ -95,7 +95,7 @@ export const DEFAULT_PLANS: DefaultPlan[] = [
   {
     id: "starter",
     name: "Starter",
-    tagline: "For a single outlet",
+    tagline: "Single outlet",
     monthlyPaise: 49900,
     annualDiscountPct: 25,
     limits: {
@@ -134,8 +134,8 @@ export const DEFAULT_PLANS: DefaultPlan[] = [
   {
     id: "growth",
     name: "Growth",
-    tagline: "For growing restaurants and small groups",
-    monthlyPaise: 199900,
+    tagline: "Growing restaurants & small groups",
+    monthlyPaise: 159900,
     annualDiscountPct: 25,
     limits: {
       outlets: 5,
@@ -146,7 +146,7 @@ export const DEFAULT_PLANS: DefaultPlan[] = [
       customers: 10_000,
       databaseStorage: 2 * GB,
       objectStorage: 5 * GB,
-      compute: 70,
+      compute: 45,
       functions: 2_000_000,
       transfer: 50 * GB,
       writtenData: 2 * GB,
@@ -177,7 +177,7 @@ export const DEFAULT_PLANS: DefaultPlan[] = [
   {
     id: "custom",
     name: "Custom",
-    tagline: "For chains, franchises and enterprise",
+    tagline: "Chains, franchises & enterprise",
     monthlyPaise: null,
     annualDiscountPct: 0,
     limits: {

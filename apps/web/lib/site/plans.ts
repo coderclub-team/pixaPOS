@@ -35,7 +35,7 @@ export const PLANS: Plan[] = [
   {
     id: "starter",
     name: "Starter",
-    tagline: "For a single outlet.",
+    tagline: "Single outlet",
     monthly_paise: 49900,
     annual_discount_pct: 25,
     cta: "Start 14-day free trial",
@@ -49,8 +49,8 @@ export const PLANS: Plan[] = [
   {
     id: "growth",
     name: "Growth",
-    tagline: "For growing restaurants, chains & branches.",
-    monthly_paise: 199900,
+    tagline: "Growing restaurants & small groups",
+    monthly_paise: 159900,
     annual_discount_pct: 25,
     cta: "Start 14-day free trial",
     featured: true,
@@ -68,7 +68,7 @@ export const PLANS: Plan[] = [
   {
     id: "custom",
     name: "Custom",
-    tagline: "Volume pricing for large chains & franchises.",
+    tagline: "Chains, franchises & enterprise",
     monthly_paise: null,
     annual_discount_pct: 25,
     cta: "Talk to sales",
