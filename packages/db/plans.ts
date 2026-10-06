@@ -137,7 +137,7 @@ export const DEFAULT_PLANS: DefaultPlan[] = [
     id: "growth",
     name: "Growth",
     tagline: "For growing restaurants and small groups",
-    monthlyPaise: 49900,
+    monthlyPaise: 199900,
     annualDiscountPct: 20,
     limits: {
       outlets: 5,
