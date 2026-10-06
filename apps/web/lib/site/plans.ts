@@ -1,16 +1,10 @@
 /**
  * Plan catalog for the marketing site.
  *
- * SaaS model (verified against Zoho POS and Odoo, 2026):
- * - Zoho POS: per-location/month, Free → Standard → Professional → Premium,
- *   15-day full-feature trial with no card, lapse moves you to Free.
- * - Odoo: per-user/month, One-App-Free → Standard → Custom, ~20% annual
- *   discount, 15-day trial.
- *
- * pixaPOS gap/decision (restaurant, India-first, Razorpay billing):
- * per-OUTLET/month like Zoho (fits our multi-outlet architecture — an outlet
+ * SaaS model (restaurant, India-first, Razorpay billing):
+ * per-OUTLET/month (fits our multi-outlet architecture — an outlet
  * is an operational entity under one subscription, never the subscriber),
- * ~20% annual discount like Odoo, 14-day full-feature trial with no card.
+ * ~20% annual discount, 14-day full-feature trial with no card.
  * Trial lapse locks the workspace until a plan is chosen (no free tier yet).
  *
  * TODO(canonical): move this catalog into @pixa/contracts (billing plans)

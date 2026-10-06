@@ -7,7 +7,7 @@ const LEFT = [
   },
   {
     q: "Is pricing per outlet or per user?",
-    a: "Per outlet, like Zoho POS. One subscription covers unlimited registers and staff at that outlet. Add outlets as you grow; each bills at the same plan rate with a ~20% annual discount.",
+    a: "Per outlet. One subscription covers unlimited registers and staff at that outlet. Add outlets as you grow; each bills at the same plan rate with a ~20% annual discount.",
   },
   {
     q: "What happens when the internet goes down?",

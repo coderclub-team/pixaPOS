@@ -20,7 +20,7 @@ export default function Pricing() {
           <SectionTitle
             subtitle="Pricing Table"
             title={`Start with a ${TRIAL_DAYS}-day free trial, pay per outlet`}
-            paragraph="Trial includes every Growth feature with no credit card. Annual billing saves 20% — honest math, per outlet like Zoho."
+            paragraph="Trial includes every Growth feature with no credit card. Annual billing saves 20% — honest math, per-outlet pricing."
             center
           />
           <div className="mt-6 flex justify-center gap-3 text-base">

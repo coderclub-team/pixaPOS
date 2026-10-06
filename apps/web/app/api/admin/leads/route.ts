@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { desc } from "drizzle-orm";
 import { adminDb, uid } from "@/lib/saas-admin";
-import { auditOwnerAction, leadIntakeAllowed, requireOwnerApi } from "@/lib/saas-owner";
+import { leadIntakeAllowed, requireOwnerApi } from "@/lib/saas-owner";
 import { saasAudit, saasLeads } from "@pixa/db";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -16,7 +16,7 @@ export async function GET() {
       .orderBy(desc(saasLeads.createdAt))
       .limit(200);
     return NextResponse.json({ ok: true, leads: rows });
-  } catch (e) {
+  } catch {
     return NextResponse.json({ ok: false, error: "DATABASE_URL not set" }, { status: 503 });
   }
 }

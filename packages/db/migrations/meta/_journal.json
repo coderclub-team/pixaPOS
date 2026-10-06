@@ -43,6 +43,13 @@
       "when": 1791202607435,
       "tag": "0005_condemned_sphinx",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791212744171,
+      "tag": "0006_loving_the_initiative",
+      "breakpoints": true
     }
   ]
 }

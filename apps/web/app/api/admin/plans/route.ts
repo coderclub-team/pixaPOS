@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { asc, eq } from "drizzle-orm";
-import { adminDb, uid } from "@/lib/saas-admin";
+import { adminDb } from "@/lib/saas-admin";
 import { auditOwnerAction, requireOwnerApi } from "@/lib/saas-owner";
 import { saasPlans } from "@pixa/db";
 

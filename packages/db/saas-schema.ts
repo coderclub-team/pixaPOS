@@ -122,3 +122,145 @@ export const saasOwnerSessions = pgTable(
   },
   (t) => [index("saas_owner_sessions_owner_idx").on(t.ownerId)],
 );
+
+/* ------------------------------------------------------------------ */
+/* CRM + messaging (SaaS-owner console).                                */
+/* Enquiries are pre-organisation interest (any channel); approving or  */
+/* linking one may create a saasLeads row, but CRM never writes to     */
+/* restaurant tables. Provider configs hold third-party credentials    */
+/* for WhatsApp/SMS/email/Meta/Google — readable only via owner-gated  */
+/* APIs, secrets masked in every response.                             */
+/* ------------------------------------------------------------------ */
+
+export const ENQUIRY_STATUS = ["new", "contacted", "qualified", "converted", "lost"] as const;
+export type EnquiryStatus = (typeof ENQUIRY_STATUS)[number];
+
+export const TICKET_STATUS = ["open", "in_progress", "resolved", "closed"] as const;
+export type TicketStatus = (typeof TICKET_STATUS)[number];
+
+export const TICKET_PRIORITY = ["low", "normal", "high", "urgent"] as const;
+
+export const MSG_CHANNELS = ["email", "whatsapp", "sms"] as const;
+export type MsgChannel = (typeof MSG_CHANNELS)[number];
+
+export const MSG_STATUS = ["queued", "sending", "sent", "failed"] as const;
+
+export const crmEnquiries = pgTable(
+  "crm_enquiries",
+  {
+    id: text("id").primaryKey(),
+    businessName: text("business_name").notNull(),
+    contactName: text("contact_name").notNull(),
+    email: text("email").notNull(),
+    phone: text("phone").notNull(),
+    city: text("city"),
+    outletsPlanned: integer("outlets_planned").default(1).notNull(),
+    source: text("source").default("website").notNull(),
+    status: text("status").default("new").notNull(),
+    assignedTo: text("assigned_to"),
+    leadId: text("lead_id"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("crm_enquiries_status_idx").on(t.status),
+    index("crm_enquiries_email_idx").on(t.email),
+  ],
+);
+
+export const crmFollowups = pgTable(
+  "crm_followups",
+  {
+    id: text("id").primaryKey(),
+    enquiryId: text("enquiry_id")
+      .notNull()
+      .references(() => crmEnquiries.id, { onDelete: "cascade" }),
+    note: text("note").notNull(),
+    nextFollowUpAt: timestamp("next_follow_up_at", { withTimezone: true }),
+    authorEmail: text("author_email"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("crm_followups_enquiry_idx").on(t.enquiryId)],
+);
+
+export const crmTickets = pgTable(
+  "crm_tickets",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id"),
+    subject: text("subject").notNull(),
+    description: text("description").notNull(),
+    channel: text("channel").default("app").notNull(),
+    priority: text("priority").default("normal").notNull(),
+    status: text("status").default("open").notNull(),
+    assignedTo: text("assigned_to"),
+    reporterEmail: text("reporter_email"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("crm_tickets_status_idx").on(t.status),
+    index("crm_tickets_org_idx").on(t.organizationId),
+  ],
+);
+
+export const crmTicketNotes = pgTable(
+  "crm_ticket_notes",
+  {
+    id: text("id").primaryKey(),
+    ticketId: text("ticket_id")
+      .notNull()
+      .references(() => crmTickets.id, { onDelete: "cascade" }),
+    note: text("note").notNull(),
+    authorEmail: text("author_email"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("crm_ticket_notes_ticket_idx").on(t.ticketId)],
+);
+
+export const msgTemplates = pgTable("msg_templates", {
+  id: text("id").primaryKey(),
+  channel: text("channel").notNull(),
+  name: text("name").notNull(),
+  subject: text("subject"),
+  body: text("body").notNull(),
+  variables: text("variables").notNull().default("[]"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const msgProviders = pgTable("msg_providers", {
+  id: text("id").primaryKey(),
+  channel: text("channel").notNull(),
+  provider: text("provider").notNull(),
+  displayName: text("display_name").notNull(),
+  config: text("config").notNull().default("{}"),
+  isActive: boolean("is_active").default(true).notNull(),
+  lastTestedAt: timestamp("last_tested_at", { withTimezone: true }),
+  lastTestOk: boolean("last_test_ok"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const msgOutbox = pgTable(
+  "msg_outbox",
+  {
+    id: text("id").primaryKey(),
+    channel: text("channel").notNull(),
+    to: text("to").notNull(),
+    templateId: text("template_id"),
+    providerId: text("provider_id"),
+    subject: text("subject"),
+    body: text("body").notNull(),
+    status: text("status").default("queued").notNull(),
+    providerMessageId: text("provider_message_id"),
+    error: text("error"),
+    createdBy: text("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+  },
+  (t) => [index("msg_outbox_status_idx").on(t.status)],
+);

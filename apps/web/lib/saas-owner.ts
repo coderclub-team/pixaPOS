@@ -23,6 +23,13 @@ export const SAAS_PERMISSIONS = [
   "billing:read",
   "billing:mrr",
   "plans:manage",
+  "crm:read",
+  "crm:write",
+  "tickets:read",
+  "tickets:write",
+  "messaging:read",
+  "messaging:send",
+  "integrations:manage",
   "audit:read",
   "owners:manage",
 ] as const;

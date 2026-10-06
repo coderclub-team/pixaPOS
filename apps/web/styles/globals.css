@@ -59,7 +59,7 @@ layer(base);
 }
 
 .site-theme #navbarCollapse li > a {
-  @apply text-dark hover:text-primary hover:opacity-100 dark:text-white;
+  @apply text-slate-900 transition-colors hover:text-primary dark:text-slate-100 dark:hover:text-primary;
 }
 
 .site-theme #navbarCollapse li .ud-menu-scroll.active {
@@ -67,7 +67,7 @@ layer(base);
 }
 
 .site-theme .loginBtn {
-  @apply text-dark hover:text-primary hover:opacity-100 dark:text-white;
+  @apply text-slate-900 transition-colors hover:text-primary dark:text-slate-100 dark:hover:text-primary;
 }
 
 .site-theme .signUpBtn {

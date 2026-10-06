@@ -106,10 +106,10 @@ export default function Header() {
                         onClick={() => setNavbarOpen(false)}
                         scroll={false}
                         href={menuItem.path}
-                        className={`ud-menu-scroll flex py-2 text-base lg:inline-flex lg:px-0 lg:py-6 ${
+                        className={`ud-menu-scroll flex py-2 text-base transition-colors lg:inline-flex lg:px-0 lg:py-6 ${
                           sticky
-                            ? "text-dark group-hover:text-primary dark:text-white dark:group-hover:text-primary"
-                            : "text-body-color lg:text-white dark:text-white"
+                            ? "text-slate-900 hover:text-primary dark:text-slate-100 dark:hover:text-primary"
+                            : "text-slate-900 hover:text-primary lg:text-white lg:hover:text-primary dark:text-slate-100 dark:hover:text-primary"
                         }`}
                       >
                         {menuItem.title}

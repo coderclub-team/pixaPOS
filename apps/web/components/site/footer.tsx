@@ -111,14 +111,10 @@ export default function Footer() {
             <div className="w-full px-4 md:w-1/3 lg:w-1/2">
               <div className="my-1 flex justify-center md:justify-end">
                 <p className="text-base text-gray-7">
-                  Designed and Developed by{" "}
-                  <Link
-                    href="https://tailgrids.com"
-                    rel="nofollow noopner noreferrer"
-                    target="_blank"
-                    className="text-gray-1 hover:underline"
-                  >
-                    TailGrids and Next.js Templates
+                  Designed and developed by the pixaPOS team.
+                  <br />
+                  <Link href="tel:+919944781003" className="text-gray-1 hover:underline">
+                    +91 9944 7810 03
                   </Link>
                 </p>
               </div>
