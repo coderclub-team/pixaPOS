@@ -2,6 +2,7 @@
 
 import PageContainer from "@/components/layout/page-container";
 import { Button } from "@pixa/ui/base-ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@pixa/ui/base-ui/tabs";
 import { Icons } from "@pixa/ui/icons";
 import { useIdentity } from "@/hooks/use-identity";
 import { billingKeys } from "@/features/billing/api/queries";
@@ -53,17 +54,27 @@ export default function BillingPage() {
       }
     >
       {organization ? (
-        <div className="space-y-6">
-          <UsageLimitsPanel />
-          <BillingView
-            organizationId={organization.id}
-            organizationName={organization.name}
-            orgCreatedAt={
-              organization?.createdAt == null
-                ? undefined
-                : new Date(organization.createdAt).getTime()
-            }
-          />
+        <div className="mx-auto w-full max-w-4xl">
+          <Tabs defaultValue="billing">
+            <TabsList>
+              <TabsTrigger value="billing">Billing</TabsTrigger>
+              <TabsTrigger value="usage">Usage &amp; limits</TabsTrigger>
+            </TabsList>
+            <TabsContent value="billing" keepMounted className="pt-4">
+              <BillingView
+                organizationId={organization.id}
+                organizationName={organization.name}
+                orgCreatedAt={
+                  organization?.createdAt == null
+                    ? undefined
+                    : new Date(organization.createdAt).getTime()
+                }
+              />
+            </TabsContent>
+            <TabsContent value="usage" keepMounted className="pt-4">
+              <UsageLimitsPanel />
+            </TabsContent>
+          </Tabs>
         </div>
       ) : (
         <div className="text-center text-sm text-muted-foreground">Organization not found.</div>
