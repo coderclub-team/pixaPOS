@@ -18,6 +18,20 @@ export async function POST(req: Request) {
     );
   }
 
+  // Razorpay plan ids are created in the dashboard (Subscriptions → Plans);
+  // map the app plan → the live plan id via env. Without it the API 401/400s.
+  const planId = process.env.RAZORPAY_PLAN_ID;
+  if (!planId) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "Razorpay plan id is not configured. Add RAZORPAY_PLAN_ID from the Razorpay dashboard before creating a subscription.",
+      },
+      { status: 503 },
+    );
+  }
+
   let body: { organization_id?: string; start_at_unix?: number };
   try {
     body = await req.json();
@@ -30,9 +44,7 @@ export async function POST(req: Request) {
 
   try {
     const sub = await createRazorpaySubscription({
-      // Razorpay plan ids are created in the dashboard; Phase 2 maps
-      // BILLING_PLAN.id → the dashboard plan id via env.
-      plan_id: process.env.RAZORPAY_PLAN_ID ?? BILLING_PLAN.id,
+      plan_id: planId,
       start_at_unix:
         body.start_at_unix ?? Math.floor(Date.now() / 1000) + BILLING_PLAN.trial_days * 86400,
     });
