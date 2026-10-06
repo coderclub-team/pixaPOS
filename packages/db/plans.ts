@@ -148,7 +148,7 @@ export const DEFAULT_PLANS: DefaultPlan[] = [
       customers: 10_000,
       databaseStorage: 2 * GB,
       objectStorage: 5 * GB,
-      compute: 200,
+      compute: 80,
       functions: 2_000_000,
       transfer: 50 * GB,
       writtenData: 2 * GB,
