@@ -47,6 +47,8 @@ type CompatUser = {
   /** Legacy avatar shape kept for UserAvatarProfile compat. */
   fullName: string;
   emailAddresses: { emailAddress: string }[];
+  /** Verified mobile (Better Auth phone-number plugin), when present. */
+  phoneNumber?: string | null;
 };
 
 type BetterState = {
@@ -94,13 +96,19 @@ export function clearCachedIdentity() {
   } catch {}
 }
 
-function toCompatUser(name: string, email: string, image?: string | null): CompatUser {
+function toCompatUser(
+  name: string,
+  email: string,
+  image?: string | null,
+  phoneNumber?: string | null,
+): CompatUser {
   return {
     name,
     email,
     imageUrl: image ?? undefined,
     fullName: name,
     emailAddresses: [{ emailAddress: email }],
+    phoneNumber: phoneNumber ?? undefined,
   };
 }
 
@@ -154,7 +162,12 @@ export function useIdentity() {
         role = members?.find((m) => m.userId === baSession.user.id)?.role ?? null;
       }
       if (cancelled) return;
-      const compat = toCompatUser(baSession.user.name, baSession.user.email, baSession.user.image);
+      const compat = toCompatUser(
+        baSession.user.name,
+        baSession.user.email,
+        baSession.user.image,
+        (baSession.user as { phoneNumber?: string | null }).phoneNumber,
+      );
       writeCachedIdentity({
         user: compat,
         userId: baSession.user.id,
@@ -171,7 +184,12 @@ export function useIdentity() {
         at: new Date().toISOString(),
       });
       setBetter({
-        user: toCompatUser(baSession.user.name, baSession.user.email, baSession.user.image),
+        user: toCompatUser(
+          baSession.user.name,
+          baSession.user.email,
+          baSession.user.image,
+          (baSession.user as { phoneNumber?: string | null }).phoneNumber,
+        ),
         organizations: orgs.map((o) => ({
           id: o.id,
           name: o.name,
@@ -213,7 +231,13 @@ export function useIdentity() {
   const usingCache = !baSession?.user && !!cached && !baPending && !isOnline;
 
   const effUser = baSession?.user
-    ? (better?.user ?? toCompatUser(baSession.user.name, baSession.user.email))
+    ? (better?.user ??
+      toCompatUser(
+        baSession.user.name,
+        baSession.user.email,
+        baSession.user.image,
+        (baSession.user as { phoneNumber?: string | null }).phoneNumber,
+      ))
     : usingCache
       ? cached!.user
       : null;

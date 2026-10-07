@@ -6,6 +6,7 @@ import { InfoSidebar } from "@/components/layout/info-sidebar";
 import { InfobarProvider } from "@pixa/ui/base-ui/infobar";
 import { SidebarInset, SidebarProvider } from "@pixa/ui/base-ui/sidebar";
 import { requireBaUser } from "@/lib/auth-session";
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 
@@ -20,7 +21,12 @@ export const metadata: Metadata = {
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   // Gate the whole /dashboard segment: redirect to sign-in when signed out.
-  await requireBaUser();
+  const user = await requireBaUser();
+  // Mobile OTP verification is mandatory before using the app (new accounts via
+  // email/password or Google). Device-token sessions have no flag → allowed.
+  if ((user as { phoneNumberVerified?: boolean }).phoneNumberVerified === false) {
+    redirect("/auth/verify-phone");
+  }
   // Persisting the sidebar state in the cookie.
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get("sidebar_state")?.value === "true";

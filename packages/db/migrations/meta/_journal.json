@@ -57,6 +57,13 @@
       "when": 1791270249050,
       "tag": "0007_awesome_dragon_man",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791344046648,
+      "tag": "0008_loving_anthem",
+      "breakpoints": true
     }
   ]
 }
