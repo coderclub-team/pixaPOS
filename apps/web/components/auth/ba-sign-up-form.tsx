@@ -40,7 +40,7 @@ export default function BaSignUpForm() {
     setPending(true);
     stashFunnel();
     const { error } = await authClient.signUp.email(
-      { name: name.trim(), email: email.trim(), password, callbackURL: "/dashboard" },
+      { name: name.trim(), email: email.trim(), password, callbackURL: "/auth/verify-phone" },
       { onError: () => setPending(false) },
     );
     if (error) {
@@ -50,7 +50,7 @@ export default function BaSignUpForm() {
       setPending(false);
       return;
     }
-    router.push("/dashboard");
+    router.push("/auth/verify-phone");
     router.refresh();
   };
 
@@ -58,7 +58,7 @@ export default function BaSignUpForm() {
     setPending(true);
     stashFunnel();
     const { error } = await authClient.signIn.social(
-      { provider: "google", callbackURL: "/dashboard" },
+      { provider: "google", callbackURL: "/auth/verify-phone" },
       { onError: () => setPending(false) },
     );
     if (error) {

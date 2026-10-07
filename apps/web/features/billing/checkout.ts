@@ -29,14 +29,34 @@ export async function openRazorpaySubscriptionCheckout(params: {
   subscription_id: string;
   name: string;
   description: string;
+  /** Logo shown in the checkout modal; defaults to the app logo on this host. */
+  image?: string;
+  prefill?: {
+    name?: string;
+    email?: string;
+    contact?: string;
+  };
   onSuccess: () => void;
   onDismiss?: () => void;
 }): Promise<void> {
   await loadCheckoutJs();
   if (!window.Razorpay) throw new Error("Razorpay checkout unavailable");
+
+  // Only prefill what we actually know from the session. Never fabricate
+  // values — a fake email would route receipts nowhere. Missing fields fall
+  // back to Razorpay asking the customer.
+  const prefill: Record<string, string> = {};
+  if (params.prefill?.name?.trim()) prefill.name = params.prefill.name.trim();
+  if (params.prefill?.email?.trim()) prefill.email = params.prefill.email.trim();
+  if (params.prefill?.contact?.trim()) prefill.contact = params.prefill.contact.trim();
+
+  const image = params.image ?? `${window.location.origin}/logo.png`;
+
   const rzp = new window.Razorpay({
     key: params.key_id,
     subscription_id: params.subscription_id,
+    image,
+    ...(Object.keys(prefill).length > 0 ? { prefill } : {}),
     name: params.name,
     description: params.description,
     handler: () => params.onSuccess(),

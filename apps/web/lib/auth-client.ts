@@ -1,8 +1,8 @@
 import { createAuthClient } from "better-auth/react";
-import { organizationClient } from "better-auth/client/plugins";
+import { organizationClient, phoneNumberClient } from "better-auth/client/plugins";
 
 export const authClient = createAuthClient({
-  plugins: [organizationClient()],
+  plugins: [organizationClient(), phoneNumberClient()],
 });
 
 type OrgSummary = { id: string; name: string; slug?: string | null; createdAt?: string };
