@@ -35,6 +35,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         email: lead.email,
         emailVerified: false,
         image: null,
+        phoneNumber: null,
+        phoneNumberVerified: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       };

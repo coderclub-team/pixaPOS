@@ -35,6 +35,7 @@ import { billingKeys, invoicesQueryOptions } from "../api/queries";
 import { openRazorpaySubscriptionCheckout } from "../checkout";
 import { SortTh, useSorting } from "@/components/sort-th";
 import type { SubscriptionInvoice } from "../api/types";
+import { useIdentity } from "@/hooks/use-identity";
 
 const STATUS_STYLE: Record<SubscriptionStatus, string> = {
   trialing: "text-sky-600",
@@ -84,6 +85,7 @@ export default function BillingView({
   orgCreatedAt?: number;
 }) {
   const trialAnchor = orgCreatedAt ? new Date(orgCreatedAt).toISOString() : undefined;
+  const { user } = useIdentity();
 
   const subQuery = useQuery({
     queryKey: billingKeys.subscription(organizationId),
@@ -158,6 +160,11 @@ export default function BillingView({
         subscription_id: body.subscription_id,
         name: "pixaPOS",
         description: `${BILLING_PLAN.name} — ${organizationName}`,
+        prefill: {
+          name: user?.fullName ?? user?.name ?? undefined,
+          email: user?.emailAddresses?.[0]?.emailAddress ?? user?.email ?? undefined,
+          contact: user?.phoneNumber ?? undefined,
+        },
         onSuccess: () => {
           invalidate(organizationId);
           toast.success("Payment authorized — subscription activating");

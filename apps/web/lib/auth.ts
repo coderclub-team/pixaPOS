@@ -4,7 +4,7 @@
  */
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { organization } from "better-auth/plugins";
+import { organization, phoneNumber } from "better-auth/plugins";
 import { createAccessControl } from "better-auth/plugins/access";
 import {
   db,
@@ -17,6 +17,12 @@ import {
   baInvitation,
 } from "@pixa/db";
 import { POS_PERMISSIONS, ROLE_PERMISSIONS } from "@/config/permissions";
+import { sendOtpSms } from "@/lib/otp-sms";
+
+/** India-first mobile validation: optional +, 10–15 digits. */
+function isValidPhone(p: string): boolean {
+  return /^\+?[1-9]\d{9,14}$/.test(p.replace(/[\s-]/g, ""));
+}
 
 /** org:resource:action  →  { resource: [action] } for hasPermission checks. */
 export function toStatement(permission: string): Record<string, string[]> {
@@ -161,6 +167,19 @@ function getAuth(): AuthInstance {
             // No mailer wired yet (fresh-start phase): invitations are created as
             // pending and accepted via invite link by an admin. Wire SMTP here
             // before inviting external staff by email.
+          },
+        }),
+        // Mobile OTP verification: the phone number is captured/verified for
+        // every new account (email/password or Google) and reused for follow-ups
+        // and Razorpay payments. sendOTP delivers via the configured SMS provider.
+        phoneNumber({
+          otpLength: 6,
+          expiresIn: 300,
+          allowedAttempts: 5,
+          requireVerification: true,
+          phoneNumberValidator: async (phone) => isValidPhone(phone),
+          sendOTP: async ({ phoneNumber: phone, code }) => {
+            await sendOtpSms(phone, code);
           },
         }),
       ],
