@@ -1,8 +1,12 @@
-import { redirect } from "next/navigation";
-import { baUser } from "@/lib/auth-session";
+import PageContainer from "@/components/layout/page-container";
+import { OverviewDashboard } from "@/features/overview/components/overview-dashboard";
 
-export default async function OverviewPage() {
-  const user = await baUser();
-  if (!user) redirect("/auth/sign-in");
-  return null;
+export const metadata = { title: "Dashboard : Overview" };
+
+export default function OverviewPage() {
+  return (
+    <PageContainer>
+      <OverviewDashboard />
+    </PageContainer>
+  );
 }
