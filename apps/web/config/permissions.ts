@@ -16,6 +16,8 @@ export const POS_PERMISSIONS = {
   purchasesManage: "org:purchases:manage",
   recipesManage: "org:recipes:manage",
   wasteManage: "org:waste:manage",
+  payrollManage: "org:payroll:manage",
+  leaveApprove: "org:leave:approve",
 } as const;
 
 export type PosPermissionKey = (typeof POS_PERMISSIONS)[keyof typeof POS_PERMISSIONS];
@@ -43,6 +45,8 @@ export const POS_PERMISSION_META: { key: PosPermissionKey; label: string; group:
   { key: POS_PERMISSIONS.purchasesManage, label: "Manage purchases", group: "Inventory" },
   { key: POS_PERMISSIONS.recipesManage, label: "Manage recipes", group: "Inventory" },
   { key: POS_PERMISSIONS.wasteManage, label: "Manage waste", group: "Inventory" },
+  { key: POS_PERMISSIONS.payrollManage, label: "Manage payroll", group: "Payroll" },
+  { key: POS_PERMISSIONS.leaveApprove, label: "Approve leave", group: "Payroll" },
 ];
 
 // Role -> permissions mapping (used by the Better Auth access-control roles)
@@ -62,6 +66,8 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     POS_PERMISSIONS.purchasesManage,
     POS_PERMISSIONS.recipesManage,
     POS_PERMISSIONS.wasteManage,
+    POS_PERMISSIONS.payrollManage,
+    POS_PERMISSIONS.leaveApprove,
   ],
   "org:cashier": [
     POS_PERMISSIONS.tablesOperate,

@@ -1,0 +1,88 @@
+import * as z from "zod";
+
+export const employeeSchema = z.object({
+  name: z.string().trim().min(2, "Name min 2 chars").max(100),
+  email: z.string().trim().email("Valid email required").optional().or(z.literal("")),
+  employee_code: z.string().trim().min(1, "Code required").max(20),
+  pay_type: z.enum(["hourly", "salary"]),
+  rate: z.number({ error: "Rate required" }).min(0, "Rate can't be negative"),
+  currency: z.string().trim().max(8).optional().or(z.literal("")),
+  bank_account: z.string().trim().max(34).optional().or(z.literal("")),
+  status: z.enum(["active", "inactive"]),
+  outlet_id: z.string().optional().or(z.literal("")),
+  joining_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD")
+    .optional()
+    .or(z.literal("")),
+});
+
+export type EmployeeFormValues = z.infer<typeof employeeSchema>;
+
+export const leaveTypeSchema = z.object({
+  name: z.string().trim().min(2, "Name min 2 chars").max(60),
+  is_paid: z.boolean(),
+  yearly_quota: z.number({ error: "Quota required" }).min(0, "Quota can't be negative").max(365),
+});
+
+export type LeaveTypeFormValues = z.infer<typeof leaveTypeSchema>;
+
+export const leaveApplySchema = z
+  .object({
+    employee_id: z.string().min(1, "Employee required"),
+    leave_type_id: z.string().min(1, "Leave type required"),
+    start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD"),
+    end_date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD")
+      .optional()
+      .or(z.literal("")),
+    day_type: z.enum(["full", "first_half", "second_half"]),
+    reason: z.string().max(500).optional().or(z.literal("")),
+  })
+  .refine((v) => !v.end_date || v.end_date >= v.start_date, {
+    message: "End date can't be before start date",
+    path: ["end_date"],
+  })
+  .refine((v) => v.day_type === "full" || !v.end_date || v.end_date === v.start_date, {
+    message: "Half-day applies to single-day leave only",
+    path: ["day_type"],
+  });
+
+export type LeaveApplyValues = z.infer<typeof leaveApplySchema>;
+
+export const holidaySchema = z.object({
+  name: z.string().trim().min(2, "Name min 2 chars").max(100),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD"),
+  is_optional: z.boolean(),
+});
+
+export type HolidayFormValues = z.infer<typeof holidaySchema>;
+
+export const holidayRuleSchema = z.object({
+  multiplier: z.number({ error: "Multiplier required" }).min(1, "At least 1×").max(5),
+  fixed_incentive_amount: z.number().min(0).optional().or(z.literal("")),
+});
+
+export type HolidayRuleValues = z.infer<typeof holidayRuleSchema>;
+
+export const payPeriodSchema = z
+  .object({
+    start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD"),
+    end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD"),
+  })
+  .refine((v) => v.end_date >= v.start_date, {
+    message: "End date can't be before start date",
+    path: ["end_date"],
+  });
+
+export type PayPeriodValues = z.infer<typeof payPeriodSchema>;
+
+export const incentiveSchema = z.object({
+  payroll_item_id: z.string().min(1),
+  name: z.string().trim().min(2, "Name min 2 chars").max(80),
+  amount: z.number({ error: "Amount required" }).min(0, "Amount can't be negative"),
+  note: z.string().max(200).optional().or(z.literal("")),
+});
+
+export type IncentiveFormValues = z.infer<typeof incentiveSchema>;
