@@ -14,7 +14,7 @@ import {
 import { Icons } from "@pixa/ui/icons";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { approveLeave, rejectLeave } from "../api/service";
+import { decideLeave } from "../api/service";
 import { payrollKeys } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import type { LeaveRequest } from "../api/types";
@@ -38,10 +38,10 @@ export function LeaveList({
 }) {
   const invalidate = () => {
     getQueryClient().invalidateQueries({ queryKey: payrollKeys.leaves() });
-    getQueryClient().invalidateQueries({ queryKey: payrollKeys.leaveBalances() });
+    getQueryClient().invalidateQueries({ queryKey: payrollKeys.balances() });
   };
   const approve = useMutation({
-    mutationFn: (id: string) => approveLeave(id),
+    mutationFn: (id: string) => decideLeave(id, "approve"),
     onSuccess: () => {
       invalidate();
       toast.success("Leave approved");
@@ -49,7 +49,7 @@ export function LeaveList({
     onError: (e: Error) => toast.error(e.message),
   });
   const reject = useMutation({
-    mutationFn: (id: string) => rejectLeave(id, { reason: "Rejected by manager" }),
+    mutationFn: (id: string) => decideLeave(id, "reject", "Rejected by manager"),
     onSuccess: () => {
       invalidate();
       toast.success("Leave rejected");
@@ -99,7 +99,7 @@ export function LeaveList({
                 <TableCell>{typeName(l.leave_type_id)}</TableCell>
                 <TableCell className="text-xs">
                   {l.start_date} → {l.end_date}
-                  {l.is_half_day ? " (half day)" : ""}
+                  {l.day_type !== "full" ? " (half day)" : ""}
                 </TableCell>
                 <TableCell>{l.total_days}</TableCell>
                 <TableCell>

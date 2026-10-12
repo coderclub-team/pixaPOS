@@ -1,21 +1,61 @@
 import * as z from "zod";
 
-export const employeeSchema = z.object({
-  name: z.string().trim().min(2, "Name min 2 chars").max(100),
-  email: z.string().trim().email("Valid email required").optional().or(z.literal("")),
-  employee_code: z.string().trim().min(1, "Code required").max(20),
-  pay_type: z.enum(["hourly", "salary"]),
-  rate: z.number({ error: "Rate required" }).min(0, "Rate can't be negative"),
-  currency: z.string().trim().max(8).optional().or(z.literal("")),
-  bank_account: z.string().trim().max(34).optional().or(z.literal("")),
-  status: z.enum(["active", "inactive"]),
-  outlet_id: z.string().optional().or(z.literal("")),
-  joining_date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD")
-    .optional()
-    .or(z.literal("")),
-});
+export const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+export const UPI_RE = /^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/;
+
+export const employeeSchema = z
+  .object({
+    name: z.string().trim().min(2, "Name min 2 chars").max(100),
+    email: z.string().trim().email("Valid email required").optional().or(z.literal("")),
+    employee_code: z.string().trim().min(1, "Code required").max(20),
+    pay_type: z.enum(["hourly", "salary"]),
+    rate: z.number({ error: "Rate required" }).min(0, "Rate can't be negative"),
+    currency: z.string().trim().max(8).optional().or(z.literal("")),
+    payout_mode: z.enum(["bank", "upi", "both"]),
+    bank_account: z
+      .string()
+      .trim()
+      .regex(/^\d{9,18}$/, "9–18 digit account number")
+      .optional()
+      .or(z.literal("")),
+    bank_name: z.string().trim().max(100).optional().or(z.literal("")),
+    bank_ifsc: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .regex(IFSC_RE, "IFSC like HDFC0001234")
+      .optional()
+      .or(z.literal("")),
+    upi_id: z.string().trim().regex(UPI_RE, "UPI ID like name@okhdfc").optional().or(z.literal("")),
+    status: z.enum(["active", "inactive"]),
+    outlet_id: z.string().optional().or(z.literal("")),
+    joining_date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD")
+      .optional()
+      .or(z.literal("")),
+  })
+  .superRefine((v, ctx) => {
+    const bankTouched = !!v.bank_account || !!v.bank_ifsc || !!v.bank_name;
+    // All-empty = edit mode "keep existing" — server re-validates on create.
+    if (!bankTouched && !v.upi_id) return;
+    const ok =
+      v.payout_mode === "bank"
+        ? !!v.bank_account && !!v.bank_ifsc
+        : v.payout_mode === "upi"
+          ? !!v.upi_id
+          : !!v.upi_id || (!!v.bank_account && !!v.bank_ifsc);
+    if (!ok) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          v.payout_mode === "upi"
+            ? "UPI ID required for UPI payouts"
+            : "Account number + IFSC required for bank payouts",
+        path: [v.payout_mode === "upi" ? "upi_id" : "bank_ifsc"],
+      });
+    }
+  });
 
 export type EmployeeFormValues = z.infer<typeof employeeSchema>;
 

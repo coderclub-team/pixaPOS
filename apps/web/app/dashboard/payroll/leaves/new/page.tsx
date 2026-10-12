@@ -17,7 +17,6 @@ export default function NewLeavePage() {
           id: t.id,
           name: t.name,
           is_paid: t.is_paid,
-          unit: t.unit,
         }))}
       />
     </PageContainer>

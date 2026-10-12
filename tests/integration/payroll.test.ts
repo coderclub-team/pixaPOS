@@ -104,12 +104,19 @@ describe("payroll API", () => {
         employee_code: "EMP001",
         pay_type: "salary",
         rate: 30000,
+        payout_mode: "both",
         bank_account: "50100234567890",
+        bank_name: "HDFC Bank",
+        bank_ifsc: "hdfc0001234",
+        upi_id: "ravi.kumar@okhdfc",
       }),
     );
     expect(res.status).toBe(201);
-    const data = (await res.json()) as { employee: { bank_account_masked: string } };
+    const data = (await res.json()) as {
+      employee: { bank_account_masked: string; upi_id_masked: string };
+    };
     expect(data.employee.bank_account_masked).toBe("•••• 7890");
+    expect(data.employee.upi_id_masked).toBe("r••••@okhdfc");
 
     const database = getTestDb();
     const [row] = await database
@@ -119,6 +126,61 @@ describe("payroll API", () => {
     expect(row.ratePaise).toBe(3_000_000);
     expect(row.bankAccountEnc).toBeTruthy();
     expect(row.bankAccountEnc).not.toContain("50100234567890");
+    expect(row.bankIfsc).toBe("HDFC0001234");
+    expect(row.bankName).toBe("HDFC Bank");
+    expect(row.upiIdEnc).toBeTruthy();
+    expect(row.upiIdEnc).not.toContain("ravi.kumar@okhdfc");
+  });
+
+  it("rejects bank payout without IFSC and bad IFSC/UPI formats", async () => {
+    const noIfsc = await createEmployee(
+      req({
+        name: "No Ifsc",
+        employee_code: "EMP090",
+        pay_type: "salary",
+        rate: 20000,
+        payout_mode: "bank",
+        bank_account: "50100234567890",
+      }),
+    );
+    expect(noIfsc.status).toBe(400);
+
+    const badIfsc = await createEmployee(
+      req({
+        name: "Bad Ifsc",
+        employee_code: "EMP091",
+        pay_type: "salary",
+        rate: 20000,
+        payout_mode: "bank",
+        bank_account: "50100234567890",
+        bank_ifsc: "NOTANIFSC",
+      }),
+    );
+    expect(badIfsc.status).toBe(400);
+
+    const badUpi = await createEmployee(
+      req({
+        name: "Bad Upi",
+        employee_code: "EMP092",
+        pay_type: "hourly",
+        rate: 200,
+        payout_mode: "upi",
+        upi_id: "not-a-vpa",
+      }),
+    );
+    expect(badUpi.status).toBe(400);
+
+    const upiOnly = await createEmployee(
+      req({
+        name: "Upi Only",
+        employee_code: "EMP093",
+        pay_type: "hourly",
+        rate: 200,
+        payout_mode: "upi",
+        upi_id: "helper@okpay",
+      }),
+    );
+    expect(upiOnly.status).toBe(201);
   });
 
   it("rejects bad pay_type with 400", async () => {
@@ -141,7 +203,15 @@ describe("payroll API", () => {
       version: 1,
     });
     const empRes = await createEmployee(
-      req({ name: "Meera", employee_code: "EMP010", pay_type: "salary", rate: 30000 }),
+      req({
+        name: "Meera",
+        employee_code: "EMP010",
+        pay_type: "salary",
+        rate: 30000,
+        payout_mode: "bank",
+        bank_account: "50100234567891",
+        bank_ifsc: "SBIN0060234",
+      }),
     );
     const emp = ((await empRes.json()) as { employee: { id: string } }).employee;
 
@@ -195,7 +265,14 @@ describe("payroll API", () => {
       version: 1,
     });
     const empRes = await createEmployee(
-      req({ name: "Arjun", employee_code: "EMP020", pay_type: "salary", rate: 30000 }),
+      req({
+        name: "Arjun",
+        employee_code: "EMP020",
+        pay_type: "salary",
+        rate: 30000,
+        payout_mode: "upi",
+        upi_id: "arjun@okicici",
+      }),
     );
     const emp = ((await empRes.json()) as { employee: { id: string } }).employee;
 

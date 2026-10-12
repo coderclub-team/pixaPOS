@@ -26,7 +26,6 @@ export default function MyApplyLeavePage() {
           id: t.id,
           name: t.name,
           is_paid: t.is_paid,
-          unit: t.unit,
         }))}
         fixedEmployeeId={employeeId}
       />

@@ -17,10 +17,20 @@ import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { inr } from "@/features/payroll/components/employee-list";
-import { myProfileQueryOptions } from "@/features/payroll/api/queries";
+import {
+  myBalancesQueryOptions,
+  myLeavesQueryOptions,
+  myPayslipsQueryOptions,
+  myProfileQueryOptions,
+} from "@/features/payroll/api/queries";
 
 export default function MyPayrollPage() {
-  const { data, isPending } = useQuery(myProfileQueryOptions);
+  const { data: profile, isPending } = useQuery(myProfileQueryOptions);
+  const year = new Date().getFullYear();
+  const { data: balances } = useQuery(myBalancesQueryOptions(year));
+  const { data: requests } = useQuery(myLeavesQueryOptions);
+  const { data: payslips } = useQuery(myPayslipsQueryOptions);
+  const employee = profile?.employee ?? null;
 
   if (isPending) {
     return (
@@ -30,7 +40,7 @@ export default function MyPayrollPage() {
     );
   }
 
-  if (!data?.employee) {
+  if (!employee) {
     return (
       <PageContainer pageTitle="My Payroll" pageDescription="Payroll — Self service">
         <Card>
@@ -42,8 +52,6 @@ export default function MyPayrollPage() {
       </PageContainer>
     );
   }
-
-  const { employee, balances, requests, payslips } = data;
 
   return (
     <PageContainer
@@ -61,7 +69,7 @@ export default function MyPayrollPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Leave balances {new Date().getFullYear()}</CardTitle>
+            <CardTitle className="text-base">Leave balances {year}</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
@@ -73,9 +81,11 @@ export default function MyPayrollPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {balances.map((b) => (
+                {(balances ?? []).map((b) => (
                   <TableRow key={b.id}>
-                    <TableCell className="font-medium">{b.leave_type_id}</TableCell>
+                    <TableCell className="font-medium">
+                      {b.leave_type_name ?? b.leave_type_id}
+                    </TableCell>
                     <TableCell className="text-right">{b.used}</TableCell>
                     <TableCell className="text-right">{b.remaining}</TableCell>
                   </TableRow>
@@ -99,10 +109,11 @@ export default function MyPayrollPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {requests.map((r) => (
+                {(requests ?? []).map((r) => (
                   <TableRow key={r.id}>
                     <TableCell className="text-xs">
                       {r.start_date} → {r.end_date}
+                      {r.day_type !== "full" ? " (half)" : ""}
                     </TableCell>
                     <TableCell>{r.total_days}</TableCell>
                     <TableCell>
@@ -133,18 +144,25 @@ export default function MyPayrollPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {payslips.map((p) => (
-                <TableRow key={p.item_id}>
-                  <TableCell className="font-medium">{p.period_name}</TableCell>
-                  <TableCell className="text-right">{inr(p.gross_pay / 100)}</TableCell>
-                  <TableCell className="text-right font-medium">{inr(p.net_pay / 100)}</TableCell>
+              {(payslips ?? []).map((p) => (
+                <TableRow key={p.id}>
+                  <TableCell className="font-medium">
+                    {p.pay_period_id?.slice(0, 8) ?? "—"}
+                    {p.run_status ? ` · ${p.run_status}` : ""}
+                  </TableCell>
+                  <TableCell className="text-right">{inr(p.gross_pay)}</TableCell>
+                  <TableCell className="text-right font-medium">{inr(p.net_pay)}</TableCell>
                   <TableCell className="text-right">
-                    <Link
-                      href={`/dashboard/payroll/me/payslip/${p.run_id}`}
-                      className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-                    >
-                      View
-                    </Link>
+                    {p.payroll_run_id ? (
+                      <Link
+                        href={`/dashboard/payroll/me/payslip/${p.payroll_run_id}`}
+                        className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+                      >
+                        View
+                      </Link>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

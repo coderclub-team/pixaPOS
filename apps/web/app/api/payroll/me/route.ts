@@ -51,8 +51,23 @@ export async function GET(req: Request) {
     } catch {
       bankMasked = "•••• (unreadable)";
     }
-    const { bankAccountEnc: _drop, ...profile } = emp;
+    let upiMasked = "—";
+    if (emp.upiIdEnc) {
+      try {
+        const v = await decryptBankAccount(emp.upiIdEnc);
+        if (v) {
+          const [user, domain] = v.split("@");
+          upiMasked = domain
+            ? `${user[0]}${"•".repeat(Math.min(Math.max(user.length - 1, 1), 4))}@${domain}`
+            : "••••";
+        }
+      } catch {
+        upiMasked = "•••• (unreadable)";
+      }
+    }
+    const { bankAccountEnc: _drop, upiIdEnc: _dropUpi, ...profile } = emp;
     void _drop;
+    void _dropUpi;
 
     if (view === "balances") {
       const year = Number(new URL(req.url).searchParams.get("year") ?? new Date().getFullYear());
@@ -118,7 +133,7 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json(
-      { employee: { ...profile, bank_account_masked: bankMasked } },
+      { employee: { ...profile, bank_account_masked: bankMasked, upi_id_masked: upiMasked } },
       { headers: noStore },
     );
   } catch (e) {

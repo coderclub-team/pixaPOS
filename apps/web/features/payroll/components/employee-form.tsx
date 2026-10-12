@@ -26,7 +26,11 @@ export default function EmployeeForm({ initialData }: { initialData?: Employee }
         pay_type: values.pay_type,
         rate: values.rate,
         currency: values.currency || undefined,
+        payout_mode: values.payout_mode,
         bank_account: values.bank_account || undefined,
+        bank_name: values.bank_name || undefined,
+        bank_ifsc: values.bank_ifsc || undefined,
+        upi_id: values.upi_id || undefined,
         status: values.status,
         outlet_id: undefined,
         joining_date: values.joining_date || undefined,
@@ -49,7 +53,16 @@ export default function EmployeeForm({ initialData }: { initialData?: Employee }
       pay_type: initialData?.pay_type ?? "salary",
       rate: initialData?.rate ?? 0,
       currency: initialData?.currency ?? "INR",
+      payout_mode:
+        initialData?.upi_id_masked && initialData?.bank_account_masked !== "—"
+          ? "both"
+          : initialData?.upi_id_masked
+            ? "upi"
+            : "bank",
       bank_account: "",
+      bank_name: initialData?.bank_name ?? "",
+      bank_ifsc: initialData?.bank_ifsc ?? "",
+      upi_id: "",
       status: initialData?.status ?? "active",
       joining_date: initialData?.joining_date ?? "",
     } as EmployeeFormValues,
@@ -142,12 +155,17 @@ export default function EmployeeForm({ initialData }: { initialData?: Employee }
             </div>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <form.AppField
-                name="bank_account"
+                name="payout_mode"
                 children={(field) => (
-                  <field.TextField
-                    label={isEdit ? "Bank Account (leave blank to keep)" : "Bank Account"}
-                    placeholder="Encrypted at rest"
-                    description="Stored encrypted, only last-4 shown"
+                  <field.SelectField
+                    label="Payout Mode"
+                    required
+                    options={[
+                      { value: "bank", label: "Bank transfer (NEFT/IMPS)" },
+                      { value: "upi", label: "UPI" },
+                      { value: "both", label: "Both" },
+                    ]}
+                    description="Salaried staff usually bank; casual staff often UPI"
                   />
                 )}
               />
@@ -156,6 +174,58 @@ export default function EmployeeForm({ initialData }: { initialData?: Employee }
                 children={(field) => <field.TextField label="Joining Date" type="date" />}
               />
             </div>
+            <form.Subscribe
+              selector={(s) => s.values.payout_mode}
+              children={(mode) => (
+                <>
+                  {(mode === "bank" || mode === "both") && (
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                      <form.AppField
+                        name="bank_account"
+                        children={(field) => (
+                          <field.TextField
+                            label={isEdit ? "Bank Account (blank = keep)" : "Bank Account Number"}
+                            required={!isEdit}
+                            placeholder="50100234567890"
+                            description="Encrypted at rest, only last-4 shown"
+                          />
+                        )}
+                      />
+                      <form.AppField
+                        name="bank_ifsc"
+                        children={(field) => (
+                          <field.TextField
+                            label="IFSC"
+                            required={!isEdit}
+                            placeholder="HDFC0001234"
+                            description="Needed for NEFT/IMPS salary files"
+                          />
+                        )}
+                      />
+                      <form.AppField
+                        name="bank_name"
+                        children={(field) => (
+                          <field.TextField label="Bank Name" placeholder="HDFC Bank" />
+                        )}
+                      />
+                    </div>
+                  )}
+                  {(mode === "upi" || mode === "both") && (
+                    <form.AppField
+                      name="upi_id"
+                      children={(field) => (
+                        <field.TextField
+                          label={isEdit ? "UPI ID (blank = keep)" : "UPI ID"}
+                          required={!isEdit}
+                          placeholder="name@okhdfc"
+                          description="For UPI payouts to casual staff"
+                        />
+                      )}
+                    />
+                  )}
+                </>
+              )}
+            />
           </FieldGroup>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => router.back()}>

@@ -5,13 +5,6 @@ import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { Input } from "@pixa/ui/base-ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@pixa/ui/base-ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -21,22 +14,22 @@ import {
 } from "@pixa/ui/base-ui/table";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { createHoliday, createHolidayRule, deleteHolidayRule } from "../api/service";
-import { holidaysQueryOptions, holidayRulesQueryOptions, payrollKeys } from "../api/queries";
+import { createHoliday, deleteHoliday, saveHolidayRule } from "../api/service";
+import { holidaysQueryOptions, holidayRuleQueryOptions, payrollKeys } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
-import type { HolidayPayRule } from "../api/types";
+import type { HolidayRule } from "../api/types";
 
 export function HolidayManager() {
   const year = new Date().getFullYear();
   const { data: holidays } = useQuery(holidaysQueryOptions(year));
-  const { data: rules } = useQuery(holidayRulesQueryOptions);
+  const { data: rule } = useQuery(holidayRuleQueryOptions);
 
   const [name, setName] = React.useState("");
   const [date, setDate] = React.useState("");
 
   const invalidate = () => {
     getQueryClient().invalidateQueries({ queryKey: payrollKeys.holidays() });
-    getQueryClient().invalidateQueries({ queryKey: payrollKeys.holidayRules() });
+    getQueryClient().invalidateQueries({ queryKey: payrollKeys.holidayRule() });
   };
 
   const addHoliday = useMutation({
@@ -46,6 +39,15 @@ export function HolidayManager() {
       setName("");
       setDate("");
       toast.success("Holiday added");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const removeHoliday = useMutation({
+    mutationFn: (id: string) => deleteHoliday(id),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Holiday removed");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -83,6 +85,7 @@ export function HolidayManager() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Date</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -90,28 +93,45 @@ export function HolidayManager() {
                 <TableRow key={h.id}>
                   <TableCell className="font-medium">{h.name}</TableCell>
                   <TableCell className="text-xs">{h.date}</TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={removeHoliday.isPending}
+                      onClick={() => removeHoliday.mutate(h.id)}
+                    >
+                      Remove
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
-      <HolidayRuleCard rules={rules ?? []} onChange={invalidate} />
+      <HolidayRuleCard rule={rule ?? null} onChange={invalidate} />
     </div>
   );
 }
 
-function HolidayRuleCard({ rules, onChange }: { rules: HolidayPayRule[]; onChange: () => void }) {
-  const [payType, setPayType] = React.useState("hourly");
+function HolidayRuleCard({ rule, onChange }: { rule: HolidayRule | null; onChange: () => void }) {
   const [multiplier, setMultiplier] = React.useState("1.5");
   const [fixed, setFixed] = React.useState("");
+  const initialized = React.useRef(false);
 
-  const add = useMutation({
+  React.useEffect(() => {
+    if (rule && !initialized.current) {
+      initialized.current = true;
+      setMultiplier(String(rule.multiplier));
+      setFixed(rule.fixed_incentive_amount ? String(rule.fixed_incentive_amount) : "");
+    }
+  }, [rule]);
+
+  const save = useMutation({
     mutationFn: () =>
-      createHolidayRule({
-        pay_type: payType,
+      saveHolidayRule({
         multiplier: Number(multiplier),
-        fixed_amount: fixed ? Number(fixed) : 0,
+        fixed_incentive_amount: fixed ? Number(fixed) : 0,
       }),
     onSuccess: () => {
       onChange();
@@ -119,34 +139,17 @@ function HolidayRuleCard({ rules, onChange }: { rules: HolidayPayRule[]; onChang
     },
     onError: (e: Error) => toast.error(e.message),
   });
-  const remove = useMutation({
-    mutationFn: (id: string) => deleteHolidayRule(id),
-    onSuccess: () => {
-      onChange();
-      toast.success("Rule removed");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Holiday pay rules</CardTitle>
+        <CardTitle className="text-base">Holiday overtime rule</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          Overtime for hours worked on a holiday: extra = hours × rate × multiplier + fixed.
+          Extra for holiday work: hours × rate × multiplier + fixed amount.
         </p>
         <div className="flex flex-wrap gap-2">
-          <Select value={payType} onValueChange={setPayType}>
-            <SelectTrigger className="w-[130px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="hourly">Hourly</SelectItem>
-              <SelectItem value="salary">Salary</SelectItem>
-            </SelectContent>
-          </Select>
           <Input
             placeholder="Multiplier (e.g. 1.5)"
             type="number"
@@ -161,39 +164,16 @@ function HolidayRuleCard({ rules, onChange }: { rules: HolidayPayRule[]; onChang
             onChange={(e) => setFixed(e.target.value)}
             className="max-w-[150px]"
           />
-          <Button size="sm" disabled={add.isPending} onClick={() => add.mutate()}>
+          <Button size="sm" disabled={save.isPending} onClick={() => save.mutate()}>
             Save
           </Button>
         </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Applies to</TableHead>
-              <TableHead>Multiplier</TableHead>
-              <TableHead>Fixed</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rules.map((r) => (
-              <TableRow key={r.id}>
-                <TableCell>{r.pay_type}</TableCell>
-                <TableCell>{r.multiplier}×</TableCell>
-                <TableCell>₹{r.fixed_amount}</TableCell>
-                <TableCell className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={remove.isPending}
-                    onClick={() => remove.mutate(r.id)}
-                  >
-                    Remove
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        {rule && (
+          <p className="text-xs text-muted-foreground">
+            Current: {rule.multiplier}×
+            {rule.fixed_incentive_amount ? ` + ₹${rule.fixed_incentive_amount}` : ""}
+          </p>
+        )}
       </CardContent>
     </Card>
   );

@@ -31,6 +31,9 @@ export async function getEmployees(): Promise<Employee[]> {
     rate: r(e.ratePaise ?? e.rate_paise),
     currency: String(e.currency ?? "INR"),
     bank_account_masked: String(e.bank_account_masked ?? "—"),
+    bank_name: (e.bankName ?? e.bank_name ?? null) as string | null,
+    bank_ifsc: (e.bankIfsc ?? e.bank_ifsc ?? null) as string | null,
+    upi_id_masked: String(e.upi_id_masked ?? "—"),
     status: e.status as Employee["status"],
     joining_date: (e.joiningDate ?? e.joining_date ?? null) as string | null,
   }));
@@ -98,7 +101,7 @@ export async function getLeaveBalances(
     employee_name: (b.employeeName ?? b.employee_name ?? undefined) as string | undefined,
     leave_type_id: String(b.leaveTypeId ?? b.leave_type_id),
     leave_type_name: (b.leaveTypeName ?? b.leave_type_name ?? undefined) as string | undefined,
-    is_paid: (b.isPaid ?? b.is_paid) as boolean | undefined,
+    is_paid: (b.isPaid ?? b.is_paid ?? undefined) as boolean | undefined,
     year: n(b.year),
     opening_balance: n(b.openingBalance ?? b.opening_balance),
     used: n(b.used),
@@ -247,11 +250,42 @@ export async function getPayrollRuns(): Promise<import("./types").PayrollRunSumm
 export async function createPayrollRun(
   pay_period_id: string,
   inputs?: import("./types").RunUnitInput[],
-): Promise<{ runId: string }> {
+): Promise<{ runId: string; itemCount: number }> {
   return api("/api/payroll/runs", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ pay_period_id, inputs }),
+  });
+}
+
+export async function addIncentive(
+  runId: string,
+  input: { payroll_item_id: string; name: string; amount: number; note?: string },
+): Promise<void> {
+  await api(`/api/payroll/runs/${encodeURIComponent(runId)}/incentives`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function approveRun(runId: string): Promise<void> {
+  await api(`/api/payroll/runs/${encodeURIComponent(runId)}/approve`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({}),
+  });
+}
+
+export async function overrideItem(
+  runId: string,
+  itemId: string,
+  input: { deductions?: number; notes?: string; reason?: string },
+): Promise<void> {
+  await api(`/api/payroll/runs/${encodeURIComponent(runId)}/items/${encodeURIComponent(itemId)}`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ deductions: input.deductions, notes: input.notes ?? input.reason }),
   });
 }
 
@@ -341,6 +375,9 @@ export async function getMyProfile(): Promise<{ employee: Employee | null }> {
       rate: r((e as Record<string, unknown>).ratePaise ?? e.rate_paise),
       currency: String(e.currency ?? "INR"),
       bank_account_masked: String(e.bank_account_masked ?? "—"),
+      bank_name: ((e as Record<string, unknown>).bankName ?? e.bank_name ?? null) as string | null,
+      bank_ifsc: ((e as Record<string, unknown>).bankIfsc ?? e.bank_ifsc ?? null) as string | null,
+      upi_id_masked: String(e.upi_id_masked ?? "—"),
       status: e.status as Employee["status"],
       joining_date: ((e as Record<string, unknown>).joiningDate ?? e.joining_date ?? null) as
         | string
@@ -357,7 +394,7 @@ export async function getMyBalances(year?: number): Promise<import("./types").Le
     employee_id: "",
     leave_type_id: String(b.leaveTypeId ?? b.leave_type_id),
     leave_type_name: String(b.leaveTypeName ?? b.leave_type_name ?? ""),
-    is_paid: b.isPaid ?? b.is_paid,
+    is_paid: (b.isPaid ?? b.is_paid ?? undefined) as boolean | undefined,
     year: n(b.year),
     opening_balance: n(b.openingBalance ?? b.opening_balance),
     used: n(b.used),
@@ -396,5 +433,8 @@ export async function getMyPayslips(): Promise<PayrollItem[]> {
     deductions: r(x.deductionsPaise ?? x.deductions_paise),
     net_pay: r(x.netPayPaise ?? x.net_pay_paise),
     incentives: [],
+    payroll_run_id: String(x.payrollRunId ?? x.payroll_run_id ?? ""),
+    pay_period_id: String(x.pay_period_id ?? ""),
+    run_status: String(x.run_status ?? ""),
   }));
 }

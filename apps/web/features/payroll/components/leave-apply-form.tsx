@@ -4,7 +4,7 @@ import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { FieldGroup } from "@pixa/ui/base-ui/field";
 import { useAppForm } from "@/lib/form";
-import { leaveRequestSchema, type LeaveRequestValues } from "../schemas/payroll";
+import { leaveApplySchema, type LeaveApplyValues } from "../schemas/payroll";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -18,19 +18,19 @@ export default function LeaveApplyForm({
   fixedEmployeeId,
 }: {
   employees: { id: string; name: string }[];
-  types: { id: string; name: string; is_paid: boolean; unit: string }[];
+  types: { id: string; name: string; is_paid: boolean }[];
   fixedEmployeeId?: string;
 }) {
   const router = useRouter();
 
   const mutation = useMutation({
-    mutationFn: (values: LeaveRequestValues) =>
+    mutationFn: (values: LeaveApplyValues) =>
       applyLeave({
         employee_id: fixedEmployeeId ?? values.employee_id,
         leave_type_id: values.leave_type_id,
         start_date: values.start_date,
-        end_date: values.end_date,
-        is_half_day: values.is_half_day,
+        end_date: values.end_date || undefined,
+        day_type: values.day_type,
         reason: values.reason || undefined,
       }),
     onSuccess: () => {
@@ -47,11 +47,11 @@ export default function LeaveApplyForm({
       employee_id: fixedEmployeeId ?? "",
       leave_type_id: "",
       start_date: today,
-      end_date: today,
-      is_half_day: false,
+      end_date: "",
+      day_type: "full",
       reason: "",
-    } as LeaveRequestValues,
-    validators: { onSubmit: leaveRequestSchema },
+    } as LeaveApplyValues,
+    validators: { onSubmit: leaveApplySchema },
     onSubmit: async ({ value }) => {
       await mutation.mutateAsync(value);
     },
@@ -103,12 +103,29 @@ export default function LeaveApplyForm({
               />
               <form.AppField
                 name="end_date"
-                children={(field) => <field.TextField label="End Date" required type="date" />}
+                children={(field) => (
+                  <field.TextField
+                    label="End Date"
+                    type="date"
+                    description="Leave blank for a single day"
+                  />
+                )}
               />
             </div>
             <form.AppField
-              name="is_half_day"
-              children={(field) => <field.CheckboxField label="Half day (counts as 0.5 day)" />}
+              name="day_type"
+              children={(field) => (
+                <field.SelectField
+                  label="Day Type"
+                  required
+                  options={[
+                    { value: "full", label: "Full day" },
+                    { value: "first_half", label: "First half" },
+                    { value: "second_half", label: "Second half" },
+                  ]}
+                  description="Half-day applies to single-day leave only"
+                />
+              )}
             />
             <form.AppField
               name="reason"

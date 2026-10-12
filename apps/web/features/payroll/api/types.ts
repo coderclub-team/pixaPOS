@@ -14,6 +14,9 @@ export interface Employee {
   rate: number;
   currency: string;
   bank_account_masked: string;
+  bank_name: string | null;
+  bank_ifsc: string | null;
+  upi_id_masked: string;
   status: EmployeeStatus;
   joining_date: string | null;
 }
@@ -25,7 +28,11 @@ export interface EmployeePayload {
   pay_type: PayType;
   rate: number;
   currency?: string;
+  payout_mode?: "bank" | "upi" | "both";
   bank_account?: string;
+  bank_name?: string;
+  bank_ifsc?: string;
+  upi_id?: string;
   status?: EmployeeStatus;
   outlet_id?: string;
   joining_date?: string;
@@ -122,6 +129,10 @@ export interface PayrollItem {
   net_pay: number;
   notes?: string | null;
   incentives: PayrollIncentive[];
+  /** Self-service context (from /api/payroll/me?view=payslips). */
+  payroll_run_id?: string;
+  pay_period_id?: string;
+  run_status?: string;
 }
 
 export interface RunUnitInput {

@@ -4,14 +4,57 @@ import { db, employees } from "@pixa/db";
 import { ulid } from "@pixa/contracts";
 import { payrollAuth, noStore } from "@/features/payroll/api/authz";
 import { encryptBankAccount, maskBankAccount, decryptBankAccount } from "@/lib/bank-crypto";
+import { IFSC_RE, UPI_RE } from "@/features/payroll/schemas/payroll";
 import { toPaise } from "@/features/payroll/api/server";
 
 export const dynamic = "force-dynamic";
 
 function serialize(e: typeof employees.$inferSelect) {
-  const { bankAccountEnc: _enc, ...rest } = e;
+  const { bankAccountEnc: _enc, upiIdEnc: _upi, ...rest } = e;
   void _enc;
+  void _upi;
   return rest;
+}
+
+function maskUpi(v: string | null): string {
+  if (!v) return "—";
+  const [user, domain] = v.split("@");
+  if (!domain) return "••••";
+  const head =
+    user.length <= 2
+      ? "•".repeat(user.length)
+      : `${user[0]}${"•".repeat(Math.min(user.length - 1, 4))}`;
+  return `${head}@${domain}`;
+}
+
+async function maskedSecrets(enc: string | null, upiEnc: string | null) {
+  const bank = await maskedBank(enc);
+  let upi = "—";
+  if (upiEnc) {
+    try {
+      upi = maskUpi(await decryptBankAccount(upiEnc));
+    } catch {
+      upi = "•••• (unreadable)";
+    }
+  }
+  return { bank_account_masked: bank, upi_id_masked: upi };
+}
+
+function payoutError(body: Record<string, unknown>): string | null {
+  const mode = String(body.payout_mode ?? "bank");
+  const acct = String(body.bank_account ?? "").trim();
+  const ifsc = String(body.bank_ifsc ?? "")
+    .trim()
+    .toUpperCase();
+  const upi = String(body.upi_id ?? "").trim();
+  if (acct && !/^\d{9,18}$/.test(acct)) return "bank_account must be 9–18 digits";
+  if (ifsc && !IFSC_RE.test(ifsc)) return "bank_ifsc invalid (e.g. HDFC0001234)";
+  if (upi && !UPI_RE.test(upi)) return "upi_id invalid (e.g. name@okhdfc)";
+  if (mode === "bank" && (!acct || !ifsc)) return "bank_account + bank_ifsc required";
+  if (mode === "upi" && !upi) return "upi_id required";
+  if (mode === "both" && !upi && (!acct || !ifsc))
+    return "upi_id or bank_account + bank_ifsc required";
+  return null;
 }
 
 async function maskedBank(enc: string | null): Promise<string> {
@@ -36,7 +79,7 @@ export async function GET() {
     const out = await Promise.all(
       rows.map(async (e) => ({
         ...serialize(e),
-        bank_account_masked: await maskedBank(e.bankAccountEnc),
+        ...(await maskedSecrets(e.bankAccountEnc, e.upiIdEnc)),
       })),
     );
     return NextResponse.json({ employees: out }, { headers: noStore });
@@ -78,8 +121,11 @@ export async function POST(req: Request) {
   if (status !== "active" && status !== "inactive") {
     return NextResponse.json({ error: "status must be active or inactive" }, { status: 400 });
   }
+  const perr = payoutError(body);
+  if (perr) return NextResponse.json({ error: perr }, { status: 400 });
   try {
     const bankEnc = body.bank_account ? await encryptBankAccount(String(body.bank_account)) : null;
+    const upiEnc = body.upi_id ? await encryptBankAccount(String(body.upi_id)) : null;
     const [row] = await db()
       .insert(employees)
       .values({
@@ -93,6 +139,9 @@ export async function POST(req: Request) {
         ratePaise,
         currency: String(body.currency ?? "INR"),
         bankAccountEnc: bankEnc,
+        bankName: body.bank_name ? String(body.bank_name).trim() : null,
+        bankIfsc: body.bank_ifsc ? String(body.bank_ifsc).trim().toUpperCase() : null,
+        upiIdEnc: upiEnc,
         status,
         joiningDate: body.joining_date ? String(body.joining_date) : null,
         createdAt: new Date(),
@@ -102,7 +151,7 @@ export async function POST(req: Request) {
       .returning();
     return NextResponse.json(
       {
-        employee: { ...serialize(row), bank_account_masked: await maskedBank(row.bankAccountEnc) },
+        employee: { ...serialize(row), ...(await maskedSecrets(row.bankAccountEnc, row.upiIdEnc)) },
       },
       { status: 201, headers: noStore },
     );
@@ -163,9 +212,27 @@ export async function PUT(req: Request) {
     if (body.outlet_id !== undefined)
       patch.outletId = body.outlet_id ? String(body.outlet_id) : null;
     if (body.bank_account !== undefined) {
-      patch.bankAccountEnc = body.bank_account
-        ? await encryptBankAccount(String(body.bank_account))
-        : null;
+      const v = String(body.bank_account).trim();
+      if (v && !/^\d{9,18}$/.test(v))
+        return NextResponse.json({ error: "bank_account must be 9–18 digits" }, { status: 400 });
+      patch.bankAccountEnc = v ? await encryptBankAccount(v) : null;
+    }
+    if (body.bank_name !== undefined)
+      patch.bankName = body.bank_name ? String(body.bank_name).trim() : null;
+    if (body.bank_ifsc !== undefined) {
+      const v = String(body.bank_ifsc).trim().toUpperCase();
+      if (v && !IFSC_RE.test(v))
+        return NextResponse.json(
+          { error: "bank_ifsc invalid (e.g. HDFC0001234)" },
+          { status: 400 },
+        );
+      patch.bankIfsc = v || null;
+    }
+    if (body.upi_id !== undefined) {
+      const v = String(body.upi_id).trim();
+      if (v && !UPI_RE.test(v))
+        return NextResponse.json({ error: "upi_id invalid (e.g. name@okhdfc)" }, { status: 400 });
+      patch.upiIdEnc = v ? await encryptBankAccount(v) : null;
     }
     const rows = await db()
       .update(employees)
@@ -178,7 +245,7 @@ export async function PUT(req: Request) {
       {
         employee: {
           ...serialize(rows[0]),
-          bank_account_masked: await maskedBank(rows[0].bankAccountEnc),
+          ...(await maskedSecrets(rows[0].bankAccountEnc, rows[0].upiIdEnc)),
         },
       },
       { headers: noStore },

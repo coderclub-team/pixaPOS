@@ -30,7 +30,7 @@ import { addIncentive, approveRun, overrideItem } from "../api/service";
 import { payrollKeys, payrollRunQueryOptions } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 
-const fmt = (paise: number) => inr(paise / 100);
+const fmt = (rupees: number) => inr(rupees);
 
 export function RunDetail({ runId }: { runId: string }) {
   const { data, isPending } = useQuery(payrollRunQueryOptions(runId));
@@ -59,7 +59,7 @@ export function RunDetail({ runId }: { runId: string }) {
   }
 
   const locked = data.run.status !== "draft";
-  const totalNet = data.items.reduce((s, i) => s + i.netPayPaise, 0);
+  const totalNet = data.items.reduce((s, i) => s + i.net_pay, 0);
 
   return (
     <div className="space-y-4">
@@ -81,7 +81,13 @@ export function RunDetail({ runId }: { runId: string }) {
             href={`/api/payroll/runs/${runId}/export`}
             className="inline-flex items-center gap-1 text-sm underline"
           >
-            <Icons.download className="h-4 w-4" /> Export bank CSV
+            <Icons.download className="h-4 w-4" /> Export summary CSV
+          </a>
+          <a
+            href={`/api/payroll/runs/${runId}/export?format=disburse`}
+            className="inline-flex items-center gap-1 text-sm underline"
+          >
+            <Icons.download className="h-4 w-4" /> Disbursement file (bank/UPI)
           </a>
         </CardContent>
       </Card>
@@ -102,23 +108,23 @@ export function RunDetail({ runId }: { runId: string }) {
               {data.items.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>
-                    <div className="font-medium">{item.employeeName}</div>
+                    <div className="font-medium">{item.employee_name ?? item.employee_id}</div>
                     <div className="text-xs text-muted-foreground">
-                      wage {fmt(item.wagePaise)} · holiday {fmt(item.holidayPaise)} · incentives{" "}
-                      {fmt(item.incentivesTotalPaise)} · unpaid {fmt(item.unpaidLeavePaise)}
-                      {item.overrideReason ? ` · override: ${item.overrideReason}` : ""}
+                      wage {fmt(item.gross_wage)} · holiday {fmt(item.holiday_extra)} · incentives{" "}
+                      {fmt(item.total_incentives)} · unpaid {fmt(item.unpaid_leave_deduction)}
+                      {item.notes ? ` · note: ${item.notes}` : ""}
                     </div>
                     {item.incentives.length > 0 && (
                       <div className="text-xs">
-                        {item.incentives.map((x) => `${x.name} ${fmt(x.amountPaise)}`).join(" · ")}
+                        {item.incentives.map((x) => `${x.name} ${fmt(x.amount)}`).join(" · ")}
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="text-right">{fmt(item.grossPayPaise)}</TableCell>
+                  <TableCell className="text-right">{fmt(item.gross_pay)}</TableCell>
                   <TableCell className="text-right">
-                    {fmt(item.unpaidLeavePaise + item.deductionsTotalPaise)}
+                    {fmt(item.unpaid_leave_deduction + item.deductions)}
                   </TableCell>
-                  <TableCell className="text-right font-medium">{fmt(item.netPayPaise)}</TableCell>
+                  <TableCell className="text-right font-medium">{fmt(item.net_pay)}</TableCell>
                   <TableCell className="text-right">
                     {!locked && (
                       <div className="flex justify-end gap-1">
@@ -126,7 +132,7 @@ export function RunDetail({ runId }: { runId: string }) {
                         <OverrideDialog
                           runId={runId}
                           itemId={item.id}
-                          current={item.netPayPaise / 100}
+                          currentDeductions={item.deductions}
                           onDone={invalidate}
                         />
                       </div>
@@ -168,11 +174,13 @@ function IncentiveDialog({
   });
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="sm">
-          Bonus
-        </Button>
-      </DialogTrigger>
+      <DialogTrigger
+        render={
+          <Button variant="ghost" size="sm">
+            Bonus
+          </Button>
+        }
+      />
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add incentive</DialogTitle>
@@ -206,63 +214,61 @@ function IncentiveDialog({
     </Dialog>
   );
 }
-
 function OverrideDialog({
   runId,
   itemId,
-  current,
+  currentDeductions,
   onDone,
 }: {
   runId: string;
   itemId: string;
-  current: number;
+  currentDeductions: number;
   onDone: () => void;
 }) {
   const [open, setOpen] = React.useState(false);
-  const [net, setNet] = React.useState(String(current));
+  const [deductions, setDeductions] = React.useState(String(currentDeductions));
   const [reason, setReason] = React.useState("");
   const mut = useMutation({
-    mutationFn: () => overrideItem(runId, itemId, { final_net_pay: Number(net), reason }),
+    mutationFn: () =>
+      overrideItem(runId, itemId, { deductions: Number(deductions), notes: reason }),
     onSuccess: () => {
       onDone();
       setOpen(false);
-      toast.success("Net pay overridden");
+      toast.success("Deductions updated — totals re-derived");
     },
     onError: (e: Error) => toast.error(e.message),
   });
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="sm">
-          Adjust
-        </Button>
-      </DialogTrigger>
+      <DialogTrigger
+        render={
+          <Button variant="ghost" size="sm">
+            Adjust
+          </Button>
+        }
+      />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Override net pay</DialogTitle>
+          <DialogTitle>Adjust deductions</DialogTitle>
           <DialogDescription>
-            Sets final net directly. Reason is mandatory and audited.
+            Sets other deductions (₹); net re-derives. The note is stored on the item.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <Input
-            placeholder="Final net ₹"
+            placeholder="Deductions ₹"
             type="number"
-            value={net}
-            onChange={(e) => setNet(e.target.value)}
+            value={deductions}
+            onChange={(e) => setDeductions(e.target.value)}
           />
           <Input
-            placeholder="Reason (required)"
+            placeholder="Reason (stored as note)"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
           />
         </div>
         <DialogFooter>
-          <Button
-            size="sm"
-            disabled={!net || !reason.trim() || mut.isPending}
-            onClick={() => mut.mutate()}
-          >
+          <Button size="sm" disabled={!deductions || mut.isPending} onClick={() => mut.mutate()}>
             Save
           </Button>
         </DialogFooter>

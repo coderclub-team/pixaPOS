@@ -7,13 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card"
 import { Icons } from "@pixa/ui/icons";
 import { useQuery } from "@tanstack/react-query";
 import { inr } from "@/features/payroll/components/employee-list";
-import { payrollRunQueryOptions } from "@/features/payroll/api/queries";
+import { myProfileQueryOptions, payrollRunQueryOptions } from "@/features/payroll/api/queries";
 
-const fmt = (paise: number) => inr(paise / 100);
+const fmt = (rupees: number) => inr(rupees);
 
 export default function PayslipPage({ params }: { params: Promise<{ runId: string }> }) {
   const { runId } = React.use(params);
   const { data, isPending } = useQuery(payrollRunQueryOptions(runId));
+  const { data: profile } = useQuery(myProfileQueryOptions);
 
   if (isPending || !data) {
     return (
@@ -23,7 +24,8 @@ export default function PayslipPage({ params }: { params: Promise<{ runId: strin
     );
   }
 
-  const item = data.items[0];
+  const myId = profile?.employee?.id;
+  const item = data.items.find((i) => i.employee_id === myId) ?? data.items[0];
   if (!item) {
     return (
       <PageContainer pageTitle="Payslip" pageDescription="No payslip in this run">
@@ -35,7 +37,7 @@ export default function PayslipPage({ params }: { params: Promise<{ runId: strin
   return (
     <PageContainer
       pageTitle="Payslip"
-      pageDescription={`${item.employeeName} — ${data.run.pay_period_id}`}
+      pageDescription={`${item.employee_name ?? item.employee_id} — ${data.run.pay_period_id}`}
       pageHeaderAction={
         <Button size="sm" variant="outline" onClick={() => window.print()}>
           <Icons.printer className="mr-2 h-4 w-4" /> Print
@@ -49,29 +51,27 @@ export default function PayslipPage({ params }: { params: Promise<{ runId: strin
         <CardContent className="space-y-4 text-sm">
           <div className="grid grid-cols-2 gap-2">
             <div className="text-muted-foreground">Employee</div>
-            <div className="font-medium">{item.employeeName}</div>
+            <div className="font-medium">{item.employee_name ?? item.employee_id}</div>
             <div className="text-muted-foreground">Period</div>
             <div>{data.run.pay_period_id}</div>
           </div>
           <div className="border-t pt-3">
             <div className="font-medium">Earnings</div>
-            <Row label="Base wage" value={item.wagePaise} />
-            <Row label="Holiday overtime" value={item.holidayPaise} />
+            <Row label="Base wage" value={item.gross_wage} />
+            <Row label="Holiday overtime" value={item.holiday_extra} />
             {item.incentives.map((x) => (
-              <Row key={x.id} label={x.name} value={x.amountPaise} />
+              <Row key={x.id} label={x.name} value={x.amount} />
             ))}
-            <Row label="Gross pay" value={item.grossPayPaise} bold />
+            <Row label="Gross pay" value={item.gross_pay} bold />
           </div>
           <div className="border-t pt-3">
             <div className="font-medium">Deductions</div>
-            <Row label="Unpaid leave" value={item.unpaidLeavePaise} />
-            <Row label="Other deductions" value={item.deductionsTotalPaise} />
+            <Row label="Unpaid leave" value={item.unpaid_leave_deduction} />
+            <Row label="Other deductions" value={item.deductions} />
           </div>
           <div className="border-t pt-3">
-            <Row label="Net pay" value={item.netPayPaise} bold large />
-            {item.overrideReason && (
-              <p className="text-xs text-muted-foreground">Adjusted: {item.overrideReason}</p>
-            )}
+            <Row label="Net pay" value={item.net_pay} bold large />
+            {item.notes && <p className="text-xs text-muted-foreground">Note: {item.notes}</p>}
           </div>
         </CardContent>
       </Card>

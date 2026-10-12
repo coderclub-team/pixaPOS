@@ -18,18 +18,18 @@ import { useQuery } from "@tanstack/react-query";
 import { LeaveList } from "@/features/payroll/components/leave-list";
 import {
   employeesQueryOptions,
-  leavesQueryOptions,
+  leaveRequestsQueryOptions,
   leaveBalancesQueryOptions,
   leaveTypesQueryOptions,
 } from "@/features/payroll/api/queries";
 
 export default function LeavesPage() {
   const [status, setStatus] = React.useState<string>("pending");
-  const { data: leaves, isPending } = useQuery(leavesQueryOptions({ status }));
+  const { data: leaves, isPending } = useQuery(leaveRequestsQueryOptions({ status }));
   const { data: employees } = useQuery(employeesQueryOptions);
   const { data: types } = useQuery(leaveTypesQueryOptions);
   const year = new Date().getFullYear();
-  const { data: balances } = useQuery(leaveBalancesQueryOptions(year));
+  const { data: balances } = useQuery(leaveBalancesQueryOptions(undefined, year));
 
   if (isPending) {
     return (
@@ -78,7 +78,7 @@ export default function LeavesPage() {
                 <div key={b.id} className="rounded border p-2">
                   <div className="font-medium">{empName(b.employee_id)}</div>
                   <div className="text-muted-foreground">
-                    {typeName(b.leave_type_id)}: {b.remaining}/{b.quota} left
+                    {typeName(b.leave_type_id)}: {b.remaining}/{b.opening_balance} left
                   </div>
                 </div>
               ))}

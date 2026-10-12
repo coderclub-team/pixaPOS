@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db, employees, payrollItems, payrollRuns } from "@pixa/db";
+import { decryptBankAccount } from "@/lib/bank-crypto";
 import { payrollAuth } from "@/features/payroll/api/authz";
 
 export const dynamic = "force-dynamic";
@@ -10,11 +11,13 @@ function csvCell(v: string | number): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-/** GET /api/payroll/runs/:id/export — summary CSV (amounts in rupees). */
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+/** GET /api/payroll/runs/:id/export — summary CSV (amounts in rupees).
+ *  ?format=disburse adds beneficiary + decrypted bank/UPI columns for NEFT/UPI upload files. */
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const a = await payrollAuth("org:payroll:manage");
   if (a instanceof NextResponse) return a;
   const { id } = await ctx.params;
+  const disburse = new URL(req.url).searchParams.get("format") === "disburse";
   try {
     const database = db();
     const [run] = await database
@@ -28,6 +31,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
         item: payrollItems,
         employeeName: employees.name,
         employeeCode: employees.employeeCode,
+        bankName: employees.bankName,
+        bankIfsc: employees.bankIfsc,
+        bankAccountEnc: employees.bankAccountEnc,
+        upiIdEnc: employees.upiIdEnc,
       })
       .from(payrollItems)
       .innerJoin(employees, eq(payrollItems.employeeId, employees.id))
@@ -45,9 +52,24 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       "deductions",
       "net_pay",
       "status",
+      ...(disburse
+        ? ["payout_mode", "beneficiary_name", "bank_name", "bank_account", "bank_ifsc", "upi_id"]
+        : []),
     ];
     const lines = [head.join(",")];
-    for (const { item, employeeName, employeeCode } of rows) {
+    for (const { item, employeeName, employeeCode, ...pay } of rows) {
+      let bankAccount = "";
+      let upiId = "";
+      if (disburse) {
+        try {
+          bankAccount = (await decryptBankAccount(pay.bankAccountEnc)) ?? "";
+          upiId = (await decryptBankAccount(pay.upiIdEnc)) ?? "";
+        } catch {
+          bankAccount = "UNREADABLE";
+        }
+      }
+      const payoutMode =
+        bankAccount && upiId ? "both" : bankAccount ? "bank" : upiId ? "upi" : "none";
       lines.push(
         [
           employeeCode,
@@ -62,6 +84,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
           (item.deductionsPaise / 100).toFixed(2),
           (item.netPayPaise / 100).toFixed(2),
           run.status,
+          ...(disburse
+            ? [payoutMode, employeeName, pay.bankName ?? "", bankAccount, pay.bankIfsc ?? "", upiId]
+            : []),
         ]
           .map(csvCell)
           .join(","),
@@ -70,7 +95,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     return new NextResponse(lines.join("\n"), {
       headers: {
         "Content-Type": "text/csv",
-        "Content-Disposition": `attachment; filename="payroll-${id.slice(0, 8)}.csv"`,
+        "Content-Disposition": `attachment; filename="payroll-${id.slice(0, 8)}${disburse ? "-disburse" : ""}.csv"`,
         "Cache-Control": "no-store",
       },
     });

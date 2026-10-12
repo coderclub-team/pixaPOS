@@ -54,8 +54,8 @@ export default function PayrollRunsPage() {
               <TableRow>
                 <TableHead>Period</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>People</TableHead>
-                <TableHead>Net total</TableHead>
+                <TableHead className="text-right">Gross total</TableHead>
+                <TableHead className="text-right">Net total</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -64,12 +64,12 @@ export default function PayrollRunsPage() {
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">{periodName(r.pay_period_id)}</TableCell>
                   <TableCell>
-                    <Badge variant={r.status === "paid" ? "default" : "secondary"}>
+                    <Badge variant={r.status === "approved" ? "default" : "secondary"}>
                       {r.status}
                     </Badge>
                   </TableCell>
-                  <TableCell>{r.item_count}</TableCell>
-                  <TableCell>{inr(r.net_total)}</TableCell>
+                  <TableCell className="text-right">{inr(r.total_gross)}</TableCell>
+                  <TableCell className="text-right font-medium">{inr(r.total_net)}</TableCell>
                   <TableCell className="text-right">
                     <Link
                       href={`/dashboard/payroll/runs/${r.id}`}

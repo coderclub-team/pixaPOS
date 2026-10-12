@@ -23,7 +23,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { payPeriodsQueryOptions, payrollKeys } from "../api/queries";
-import { createPayPeriod as apiCreatePeriod, createRun } from "../api/service";
+import { createPayPeriod as apiCreatePeriod, createPayrollRun } from "../api/service";
 import { getQueryClient } from "@/lib/query-client";
 import type { Employee } from "../api/types";
 
@@ -55,18 +55,16 @@ export function PayrunWizard({ employees }: { employees: Employee[] }) {
 
   const runMutation = useMutation({
     mutationFn: () =>
-      createRun({
-        pay_period_id: periodId,
-        hours: Object.fromEntries(
-          Object.entries(hours)
-            .filter(([, v]) => v !== "" && Number(v) > 0)
-            .map(([k, v]) => [k, Number(v)]),
-        ),
-      }),
+      createPayrollRun(
+        periodId,
+        Object.entries(hours)
+          .filter(([, v]) => v !== "" && Number(v) > 0)
+          .map(([employee_id, v]) => ({ employee_id, working_units: Number(v) })),
+      ),
     onSuccess: (run) => {
       invalidate();
       toast.success("Payroll run created");
-      router.push(`/dashboard/payroll/runs/${run.run.id}`);
+      router.push(`/dashboard/payroll/runs/${run.runId}`);
     },
     onError: (e: Error) => toast.error(e.message),
   });

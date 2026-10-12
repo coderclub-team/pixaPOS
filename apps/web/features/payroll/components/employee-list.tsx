@@ -99,7 +99,17 @@ export function EmployeeList({ employees }: { employees: Employee[] }) {
                     /{e.pay_type === "hourly" ? "hr" : "mo"}
                   </span>
                 </TableCell>
-                <TableCell className="font-mono text-xs">{e.bank_account_masked}</TableCell>
+                <TableCell className="font-mono text-xs">
+                  <div>{e.bank_account_masked}</div>
+                  {(e.bank_name || e.bank_ifsc) && (
+                    <div className="text-muted-foreground">
+                      {[e.bank_name, e.bank_ifsc].filter(Boolean).join(" · ")}
+                    </div>
+                  )}
+                  {e.upi_id_masked !== "—" && (
+                    <div className="text-muted-foreground">UPI {e.upi_id_masked}</div>
+                  )}
+                </TableCell>
                 <TableCell>
                   <StatusDot isActive={e.status === "active"} />
                 </TableCell>
