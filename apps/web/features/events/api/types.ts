@@ -84,6 +84,8 @@ export type BusinessEventType =
 export type BusinessEvent = {
   id: string;
   outlet_id: string;
+  organization_id?: string | null;
+  sequence?: number | null;
   entity_type: EntityType;
   entity_id: string;
   event_type: BusinessEventType;
@@ -92,6 +94,10 @@ export type BusinessEvent = {
   actor_id?: string; // Better Auth user id
   reason_code?: string;
   reason_text?: string;
+  source_type?: string;
+  source_device_id?: string;
+  station_ids?: string[];
+  target?: Record<string, unknown>;
   metadata?: Record<string, any>;
   created_at: string;
 };

@@ -102,14 +102,20 @@ function WeekGrid({
   );
 }
 
-export default function BusinessHoursForm({ initialData }: { initialData: BusinessHours }) {
+export default function BusinessHoursForm({
+  initialData,
+  outletId,
+}: {
+  initialData: BusinessHours;
+  outletId: string;
+}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [days, setDays] = useState<DayHours[]>(() => cloneDays(initialData.days));
   const [channels, setChannels] = useState(initialData.channels ?? {});
 
   const mutation = useMutation({
-    mutationFn: (values: BusinessHours) => updateOutlet({ business_hours: values }),
+    mutationFn: (values: BusinessHours) => updateOutlet(outletId, { business_hours: values }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: outletKeys.all });
       toast.success("Business hours updated");

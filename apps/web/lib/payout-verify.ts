@@ -42,6 +42,12 @@ export type VpaCheck = {
   ok: boolean;
   holderName?: string | null;
   unavailable?: boolean;
+  /**
+   * True when Razorpay has retired the endpoint for these keys (UPI Collect
+   * deprecation) — permanent, not transient. Caller should report
+   * "unsupported", never "invalid".
+   */
+  unsupported?: boolean;
   error?: string;
 };
 
@@ -96,6 +102,16 @@ export async function validateVpa(vpa: string): Promise<VpaCheck> {
     );
     // 4xx (e.g. UPI-Collect deprecation for this account) = unavailable, not invalid.
     if (res.status >= 400 && res.status < 500) {
+      const body = await res.text().catch(() => "");
+      // Razorpay retired /payments/validate/vpa with UPI Collect (Feb 2026):
+      // "The requested URL was not found on the server." Permanent for these keys.
+      if (/not found on the server/i.test(body)) {
+        return {
+          ok: false,
+          unsupported: true,
+          error: "UPI verification retired on these Razorpay keys (UPI Collect deprecation)",
+        };
+      }
       return { ok: false, unavailable: true, error: `VPA validation unavailable (${res.status})` };
     }
     if (!res.ok) {

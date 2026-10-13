@@ -1,5 +1,5 @@
+const MENU_STORE_VERSION = 1;
 import { delay } from "@/constants/mock-api";
-import { MENU_SEED_VERSION, seedCategories, seedMenuItems } from "./seed-data";
 import type {
   MenuCategory,
   MenuCategoryFilters,
@@ -9,38 +9,12 @@ import type {
   MenuItemPayload,
 } from "./types";
 
-let mockCategories: MenuCategory[] = [...seedCategories];
+let mockCategories: MenuCategory[] = [];
 
-let mockMenuItems: MenuItem[] = [...seedMenuItems];
+let mockMenuItems: MenuItem[] = [];
 
-// Modifiers skeleton — no raw material mapping this phase
-let mockModifierGroups: import("./types").ModifierGroup[] = [
-  {
-    id: "mg_001",
-    name: "Add-ons",
-    selection_type: "multiple",
-    min_selection: 0,
-    max_selection: 3,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "mg_002",
-    name: "Spice Level",
-    selection_type: "single",
-    min_selection: 0,
-    max_selection: 1,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
-let mockModifiers: import("./types").Modifier[] = [
-  { id: "mod_001", modifier_group_id: "mg_001", name: "Extra Cheese", price: 20, is_active: true },
-  { id: "mod_002", modifier_group_id: "mg_001", name: "Extra Chicken", price: 40, is_active: true },
-  { id: "mod_003", modifier_group_id: "mg_002", name: "Less Spicy", price: 0, is_active: true },
-];
+let mockModifierGroups: import("./types").ModifierGroup[] = [];
+let mockModifiers: import("./types").Modifier[] = [];
 
 function slugify(s: string) {
   return s
@@ -88,7 +62,7 @@ export async function hydrateMenuFromMirror(): Promise<void> {
   try {
     const raw = localStorage.getItem(MENU_STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
-    if (parsed && (parsed?.version ?? 1) === MENU_SEED_VERSION) return;
+    if (parsed && (parsed?.version ?? 1) === MENU_STORE_VERSION) return;
     const { readScope } = await import("@/lib/db/repo");
     const [cats, items, groups, mods] = await Promise.all([
       readScope("menu_categories"),
@@ -100,7 +74,7 @@ export async function hydrateMenuFromMirror(): Promise<void> {
     localStorage.setItem(
       MENU_STORAGE_KEY,
       JSON.stringify({
-        version: MENU_SEED_VERSION,
+        version: MENU_STORE_VERSION,
         categories: cats.map((d) => d.data),
         items: items.map((d) => d.data),
         modifierGroups: groups.map((d) => d.data),
@@ -117,7 +91,7 @@ function saveMenu() {
       localStorage.setItem(
         MENU_STORAGE_KEY,
         JSON.stringify({
-          version: MENU_SEED_VERSION,
+          version: MENU_STORE_VERSION,
           categories: mockCategories,
           items: mockMenuItems,
           modifierGroups: mockModifierGroups,
@@ -135,11 +109,12 @@ function loadMenu(): void {
       const raw = localStorage.getItem(MENU_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        // Stale dev cache (pre-seed or older version) → reseed with the
-        // current seed-data and persist, so code changes reach every tab.
-        if ((parsed?.version ?? 1) !== MENU_SEED_VERSION) {
-          mockCategories = [...seedCategories];
-          mockMenuItems = [...seedMenuItems];
+        // No seed data — a version mismatch just resets to empty.
+        if ((parsed?.version ?? 1) !== MENU_STORE_VERSION) {
+          mockCategories = [];
+          mockMenuItems = [];
+          mockModifierGroups = [];
+          mockModifiers = [];
           saveMenu();
           return;
         }
@@ -164,6 +139,10 @@ export async function getMenuCategories(filters?: MenuCategoryFilters): Promise<
     r = r.filter((c) => c.name.toLowerCase().includes(q) || c.slug.includes(q));
   }
   if (filters?.is_active !== undefined) r = r.filter((c) => c.is_active === filters.is_active);
+  if (filters?.outlet_id) {
+    const { isAvailableInOutlet } = await import("@/features/outlet/api/availability");
+    r = r.filter((c) => isAvailableInOutlet(filters.outlet_id!, "category", c.id));
+  }
   return r;
 }
 export async function getMenuCategoryById(id: string): Promise<MenuCategory | null> {
@@ -246,6 +225,21 @@ export async function getMenuItems(filters?: MenuItemFilters): Promise<MenuItem[
   if (filters?.channel) r = r.filter((m) => m.available_channels.includes(filters.channel!));
   if (filters?.item_type) r = r.filter((m) => (m as any).item_type === filters.item_type);
   if (filters?.is_active !== undefined) r = r.filter((m) => m.is_active === filters.is_active);
+  if (filters?.outlet_id) {
+    const { isAvailableInOutlet, getPriceOverride } =
+      await import("@/features/outlet/api/availability");
+    const outletId = filters.outlet_id;
+    r = r
+      .filter((m) => isAvailableInOutlet(outletId, "menu_item", m.id))
+      .map((m) => {
+        const override = getPriceOverride(outletId, "menu_item", m.id);
+        if (override === undefined) return m;
+        return {
+          ...m,
+          variants: (m.variants ?? []).map((v) => ({ ...v, selling_price: override })),
+        };
+      });
+  }
   return r;
 }
 export async function getMenuItemById(id: string): Promise<MenuItem | null> {

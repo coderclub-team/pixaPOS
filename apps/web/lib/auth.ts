@@ -24,6 +24,13 @@ function isValidPhone(p: string): boolean {
   return /^\+?[1-9]\d{9,14}$/.test(p.replace(/[\s-]/g, ""));
 }
 
+/**
+ * Dev/staging static OTP: when set, ANY phone verifies with this fixed code and
+ * no SMS is sent. Used until the SMS sender/template is DLT-registered — the
+ * real provider path runs only when this is unset (production).
+ */
+const STATIC_OTP = (process.env.OTP_STATIC_CODE ?? "").trim();
+
 /** org:resource:action  →  { resource: [action] } for hasPermission checks. */
 export function toStatement(permission: string): Record<string, string[]> {
   const parts = permission.split(":");
@@ -171,14 +178,23 @@ function getAuth(): AuthInstance {
         }),
         // Mobile OTP verification: the phone number is captured/verified for
         // every new account (email/password or Google) and reused for follow-ups
-        // and Razorpay payments. sendOTP delivers via the configured SMS provider.
+        // and Razorpay payments. With OTP_STATIC_CODE set (dev/staging before DLT),
+        // any phone verifies with the fixed code and no SMS is sent; otherwise a
+        // real code goes out via the configured SMS provider.
         phoneNumber({
           otpLength: 6,
           expiresIn: 300,
           allowedAttempts: 5,
           requireVerification: true,
           phoneNumberValidator: async (phone) => isValidPhone(phone),
+          ...(STATIC_OTP
+            ? { verifyOTP: async ({ code }: { code: string }) => code === STATIC_OTP }
+            : {}),
           sendOTP: async ({ phoneNumber: phone, code }) => {
+            if (STATIC_OTP) {
+              console.info(`[pixaPOS OTP] static code for ${phone} is ${STATIC_OTP}`);
+              return;
+            }
             await sendOtpSms(phone, code);
           },
         }),

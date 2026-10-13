@@ -3,10 +3,10 @@ import { SidebarTrigger } from "@pixa/ui/base-ui/sidebar";
 import { Separator } from "@pixa/ui/base-ui/separator";
 import { Breadcrumbs } from "../breadcrumbs";
 import SearchInput from "../search-input";
-import { ThemeSelector } from "../themes/theme-selector";
 import { ThemeModeToggle } from "../themes/theme-mode-toggle";
 import TerminalAppsSwitcher from "./terminal-apps-switcher";
 import { NotificationCenter } from "@/features/notifications/components/notification-center";
+import { OutletSwitcher } from "../outlet-switcher";
 
 export default function Header({ showSurfaceSwitcher = true }: { showSurfaceSwitcher?: boolean }) {
   return (
@@ -25,10 +25,8 @@ export default function Header({ showSurfaceSwitcher = true }: { showSurfaceSwit
           <SearchInput />
         </div>
         <ThemeModeToggle />
-        <div className="hidden sm:block">
-          <ThemeSelector />
-        </div>
         <NotificationCenter />
+        <OutletSwitcher />
       </div>
     </header>
   );

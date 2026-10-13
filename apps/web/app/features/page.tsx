@@ -7,13 +7,15 @@ import { signUpUrl } from "@/lib/site/site";
 export const metadata: Metadata = {
   title: "Restaurant POS Features",
   description:
-    "Explore pixaPOS restaurant features: billing, KOT/KDS, loyalty, inventory, QR ordering, and multi-outlet reporting for growing food businesses.",
+    "Explore pixaPOS restaurant features: billing, KOT/KDS, loyalty, inventory, payroll, QR ordering, and multi-outlet reporting for growing food businesses.",
   keywords: [
     "restaurant pos features",
     "kitchen display system",
     "qr ordering software",
     "restaurant loyalty software",
     "multi outlet reporting",
+    "restaurant payroll software",
+    "restaurant hr and payroll",
   ],
 };
 
@@ -39,6 +41,13 @@ const featureHighlights = [
     image:
       "https://images.unsplash.com/photo-1556911220-bff31c812dba?auto=format&fit=crop&w=1200&q=80",
   },
+  {
+    title: "Payroll that pays correctly",
+    description:
+      "Pay hourly and salaried staff from the same system — leave, holidays, overtime multipliers, incentives, unpaid deductions, and bank-ready payslips with integer-paise precision.",
+    image:
+      "https://images.unsplash.com/photo-1553877522-43269d4ea984?auto=format&fit=crop&w=1200&q=80",
+  },
 ];
 
 const capabilityRows = [
@@ -53,6 +62,9 @@ const capabilityRows = [
   "Multi-outlet reporting dashboard",
   "Inventory, batches & wastage control",
   "Zomato and Swiggy relay",
+  "Staff payroll — hourly & salaried with payslips & bank CSV",
+  "Leave & holiday management with auto balances & approvals",
+  "Overtime, incentives & unpaid-leave auto deductions",
 ];
 
 export default function FeaturesPage() {
@@ -165,6 +177,116 @@ export default function FeaturesPage() {
                   <span>{row}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-slate-50 py-20 dark:bg-dark-2">
+        <div className="container">
+          <div className="mb-12 max-w-3xl" data-reveal>
+            <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-[#138AF2]">
+              New · Payroll & HR
+            </p>
+            <h2 className="text-3xl font-bold tracking-[-0.04em] text-slate-900 dark:text-white md:text-5xl">
+              Payroll built for restaurant teams.
+            </h2>
+            <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-600 dark:text-slate-300">
+              Stop juggling sheets and a separate HR tool. Run hourly and salaried payroll, leave,
+              holidays, and payslips from the same pixaPOS workspace that already runs your
+              operations — outlet-aware, auditable, and paise-accurate.
+            </p>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4" data-reveal>
+            {[
+              {
+                title: "Hourly & salaried",
+                desc: "Daily-rate derivation for salary, hourly-rate for shift staff. Overtime priced by shift-length (8h) conversion.",
+              },
+              {
+                title: "Leave & holidays",
+                desc: "Paid/unpaid leave types with yearly quotas, half-day support, auto-seeded balances, and approval flow. Public holidays with overtime multipliers.",
+              },
+              {
+                title: "Incentives & deductions",
+                desc: "Per-employee bonuses, fixed holiday incentives, unpaid-leave auto deductions, and other deductions — gross → net in one run.",
+              },
+              {
+                title: "Payslips & bank CSV",
+                desc: "Draft → approved runs per pay period, itemised payslips, and bank-ready CSV export. Staff view their own payslips in self-service.",
+              },
+            ].map((card) => (
+              <div
+                key={card.title}
+                className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-[0_16px_40px_rgba(15,23,42,0.06)] dark:border-slate-800 dark:bg-slate-900"
+              >
+                <h3 className="mb-3 text-lg font-bold text-slate-900 dark:text-white">
+                  {card.title}
+                </h3>
+                <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">{card.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]" data-reveal>
+            <div className="rounded-[24px] border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+              <p className="mb-2 text-sm font-semibold uppercase tracking-[0.18em] text-[#17BF71]">
+                How payroll calculates
+              </p>
+              <ul className="space-y-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                <li>
+                  <span className="font-semibold text-slate-900 dark:text-white">Salary:</span>{" "}
+                  dailyRate = monthly ÷ workingDays → wage = dailyRate × daysWorked
+                </li>
+                <li>
+                  <span className="font-semibold text-slate-900 dark:text-white">Hourly:</span> wage
+                  = hours × rate
+                </li>
+                <li>
+                  <span className="font-semibold text-slate-900 dark:text-white">Holiday:</span>{" "}
+                  extra = holidayHours × hourlyRate × multiplier + fixed bonus
+                </li>
+                <li>
+                  <span className="font-semibold text-slate-900 dark:text-white">Net:</span> gross
+                  (wage + holiday + incentives) − unpaidLeave − deductions
+                </li>
+              </ul>
+              <p className="mt-4 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                All amounts stored in integer paise — no floating-point rounding errors. Half-day
+                leaves count as 0.5 day; multi-day ranges count calendar days.
+              </p>
+            </div>
+            <div className="rounded-[24px] bg-slate-950 p-6 text-white">
+              <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-sky-300">
+                For managers & staff
+              </p>
+              <ul className="space-y-3 text-sm leading-6 text-slate-200">
+                <li className="flex gap-3">
+                  <span className="mt-1 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs">
+                    ✓
+                  </span>
+                  Employees outlet-scoped with masked bank details and active/inactive control.
+                </li>
+                <li className="flex gap-3">
+                  <span className="mt-1 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs">
+                    ✓
+                  </span>
+                  Staff apply leave themselves — approvals auto-adjust paid balances.
+                </li>
+                <li className="flex gap-3">
+                  <span className="mt-1 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs">
+                    ✓
+                  </span>
+                  Monthly pay periods (open → locked), draft → approved runs, payslip per employee.
+                </li>
+              </ul>
+              <Link
+                href="/dashboard/payroll"
+                className="mt-6 inline-flex rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 transition hover:bg-slate-100"
+              >
+                Open Payroll →
+              </Link>
             </div>
           </div>
         </div>

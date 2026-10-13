@@ -268,4 +268,7 @@ export const Icons = {
   cart: IconShoppingCart,
   recipe: IconToolsKitchen2,
   clipboardList: IconClipboardList,
+
+  // Payroll
+  payroll: IconReceiptRefund,
 };

@@ -53,13 +53,13 @@ export async function getPromoByCode(code: string): Promise<PromoCode | null> {
   return mockPromos.find((p) => p.code === cleanCode(code)) ?? null;
 }
 
-function validatePayload(p: PromoPayload, ignoreId?: string) {
+function validatePayload(p: PromoPayload, ignoreId?: string, outletId: string = OUTLET) {
   const code = cleanCode(p.code);
   if (!code) throw new Error("Code is required (e.g. DIWALI10)");
   if (!/^[A-Z0-9_-]{3,20}$/.test(code))
     throw new Error("Code: 3–20 chars, letters/digits/_/- only");
-  if (mockPromos.some((x) => x.code === code && x.id !== ignoreId))
-    throw new Error(`Code ${code} already exists`);
+  if (mockPromos.some((x) => x.code === code && x.outlet_id === outletId && x.id !== ignoreId))
+    throw new Error(`Code ${code} already exists in this outlet`);
   if (p.kind === "percent" && (!(p.value > 0) || p.value > 100))
     throw new Error("Percent must be 1–100");
   if (p.kind === "flat" && (!(p.value > 0) || !Number.isFinite(p.value)))
@@ -79,14 +79,17 @@ function validatePayload(p: PromoPayload, ignoreId?: string) {
   return code;
 }
 
-export async function createPromo(payload: PromoPayload): Promise<PromoCode> {
+export async function createPromo(
+  payload: PromoPayload,
+  outletId: string = OUTLET,
+): Promise<PromoCode> {
   await delay(400);
   load();
-  const code = validatePayload(payload);
+  const code = validatePayload(payload, undefined, outletId);
   const now = new Date().toISOString();
   const promo: PromoCode = {
     id: `promo_${Date.now().toString(36)}`,
-    outlet_id: OUTLET,
+    outlet_id: outletId,
     code,
     name: payload.name?.trim() || code,
     kind: payload.kind,
@@ -134,7 +137,7 @@ export async function updatePromo(id: string, payload: Partial<PromoPayload>): P
     per_customer_limit: payload.per_customer_limit ?? mockPromos[idx].per_customer_limit,
     is_active: payload.is_active ?? mockPromos[idx].is_active,
   };
-  const code = validatePayload(merged, id);
+  const code = validatePayload(merged, id, mockPromos[idx].outlet_id);
   if (merged.kind !== "freebie") merged.get_menu_item_id = undefined;
   mockPromos[idx] = {
     ...mockPromos[idx],

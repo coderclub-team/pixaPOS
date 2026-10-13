@@ -240,22 +240,38 @@ export async function recordEvent(params: {
   reason_code?: string;
   reason_text?: string;
   metadata?: Record<string, any>;
+  source_type?: string;
+  station_ids?: string[];
+  target?: Record<string, unknown>;
 }): Promise<BusinessEvent> {
   // Local-first path: durable SQLite row + pending outbox command, then notify tabs.
   if (await useSqlite()) {
-    const event: BusinessEvent = {
-      id: ulid(),
+    const { nextOutletSequenceLocal } = await import("@/lib/realtime/sequence");
+    const eventId = ulid();
+    const sequence = await nextOutletSequenceLocal(params.outlet_id, localQuery, localExec).catch(
+      () => 0,
+    );
+    const event: BusinessEvent & {
+      sequence?: number;
+      source_type?: string;
+      station_ids?: string[];
+      target?: Record<string, unknown>;
+    } = {
+      id: eventId,
       ...params,
+      sequence,
       created_at: new Date().toISOString(),
     };
     await localExec(
       `INSERT INTO events
-        (id, outlet_id, device_id, entity_type, entity_id, event_type,
-         from_state, to_state, actor_id, reason_text, metadata, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (id, outlet_id, organization_id, sequence, device_id, entity_type, entity_id, event_type,
+         from_state, to_state, actor_id, reason_text, source_type, source_device_id, station_ids, target, metadata, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         event.id,
         event.outlet_id,
+        null,
+        sequence || null,
         deviceId(),
         event.entity_type,
         event.entity_id,
@@ -264,13 +280,41 @@ export async function recordEvent(params: {
         event.to_state ?? null,
         event.actor_id ?? null,
         event.reason_text ?? null,
+        (params as { source_type?: string }).source_type ?? null,
+        deviceId(),
+        params.station_ids ? JSON.stringify(params.station_ids) : null,
+        params.target ? JSON.stringify(params.target) : null,
         event.metadata ? JSON.stringify(event.metadata) : null,
         event.created_at,
       ],
-    );
-    await appendOutboxGate(event);
+    ).catch(async () => {
+      // Fallback to legacy columns if migration not yet applied
+      await localExec(
+        `INSERT INTO events
+          (id, outlet_id, device_id, entity_type, entity_id, event_type,
+           from_state, to_state, actor_id, reason_text, metadata, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          event.id,
+          event.outlet_id,
+          deviceId(),
+          event.entity_type,
+          event.entity_id,
+          event.event_type,
+          event.from_state ?? null,
+          event.to_state ?? null,
+          event.actor_id ?? null,
+          event.reason_text ?? null,
+          event.metadata ? JSON.stringify(event.metadata) : null,
+          event.created_at,
+        ],
+      );
+    });
+    await appendOutboxGate(event as BusinessEvent);
     bumpTabs();
-    return { ...event };
+    // Fire-and-forget server persist for realtime (non-blocking, never breaks local write)
+    void persistToServer(event as BusinessEvent & { sequence?: number }).catch(() => {});
+    return { ...event } as BusinessEvent;
   }
 
   // Fallback path (no OPFS): legacy localStorage behavior, unchanged.
@@ -281,7 +325,40 @@ export async function recordEvent(params: {
   };
   mockEvents.push(event);
   saveEvents();
+  void persistToServer(event).catch(() => {});
   return { ...event };
+}
+
+async function persistToServer(event: BusinessEvent & { sequence?: number }): Promise<void> {
+  if (typeof window === "undefined" || typeof fetch === "undefined") return;
+  // Only attempt when online and outlet is known
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+  try {
+    const payload = {
+      id: event.id,
+      outletId: event.outlet_id,
+      entity_type: event.entity_type,
+      entity_id: event.entity_id,
+      event_type: event.event_type,
+      from_state: event.from_state,
+      to_state: event.to_state,
+      actor_id: event.actor_id,
+      reason_text: event.reason_text,
+      source_type: (event as { source_type?: string }).source_type,
+      station_ids: (event as { station_ids?: string[] }).station_ids,
+      target: (event as { target?: Record<string, unknown> }).target,
+      metadata: event.metadata,
+    };
+    await fetch(`/api/events?outletId=${encodeURIComponent(event.outlet_id)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      keepalive: true,
+      credentials: "include",
+    });
+  } catch {
+    // fire-and-forget
+  }
 }
 
 export async function getEvents(filters?: EventFilters): Promise<BusinessEvent[]> {

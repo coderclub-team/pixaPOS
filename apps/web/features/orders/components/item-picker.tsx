@@ -23,6 +23,7 @@ import { kitchenKeys } from "@/features/kitchen/api/queries";
 import { eventKeys } from "@/features/events/api/queries";
 import { useFlyToKot } from "./use-fly-to-kot";
 import { menuCategoriesQueryOptions, menuItemsQueryOptions } from "@/features/menu/api/queries";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
 import { getModifierGroups, getModifiers } from "@/features/menu/api/service";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
@@ -78,12 +79,16 @@ export default function ItemPicker({
   } | null>(null);
   const { data: order } = useQuery({ ...orderQueryOptions(orderId), enabled: !!stayOpen });
 
-  const { data: categories } = useQuery(menuCategoriesQueryOptions({}));
+  const activeOutletId = useActiveOutletId();
+  const { data: categories } = useQuery(
+    menuCategoriesQueryOptions({ outlet_id: activeOutletId ?? undefined }),
+  );
   const { data: items, isPending } = useQuery(
     menuItemsQueryOptions({
       search: search || undefined,
       category_id: categoryId ?? undefined,
       is_active: true,
+      outlet_id: activeOutletId ?? undefined,
     }),
   );
 
@@ -475,6 +480,7 @@ export function PickItemDialog({
   const [variantId, setVariantId] = useState<string | undefined>(defaultVariant?.id);
   const [modifierIds, setModifierIds] = useState<string[]>([]);
   const [qty, setQty] = useState(1);
+  const activeOutletId = useActiveOutletId();
   const [instructions, setInstructions] = useState("");
   const groupIds = item.modifier_group_ids ?? [];
   const { data: modifiers } = useQuery({
@@ -512,7 +518,7 @@ export function PickItemDialog({
 
   const pairIds = item.pairs_well_with ?? [];
   const { data: pairItems } = useQuery({
-    ...menuItemsQueryOptions({}),
+    ...menuItemsQueryOptions({ outlet_id: activeOutletId ?? undefined }),
     select: (all) => all.filter((i) => pairIds.includes(i.id) && i.is_active),
     enabled: pairIds.length > 0 && !!onPairAdd,
   });

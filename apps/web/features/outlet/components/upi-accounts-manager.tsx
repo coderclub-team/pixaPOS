@@ -30,7 +30,7 @@ export default function UpiAccountsManager({ outlet }: { outlet: Outlet }) {
   const refresh = () => queryClient.invalidateQueries({ queryKey: outletKeys.all });
 
   const addMut = useMutation({
-    mutationFn: () => addUpiAccount(label, vpa),
+    mutationFn: () => addUpiAccount(outlet.id, label, vpa),
     onSuccess: (o) => {
       refresh();
       setLabel("");
@@ -42,7 +42,7 @@ export default function UpiAccountsManager({ outlet }: { outlet: Outlet }) {
   });
 
   const defaultMut = useMutation({
-    mutationFn: (id: string) => setDefaultUpiAccount(id),
+    mutationFn: (id: string) => setDefaultUpiAccount(outlet.id, id),
     onSuccess: () => {
       refresh();
       toast.success("Default UPI ID updated");
@@ -51,7 +51,7 @@ export default function UpiAccountsManager({ outlet }: { outlet: Outlet }) {
   });
 
   const removeMut = useMutation({
-    mutationFn: (id: string) => removeUpiAccount(id),
+    mutationFn: (id: string) => removeUpiAccount(outlet.id, id),
     onSuccess: ({ promoted }) => {
       refresh();
       toast.success(promoted ? "Removed — oldest remaining set as default" : "UPI ID removed");

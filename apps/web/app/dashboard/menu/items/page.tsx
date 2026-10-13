@@ -22,6 +22,7 @@ import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
 import { ExportButton, ImportDialog } from "@/features/system/components/io-dialog";
+import { BulkShareButton } from "@/features/outlet/components/bulk-share-dialog";
 import { importMenuItems, menuItemColumns, menuItemSample } from "@/features/menu/lib/io";
 
 export default function MenuItemsPage() {
@@ -152,6 +153,10 @@ export default function MenuItemsPage() {
             sampleRows={menuItemSample}
             onImport={importMenuItems}
             onDone={() => getQueryClient().invalidateQueries({ queryKey: menuKeys.all })}
+          />
+          <BulkShareButton
+            entity="menu_item"
+            items={(items ?? []).map((m) => ({ id: m.id, name: m.name }))}
           />
         </span>
       </div>

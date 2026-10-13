@@ -254,7 +254,11 @@ export async function getTicketById(id: string): Promise<KitchenTicketWithDerive
  * into a new immutable KOT; the order keeps a fresh virtual draft for the
  * next round — 1 order → N KOTs.
  */
-export async function fireKOT(orderId: string, by?: string): Promise<KitchenTicketWithDerived> {
+export async function fireKOT(
+  orderId: string,
+  by?: string,
+  opts?: { stationIds?: string[] },
+): Promise<KitchenTicketWithDerived> {
   const release = await entityMutex.acquire(`kot-order-${orderId}`);
   try {
     await delay(400);
@@ -305,6 +309,27 @@ export async function fireKOT(orderId: string, by?: string): Promise<KitchenTick
       }
     }
 
+    // Validate stationIds against persisted outlets if supplied
+    let stationIds: string[] | undefined;
+    if (opts?.stationIds && opts.stationIds.length > 0) {
+      const { localQuery } = await import("@/lib/db/sqlite");
+      const { initLocalDb } = await import("@/lib/db/sqlite");
+      const mode = await initLocalDb().catch(() => "fallback" as const);
+      if (mode === "sqlite") {
+        const { rows } = await localQuery(
+          `SELECT id FROM outlet_kitchen_stations WHERE outlet_id = ? AND is_active = 1 AND id IN (${opts.stationIds.map(() => "?").join(",")})`,
+          [order.outlet_id, ...opts.stationIds],
+        );
+        const found = new Set(rows.map((r) => String((r as unknown[])[0])));
+        const missing = opts.stationIds.filter((id) => !found.has(id));
+        if (missing.length > 0) throw new Error(`Unknown stationIds: ${missing.join(", ")}`);
+        stationIds = opts.stationIds;
+      } else {
+        // fallback mode without sqlite — accept as-is (server will validate)
+        stationIds = opts.stationIds;
+      }
+    }
+
     const now = new Date().toISOString();
     const kotNumber = mockTickets.filter((t) => t.order_id === orderId).length + 1;
     // Build the ticket WITHOUT publishing it yet: markLinesFired can throw
@@ -334,12 +359,20 @@ export async function fireKOT(orderId: string, by?: string): Promise<KitchenTick
       })),
       voids: [],
       returns: [],
+      station_ids: stationIds,
       fired_by: by ?? "staff",
       fired_at: now,
       updated_at: now,
       version: 1,
     };
     mockTickets.push(ticket);
+    // Persist BEFORE the fallible steps below: markLinesFired and the
+    // post-fire verification both read through getters that reload from
+    // localStorage (backfill → readTicketsSnapshot reassigns mockTickets).
+    // Without this save, a reload mid-fire would drop the un-persisted
+    // ticket from memory and the save below would persist the revert —
+    // silently losing every ticket fired while storage already holds one.
+    saveTickets();
     try {
       await markLinesFired(
         orderId,
@@ -354,6 +387,7 @@ export async function fireKOT(orderId: string, by?: string): Promise<KitchenTick
       // phantom KOT behind the draft lines.
       const ti = mockTickets.findIndex((t) => t.id === ticket.id);
       if (ti !== -1) mockTickets.splice(ti, 1);
+      saveTickets();
       throw e;
     }
     // Post-fire verification: every targeted line must carry this ticket's
@@ -367,13 +401,14 @@ export async function fireKOT(orderId: string, by?: string): Promise<KitchenTick
       if (unmarked.length > 0) {
         const ti = mockTickets.findIndex((t) => t.id === ticket.id);
         if (ti !== -1) mockTickets.splice(ti, 1);
+        saveTickets();
         throw new Error(
           `Fire incomplete — ${unmarked.length} line${unmarked.length === 1 ? "" : "s"} not marked. Retry firing.`,
         );
       }
     }
     saveTickets();
-    publishTicket(ticket, { lines: ticket.lines.length });
+    publishTicket(ticket, { lines: ticket.lines.length, station_ids: stationIds });
     await recordEvent({
       outlet_id: order.outlet_id,
       entity_type: "ORDER",
@@ -381,7 +416,14 @@ export async function fireKOT(orderId: string, by?: string): Promise<KitchenTick
       event_type: "ORDER_SENT_TO_KITCHEN",
       to_state: "IN_KITCHEN",
       actor_id: by ?? "staff",
-      metadata: { kot_id: ticket.id, kot_number: kotNumber, lines: ticket.lines.length },
+      source_type: "POS",
+      station_ids: stationIds,
+      metadata: {
+        kot_id: ticket.id,
+        kot_number: kotNumber,
+        lines: ticket.lines.length,
+        station_ids: stationIds,
+      },
     });
     // Auto-print KOT (template flag; never fails the fire — dynamic import
     // avoids a kitchen <-> print-studio module cycle).

@@ -17,6 +17,8 @@ import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
 import { ExportButton, ImportDialog } from "@/features/system/components/io-dialog";
+import { BulkShareButton } from "@/features/outlet/components/bulk-share-dialog";
+
 import {
   importRawMaterials,
   rawMaterialColumns,
@@ -110,7 +112,11 @@ export default function RawMaterialsPage() {
             onImport={importRawMaterials}
             onDone={() => getQueryClient().invalidateQueries({ queryKey: inventoryKeys.all })}
           />
-        </span>
+          <BulkShareButton
+            entity="raw_material"
+            items={(materials ?? []).map((m) => ({ id: m.id, name: m.name }))}
+          />
+        </span>{" "}
       </div>
       <RawMaterialList materials={materials ?? []} />
     </PageContainer>

@@ -11,6 +11,7 @@ import { formatINR } from "@/lib/money";
 import { DISPATCH_CHANNELS, type OrderWithDerived } from "@/features/orders/api/types";
 import { getOrderWithBilling, markDelivered } from "@/features/orders/api/service";
 import { ordersQueryOptions } from "@/features/orders/api/queries";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
 import { collectPayment } from "@/features/payments/api/service";
 import { Icons } from "@pixa/ui/icons";
 import { Button, buttonVariants } from "@pixa/ui/base-ui/button";
@@ -128,7 +129,11 @@ export default function RiderShell() {
   useCrossTabSync();
   const [rider, setRider] = useState(readRider);
   const [draft, setDraft] = useState(rider);
-  const ordersQuery = useQuery({ ...ordersQueryOptions(), refetchInterval: 5000 });
+  const activeOutlet = useActiveOutletId();
+  const ordersQuery = useQuery({
+    ...ordersQueryOptions({ outlet_id: activeOutlet }),
+    refetchInterval: 5000,
+  });
 
   const knownRiders = Array.from(
     new Set(

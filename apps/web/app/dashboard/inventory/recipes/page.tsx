@@ -17,6 +17,7 @@ import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
 import { ExportButton } from "@/features/system/components/io-dialog";
+import { BulkShareButton } from "@/features/outlet/components/bulk-share-dialog";
 
 export default function RecipesPage() {
   const [search, setSearch] = React.useState("");
@@ -72,6 +73,12 @@ export default function RecipesPage() {
           </SelectContent>
         </Select>
         <ExportButton filename="recipes" rows={recipes ?? []} columns={recipeExportColumns} />
+        <span className="ml-auto">
+          <BulkShareButton
+            entity="recipe"
+            items={(recipes ?? []).map((m) => ({ id: m.id, name: m.name }))}
+          />
+        </span>
       </div>
       <RecipeList recipes={recipes ?? []} />
     </PageContainer>

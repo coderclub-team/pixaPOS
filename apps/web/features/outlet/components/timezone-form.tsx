@@ -26,10 +26,16 @@ const localeOptions = [
   { label: "en-US", value: "en-US" },
 ];
 
-export default function TimezoneForm({ initialData }: { initialData: TimezoneValues }) {
+export default function TimezoneForm({
+  initialData,
+  outletId,
+}: {
+  initialData: TimezoneValues;
+  outletId: string;
+}) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: (values: TimezoneValues) => updateOutlet(values),
+    mutationFn: (values: TimezoneValues) => updateOutlet(outletId, values),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: outletKeys.all });
       toast.success("Localization updated");

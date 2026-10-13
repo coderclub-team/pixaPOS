@@ -11,12 +11,14 @@ import { toast } from "sonner";
 
 export default function BusinessDetailsForm({
   initialData,
+  outletId,
 }: {
   initialData: BusinessDetailsValues;
+  outletId: string;
 }) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: (values: BusinessDetailsValues) => updateOutlet(values),
+    mutationFn: (values: BusinessDetailsValues) => updateOutlet(outletId, values),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: outletKeys.all });
       toast.success("Business details updated");

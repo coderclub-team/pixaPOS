@@ -12,8 +12,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@pixa/ui/base-ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@pixa/ui/base-ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -127,15 +134,12 @@ export function RunDetail({ runId }: { runId: string }) {
                   <TableCell className="text-right font-medium">{fmt(item.net_pay)}</TableCell>
                   <TableCell className="text-right">
                     {!locked && (
-                      <div className="flex justify-end gap-1">
-                        <IncentiveDialog runId={runId} itemId={item.id} onDone={invalidate} />
-                        <OverrideDialog
-                          runId={runId}
-                          itemId={item.id}
-                          currentDeductions={item.deductions}
-                          onDone={invalidate}
-                        />
-                      </div>
+                      <ItemActions
+                        runId={runId}
+                        itemId={item.id}
+                        currentDeductions={item.deductions}
+                        onDone={invalidate}
+                      />
                     )}
                   </TableCell>
                 </TableRow>
@@ -148,16 +152,71 @@ export function RunDetail({ runId }: { runId: string }) {
   );
 }
 
-function IncentiveDialog({
+function ItemActions({
   runId,
   itemId,
+  currentDeductions,
   onDone,
 }: {
   runId: string;
   itemId: string;
+  currentDeductions: number;
   onDone: () => void;
 }) {
-  const [open, setOpen] = React.useState(false);
+  const [bonusOpen, setBonusOpen] = React.useState(false);
+  const [adjustOpen, setAdjustOpen] = React.useState(false);
+  return (
+    <>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger render={<Button variant="ghost" className="h-8 w-8 p-0" />}>
+          <Icons.ellipsis className="h-4 w-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+          </DropdownMenuGroup>
+          <DropdownMenuGroup>
+            <DropdownMenuItem onClick={() => setBonusOpen(true)}>
+              <Icons.add className="mr-2 h-4 w-4" /> Add bonus
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setAdjustOpen(true)}>
+              <Icons.edit className="mr-2 h-4 w-4" /> Adjust deductions
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <IncentiveDialog
+        runId={runId}
+        itemId={itemId}
+        open={bonusOpen}
+        onOpenChange={setBonusOpen}
+        onDone={onDone}
+      />
+      <OverrideDialog
+        runId={runId}
+        itemId={itemId}
+        currentDeductions={currentDeductions}
+        open={adjustOpen}
+        onOpenChange={setAdjustOpen}
+        onDone={onDone}
+      />
+    </>
+  );
+}
+
+function IncentiveDialog({
+  runId,
+  itemId,
+  open,
+  onOpenChange,
+  onDone,
+}: {
+  runId: string;
+  itemId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onDone: () => void;
+}) {
   const [name, setName] = React.useState("");
   const [amount, setAmount] = React.useState("");
   const mut = useMutation({
@@ -165,7 +224,7 @@ function IncentiveDialog({
       addIncentive(runId, { payroll_item_id: itemId, name, amount: Number(amount) }),
     onSuccess: () => {
       onDone();
-      setOpen(false);
+      onOpenChange(false);
       setName("");
       setAmount("");
       toast.success("Incentive added");
@@ -173,14 +232,7 @@ function IncentiveDialog({
     onError: (e: Error) => toast.error(e.message),
   });
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button variant="ghost" size="sm">
-            Bonus
-          </Button>
-        }
-      />
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add incentive</DialogTitle>
@@ -218,14 +270,17 @@ function OverrideDialog({
   runId,
   itemId,
   currentDeductions,
+  open,
+  onOpenChange,
   onDone,
 }: {
   runId: string;
   itemId: string;
   currentDeductions: number;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onDone: () => void;
 }) {
-  const [open, setOpen] = React.useState(false);
   const [deductions, setDeductions] = React.useState(String(currentDeductions));
   const [reason, setReason] = React.useState("");
   const mut = useMutation({
@@ -233,20 +288,13 @@ function OverrideDialog({
       overrideItem(runId, itemId, { deductions: Number(deductions), notes: reason }),
     onSuccess: () => {
       onDone();
-      setOpen(false);
+      onOpenChange(false);
       toast.success("Deductions updated — totals re-derived");
     },
     onError: (e: Error) => toast.error(e.message),
   });
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button variant="ghost" size="sm">
-            Adjust
-          </Button>
-        }
-      />
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Adjust deductions</DialogTitle>

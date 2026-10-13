@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { createFloor, updateFloor } from "../api/service";
 import { floorKeys } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
+import { OutletRequiredCallout } from "@/components/outlet-required-callout";
 import type { Floor } from "../api/types";
 
 export default function FloorForm({
@@ -22,9 +24,12 @@ export default function FloorForm({
 }) {
   const router = useRouter();
   const isEdit = !!initialData;
+  const activeOutlet = useActiveOutletId();
+  const needsOutlet = !isEdit && !activeOutlet;
 
   const createMutation = useMutation({
-    mutationFn: (values: FloorValues) => createFloor(values as any),
+    mutationFn: (values: FloorValues) =>
+      createFloor({ ...(values as any), outlet_id: activeOutlet ?? undefined }),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: floorKeys.all });
       toast.success("Floor created");
@@ -171,13 +176,17 @@ export default function FloorForm({
             />
           </FieldGroup>
 
+          {needsOutlet && <OutletRequiredCallout what="Floors" />}
+
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => router.back()}>
               Cancel
             </Button>
             <form.AppForm
               children={
-                <form.SubmitButton>{isEdit ? "Update Floor" : "Create Floor"}</form.SubmitButton>
+                <form.SubmitButton disabled={needsOutlet}>
+                  {isEdit ? "Update Floor" : "Create Floor"}
+                </form.SubmitButton>
               }
             />
           </div>

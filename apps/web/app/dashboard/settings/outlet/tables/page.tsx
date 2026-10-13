@@ -25,6 +25,8 @@ import { importTables, tableColumns, tableSample } from "@/features/table/lib/io
 import { tableKeys } from "@/features/table/api/queries";
 import { floorKeys } from "@/features/floor/api/queries";
 import { getQueryClient } from "@/lib/query-client";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
+import { OutletRequiredCallout } from "@/components/outlet-required-callout";
 
 export default function TablesPage() {
   const [search, setSearch] = React.useState("");
@@ -32,10 +34,18 @@ export default function TablesPage() {
   const [status, setStatus] = React.useState<TableStatus | undefined>(undefined);
   const [sharing, setSharing] = React.useState<"all" | "shared" | "exclusive">("all");
 
+  const activeOutlet = useActiveOutletId();
   const { data: tables, isPending } = useQuery(
-    tablesQueryOptions({ search: search || undefined, floor_id: floorId, status }),
+    tablesQueryOptions({
+      search: search || undefined,
+      floor_id: floorId,
+      status,
+      outlet_id: activeOutlet ?? undefined,
+    }),
   );
-  const { data: floors } = useFloorQuery(floorsQueryOptions());
+  const { data: floors } = useFloorQuery(
+    floorsQueryOptions({ outlet_id: activeOutlet ?? undefined }),
+  );
 
   const visibleTables = React.useMemo(
     () =>
@@ -145,6 +155,12 @@ export default function TablesPage() {
           />
         </span>
       </div>
+
+      {!activeOutlet && (
+        <div className="mb-4">
+          <OutletRequiredCallout what="Tables" />
+        </div>
+      )}
 
       <TableList tables={visibleTables} />
 

@@ -1,6 +1,8 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import PageContainer from "@/components/layout/page-container";
 import TableViewPage from "@/features/table/components/table-view-page";
+import { orgHasOutlets } from "@/features/outlet/api/server-outlets";
 
 export const metadata = {
   title: "Dashboard : Table",
@@ -19,6 +21,11 @@ export default async function Page(props: PageProps) {
   // mock — the server's in-memory store never sees client-created rows, so a
   // prefetched `null` would hydrate and 404 every new/duplicated table.
   // The client component fetches from the hydrated store instead.
+  // Same gate as floors/[floorId]: "new" with zero org outlets redirects
+  // to outlet setup — even duplicates need an outlet to land in.
+  if (params.tableId === "new" && !(await orgHasOutlets())) {
+    redirect("/dashboard/settings/outlets");
+  }
   const duplicateFromId = params.tableId === "new" ? searchParams.duplicate_from : undefined;
 
   return (

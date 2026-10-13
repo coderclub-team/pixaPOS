@@ -2,7 +2,10 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
+import { useQuery } from "@tanstack/react-query";
+import { outletsQueryOptions, resolveActiveOutlet } from "@/features/outlet/api/queries";
 import { useIdentity } from "@/hooks/use-identity";
+import type { SurfaceKey } from "@/lib/surfaces";
 import { Icons } from "@pixa/ui/icons";
 import { Badge } from "@pixa/ui/base-ui/badge";
 import { Button } from "@pixa/ui/base-ui/button";
@@ -18,6 +21,9 @@ import { cn } from "@pixa/ui/lib/utils";
 
 type Surface = {
   href: string;
+  surface?: SurfaceKey;
+  /** Append the active outlet code (/pos → /pos/CODE). */
+  slug?: boolean;
   title: string;
   blurb: string;
   icon: keyof typeof Icons;
@@ -27,6 +33,7 @@ type Surface = {
 const SURFACES: Surface[] = [
   {
     href: "/dashboard",
+    surface: "dashboard",
     title: "Dashboard",
     blurb: "Sales, orders and outlet overview",
     icon: "dashboard",
@@ -34,6 +41,8 @@ const SURFACES: Surface[] = [
   },
   {
     href: "/pos",
+    surface: "pos",
+    slug: true,
     title: "POS terminal",
     blurb: "Counter and table billing",
     icon: "cart",
@@ -41,6 +50,8 @@ const SURFACES: Surface[] = [
   },
   {
     href: "/kds",
+    surface: "kds",
+    slug: true,
     title: "Kitchen display",
     blurb: "Live KOT wallboard for chefs",
     icon: "kitchen",
@@ -48,6 +59,7 @@ const SURFACES: Surface[] = [
   },
   {
     href: "/dispatch",
+    surface: "dispatch",
     title: "Dispatch console",
     blurb: "Pack, assign riders, send out",
     icon: "send",
@@ -55,6 +67,7 @@ const SURFACES: Surface[] = [
   },
   {
     href: "/rider",
+    surface: "rider",
     title: "Rider",
     blurb: "My assigned deliveries",
     icon: "user",
@@ -62,14 +75,26 @@ const SURFACES: Surface[] = [
   },
   {
     href: "/kot",
+    surface: "kot",
+    slug: true,
     title: "KOT",
     blurb: "Kitchen order tickets",
     icon: "clipboardList",
     gated: true,
   },
-  { href: "/kiosk", title: "Kiosk", blurb: "Customer self-ordering", icon: "laptop", gated: false },
+  {
+    href: "/kiosk",
+    surface: undefined,
+    slug: true,
+    title: "Kiosk",
+    blurb: "Customer self-ordering",
+    icon: "laptop",
+    gated: false,
+  },
   {
     href: "/qr",
+    surface: undefined,
+    slug: true,
     title: "QR ordering",
     blurb: "Scan, order and pay by phone",
     icon: "receipt",
@@ -88,6 +113,34 @@ export default function TerminalAppsSwitcher() {
   const { user } = useIdentity();
   const [open, setOpen] = React.useState(false);
   const signedIn = Boolean(user);
+  // Role-derived surfaces (fail-open to all while loading/offline).
+  const { data: access } = useQuery({
+    queryKey: ["me", "outlets"],
+    queryFn: async (): Promise<{ surfaces?: SurfaceKey[] }> => {
+      try {
+        const res = await fetch("/api/me/outlets", { credentials: "include" });
+        if (!res.ok) return {};
+        return (await res.json()) as { surfaces?: SurfaceKey[] };
+      } catch {
+        return {};
+      }
+    },
+    enabled: signedIn,
+    staleTime: 60_000,
+  });
+  const canSee = (s: Surface) =>
+    !s.surface || !access?.surfaces || access.surfaces.includes(s.surface);
+
+  const { data: outlets } = useQuery({
+    ...outletsQueryOptions,
+    enabled: signedIn,
+  });
+  const activeCode = (() => {
+    const id = resolveActiveOutlet(outlets ?? []);
+    return outlets?.find((o) => o.id === id)?.code ?? null;
+  })();
+  const hrefFor = (s: Surface) =>
+    s.slug && activeCode ? `${s.href}/${encodeURIComponent(activeCode)}` : s.href;
 
   const go = (href: string) => {
     setOpen(false);
@@ -122,14 +175,14 @@ export default function TerminalAppsSwitcher() {
           </DialogDescription>
         </DialogHeader>
         <ul className="grid max-h-[60dvh] grid-cols-1 gap-2 overflow-y-auto">
-          {SURFACES.map((s) => {
+          {SURFACES.filter(canSee).map((s) => {
             const locked = s.gated && !signedIn;
             const Icon = Icons[s.icon];
             return (
               <li key={s.href}>
                 <button
                   type="button"
-                  onClick={() => go(locked ? "/auth/sign-in" : s.href)}
+                  onClick={() => go(locked ? "/auth/sign-in" : hrefFor(s))}
                   aria-label={locked ? `${s.title} — sign in required` : `Switch to ${s.title}`}
                   className={cn(
                     "flex w-full items-center gap-3 rounded-md border px-3 py-2.5 text-left transition-colors",

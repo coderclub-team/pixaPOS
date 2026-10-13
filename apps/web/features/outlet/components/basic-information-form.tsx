@@ -16,8 +16,10 @@ import { useRouter } from "next/navigation";
 
 export default function BasicInformationForm({
   initialData,
+  outletId,
 }: {
   initialData: BasicInformationValues;
+  outletId: string;
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -32,7 +34,7 @@ export default function BasicInformationForm({
       if (Array.isArray(logo) && logo.length > 0 && logo[0] instanceof File) {
         const form = new FormData();
         form.append("file", logo[0]);
-        form.append("outlet_id", "out_001");
+        form.append("outlet_id", outletId);
         const res = await fetch("/api/outlet-logo", { method: "POST", body: form });
         const data = (await res.json().catch(() => null)) as {
           url?: string;
@@ -48,9 +50,9 @@ export default function BasicInformationForm({
             `Logo saved locally; org sync skipped (${e instanceof Error ? e.message : "offline"}). Re-save when online.`,
           );
         });
-        return updateOutlet({ ...values, logo_url: data.url });
+        return updateOutlet(outletId, { ...values, logo_url: data.url });
       }
-      return updateOutlet(values);
+      return updateOutlet(outletId, values);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: outletKeys.all });

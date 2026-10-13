@@ -9,10 +9,16 @@ import { updateOutlet } from "../api/service";
 import { outletKeys } from "../api/queries";
 import { toast } from "sonner";
 
-export default function ContactForm({ initialData }: { initialData: ContactValues }) {
+export default function ContactForm({
+  initialData,
+  outletId,
+}: {
+  initialData: ContactValues;
+  outletId: string;
+}) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: (values: ContactValues) => updateOutlet(values),
+    mutationFn: (values: ContactValues) => updateOutlet(outletId, values),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: outletKeys.all });
       toast.success("Contact updated");

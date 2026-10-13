@@ -55,6 +55,7 @@ import { orderKeys, orderQueryOptions } from "@/features/orders/api/queries";
 import { addOrderItem, removeDraftItem, updateDraftItemQty } from "@/features/orders/api/service";
 import { eventKeys } from "@/features/events/api/queries";
 import { menuCategoriesQueryOptions, menuItemsQueryOptions } from "@/features/menu/api/queries";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import { useMediaQuery } from "@pixa/ui/hooks/use-media-query";
@@ -249,13 +250,17 @@ export default function ItemBrowser({ orderId }: { orderId: string }) {
   // Card view is the only layout on phones; larger screens keep the toggle.
   const effectiveView: BrowserView = isMobile ? "card" : view;
   const { data: order } = useQuery(orderQueryOptions(orderId));
-  const { data: categories } = useQuery(menuCategoriesQueryOptions({}));
+  const activeOutletId = useActiveOutletId();
+  const { data: categories } = useQuery(
+    menuCategoriesQueryOptions({ outlet_id: activeOutletId ?? undefined }),
+  );
   const { data: items, isPending } = useQuery(
     menuItemsQueryOptions({
       search: search || undefined,
       category_id: categoryId ?? undefined,
       veg_type: vegType ?? undefined,
       is_active: true,
+      outlet_id: activeOutletId ?? undefined,
     }),
   );
 

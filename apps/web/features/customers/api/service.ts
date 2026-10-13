@@ -192,7 +192,8 @@ export async function createCustomer(
   const release = await entityMutex.acquire("customer-write");
   try {
     await delay(400);
-    const outletId = payload.outlet_id ?? "out_001";
+    const { getServiceOutletId } = await import("@/features/outlet/api/outlets");
+    const outletId = payload.outlet_id ?? getServiceOutletId();
     if (!payload.name?.trim()) throw new Error("Customer name is required");
     if (!normalizePhone(payload.phone ?? "")) throw new Error("Customer phone is required");
     assertUniquePhone(outletId, payload.phone);

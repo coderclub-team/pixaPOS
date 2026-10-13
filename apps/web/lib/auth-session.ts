@@ -10,8 +10,26 @@ import { auth } from "./auth";
 import { db, baMember } from "@pixa/db";
 import { ROLE_PERMISSIONS } from "@/config/permissions";
 
+/**
+ * Resilient session lookup: Better Auth hits Neon on every call, and a cold
+ * compute / slow network surfaces as `fetch failed`. Retry once, then return
+ * null so callers degrade to sign-in redirect instead of crashing the layout.
+ * Never throws on transport errors.
+ */
 export async function baSession() {
-  return auth.api.getSession({ headers: await headers() });
+  const hdrs = await headers();
+  try {
+    return await auth.api.getSession({ headers: hdrs });
+  } catch (e) {
+    const msg = e instanceof Error ? ((e.cause as Error | undefined)?.message ?? e.message) : "";
+    if (!/fetch failed|ECONNRESET|ETIMEDOUT|ENOTFOUND|NeonDbError/i.test(String(msg))) throw e;
+    await new Promise((r) => setTimeout(r, 800));
+    try {
+      return await auth.api.getSession({ headers: hdrs });
+    } catch {
+      return null;
+    }
+  }
 }
 
 export async function baUser() {

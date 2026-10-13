@@ -19,6 +19,7 @@ import { StatusDot } from "@pixa/ui/base-ui/status-dot";
 import { formatINR } from "@/lib/money";
 import { SortTh, useSorting } from "@/components/sort-th";
 import { ExportButton } from "@/features/system/components/io-dialog";
+import { BulkShareButton } from "@/features/outlet/components/bulk-share-dialog";
 import type { CsvColumn } from "@/features/system/lib/csv";
 import { promosQueryOptions } from "@/features/promos/api/queries";
 import type { PromoCode } from "@/features/promos/api/types";
@@ -84,8 +85,9 @@ export default function PromosPage() {
       }
     >
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <span className="ml-auto">
+        <span className="ml-auto flex gap-2">
           <ExportButton filename="promo-codes" rows={rows} columns={columns} />
+          <BulkShareButton entity="promo" items={rows.map((p) => ({ id: p.id, name: p.code }))} />
         </span>
       </div>
       <Card>

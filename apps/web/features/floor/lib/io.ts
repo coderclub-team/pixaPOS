@@ -1,4 +1,5 @@
 import { createFloor, getFloors, updateFloor } from "../api/service";
+import { getServiceOutletId } from "@/features/outlet/api/outlets";
 import type { CsvColumn } from "@/features/system/lib/csv";
 import { parseNumber, parseYesNo } from "@/features/system/lib/csv";
 import type { ImportResult } from "@/features/system/components/io-dialog";
@@ -39,7 +40,16 @@ export const floorSample: Record<string, string>[] = [
  * Bulk upsert floors matched by code.
  */
 export async function importFloors(rows: Record<string, string>[]): Promise<ImportResult> {
-  const existing = await getFloors();
+  const outletId = getServiceOutletId();
+  if (!outletId) {
+    return {
+      created: 0,
+      updated: 0,
+      skipped: rows.length,
+      errors: ["No outlet selected — select or create one first"],
+    };
+  }
+  const existing = await getFloors({ outlet_id: outletId });
   const byCode = new Map(existing.map((f) => [f.code.toUpperCase(), f]));
   let created = 0;
   let updated = 0;
@@ -64,7 +74,7 @@ export async function importFloors(rows: Record<string, string>[]): Promise<Impo
       const isActive = r["Active"] === "" ? undefined : parseYesNo(r["Active"]);
       const isOutdoor = r["Outdoor"] === "" ? undefined : parseYesNo(r["Outdoor"]);
 
-      const payload: any = { name, code };
+      const payload: any = { name, code, outlet_id: outletId };
       if (level !== undefined) payload.level = level;
       if (capacity !== undefined) payload.capacity = capacity;
       if (sortOrder !== undefined) payload.sort_order = sortOrder;

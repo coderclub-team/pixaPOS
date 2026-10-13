@@ -192,7 +192,7 @@ export function OverviewDashboard() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={outlet} onValueChange={setOutlet}>
+          {/* <Select value={outlet} onValueChange={setOutlet}>
             <SelectTrigger className="w-[160px]" aria-label="Outlet">
               <SelectValue />
             </SelectTrigger>
@@ -204,7 +204,7 @@ export function OverviewDashboard() {
                 </SelectItem>
               ))}
             </SelectContent>
-          </Select>
+          </Select> */}
           <Button
             variant="outline"
             size="sm"

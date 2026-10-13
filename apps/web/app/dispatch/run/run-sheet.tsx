@@ -13,6 +13,7 @@ import { useAppForm } from "@/lib/form";
 import { DISPATCH_CHANNELS, type OrderWithDerived } from "@/features/orders/api/types";
 import { getOrderWithBilling, markDelivered } from "@/features/orders/api/service";
 import { ordersQueryOptions } from "@/features/orders/api/queries";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
 import { collectPayment } from "@/features/payments/api/service";
 import type { PaymentMethod } from "@/features/payments/api/types";
 import { Icons } from "@pixa/ui/icons";
@@ -198,7 +199,11 @@ function RunCard({ order }: { order: OrderWithDerived }) {
 
 export default function RunSheet() {
   useCrossTabSync();
-  const ordersQuery = useQuery({ ...ordersQueryOptions(), refetchInterval: 5000 });
+  const activeOutlet = useActiveOutletId();
+  const ordersQuery = useQuery({
+    ...ordersQueryOptions({ outlet_id: activeOutlet }),
+    refetchInterval: 5000,
+  });
 
   const runs = (ordersQuery.data ?? []).filter(
     (o) =>

@@ -20,3 +20,6 @@ This is a Next.js 16 + shadcn/ui admin dashboard starter kit.
 - **Forms** — `useAppForm` from `@/lib/form` (TanStack `createFormHook`) + `form.AppField` rendering the field components in `@/components/forms/fields` (`field.TextField`, `field.SelectField`, …); each component is the shadcn TanStack Form doc anatomy; raw `form.Field` for one-off custom fields; form-level Zod `onSubmit` validators
 - **Page headers** — use `PageContainer` props (`pageTitle`, `pageDescription`, `pageHeaderAction`), never import `<Heading>` manually
 - **Formatting** — single quotes, JSX single quotes, no trailing comma, 2-space indent
+
+
+You are restricted to working on the develop branch. Do not switch branches, do not cherry-pick, and do not execute multi-branch syncs or git push --all.

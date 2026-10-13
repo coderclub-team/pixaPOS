@@ -19,6 +19,8 @@ import { tableKeys, tablesQueryOptions } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import type { RestaurantTable } from "../api/types";
 import { floorsQueryOptions } from "@/features/floor/api/queries";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
+import { OutletRequiredCallout } from "@/components/outlet-required-callout";
 
 export default function TableForm({
   initialData,
@@ -33,14 +35,16 @@ export default function TableForm({
   const isEdit = !!initialData;
   const isDuplicate = !isEdit && !!duplicateFrom;
 
-  const { data: floors } = useQuery(floorsQueryOptions());
+  const activeOutlet = useActiveOutletId();
+  const needsOutlet = !isEdit && !activeOutlet;
+  const { data: floors } = useQuery(floorsQueryOptions({ outlet_id: activeOutlet ?? undefined }));
   const floorOptions = (floors ?? [])
     .filter((f) => f.is_active)
     .map((f) => ({ label: `${f.name} (${f.code})`, value: f.id }));
 
   // Prefill identifiers for the duplicate flow: next free number/code in the outlet.
   const { data: allTables } = useQuery({
-    ...tablesQueryOptions({}),
+    ...tablesQueryOptions({ outlet_id: activeOutlet ?? undefined }),
     enabled: isDuplicate,
   });
   const suggested =
@@ -49,7 +53,8 @@ export default function TableForm({
       : null;
 
   const createMutation = useMutation({
-    mutationFn: (values: TableValues) => createTable(values as any),
+    mutationFn: (values: TableValues) =>
+      createTable({ ...(values as any), outlet_id: activeOutlet ?? undefined }),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: tableKeys.all });
       toast.success(isDuplicate ? `Duplicated to ${form.state.values.number}` : "Table created");
@@ -241,13 +246,17 @@ export default function TableForm({
             </div>
           </FieldGroup>
 
+          {needsOutlet && <OutletRequiredCallout what="Tables" />}
+
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => router.back()}>
               Cancel
             </Button>
             <form.AppForm
               children={
-                <form.SubmitButton>{isEdit ? "Update Table" : "Create Table"}</form.SubmitButton>
+                <form.SubmitButton disabled={needsOutlet}>
+                  {isEdit ? "Update Table" : "Create Table"}
+                </form.SubmitButton>
               }
             />
           </div>

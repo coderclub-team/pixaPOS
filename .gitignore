@@ -21,6 +21,11 @@ build/
 *.log
 *.tsbuildinfo
 
+# Test artifacts
+test-results/
+tests/e2e-report/
+playwright/.auth/
+
 # IDE
 .vscode/settings.json
 
