@@ -28,6 +28,7 @@ vi.mock("@pixa/db", async (importOriginal) => {
 
 import { POST as createEmployee } from "@/app/api/payroll/employees/route";
 import { POST as verifyEmployee } from "@/app/api/payroll/employees/[id]/verify/route";
+import { GET as listAttendance, POST as markAttendance } from "@/app/api/payroll/attendance/route";
 import { POST as applyLeave } from "@/app/api/payroll/leaves/route";
 import { POST as approveLeave } from "@/app/api/payroll/leaves/[id]/approve/route";
 import { POST as createPeriod } from "@/app/api/payroll/periods/route";
@@ -298,6 +299,68 @@ describe("payroll API", () => {
     }
   });
 
+  it("treats a retired UPI endpoint as unsupported, keeps bank verdict", async () => {
+    vi.stubEnv("RAZORPAY_KEY_ID", "rzp_test_verify");
+    vi.stubEnv("RAZORPAY_KEY_SECRET", "verify-secret");
+    const created = await createEmployee(
+      req({
+        name: "Retired Upi",
+        employee_code: "EMP097",
+        pay_type: "salary",
+        rate: 25000,
+        payout_mode: "both",
+        bank_account: "50100234567897",
+        bank_ifsc: "HDFC0001234",
+        upi_id: "retired@okhdfc",
+      }),
+    );
+    expect(created.status).toBe(201);
+    const empId = ((await created.json()) as { employee: { id: string } }).employee.id;
+
+    const realFetch = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown, init?: RequestInit) => {
+        const u = String(url);
+        if (u.startsWith("https://ifsc.razorpay.com/")) {
+          return new Response(JSON.stringify({ BANK: "HDFC Bank", BRANCH: "MUMBAI" }), {
+            status: 200,
+          });
+        }
+        if (u.includes("api.razorpay.com/")) {
+          // Razorpay's actual response for the retired UPI-Collect endpoint.
+          return new Response(
+            JSON.stringify({
+              error: {
+                code: "BAD_REQUEST_ERROR",
+                description: "The requested URL was not found on the server.",
+              },
+            }),
+            { status: 400 },
+          );
+        }
+        return realFetch(u, init);
+      }),
+    );
+    try {
+      const res = await verifyEmployee(req({}), {
+        params: Promise.resolve({ id: empId }),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        verification_status: string;
+        bank: { ok: boolean };
+        upi: { ok: boolean; unsupported: boolean };
+      };
+      expect(body.bank.ok).toBe(true);
+      expect(body.upi.unsupported).toBe(true);
+      // Bank passed and UPI is uncheckable (not wrong) → verified overall.
+      expect(body.verification_status).toBe("verified");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("rejects bad pay_type with 400", async () => {
     const res = await createEmployee(req({ name: "X", employee_code: "E2", pay_type: "daily" }));
     expect(res.status).toBe(400);
@@ -454,5 +517,81 @@ describe("payroll API", () => {
       .from(payrollItems)
       .where(eq(payrollItems.payrollRunId, runId));
     expect(item.netPayPaise).toBe(run.totalNetPaise);
+  }, 90_000);
+
+  it("rejects bad attendance records", async () => {
+    const future = await markAttendance(
+      req({ days: [{ employee_id: "x", date: "2999-01-01", status: "present" }] }),
+    );
+    expect(future.status).toBe(400);
+    const badStatus = await markAttendance(
+      req({ days: [{ employee_id: "x", date: "2026-04-01", status: "sleeping" }] }),
+    );
+    expect(badStatus.status).toBe(400);
+    const badHours = await markAttendance(
+      req({ days: [{ employee_id: "x", date: "2026-04-01", status: "present", hours: 99 }] }),
+    );
+    expect(badHours.status).toBe(400);
+  });
+
+  it("feeds attendance into payroll: absent deducts, hourly hours pay", async () => {
+    const mkEmp = async (code: string, pay_type: string, rate: number, payout: object) => {
+      const res = await createEmployee(
+        req({ name: code, employee_code: code, pay_type, rate, ...payout }),
+      );
+      expect(res.status).toBe(201);
+      return ((await res.json()) as { employee: { id: string } }).employee.id;
+    };
+    const salId = await mkEmp("ATT_SAL", "salary", 30000, {
+      payout_mode: "bank",
+      bank_account: "50100234567890",
+      bank_ifsc: "HDFC0001234",
+    });
+    const hrId = await mkEmp("ATT_HR", "hourly", 200, {
+      payout_mode: "upi",
+      upi_id: "att.hr@okpay",
+    });
+
+    const marked = await markAttendance(
+      req({
+        days: [
+          { employee_id: salId, date: "2026-04-02", status: "absent" },
+          { employee_id: salId, date: "2026-04-03", status: "absent" },
+          { employee_id: salId, date: "2026-04-04", status: "half_day", hours: 4 },
+          { employee_id: hrId, date: "2026-04-02", status: "present", hours: 8 },
+          { employee_id: hrId, date: "2026-04-03", status: "present", hours: 8 },
+        ],
+      }),
+    );
+    expect(marked.status).toBe(201);
+
+    const listed = await listAttendance({ url: "http://test.local/api/x?month=2026-04" } as never);
+    const listedBody = (await listed.json()) as { days: unknown[] };
+    expect(listed.status).toBe(200);
+    expect(listedBody.days).toHaveLength(5);
+
+    const periodRes = await createPeriod(req({ start_date: "2026-04-01", end_date: "2026-04-30" }));
+    expect(periodRes.status).toBe(201);
+    const period = ((await periodRes.json()) as { period: { id: string } }).period;
+
+    const runRes = await createRun(req({ pay_period_id: period.id }));
+    expect(runRes.status).toBe(201);
+    const runBody = (await runRes.json()) as { runId: string; unmarkedDays: number };
+    // sal: 30−3 marked = 27 unmarked; hr: 30−2 = 28 → 55 assumed present.
+    expect(runBody.unmarkedDays).toBe(55);
+
+    const detail = await runDetail({} as never, { params: Promise.resolve({ id: runBody.runId }) });
+    const body = (await detail.json()) as {
+      items: { id: string; unpaidLeavePaise: number; grossPayPaise: number; netPayPaise: number }[];
+    };
+    expect(body.items).toHaveLength(2);
+
+    // Salary: 2 absent + 0.5 half = 2.5 unpaid days × daily 100000.
+    const salItem = body.items.find((i) => i.unpaidLeavePaise === 250000);
+    expect(salItem).toBeDefined();
+    // Hourly: 16h × 200 = 320000 paise gross, no unpaid.
+    const hrItem = body.items.find((i) => i.grossPayPaise === 320000);
+    expect(hrItem).toBeDefined();
+    expect(hrItem!.unpaidLeavePaise).toBe(0);
   }, 90_000);
 });

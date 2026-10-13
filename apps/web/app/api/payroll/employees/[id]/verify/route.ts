@@ -34,7 +34,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     if (!emp) return NextResponse.json({ error: "employee not found" }, { status: 404 });
 
     const bank = { checked: false, ok: false, unavailable: false, detail: "" };
-    const upi = { checked: false, ok: false, unavailable: false, detail: "" };
+    const upi = { checked: false, ok: false, unavailable: false, unsupported: false, detail: "" };
     const patch: Partial<typeof employees.$inferInsert> = { updatedAt: new Date() };
 
     if (emp.bankIfsc) {
@@ -67,7 +67,11 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
         upi.detail = "UPI ID unreadable";
       } else {
         const r = await validateVpa(vpa);
-        if (r.unavailable) {
+        if (r.unsupported) {
+          upi.unsupported = true;
+          upi.detail =
+            "UPI existence check retired by Razorpay for these keys — ID saved, format-checked only (needs RazorpayX for live check)";
+        } else if (r.unavailable) {
           upi.unavailable = true;
           upi.detail = r.error ?? "UPI validation unavailable";
         } else if (r.ok) {
@@ -82,13 +86,16 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
         }
       }
     }
-
     let status: Status = "unverified";
     const anyChecked = bank.checked || upi.checked;
-    const allCheckedOk = anyChecked && (!bank.checked || bank.ok) && (!upi.checked || upi.ok);
-    const anyFailed =
-      (bank.checked && !bank.ok && !bank.unavailable) ||
-      (upi.checked && !upi.ok && !upi.unavailable);
+    // Unsupported counts as "not checkable" — like unavailable, never a failure.
+    const bankCounted = bank.checked && !bank.unavailable;
+    const upiCounted = upi.checked && !upi.unavailable && !upi.unsupported;
+    const allCheckedOk =
+      anyChecked &&
+      (!bank.checked || bank.unavailable || bank.ok) &&
+      (!upi.checked || upi.unavailable || upi.unsupported || upi.ok);
+    const anyFailed = (bankCounted && !bank.ok) || (upiCounted && !upi.ok);
     if (allCheckedOk) status = "verified";
     else if (anyFailed) status = "failed";
     else if (anyChecked) status = "unavailable";

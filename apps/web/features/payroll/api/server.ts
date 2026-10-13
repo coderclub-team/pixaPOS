@@ -1,7 +1,8 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 import { db } from "@pixa/db";
 import { ulid as mkid } from "@pixa/contracts";
 import {
+  attendanceDays,
   employees,
   holidayPayRules,
   leaveBalances,
@@ -194,21 +195,20 @@ interface ComputedItem {
   unpaidDays: number;
 }
 
-/** Approved unpaid-leave days of an employee overlapping [start, end]. */
-async function unpaidDaysInPeriod(
+/** Approved-leave cover per date (weight 0.5 | 1) overlapping [start, end]. */
+async function leaveCoverInPeriod(
   organizationId: string,
   employeeId: string,
   start: string,
   end: string,
-): Promise<number> {
+  paid: boolean,
+): Promise<Map<string, number>> {
   const database = db();
   const reqs = await database
     .select({
-      id: leaveRequests.id,
       startDate: leaveRequests.startDate,
       endDate: leaveRequests.endDate,
       dayType: leaveRequests.dayType,
-      isPaid: leaveTypes.isPaid,
     })
     .from(leaveRequests)
     .innerJoin(leaveTypes, eq(leaveRequests.leaveTypeId, leaveTypes.id))
@@ -217,23 +217,127 @@ async function unpaidDaysInPeriod(
         eq(leaveRequests.organizationId, organizationId),
         eq(leaveRequests.employeeId, employeeId),
         eq(leaveRequests.status, "approved"),
-        eq(leaveTypes.isPaid, false),
+        eq(leaveTypes.isPaid, paid),
       ),
     );
   const period = new Set(datesInRange(start, end));
-  let total = 0;
+  const cover = new Map<string, number>();
+  const add = (d: string, w: number) => cover.set(d, Math.min(1, (cover.get(d) ?? 0) + w));
   for (const r of reqs) {
     const overlap = datesInRange(String(r.startDate), String(r.endDate)).filter((d) =>
       period.has(d),
     );
     if (overlap.length === 0) continue;
     if (overlap.length === 1 && String(r.startDate) === String(r.endDate) && r.dayType !== "full") {
-      total += 0.5;
+      add(overlap[0], 0.5);
     } else {
-      total += overlap.length;
+      for (const d of overlap) add(d, 1);
     }
   }
-  return total;
+  return cover;
+}
+
+/** Attendance records for the period, keyed by employee then date. */
+async function attendanceForPeriod(
+  organizationId: string,
+  start: string,
+  end: string,
+): Promise<{
+  byEmployee: Map<string, Map<string, { status: string; hours: number }>>;
+  inUse: boolean;
+}> {
+  const database = db();
+  const rows = await database
+    .select({
+      employeeId: attendanceDays.employeeId,
+      date: attendanceDays.date,
+      status: attendanceDays.status,
+      hours: attendanceDays.hours,
+    })
+    .from(attendanceDays)
+    .where(
+      and(
+        eq(attendanceDays.organizationId, organizationId),
+        gte(attendanceDays.date, start),
+        lte(attendanceDays.date, end),
+      ),
+    );
+  const byEmployee = new Map<string, Map<string, { status: string; hours: number }>>();
+  for (const r of rows) {
+    const day = String(r.date).slice(0, 10);
+    let m = byEmployee.get(r.employeeId);
+    if (!m) {
+      m = new Map();
+      byEmployee.set(r.employeeId, m);
+    }
+    m.set(day, { status: String(r.status), hours: Number(r.hours) || 0 });
+  }
+  return { byEmployee, inUse: rows.length > 0 };
+}
+
+export interface AttendanceDerivation {
+  /** Salary working units (days). */
+  units: number;
+  /** Hourly working units (hours). */
+  hours: number;
+  /** Unpaid days beyond approved unpaid leave. */
+  extraUnpaid: number;
+  /** Period days with no record (assumed present). */
+  unmarked: number;
+}
+
+/**
+ * Derive payroll inputs from one employee's attendance register.
+ * - present / weekly_off / holiday → 1 paid unit (offs are neutral markers).
+ * - half_day → 0.5 unit; remainder unpaid unless paid leave covers it.
+ * - absent → paid-leave cover counts as units; approved-unpaid-leave dates are
+ *   counted by the leave flow (never double-deducted); the rest is unpaid.
+ * - unmarked days count as present (legacy behavior) and are tallied so the
+ *   run can warn instead of silently assuming.
+ */
+export function deriveFromAttendance(
+  days: string[],
+  rec: Map<string, { status: string; hours: number }> | undefined,
+  paidCover: Map<string, number>,
+  unpaidCover: Map<string, number>,
+): AttendanceDerivation {
+  let units = 0;
+  let hours = 0;
+  let extraUnpaid = 0;
+  let unmarked = 0;
+  for (const d of days) {
+    const r = rec?.get(d);
+    if (!r) {
+      units += 1;
+      unmarked += 1;
+      continue;
+    }
+    hours += r.hours;
+    switch (r.status) {
+      case "present":
+      case "weekly_off":
+      case "holiday":
+        units += 1;
+        break;
+      case "half_day": {
+        const covered = Math.min(paidCover.get(d) ?? 0, 0.5);
+        units += 0.5 + covered;
+        extraUnpaid += 0.5 - covered;
+        break;
+      }
+      case "absent": {
+        const pc = Math.min(paidCover.get(d) ?? 0, 1);
+        const uc = Math.min(unpaidCover.get(d) ?? 0, 1);
+        units += pc;
+        extraUnpaid += Math.max(0, 1 - pc - uc);
+        break;
+      }
+      default:
+        units += 1;
+        break;
+    }
+  }
+  return { units, hours, extraUnpaid, unmarked };
 }
 
 async function activeHolidayRule(
@@ -257,7 +361,14 @@ export async function computeRunItems(
   organizationId: string,
   periodId: string,
   units: RunInputUnit[],
-): Promise<{ period: { start: string; end: string }; items: ComputedItem[] }> {
+): Promise<{
+  period: { start: string; end: string };
+  items: ComputedItem[];
+  /** Sum of unmarked days (assumed present); warn, don't deduct. */
+  unmarkedDays: number;
+  /** Employees with at least one attendance record this period. */
+  attendanceSourced: number;
+}> {
   const database = db();
   const [period] = await database
     .select()
@@ -276,13 +387,31 @@ export async function computeRunItems(
     .from(employees)
     .where(and(eq(employees.organizationId, organizationId), eq(employees.status, "active")));
   const byId = new Map(units.map((u) => [u.employee_id, u]));
+  const periodDays = datesInRange(start, end);
+  const attendance = await attendanceForPeriod(organizationId, start, end);
 
   const items: ComputedItem[] = [];
+  let unmarkedDays = 0;
+  let attendanceSourced = 0;
   for (const e of emps) {
     const u = byId.get(e.id);
-    const workingUnits = u?.working_units ?? (e.payType === "salary" ? totalWorkingDays : 0);
+    const paidCover = await leaveCoverInPeriod(organizationId, e.id, start, end, true);
+    const unpaidCover = await leaveCoverInPeriod(organizationId, e.id, start, end, false);
+    const derived = deriveFromAttendance(
+      periodDays,
+      attendance.byEmployee.get(e.id),
+      paidCover,
+      unpaidCover,
+    );
+    // Manual wizard inputs win; otherwise attendance feeds the run. With no
+    // records at all the derivation equals the legacy defaults (full days /
+    // zero hours), so runs behave exactly as before.
+    const isSalary = e.payType === "salary";
+    const workingUnits = u?.working_units ?? (isSalary ? derived.units : derived.hours);
+    if (u?.working_units === undefined && attendance.byEmployee.has(e.id)) attendanceSourced += 1;
+    unmarkedDays += derived.unmarked;
     const holidayUnits = u?.holiday_units ?? 0;
-    const unpaidDays = await unpaidDaysInPeriod(organizationId, e.id, start, end);
+    const unpaidDays = [...unpaidCover.values()].reduce((s, w) => s + w, 0) + derived.extraUnpaid;
     const breakdown = calculatePayslip({
       payType: e.payType as "hourly" | "salary",
       ratePaise: e.ratePaise,
@@ -304,7 +433,7 @@ export async function computeRunItems(
       unpaidDays,
     });
   }
-  return { period: { start, end }, items };
+  return { period: { start, end }, items, unmarkedDays, attendanceSourced };
 }
 
 export async function createPayrollRun(
@@ -312,7 +441,7 @@ export async function createPayrollRun(
   periodId: string,
   units: RunInputUnit[],
   createdBy: string,
-): Promise<{ runId: string; itemCount: number }> {
+): Promise<{ runId: string; itemCount: number; unmarkedDays: number; attendanceSourced: number }> {
   const database = db();
   const existing = await database
     .select({ id: payrollRuns.id })
@@ -321,7 +450,11 @@ export async function createPayrollRun(
     .limit(1);
   if (existing.length > 0) throw new Error("a run already exists for this period");
 
-  const { items } = await computeRunItems(organizationId, periodId, units);
+  const { items, unmarkedDays, attendanceSourced } = await computeRunItems(
+    organizationId,
+    periodId,
+    units,
+  );
   const runId = mkid();
   await database.insert(payrollRuns).values({
     id: runId,
@@ -355,7 +488,7 @@ export async function createPayrollRun(
       updatedAt: now(),
     });
   }
-  return { runId, itemCount: items.length };
+  return { runId, itemCount: items.length, unmarkedDays, attendanceSourced };
 }
 
 /** Recompute an item's totals from its stored parts + incentives. */

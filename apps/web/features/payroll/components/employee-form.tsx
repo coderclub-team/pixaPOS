@@ -4,7 +4,7 @@ import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { FieldGroup } from "@pixa/ui/base-ui/field";
 import { useAppForm } from "@/lib/form";
-import { employeeSchema, type EmployeeFormValues } from "../schemas/payroll";
+import { employeeEditSchema, employeeSchema, type EmployeeFormValues } from "../schemas/payroll";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -52,8 +52,29 @@ export default function EmployeeForm({ initialData }: { initialData?: Employee }
       };
       return isEdit ? updateEmployee(initialData.id, payload) : createEmployee(payload);
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       getQueryClient().invalidateQueries({ queryKey: payrollKeys.employees() });
+      if (!isEdit && data && typeof (data as { id?: unknown }).id === "string") {
+        const id = (data as { id: string }).id;
+        toast.success("Employee added — verifying payout details…");
+        router.push("/dashboard/payroll/employees");
+        // Background verification (advisory): never blocks the flow.
+        verifyEmployee(id)
+          .then((r) => {
+            getQueryClient().invalidateQueries({ queryKey: payrollKeys.employees() });
+            const parts = [r.bank.checked && r.bank.detail, r.upi.checked && r.upi.detail].filter(
+              Boolean,
+            );
+            if (r.verification_status === "verified")
+              toast.success(`Payout verified — ${parts.join(" · ")}`);
+            else if (r.verification_status === "unavailable")
+              toast.warning(`Payout verification unavailable — ${parts.join(" · ")}`);
+            else if (r.verification_status === "failed")
+              toast.error(`Payout verification failed — ${parts.join(" · ")}`);
+          })
+          .catch((e: Error) => toast.error(e.message));
+        return;
+      }
       toast.success(isEdit ? "Employee updated" : "Employee added");
       router.push("/dashboard/payroll/employees");
     },
@@ -96,7 +117,14 @@ export default function EmployeeForm({ initialData }: { initialData?: Employee }
       status: initialData?.status ?? "active",
       joining_date: initialData?.joining_date ?? "",
     } as EmployeeFormValues,
-    validators: { onSubmit: employeeSchema },
+    validators: {
+      onSubmit: isEdit
+        ? employeeEditSchema(
+            initialData.bank_account_masked !== "—",
+            initialData.upi_id_masked !== "—",
+          )
+        : employeeSchema,
+    },
     onSubmit: async ({ value }) => {
       await mutation.mutateAsync(value);
     },
@@ -207,8 +235,8 @@ export default function EmployeeForm({ initialData }: { initialData?: Employee }
             {isEdit && (
               <p className="text-xs text-muted-foreground">
                 Payout verification: {verificationLabel(initialData.verification_status)} — free
-                IFSC existence check + UPI ID check via Razorpay. Advisory only; verifies details,
-                not account ownership.
+                IFSC existence check for bank; UPI IDs are format-checked (Razorpay retired live UPI
+                checks — full ownership proof needs RazorpayX).
               </p>
             )}
             <form.Subscribe
@@ -223,7 +251,11 @@ export default function EmployeeForm({ initialData }: { initialData?: Employee }
                           <field.TextField
                             label={isEdit ? "Bank Account (blank = keep)" : "Bank Account Number"}
                             required={!isEdit}
-                            placeholder="50100234567890"
+                            placeholder={
+                              isEdit && initialData?.bank_account_masked !== "—"
+                                ? `${initialData?.bank_account_masked} on file — type to replace`
+                                : "50100234567890"
+                            }
                             description="Encrypted at rest, only last-4 shown"
                           />
                         )}
@@ -254,7 +286,11 @@ export default function EmployeeForm({ initialData }: { initialData?: Employee }
                         <field.TextField
                           label={isEdit ? "UPI ID (blank = keep)" : "UPI ID"}
                           required={!isEdit}
-                          placeholder="name@okhdfc"
+                          placeholder={
+                            isEdit && initialData?.upi_id_masked !== "—"
+                              ? `${initialData?.upi_id_masked} on file — type to replace`
+                              : "name@okhdfc"
+                          }
                           description="For UPI payouts to casual staff"
                         />
                       )}

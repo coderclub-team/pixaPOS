@@ -1,8 +1,16 @@
 "use client";
 
-import Link from "next/link";
-import { buttonVariants } from "@pixa/ui/base-ui/button";
+import { useRouter } from "next/navigation";
+import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@pixa/ui/base-ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -13,8 +21,13 @@ import {
 } from "@pixa/ui/base-ui/table";
 import { StatusDot } from "@pixa/ui/base-ui/status-dot";
 import { Icons } from "@pixa/ui/icons";
+import { useMutation } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { getQueryClient } from "@/lib/query-client";
 import { SortTh, useSorting } from "@/components/sort-th";
 import { verificationLabel } from "./employee-form";
+import { payrollKeys } from "../api/queries";
+import { updateEmployee, verifyEmployee } from "../api/service";
 import type { Employee } from "../api/types";
 
 export function inr(n: number): string {
@@ -118,12 +131,7 @@ export function EmployeeList({ employees }: { employees: Employee[] }) {
                   <StatusDot isActive={e.status === "active"} />
                 </TableCell>
                 <TableCell className="text-right">
-                  <Link
-                    href={`/dashboard/payroll/employees/${e.id}`}
-                    className={buttonVariants({ variant: "ghost", size: "sm" })}
-                  >
-                    Edit
-                  </Link>
+                  <EmployeeActions employee={e} />
                 </TableCell>
               </TableRow>
             ))}
@@ -131,5 +139,65 @@ export function EmployeeList({ employees }: { employees: Employee[] }) {
         </Table>
       </CardContent>
     </Card>
+  );
+}
+
+function EmployeeActions({ employee }: { employee: Employee }) {
+  const router = useRouter();
+  const invalidate = () =>
+    getQueryClient().invalidateQueries({ queryKey: payrollKeys.employees() });
+
+  const verify = useMutation({
+    mutationFn: () => verifyEmployee(employee.id),
+    onSuccess: (r) => {
+      invalidate();
+      const parts = [r.bank.checked && r.bank.detail, r.upi.checked && r.upi.detail].filter(
+        Boolean,
+      );
+      if (r.verification_status === "verified") toast.success(`Verified — ${parts.join(" · ")}`);
+      else if (r.verification_status === "unavailable")
+        toast.warning(`Verification unavailable — ${parts.join(" · ")}`);
+      else toast.error(`Verification failed — ${parts.join(" · ")}`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggleStatus = useMutation({
+    mutationFn: () =>
+      updateEmployee(employee.id, {
+        status: employee.status === "active" ? "inactive" : "active",
+      }),
+    onSuccess: () => {
+      invalidate();
+      toast.success(employee.status === "active" ? "Employee deactivated" : "Employee reactivated");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger render={<Button variant="ghost" className="h-8 w-8 p-0" />}>
+        <Icons.ellipsis className="h-4 w-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+        </DropdownMenuGroup>
+        <DropdownMenuGroup>
+          <DropdownMenuItem
+            onClick={() => router.push(`/dashboard/payroll/employees/${employee.id}`)}
+          >
+            <Icons.edit className="mr-2 h-4 w-4" /> Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => verify.mutate()} disabled={verify.isPending}>
+            <Icons.badgeCheck className="mr-2 h-4 w-4" /> Verify payout details
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => toggleStatus.mutate()} disabled={toggleStatus.isPending}>
+            <Icons.user className="mr-2 h-4 w-4" />{" "}
+            {employee.status === "active" ? "Deactivate" : "Reactivate"}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

@@ -142,6 +142,26 @@ export interface RunUnitInput {
   holiday_units?: number;
 }
 
+export type AttendanceStatus = "present" | "absent" | "half_day" | "weekly_off" | "holiday";
+
+export interface AttendanceDay {
+  id: string;
+  employee_id: string;
+  date: string;
+  status: AttendanceStatus;
+  /** Hours worked that day (hourly staff / overtime). */
+  hours: number;
+  notes: string | null;
+}
+
+export interface AttendanceMark {
+  employee_id: string;
+  date: string;
+  status: AttendanceStatus;
+  hours?: number;
+  notes?: string;
+}
+
 /** API money is rupees (decimal); server stores paise. */
 export function paiseToRupees(paise: number): number {
   return Math.round(paise) / 100;

@@ -63,7 +63,11 @@ export function PayrunWizard({ employees }: { employees: Employee[] }) {
       ),
     onSuccess: (run) => {
       invalidate();
-      toast.success("Payroll run created");
+      toast.success(
+        run.unmarkedDays > 0
+          ? `Payroll run created · ${run.unmarkedDays} unmarked attendance day(s) assumed present`
+          : "Payroll run created",
+      );
       router.push(`/dashboard/payroll/runs/${run.runId}`);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -121,8 +125,9 @@ export function PayrunWizard({ employees }: { employees: Employee[] }) {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Enter total hours per active employee (hourly staff need this; salaried staff default to
-            full month). Only needed when the period includes a holiday they worked.
+            Enter total hours per active employee only to override the attendance register — hourly
+            hours and salary working days otherwise come from attendance (unmarked days count as
+            present).
           </p>
           <Table>
             <TableHeader>

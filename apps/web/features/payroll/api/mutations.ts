@@ -151,7 +151,11 @@ export function useCreatePayrollRun() {
       createPayrollRun(pay_period_id, inputs),
     onSuccess: (d) => {
       inv.all();
-      toast.success(`Payroll computed for ${d.itemCount} employee(s)`);
+      toast.success(
+        d.unmarkedDays > 0
+          ? `Payroll computed for ${d.itemCount} employee(s) · ${d.unmarkedDays} unmarked day(s) assumed present`
+          : `Payroll computed for ${d.itemCount} employee(s)`,
+      );
     },
     onError: (e: Error) => toast.error(e.message),
   });

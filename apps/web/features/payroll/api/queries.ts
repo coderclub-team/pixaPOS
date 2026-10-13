@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import {
+  getAttendance,
   getEmployees,
   getHolidays,
   getHolidayRule,
@@ -24,6 +25,7 @@ export const payrollKeys = {
   leaves: (filters?: { employee_id?: string; status?: string }) =>
     [...payrollKeys.all, "leaves", filters ?? {}] as const,
   holidays: (year?: number) => [...payrollKeys.all, "holidays", year ?? "all"] as const,
+  attendance: (month: string) => [...payrollKeys.all, "attendance", month] as const,
   holidayRule: () => [...payrollKeys.all, "holiday-rule"] as const,
   periods: () => [...payrollKeys.all, "periods"] as const,
   runs: () => [...payrollKeys.all, "runs"] as const,
@@ -66,6 +68,12 @@ export const holidayRuleQueryOptions = queryOptions({
   queryKey: payrollKeys.holidayRule(),
   queryFn: getHolidayRule,
 });
+
+export const attendanceQueryOptions = (month: string) =>
+  queryOptions({
+    queryKey: payrollKeys.attendance(month),
+    queryFn: () => getAttendance(month),
+  });
 
 export const payPeriodsQueryOptions = queryOptions({
   queryKey: payrollKeys.periods(),

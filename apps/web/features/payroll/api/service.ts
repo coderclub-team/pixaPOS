@@ -42,29 +42,39 @@ export async function getEmployees(): Promise<Employee[]> {
   }));
 }
 
-export async function createEmployee(payload: import("./types").EmployeePayload): Promise<void> {
-  await api("/api/payroll/employees", {
+export async function createEmployee(
+  payload: import("./types").EmployeePayload,
+): Promise<{ id: string }> {
+  const data = await api<{ employee: Record<string, unknown> }>("/api/payroll/employees", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
   });
+  return { id: String(data.employee.id) };
 }
 
 export async function updateEmployee(
   id: string,
   payload: Partial<import("./types").EmployeePayload>,
-): Promise<void> {
+): Promise<{ id: string }> {
   await api(`/api/payroll/employees?id=${encodeURIComponent(id)}`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
   });
+  return { id };
 }
 
 export interface PayoutVerification {
   verification_status: "unverified" | "pending" | "verified" | "failed" | "unavailable";
   bank: { checked: boolean; ok: boolean; unavailable: boolean; detail: string };
-  upi: { checked: boolean; ok: boolean; unavailable: boolean; detail: string };
+  upi: {
+    checked: boolean;
+    ok: boolean;
+    unavailable: boolean;
+    unsupported: boolean;
+    detail: string;
+  };
 }
 
 /** Background verification of an employee's bank/UPI details. Advisory only. */
@@ -268,7 +278,7 @@ export async function getPayrollRuns(): Promise<import("./types").PayrollRunSumm
 export async function createPayrollRun(
   pay_period_id: string,
   inputs?: import("./types").RunUnitInput[],
-): Promise<{ runId: string; itemCount: number }> {
+): Promise<{ runId: string; itemCount: number; unmarkedDays: number; attendanceSourced: number }> {
   return api("/api/payroll/runs", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -461,4 +471,31 @@ export async function getMyPayslips(): Promise<PayrollItem[]> {
     pay_period_id: String(x.pay_period_id ?? ""),
     run_status: String(x.run_status ?? ""),
   }));
+}
+
+/* ------------------------------ attendance ------------------------------ */
+
+export async function getAttendance(month: string): Promise<import("./types").AttendanceDay[]> {
+  const data = await api<{ days: Record<string, unknown>[] }>(
+    `/api/payroll/attendance?month=${encodeURIComponent(month)}`,
+  );
+  return data.days.map((d) => ({
+    id: String(d.id),
+    employee_id: String(d.employeeId ?? d.employee_id),
+    date: String(d.date).slice(0, 10),
+    status: (d.status ?? "present") as import("./types").AttendanceStatus,
+    hours: n(d.hours),
+    notes: (d.notes ?? null) as string | null,
+  }));
+}
+
+export async function markAttendance(
+  days: import("./types").AttendanceMark[],
+): Promise<{ saved: number }> {
+  const data = await api<{ saved: number }>("/api/payroll/attendance", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ days }),
+  });
+  return { saved: data.saved };
 }
