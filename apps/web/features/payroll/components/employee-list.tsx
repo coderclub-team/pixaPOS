@@ -14,6 +14,7 @@ import {
 import { StatusDot } from "@pixa/ui/base-ui/status-dot";
 import { Icons } from "@pixa/ui/icons";
 import { SortTh, useSorting } from "@/components/sort-th";
+import { verificationLabel } from "./employee-form";
 import type { Employee } from "../api/types";
 
 export function inr(n: number): string {
@@ -109,6 +110,9 @@ export function EmployeeList({ employees }: { employees: Employee[] }) {
                   {e.upi_id_masked !== "—" && (
                     <div className="text-muted-foreground">UPI {e.upi_id_masked}</div>
                   )}
+                  <div className="text-muted-foreground">
+                    {verificationLabel(e.verification_status)}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <StatusDot isActive={e.status === "active"} />

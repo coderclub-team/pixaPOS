@@ -34,6 +34,9 @@ export async function getEmployees(): Promise<Employee[]> {
     bank_name: (e.bankName ?? e.bank_name ?? null) as string | null,
     bank_ifsc: (e.bankIfsc ?? e.bank_ifsc ?? null) as string | null,
     upi_id_masked: String(e.upi_id_masked ?? "—"),
+    verification_status: (e.verificationStatus ??
+      e.verification_status ??
+      "unverified") as Employee["verification_status"],
     status: e.status as Employee["status"],
     joining_date: (e.joiningDate ?? e.joining_date ?? null) as string | null,
   }));
@@ -55,6 +58,21 @@ export async function updateEmployee(
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
+  });
+}
+
+export interface PayoutVerification {
+  verification_status: "unverified" | "pending" | "verified" | "failed" | "unavailable";
+  bank: { checked: boolean; ok: boolean; unavailable: boolean; detail: string };
+  upi: { checked: boolean; ok: boolean; unavailable: boolean; detail: string };
+}
+
+/** Background verification of an employee's bank/UPI details. Advisory only. */
+export async function verifyEmployee(id: string): Promise<PayoutVerification> {
+  return api<PayoutVerification>(`/api/payroll/employees/${encodeURIComponent(id)}/verify`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({}),
   });
 }
 
@@ -360,11 +378,14 @@ export async function approvePayrollRun(runId: string): Promise<void> {
 
 /* ------------------------------ self service ------------------------------ */
 
-export async function getMyProfile(): Promise<{ employee: Employee | null }> {
-  const data = await api<{ employee: Record<string, unknown> | null }>("/api/payroll/me");
-  if (!data.employee) return { employee: null };
+export async function getMyProfile(): Promise<{ employee: Employee | null; can_manage: boolean }> {
+  const data = await api<{ employee: Record<string, unknown> | null; can_manage?: unknown }>(
+    "/api/payroll/me",
+  );
+  if (!data.employee) return { employee: null, can_manage: data.can_manage === true };
   const e = data.employee;
   return {
+    can_manage: data.can_manage === true,
     employee: {
       id: String(e.id),
       outlet_id: (e.outlet_id as string) ?? null,
@@ -378,6 +399,9 @@ export async function getMyProfile(): Promise<{ employee: Employee | null }> {
       bank_name: ((e as Record<string, unknown>).bankName ?? e.bank_name ?? null) as string | null,
       bank_ifsc: ((e as Record<string, unknown>).bankIfsc ?? e.bank_ifsc ?? null) as string | null,
       upi_id_masked: String(e.upi_id_masked ?? "—"),
+      verification_status: ((e as Record<string, unknown>).verificationStatus ??
+        e.verification_status ??
+        "unverified") as Employee["verification_status"],
       status: e.status as Employee["status"],
       joining_date: ((e as Record<string, unknown>).joiningDate ?? e.joining_date ?? null) as
         | string

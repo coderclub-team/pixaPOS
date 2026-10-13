@@ -17,6 +17,7 @@ export interface Employee {
   bank_name: string | null;
   bank_ifsc: string | null;
   upi_id_masked: string;
+  verification_status: "unverified" | "pending" | "verified" | "failed" | "unavailable";
   status: EmployeeStatus;
   joining_date: string | null;
 }

@@ -27,6 +27,7 @@ vi.mock("@pixa/db", async (importOriginal) => {
 });
 
 import { POST as createEmployee } from "@/app/api/payroll/employees/route";
+import { POST as verifyEmployee } from "@/app/api/payroll/employees/[id]/verify/route";
 import { POST as applyLeave } from "@/app/api/payroll/leaves/route";
 import { POST as approveLeave } from "@/app/api/payroll/leaves/[id]/approve/route";
 import { POST as createPeriod } from "@/app/api/payroll/periods/route";
@@ -181,6 +182,120 @@ describe("payroll API", () => {
       }),
     );
     expect(upiOnly.status).toBe(201);
+  });
+
+  it("verifies payout details via mocked Razorpay (IFSC + VPA)", async () => {
+    // Gateway keys only need to be present — HTTP is mocked below.
+    vi.stubEnv("RAZORPAY_KEY_ID", "rzp_test_verify");
+    vi.stubEnv("RAZORPAY_KEY_SECRET", "verify-secret");
+    const created = await createEmployee(
+      req({
+        name: "Verify Me",
+        employee_code: "EMP099",
+        pay_type: "salary",
+        rate: 25000,
+        payout_mode: "both",
+        bank_account: "50100234567899",
+        bank_name: "HDFC Bank",
+        bank_ifsc: "HDFC0001234",
+        upi_id: "verify.me@okhdfc",
+      }),
+    );
+    expect(created.status).toBe(201);
+    const empId = ((await created.json()) as { employee: { id: string } }).employee.id;
+
+    // NOTE: the Neon HTTP driver also uses global fetch — pass through everything
+    // that is not a Razorpay call.
+    const realFetch = globalThis.fetch;
+    const okFetch = vi.fn(async (url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.startsWith("https://ifsc.razorpay.com/")) {
+        return new Response(JSON.stringify({ BANK: "HDFC Bank", BRANCH: "MUMBAI" }), {
+          status: 200,
+        });
+      }
+      if (u.includes("api.razorpay.com/v1/payments/validate/vpa")) {
+        return new Response(JSON.stringify({ success: true, customer_name: "Verify Me" }), {
+          status: 200,
+        });
+      }
+      return realFetch(u, init);
+    });
+    vi.stubGlobal("fetch", okFetch);
+    try {
+      const res = await verifyEmployee(req({}), {
+        params: Promise.resolve({ id: empId }),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        verification_status: string;
+        bank: { ok: boolean; detail: string };
+        upi: { ok: boolean; detail: string };
+      };
+      expect(body.verification_status).toBe("verified");
+      expect(body.bank.ok).toBe(true);
+      expect(body.upi.ok).toBe(true);
+
+      const database = getTestDb();
+      const [row] = await database
+        .select()
+        .from(employees)
+        .where(eq(employees.employeeCode, "EMP099"));
+      expect(row.verificationStatus).toBe("verified");
+      expect(row.bankIfscBank).toBe("HDFC Bank");
+      expect(row.bankIfscVerifiedAt).toBeTruthy();
+      expect(row.upiHolderName).toBe("Verify Me");
+      expect(row.upiVerifiedAt).toBeTruthy();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("marks verification failed on bad IFSC, unavailable on VPA 4xx", async () => {
+    const created = await createEmployee(
+      req({
+        name: "Bad Details",
+        employee_code: "EMP098",
+        pay_type: "salary",
+        rate: 25000,
+        payout_mode: "both",
+        bank_account: "50100234567898",
+        bank_ifsc: "HDFC0001234",
+        upi_id: "bad@okhdfc",
+      }),
+    );
+    const empId = ((await created.json()) as { employee: { id: string } }).employee.id;
+
+    const realFetch2 = globalThis.fetch;
+    const badFetch = vi.fn(async (url: unknown, init?: RequestInit) => {
+      const u = String(url);
+      if (u.startsWith("https://ifsc.razorpay.com/")) {
+        return new Response("Not Found", { status: 404 });
+      }
+      // UPI-Collect deprecation style response: 4xx => unavailable, not invalid.
+      if (u.includes("api.razorpay.com/")) {
+        return new Response(JSON.stringify({ error: "gone" }), { status: 410 });
+      }
+      return realFetch2(u, init);
+    });
+    vi.stubGlobal("fetch", badFetch);
+    try {
+      const res = await verifyEmployee(req({}), {
+        params: Promise.resolve({ id: empId }),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        verification_status: string;
+        bank: { ok: boolean };
+        upi: { ok: boolean; unavailable: boolean };
+      };
+      expect(body.bank.ok).toBe(false);
+      expect(body.upi.unavailable).toBe(true);
+      // Bad IFSC is a hard failure even though UPI is merely unavailable.
+      expect(body.verification_status).toBe("failed");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("rejects bad pay_type with 400", async () => {

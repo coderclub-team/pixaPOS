@@ -41,12 +41,29 @@ export default function MyPayrollPage() {
   }
 
   if (!employee) {
+    const isManager = profile?.can_manage === true;
     return (
       <PageContainer pageTitle="My Payroll" pageDescription="Payroll — Self service">
         <Card>
           <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            No employee record is linked to your login. Ask your manager to add your email to your
-            employee profile.
+            {isManager ? (
+              <div className="mx-auto flex max-w-md flex-col items-center gap-3">
+                <p className="font-medium text-foreground">No employee record for your login</p>
+                <p>
+                  Owners and managers only see payslips here once they add themselves as an employee
+                  — use your login email so this page links up. Staff management lives under
+                  Employees and Leave Requests.
+                </p>
+                <Link
+                  href="/dashboard/payroll/employees/new"
+                  className={cn(buttonVariants(), "text-xs md:text-sm")}
+                >
+                  <Icons.add className="mr-2 h-4 w-4" /> Add myself as employee
+                </Link>
+              </div>
+            ) : (
+              "No employee record is linked to your login. Ask your manager to add your email to your employee profile."
+            )}
           </CardContent>
         </Card>
       </PageContainer>

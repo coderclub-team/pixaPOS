@@ -8,10 +8,25 @@ import { employeeSchema, type EmployeeFormValues } from "../schemas/payroll";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { createEmployee, updateEmployee } from "../api/service";
+import { createEmployee, updateEmployee, verifyEmployee } from "../api/service";
 import { payrollKeys } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import type { Employee } from "../api/types";
+
+export function verificationLabel(status: Employee["verification_status"] | undefined): string {
+  switch (status) {
+    case "verified":
+      return "Verified ✓";
+    case "failed":
+      return "Failed";
+    case "unavailable":
+      return "Unavailable";
+    case "pending":
+      return "Pending";
+    default:
+      return "Unverified";
+  }
+}
 
 export default function EmployeeForm({ initialData }: { initialData?: Employee }) {
   const router = useRouter();
@@ -41,6 +56,21 @@ export default function EmployeeForm({ initialData }: { initialData?: Employee }
       getQueryClient().invalidateQueries({ queryKey: payrollKeys.employees() });
       toast.success(isEdit ? "Employee updated" : "Employee added");
       router.push("/dashboard/payroll/employees");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const verify = useMutation({
+    mutationFn: () => verifyEmployee(initialData!.id),
+    onSuccess: (r) => {
+      getQueryClient().invalidateQueries({ queryKey: payrollKeys.employees() });
+      const parts = [r.bank.checked && r.bank.detail, r.upi.checked && r.upi.detail].filter(
+        Boolean,
+      );
+      if (r.verification_status === "verified") toast.success(`Verified — ${parts.join(" · ")}`);
+      else if (r.verification_status === "unavailable")
+        toast.warning(`Verification unavailable — ${parts.join(" · ")}`);
+      else toast.error(`Verification failed — ${parts.join(" · ")}`);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -174,6 +204,13 @@ export default function EmployeeForm({ initialData }: { initialData?: Employee }
                 children={(field) => <field.TextField label="Joining Date" type="date" />}
               />
             </div>
+            {isEdit && (
+              <p className="text-xs text-muted-foreground">
+                Payout verification: {verificationLabel(initialData.verification_status)} — free
+                IFSC existence check + UPI ID check via Razorpay. Advisory only; verifies details,
+                not account ownership.
+              </p>
+            )}
             <form.Subscribe
               selector={(s) => s.values.payout_mode}
               children={(mode) => (
@@ -231,6 +268,17 @@ export default function EmployeeForm({ initialData }: { initialData?: Employee }
             <Button type="button" variant="outline" onClick={() => router.back()}>
               Cancel
             </Button>
+            {isEdit && (
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={verify.isPending}
+                onClick={() => verify.mutate()}
+                title="Check IFSC existence and UPI ID via Razorpay (advisory — never blocks saving)"
+              >
+                {verify.isPending ? "Verifying…" : "Verify payout details"}
+              </Button>
+            )}
             <form.AppForm
               children={
                 <form.SubmitButton>{isEdit ? "Update Employee" : "Add Employee"}</form.SubmitButton>

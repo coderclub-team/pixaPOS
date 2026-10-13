@@ -11,6 +11,7 @@ import {
   payrollRuns,
 } from "@pixa/db";
 import { payrollAuth, noStore } from "@/features/payroll/api/authz";
+import { baHas } from "@/lib/auth-session";
 import { decryptBankAccount, maskBankAccount } from "@/lib/bank-crypto";
 import { ensureBalances } from "@/features/payroll/api/server";
 
@@ -41,7 +42,9 @@ export async function GET(req: Request) {
       .where(eq(baUser.id, me.userId))
       .limit(1);
     const emp = await myEmployee(me.organizationId, userRow?.email);
-    if (!emp) return NextResponse.json({ employee: null }, { headers: noStore });
+    const canManage = await baHas("org:payroll:manage").catch(() => false);
+    if (!emp)
+      return NextResponse.json({ employee: null, can_manage: canManage }, { headers: noStore });
 
     let bankMasked = "—";
     try {
@@ -133,7 +136,10 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json(
-      { employee: { ...profile, bank_account_masked: bankMasked, upi_id_masked: upiMasked } },
+      {
+        employee: { ...profile, bank_account_masked: bankMasked, upi_id_masked: upiMasked },
+        can_manage: canManage,
+      },
       { headers: noStore },
     );
   } catch (e) {
