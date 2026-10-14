@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@pixa/db";
 import { ulid } from "@pixa/contracts";
-import { resolveRealtimeAuth } from "@/lib/realtime/auth";
+import { authFailed, resolveRealtimeAuth } from "@/lib/realtime/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,8 @@ function extractRows<T>(result: unknown): T[] {
 
 export async function GET(req: Request) {
   const authRes = await resolveRealtimeAuth(req);
-  if (!authRes.ok) return NextResponse.json({ error: authRes.error }, { status: authRes.status });
+  if (authFailed(authRes))
+    return NextResponse.json({ error: authRes.error }, { status: authRes.status });
   const { outletId, deviceId } = authRes.ctx;
   try {
     const database = db();
@@ -33,7 +34,8 @@ export async function GET(req: Request) {
 
 export async function PUT(req: Request) {
   const authRes = await resolveRealtimeAuth(req);
-  if (!authRes.ok) return NextResponse.json({ error: authRes.error }, { status: authRes.status });
+  if (authFailed(authRes))
+    return NextResponse.json({ error: authRes.error }, { status: authRes.status });
   const { organizationId, outletId, deviceId, userId } = authRes.ctx;
   let body: { prefs?: Record<string, unknown> } = {};
   try {

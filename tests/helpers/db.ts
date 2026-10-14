@@ -10,8 +10,8 @@
  * Isolation: `resetTestDb()` TRUNCATEs all app tables (CASCADE) so each
  * test file starts from a clean slate. Call it in beforeEach/beforeAll.
  */
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
+import { Pool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "../../packages/db/schema";
 import * as authSchema from "../../packages/db/auth-schema";
 import * as saasSchema from "../../packages/db/saas-schema";
@@ -48,11 +48,22 @@ export function requireTestDatabaseUrl(): string {
 }
 
 let cached: ReturnType<typeof drizzle<typeof fullSchema>> | null = null;
+let pool: Pool | null = null;
+
+function testPool(): Pool {
+  if (!pool) {
+    pool = new Pool({ connectionString: requireTestDatabaseUrl(), max: 5 });
+    pool.on("error", (err) => {
+      console.error("[test db] idle pool client error", err instanceof Error ? err.message : err);
+    });
+  }
+  return pool;
+}
 
 /** Drizzle client bound to the test database. Throws unless guards pass. */
 export function getTestDb() {
   if (!cached) {
-    cached = drizzle(neon(requireTestDatabaseUrl()), { schema: fullSchema });
+    cached = drizzle(testPool(), { schema: fullSchema });
   }
   return cached;
 }
@@ -114,9 +125,9 @@ const TRUNCATE_TABLES = [
 /** Wipe all app data in the test database. Safe only via the guards above. */
 export async function resetTestDb(): Promise<void> {
   requireTestDatabaseUrl();
-  const { neon: neonFn } = await import("@neondatabase/serverless");
-  const sql = neonFn(requireTestDatabaseUrl());
-  await sql.query(`TRUNCATE TABLE ${TRUNCATE_TABLES.map((t) => `"${t}"`).join(", ")} CASCADE`, []);
+  await testPool().query(
+    `TRUNCATE TABLE ${TRUNCATE_TABLES.map((t) => `"${t}"`).join(", ")} CASCADE`,
+  );
 }
 
 /** Unique test-scoped id prefix to avoid cross-test collisions. */

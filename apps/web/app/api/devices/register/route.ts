@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@pixa/db";
-import { resolveRealtimeAuth } from "@/lib/realtime/auth";
+import { authFailed, resolveRealtimeAuth } from "@/lib/realtime/auth";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
   }
   // Build a synthetic request with outletId for auth helper if needed
   let authRes = await resolveRealtimeAuth(req);
-  if (!authRes.ok && outletId) {
+  if (authFailed(authRes) && outletId) {
     // retry with explicit outletId in URL
     const syn = new Request(
       `${url.origin}${url.pathname}?outletId=${encodeURIComponent(outletId)}`,
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
     );
     authRes = await resolveRealtimeAuth(syn);
   }
-  if (!authRes.ok) {
+  if (authFailed(authRes)) {
     // Fallback: try raw session to give better error
     try {
       const hdrs = await headers();
@@ -82,9 +82,8 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   const authRes = await resolveRealtimeAuth(req);
-  if (!authRes.ok) {
-    const failed = authRes as { ok: false; status: number; error: string };
-    return NextResponse.json({ error: failed.error }, { status: failed.status });
+  if (authFailed(authRes)) {
+    return NextResponse.json({ error: authRes.error }, { status: authRes.status });
   }
   return NextResponse.json({ ok: true, ...authRes.ctx });
 }

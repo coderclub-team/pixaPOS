@@ -1,6 +1,12 @@
 import { sql } from "drizzle-orm";
 import { db } from "@pixa/db";
 
+if (typeof window !== "undefined") {
+  throw new Error(
+    "lib/realtime/sequence is server-only (imports @pixa/db). Client code must use ./sequence-local instead.",
+  );
+}
+
 /**
  * Per-outlet monotonic sequence.
  * Uses a transaction with SELECT MAX(sequence) FOR UPDATE semantics
@@ -24,7 +30,7 @@ export async function nextOutletSequence(
   const maxRow = (rows as unknown as { rows: Array<Record<string, unknown>> }).rows?.[0] as
     | Record<string, unknown>
     | undefined;
-  // neon-http returns rows differently; handle both shapes
+  // node-postgres returns { rows }; keep the array-shape fallback for safety.
   const rawRows = Array.isArray(rows) ? (rows as unknown as Array<Record<string, unknown>>) : [];
   let maxSeq = 0;
   if (rawRows.length > 0 && rawRows[0] !== undefined) {
@@ -55,17 +61,4 @@ function hashOutletKey(outletId: string): number {
   for (let i = 0; i < outletId.length; i++) h = (Math.imul(31, h) + outletId.charCodeAt(i)) | 0;
   // postgres advisory lock wants bigint; use 32-bit int
   return Math.abs(h) % 2147483647;
-}
-
-export async function nextOutletSequenceLocal(
-  outletId: string,
-  localQuery: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[][] }>,
-  localExec: (sql: string, params?: unknown[]) => Promise<unknown>,
-): Promise<number> {
-  const { rows } = await localQuery(
-    "SELECT COALESCE(MAX(sequence),0) as m FROM events WHERE outlet_id = ?",
-    [outletId],
-  );
-  const maxSeq = Number((rows[0] as unknown[] | undefined)?.[0] ?? 0);
-  return maxSeq + 1;
 }

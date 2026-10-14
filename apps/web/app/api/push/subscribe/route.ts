@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@pixa/db";
-import { resolveRealtimeAuth } from "@/lib/realtime/auth";
+import { authFailed, resolveRealtimeAuth } from "@/lib/realtime/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +30,8 @@ export async function POST(req: Request) {
     { headers: req.headers },
   );
   const authRes = await resolveRealtimeAuth(authReq);
-  if (!authRes.ok) return NextResponse.json({ error: authRes.error }, { status: authRes.status });
+  if (authFailed(authRes))
+    return NextResponse.json({ error: authRes.error }, { status: authRes.status });
   const deviceId = authRes.ctx.deviceId;
   if (!deviceId) return NextResponse.json({ error: "deviceId required" }, { status: 400 });
   try {

@@ -1,11 +1,12 @@
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
+import { Pool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "@pixa/db";
 
 export function adminDb() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");
-  return drizzle(neon(url), { schema });
+  const pool = new Pool({ connectionString: url, max: 5 });
+  return drizzle(pool, { schema });
 }
 
 export function uid(prefix: string) {

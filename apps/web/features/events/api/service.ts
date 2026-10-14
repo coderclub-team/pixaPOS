@@ -246,7 +246,7 @@ export async function recordEvent(params: {
 }): Promise<BusinessEvent> {
   // Local-first path: durable SQLite row + pending outbox command, then notify tabs.
   if (await useSqlite()) {
-    const { nextOutletSequenceLocal } = await import("@/lib/realtime/sequence");
+    const { nextOutletSequenceLocal } = await import("@/lib/realtime/sequence-local");
     const eventId = ulid();
     const sequence = await nextOutletSequenceLocal(params.outlet_id, localQuery, localExec).catch(
       () => 0,
