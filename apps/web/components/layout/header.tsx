@@ -1,9 +1,9 @@
 import React from "react";
 import { SidebarTrigger } from "@pixa/ui/base-ui/sidebar";
 import { Separator } from "@pixa/ui/base-ui/separator";
-import { Breadcrumbs } from "../breadcrumbs";
+import { Breadcrumbs } from "@pixa/ui/breadcrumbs";
 import SearchInput from "../search-input";
-import { ThemeModeToggle } from "../themes/theme-mode-toggle";
+import { ThemeModeToggle } from "@pixa/ui/themes/theme-mode-toggle";
 import TerminalAppsSwitcher from "./terminal-apps-switcher";
 import { NotificationCenter } from "@/features/notifications/components/notification-center";
 import { OutletSwitcher } from "../outlet-switcher";

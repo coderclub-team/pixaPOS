@@ -27,7 +27,7 @@ import {
   DialogTitle,
 } from "@pixa/ui/base-ui/dialog";
 import { Icons } from "@pixa/ui/icons";
-import { SortTh, useSorting } from "@/components/sort-th";
+import { SortTh, useSorting } from "@pixa/ui/sort-th";
 import type { CsvColumn } from "@/features/system/lib/csv";
 
 export const wasteExportColumns: CsvColumn<WasteLog>[] = [

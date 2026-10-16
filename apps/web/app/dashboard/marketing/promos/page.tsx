@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
 import {
   Table,
@@ -17,7 +17,7 @@ import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { StatusDot } from "@pixa/ui/base-ui/status-dot";
 import { formatINR } from "@/lib/money";
-import { SortTh, useSorting } from "@/components/sort-th";
+import { SortTh, useSorting } from "@pixa/ui/sort-th";
 import { ExportButton } from "@/features/system/components/io-dialog";
 import { BulkShareButton } from "@/features/outlet/components/bulk-share-dialog";
 import type { CsvColumn } from "@/features/system/lib/csv";

@@ -1,4 +1,4 @@
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import PaymentForm from "@/features/inventory/components/payment-form";
 import { Suspense } from "react";
 

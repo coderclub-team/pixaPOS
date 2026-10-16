@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "@pixa/ui/base-ui/table";
 import Link from "next/link";
-import { SortTh, useSorting } from "@/components/sort-th";
+import { SortTh, useSorting } from "@pixa/ui/sort-th";
 import type { CsvColumn } from "@/features/system/lib/csv";
 
 export const stockLedgerExportColumns: CsvColumn<StockLedgerEntry>[] = [

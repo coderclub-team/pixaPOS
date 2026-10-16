@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { RunDetail } from "@/features/payroll/components/run-detail";
 
 export default function RunPage({ params }: { params: Promise<{ id: string }> }) {

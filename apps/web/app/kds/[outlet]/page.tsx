@@ -1,4 +1,4 @@
-import { requireBaUser } from "@/lib/auth-session";
+import { requireBaUser } from "@pixa/server";
 import { requireTerminalOutlet } from "@/lib/terminal-outlet";
 import { OutletRouteSync } from "@/components/outlet-route-sync";
 import KdsWallboard from "../wallboard";

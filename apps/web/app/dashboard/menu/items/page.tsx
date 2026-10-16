@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { MenuList } from "@/features/menu/components/menu-list";
 import {
   menuCategoriesQueryOptions,

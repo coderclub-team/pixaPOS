@@ -1,7 +1,7 @@
 import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
 import { getQueryClient } from "@/lib/query-client";
 import { rawMaterialQueryOptions } from "@/features/inventory/api/queries";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import RawMaterialViewPage from "@/features/inventory/components/raw-material-view-page";
 export const metadata = { title: "Dashboard : Raw Material" };
 type PageProps = { params: Promise<{ materialId: string }> };

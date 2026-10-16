@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { db, outletMembers, baMember } from "@pixa/db";
 import { ulid } from "@pixa/contracts";
-import { baHas, baOrgId, baSession } from "@/lib/auth-session";
+import { baHas, baOrgId, baSession } from "@pixa/server";
 
 export const dynamic = "force-dynamic";
 

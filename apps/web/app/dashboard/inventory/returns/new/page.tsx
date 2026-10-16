@@ -1,4 +1,4 @@
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import PurchaseReturnForm from "@/features/inventory/components/purchase-return-form";
 import { Suspense } from "react";
 

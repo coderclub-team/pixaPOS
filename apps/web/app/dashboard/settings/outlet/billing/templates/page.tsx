@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import TemplateForm, { templateToValues } from "@/features/print-studio/components/template-form";
 import ReceiptPreview from "@/features/print-studio/components/receipt-preview";
 import { templateQueryOptions } from "@/features/print-studio/api/queries";

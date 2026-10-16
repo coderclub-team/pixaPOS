@@ -1,7 +1,7 @@
 /**
  * Server identity helpers (Better Auth only).
  */
-import { baHas, baMemberRole, baOrgId, baUser } from "./auth-session";
+import { baHas, baMemberRole, baOrgId, baUser } from "@pixa/server";
 import { hasDevBypass } from "./authz";
 
 export type OrgContext = {
@@ -17,7 +17,7 @@ export async function orgContext(): Promise<OrgContext> {
   if (!bau) return { source: null, orgId: null, role: null, permissions: [] };
   const orgId = await baOrgId();
   const role = orgId ? await baMemberRole(orgId, bau.id) : null;
-  const { ROLE_PERMISSIONS } = await import("@/config/permissions");
+  const { ROLE_PERMISSIONS } = await import("@pixa/server");
   const permissions =
     role === "owner" || role === "org:owner"
       ? Object.values(ROLE_PERMISSIONS).flat()

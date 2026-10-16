@@ -1,7 +1,7 @@
 import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
 import { getQueryClient } from "@/lib/query-client";
 import { recipeQueryOptions } from "@/features/inventory/api/queries";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import RecipeViewPage from "@/features/inventory/components/recipe-view-page";
 
 export const metadata = { title: "Dashboard : Recipe" };

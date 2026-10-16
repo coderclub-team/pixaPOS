@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, outletMembers, outlets } from "@pixa/db";
-import { baMemberRole, baOrgId, baSession } from "@/lib/auth-session";
+import { baMemberRole, baOrgId, baSession } from "@pixa/server";
 import { allowedSurfaces } from "@/lib/surfaces";
 
 export const dynamic = "force-dynamic";

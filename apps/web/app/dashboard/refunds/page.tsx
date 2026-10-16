@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
 import {
@@ -37,7 +37,7 @@ import { paymentKeys, refundsQueryOptions } from "@/features/payments/api/querie
 import type { Refund, RefundWithMethod } from "@/features/payments/api/types";
 import { getQueryClient } from "@/lib/query-client";
 import { useCrossTabSync } from "@/lib/use-cross-tab-sync";
-import { SortTh, useSorting } from "@/components/sort-th";
+import { SortTh, useSorting } from "@pixa/ui/sort-th";
 import { ExportButton } from "@/features/system/components/io-dialog";
 import type { CsvColumn } from "@/features/system/lib/csv";
 

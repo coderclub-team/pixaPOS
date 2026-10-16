@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Drawer as DrawerPrimitive } from "@base-ui/react/drawer";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@pixa/ui/base-ui/tabs";
 import FloorPlanCanvas from "@/features/table/components/floor-plan-canvas";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";

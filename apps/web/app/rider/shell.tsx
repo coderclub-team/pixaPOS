@@ -3,7 +3,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
+import { ThemeModeToggle } from "@pixa/ui/themes/theme-mode-toggle";
 import SyncStatus from "@/components/sync-status";
 import { useCrossTabSync } from "@/lib/use-cross-tab-sync";
 import { getQueryClient } from "@/lib/query-client";

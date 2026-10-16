@@ -1,4 +1,4 @@
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import MenuCategoryForm from "@/features/menu/components/menu-category-form";
 
 export const metadata = { title: "Dashboard : New Category" };

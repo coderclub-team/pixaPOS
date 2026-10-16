@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect, notFound } from "next/navigation";
 import { and, eq } from "drizzle-orm";
-import { auth } from "@/lib/auth";
+import { auth } from "@pixa/server";
 import { baMember, db, outlets } from "@pixa/db";
 import { allowedSurfaces, type SurfaceKey } from "@/lib/surfaces";
 import { userOutletIds } from "@/lib/outlet-access";

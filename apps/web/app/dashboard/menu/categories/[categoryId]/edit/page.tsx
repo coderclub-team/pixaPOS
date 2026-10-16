@@ -1,5 +1,5 @@
 import Link from "next/link";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import MenuCategoryForm from "@/features/menu/components/menu-category-form";
 import { menuCategoryQueryOptions } from "@/features/menu/api/queries";
 import { getQueryClient } from "@/lib/query-client";

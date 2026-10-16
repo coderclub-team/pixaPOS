@@ -33,7 +33,7 @@ import {
 import { cancelSubscription, ensureSubscription } from "../api/service";
 import { billingKeys, invoicesQueryOptions } from "../api/queries";
 import { openRazorpaySubscriptionCheckout } from "../checkout";
-import { SortTh, useSorting } from "@/components/sort-th";
+import { SortTh, useSorting } from "@pixa/ui/sort-th";
 import type { SubscriptionInvoice } from "../api/types";
 import { useIdentity } from "@/hooks/use-identity";
 

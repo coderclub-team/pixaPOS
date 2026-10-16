@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireBaUser } from "@/lib/auth-session";
+import { requireBaUser } from "@pixa/server";
 import { listTerminalOutlets } from "@/lib/terminal-outlet";
 import { EnsureOutletDialog } from "@/components/ensure-outlet-dialog";
 

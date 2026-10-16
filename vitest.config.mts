@@ -29,6 +29,7 @@ export default defineConfig({
       "react-dom": `${import.meta.dirname}/apps/web/node_modules/react-dom`,
       "@pixa/db": `${import.meta.dirname}/packages/db/index.ts`,
       "@pixa/contracts": `${import.meta.dirname}/packages/contracts/index.ts`,
+      "@pixa/server": `${import.meta.dirname}/packages/server/index.ts`,
     },
   },
 });

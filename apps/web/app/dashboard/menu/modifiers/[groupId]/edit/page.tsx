@@ -2,7 +2,7 @@
 
 import { use } from "react";
 import { useQuery } from "@tanstack/react-query";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import ModifierGroupForm from "@/features/menu/components/modifier-group-form";
 import ModifierOptionsManager from "@/features/menu/components/modifier-options-manager";
 import { modifierGroupQueryOptions } from "@/features/menu/api/queries";

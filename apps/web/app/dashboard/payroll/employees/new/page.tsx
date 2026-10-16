@@ -1,4 +1,4 @@
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import EmployeeForm from "@/features/payroll/components/employee-form";
 
 export default function NewEmployeePage() {

@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { RawMaterialList } from "@/features/inventory/components/raw-material-list";
 import { rawMaterialsQueryOptions } from "@/features/inventory/api/queries";
 import { useQuery } from "@tanstack/react-query";

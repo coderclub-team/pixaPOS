@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { POS_PERMISSION_META } from "@/config/permissions";
+import { POS_PERMISSION_META } from "@pixa/server/permissions";
 import { assertAnySuperAdmin } from "@/lib/auth-server";
 import {
   assignPermissionToRole,

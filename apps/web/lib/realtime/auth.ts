@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { auth } from "@pixa/server";
 import { db, baMember } from "@pixa/db";
 import { eq, and } from "drizzle-orm";
 

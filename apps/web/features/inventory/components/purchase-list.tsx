@@ -47,7 +47,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@pixa/ui/base-ui/select";
-import { SortTh, useSorting } from "@/components/sort-th";
+import { SortTh, useSorting } from "@pixa/ui/sort-th";
 import type { CsvColumn } from "@/features/system/lib/csv";
 
 function statusClass(s: string) {

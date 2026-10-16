@@ -6,7 +6,7 @@ import { Button } from "@pixa/ui/base-ui/button";
 import { Label } from "@pixa/ui/base-ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { FieldGroup } from "@pixa/ui/base-ui/field";
-import { useAppForm } from "@/lib/form";
+import { useAppForm } from "@pixa/forms";
 import { getCustomerById, updateCustomer } from "../api/service";
 import { setCustomerNotes } from "@/features/orders/api/service";
 import { customerKeys } from "../api/queries";

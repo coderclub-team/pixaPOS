@@ -24,7 +24,7 @@ import { Icons } from "@pixa/ui/icons";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { getQueryClient } from "@/lib/query-client";
-import { SortTh, useSorting } from "@/components/sort-th";
+import { SortTh, useSorting } from "@pixa/ui/sort-th";
 import { verificationLabel } from "./employee-form";
 import { payrollKeys } from "../api/queries";
 import { updateEmployee, verifyEmployee } from "../api/service";

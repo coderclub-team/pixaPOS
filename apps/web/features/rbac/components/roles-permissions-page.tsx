@@ -24,14 +24,14 @@ import {
   TableRow,
 } from "@pixa/ui/base-ui/table";
 import { Icons } from "@pixa/ui/icons";
-import { POS_PERMISSION_META } from "@/config/permissions";
+import { POS_PERMISSION_META } from "@pixa/server/permissions";
 import {
   setRolePermissionAction,
   syncPosPermissionsAction,
   updateMemberRoleAction,
 } from "../actions";
 import type { OrgMember, RolesPermissionsData } from "../api/types";
-import { SortTh, useSorting } from "@/components/sort-th";
+import { SortTh, useSorting } from "@pixa/ui/sort-th";
 
 function displayName(member: OrgMember) {
   const name = [member.firstName, member.lastName].filter(Boolean).join(" ");

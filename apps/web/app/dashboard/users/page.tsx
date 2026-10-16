@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { UserList, userExportColumns } from "@/features/users/components/user-list";
 import { usersQueryOptions } from "@/features/users/api/queries";
 import { useQuery } from "@tanstack/react-query";

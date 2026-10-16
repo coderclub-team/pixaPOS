@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { FieldGroup } from "@pixa/ui/base-ui/field";
-import { useAppForm } from "@/lib/form";
+import { useAppForm } from "@pixa/forms";
 import { fssaiSchema, type FSSAIValues } from "../schemas/outlet";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateOutlet } from "../api/service";

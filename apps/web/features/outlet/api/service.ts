@@ -265,7 +265,7 @@ export async function checkKioskPin(
 ): Promise<boolean> {
   await delay(200);
   if (!/^[0-9]{4,8}$/.test(pin)) return false;
-  const { hashKioskPin } = await import("@/lib/device-token");
+  const { hashKioskPin } = await import("@pixa/server/device-token");
   // Verify (or first-set) against the server hash so every kiosk of the
   // outlet shares one PIN.
   try {

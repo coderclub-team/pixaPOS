@@ -5,7 +5,7 @@ import DashboardGuards from "./guards";
 import { InfoSidebar } from "@/components/layout/info-sidebar";
 import { InfobarProvider } from "@pixa/ui/base-ui/infobar";
 import { SidebarInset, SidebarProvider } from "@pixa/ui/base-ui/sidebar";
-import { requireBaUser } from "@/lib/auth-session";
+import { requireBaUser } from "@pixa/server";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";

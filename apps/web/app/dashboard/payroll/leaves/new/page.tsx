@@ -1,6 +1,6 @@
 "use client";
 
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import LeaveApplyForm from "@/features/payroll/components/leave-apply-form";
 import { employeesQueryOptions, leaveTypesQueryOptions } from "@/features/payroll/api/queries";
 import { useQuery } from "@tanstack/react-query";

@@ -27,6 +27,7 @@
     "format:check": "pnpm -w exec oxfmt --check . '!**/*.md' '!**/*.mdc' '!**/*.mdx' '!**/*.yml' '!**/*.yaml' '!apps/template/.agents/**' '!apps/template/.claude/**'",
     "typecheck": "turbo run typecheck",
     "dev:web": "pnpm --filter @pixa/web dev",
+    "dev:admin": "pnpm --filter @pixa/admin dev",
     "dev:web:https": "pnpm --filter @pixa/web dev:https",
     "dev:web:domain": "pnpm --filter @pixa/web dev:domain",
     "dev:admin": "pnpm --filter @pixa/admin dev",

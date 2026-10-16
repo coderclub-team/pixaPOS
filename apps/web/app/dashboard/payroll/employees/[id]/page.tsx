@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import EmployeeForm from "@/features/payroll/components/employee-form";
 import { employeesQueryOptions } from "@/features/payroll/api/queries";
 import { useQuery } from "@tanstack/react-query";

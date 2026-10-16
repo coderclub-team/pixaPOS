@@ -10,16 +10,20 @@ const { mockBaSession, mockBaOrgId, mockBaHas } = vi.hoisted(() => ({
   mockBaOrgId: vi.fn(),
   mockBaHas: vi.fn(),
 }));
-vi.mock("@/lib/auth-session", () => ({
-  baSession: mockBaSession,
-  baOrgId: mockBaOrgId,
-  baHas: mockBaHas,
-  baUser: vi.fn(async () => null),
-  baMemberRole: vi.fn(async () => null),
-  requireBaUser: vi.fn(async () => {
-    throw new Error("redirect");
-  }),
-}));
+vi.mock("@pixa/server", async (importOriginal) => {
+  const original = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...original,
+    baSession: mockBaSession,
+    baOrgId: mockBaOrgId,
+    baHas: mockBaHas,
+    baUser: vi.fn(async () => null),
+    baMemberRole: vi.fn(async () => null),
+    requireBaUser: vi.fn(async () => {
+      throw new Error("redirect");
+    }),
+  };
+});
 vi.mock("@pixa/db", async (importOriginal) => {
   const original = (await importOriginal()) as Record<string, unknown>;
   const { getTestDb } = await import("../helpers/db");

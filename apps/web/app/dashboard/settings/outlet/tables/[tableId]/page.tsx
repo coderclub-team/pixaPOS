@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import TableViewPage from "@/features/table/components/table-view-page";
 import { orgHasOutlets } from "@/features/outlet/api/server-outlets";
 

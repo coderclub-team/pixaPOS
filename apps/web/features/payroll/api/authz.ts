@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { baHas, baOrgId, baSession } from "@/lib/auth-session";
+import { baHas, baOrgId, baSession } from "@pixa/server";
 
 /** Session + active-org gate shared by all payroll routes. */
 export async function payrollAuth(

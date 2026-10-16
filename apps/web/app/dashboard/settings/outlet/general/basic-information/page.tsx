@@ -1,6 +1,6 @@
 "use client";
 
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import BasicInformationForm from "@/features/outlet/components/basic-information-form";
 import { outletQueryOptions } from "@/features/outlet/api/queries";
 import { useQuery } from "@tanstack/react-query";

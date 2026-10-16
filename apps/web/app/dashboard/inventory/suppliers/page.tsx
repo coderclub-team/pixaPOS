@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { SupplierList } from "@/features/inventory/components/supplier-list";
 import { suppliersQueryOptions } from "@/features/inventory/api/queries";
 import { useQuery } from "@tanstack/react-query";

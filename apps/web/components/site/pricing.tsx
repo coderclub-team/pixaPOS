@@ -14,7 +14,7 @@ import {
 } from "@/lib/site/plans";
 import SectionTitle from "@/components/site/section-title";
 import type { LimitMap } from "@pixa/db/plans";
-import { formatBytes } from "@/lib/usage-types";
+import { formatBytes } from "@pixa/server/usage-types";
 import { cn } from "@pixa/ui/lib/utils";
 
 /** Differentiating usage/Neon quotas — Starter and Growth share features but not limits. */

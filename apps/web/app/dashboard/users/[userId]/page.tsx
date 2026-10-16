@@ -1,7 +1,7 @@
 import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
 import { getQueryClient } from "@/lib/query-client";
 import { userQueryOptions } from "@/features/users/api/queries";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import UserViewPage from "@/features/users/components/user-view-page";
 
 export const metadata = {

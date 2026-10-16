@@ -3,11 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { FieldGroup } from "@pixa/ui/base-ui/field";
-import { useAppForm } from "@/lib/form";
+import { useAppForm } from "@pixa/forms";
 import { outletKeys, outletsQueryOptions } from "@/features/outlet/api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import { useQuery } from "@tanstack/react-query";

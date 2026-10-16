@@ -34,7 +34,7 @@ import { inventoryKeys } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { SortTh, useSorting } from "@/components/sort-th";
+import { SortTh, useSorting } from "@pixa/ui/sort-th";
 
 export function SupplierList({ suppliers }: { suppliers: Supplier[] }) {
   const { sortKey, sortDir, toggle, sorted } = useSorting<Supplier>("name");

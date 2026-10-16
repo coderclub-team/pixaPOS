@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import OrderForm from "./order-form";
 import OrderWorkspacePage from "./order-workspace";
 import { deleteOrder, getOrderById } from "../api/service";

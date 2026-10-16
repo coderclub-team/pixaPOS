@@ -13,7 +13,7 @@ import {
   CommandItem,
   CommandList,
 } from "@pixa/ui/base-ui/command";
-import { useAppForm } from "@/lib/form";
+import { useAppForm } from "@pixa/forms";
 import { wasteSchema, type WasteValues } from "../schemas/waste";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";

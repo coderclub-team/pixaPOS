@@ -1,4 +1,4 @@
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import WasteForm from "@/features/inventory/components/waste-form";
 import { anyHas } from "@/lib/auth-server";
 import { redirect } from "next/navigation";

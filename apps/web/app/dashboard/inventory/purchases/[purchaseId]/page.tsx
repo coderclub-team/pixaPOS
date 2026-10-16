@@ -1,4 +1,4 @@
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import PurchaseEditPage from "@/features/inventory/components/purchase-edit-page";
 
 export const metadata = { title: "Dashboard : Purchase" };

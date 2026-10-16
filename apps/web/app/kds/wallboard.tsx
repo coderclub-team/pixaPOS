@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Icons } from "@pixa/ui/icons";
-import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
+import { ThemeModeToggle } from "@pixa/ui/themes/theme-mode-toggle";
 import SyncStatus from "@/components/sync-status";
 import { RealtimeConnectionStatus } from "@/components/realtime-connection-status";
 import { PixaSoundControl } from "@/components/pixa-sound-control";

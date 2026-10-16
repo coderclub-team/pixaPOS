@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { baHas, baOrgId, baSession } from "@/lib/auth-session";
-import { signDeviceToken } from "@/lib/device-token";
+import { baHas, baOrgId, baSession } from "@pixa/server";
+import { signDeviceToken } from "@pixa/server";
 import { checkKioskPin, getOutletById } from "@/features/outlet/api/service";
 
 const COOKIE_ATTRS = `Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
   try {
     orgId = await baOrgId();
     if (orgId) {
-      const { baMemberRole } = await import("@/lib/auth-session");
+      const { baMemberRole } = await import("@pixa/server");
       role = await baMemberRole(orgId, session.user.id);
     }
   } catch {

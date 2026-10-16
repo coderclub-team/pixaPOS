@@ -1,6 +1,6 @@
 "use client";
 
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import TimezoneForm from "@/features/outlet/components/timezone-form";
 import { outletQueryOptions } from "@/features/outlet/api/queries";
 import { useQuery } from "@tanstack/react-query";

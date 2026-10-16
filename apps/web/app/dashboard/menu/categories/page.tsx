@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { menuCategoriesQueryOptions } from "@/features/menu/api/queries";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { deleteMenuCategory, updateMenuCategory } from "@/features/menu/api/service";
@@ -48,7 +48,7 @@ import { Label } from "@pixa/ui/base-ui/label";
 import Link from "next/link";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
 import { cn } from "@pixa/ui/lib/utils";
-import { SortTh, useSorting } from "@/components/sort-th";
+import { SortTh, useSorting } from "@pixa/ui/sort-th";
 import { ExportButton, ImportDialog } from "@/features/system/components/io-dialog";
 import { BulkShareButton } from "@/features/outlet/components/bulk-share-dialog";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import BusinessHoursForm from "@/features/outlet/components/business-hours-form";
 import { outletQueryOptions } from "@/features/outlet/api/queries";
 import { defaultBusinessHours } from "@/features/outlet/api/service";

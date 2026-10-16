@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import MenuEditView from "@/features/menu/components/menu-edit-view";
 
 type Props = { params: Promise<{ itemId: string }> };

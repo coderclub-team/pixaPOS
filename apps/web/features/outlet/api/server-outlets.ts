@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, outlets } from "@pixa/db";
-import { baOrgId } from "@/lib/auth-session";
+import { baOrgId } from "@pixa/server";
 
 /**
  * Server-side check: does the caller's active organization have at least one

@@ -11,7 +11,7 @@ import {
   payrollRuns,
 } from "@pixa/db";
 import { payrollAuth, noStore } from "@/features/payroll/api/authz";
-import { baHas } from "@/lib/auth-session";
+import { baHas } from "@pixa/server";
 import { decryptBankAccount, maskBankAccount } from "@/lib/bank-crypto";
 import { ensureBalances } from "@/features/payroll/api/server";
 

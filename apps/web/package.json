@@ -22,6 +22,8 @@
     "@neondatabase/serverless": "^1.1.0",
     "@pixa/contracts": "workspace:*",
     "@pixa/db": "workspace:*",
+    "@pixa/forms": "workspace:*",
+    "@pixa/server": "workspace:*",
     "@pixa/ui": "workspace:*",
     "@tabler/icons-react": "^3.40.0",
     "@tailwindcss/postcss": "^4.2.2",

@@ -6,7 +6,14 @@ inventory, tables, customers, reporting, and multi-outlet administration.
 ## Workspace ownership
 
 - `apps/web` is the current POS and back-office reference implementation.
-- `apps/admin` will own organisation and multi-outlet administration.
+- `apps/admin` owns organisation and multi-outlet administration (standalone
+  Next app on :3001, `pnpm dev:admin`, deploy surface `admin.pixapos.store`).
+  Both apps share `@pixa/ui` (primitives), `@pixa/forms` (form fields),
+  `@pixa/server` (server-only: auth, sessions, SaaS, usage — never import
+  its root from client components; use the pure `permissions`,
+  `usage-types`, `device-token` subpaths instead), and `@pixa/db` plans
+  subpath for pure plan data. Server-only modules must never enter the
+  client bundle (`pg` needs node builtins) — keep the split strict.
 - `apps/mobile` will serve staff workflows; do not copy web components into it.
 - `apps/template` is a reusable starter/reference, not a production source of truth.
 - `packages/ui` owns reusable design tokens and platform primitives. Web uses

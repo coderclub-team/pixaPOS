@@ -1,7 +1,7 @@
 import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
 import { getQueryClient } from "@/lib/query-client";
 import { supplierQueryOptions } from "@/features/inventory/api/queries";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import SupplierViewPage from "@/features/inventory/components/supplier-view-page";
 
 export const metadata = { title: "Dashboard : Supplier" };

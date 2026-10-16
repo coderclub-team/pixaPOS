@@ -9,7 +9,7 @@ import {
   outletKitchenStations,
 } from "@pixa/db";
 import { ulid } from "@pixa/contracts";
-import { baSession } from "@/lib/auth-session";
+import { baSession } from "@pixa/server";
 import { indiaLockError } from "@/lib/geo";
 
 const uid = (p: string) =>

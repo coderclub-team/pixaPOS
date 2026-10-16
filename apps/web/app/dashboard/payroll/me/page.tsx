@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
 import { Badge } from "@pixa/ui/base-ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";

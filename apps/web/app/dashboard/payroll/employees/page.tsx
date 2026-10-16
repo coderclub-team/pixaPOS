@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
 import { Input } from "@pixa/ui/base-ui/input";
 import {

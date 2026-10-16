@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { FloorList } from "@/features/floor/components/floor-list";
 import { floorsQueryOptions } from "@/features/floor/api/queries";
 import { useQuery } from "@tanstack/react-query";

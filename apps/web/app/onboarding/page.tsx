@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { requireBaUser } from "@/lib/auth-session";
+import { requireBaUser } from "@pixa/server";
 import OnboardingForm from "./form";
 
 export const metadata: Metadata = {

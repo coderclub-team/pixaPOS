@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { auth } from "@/lib/auth";
-import { readDeviceCookie, verifyDeviceToken } from "@/lib/device-token";
+import { auth } from "@pixa/server";
+import { readDeviceCookie, verifyDeviceToken } from "@pixa/server";
 import { resolveSurfaceRoute } from "@/lib/hosts";
 
 // Session attach + app gates. Public paths: auth pages, API auth,

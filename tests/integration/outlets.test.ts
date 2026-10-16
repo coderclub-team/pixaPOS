@@ -12,7 +12,16 @@ const { mockGetSession, mockBaHas, mockBaOrgId } = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/auth", () => ({ auth: { api: { getSession: mockGetSession } } }));
 vi.mock("next/headers", () => ({ headers: vi.fn(async () => new Headers()) }));
-vi.mock("@/lib/auth-session", () => ({ baHas: mockBaHas, baOrgId: mockBaOrgId }));
+vi.mock("@pixa/server", async (importOriginal) => {
+  const original = (await importOriginal()) as Record<string, unknown>;
+  const origAuth = original.auth as { api: Record<string, unknown> };
+  return {
+    ...original,
+    auth: { api: { ...origAuth.api, getSession: mockGetSession } },
+    baHas: mockBaHas,
+    baOrgId: mockBaOrgId,
+  };
+});
 // Route the app's db() at the isolated test database without aliasing
 // DATABASE_URL (which would trip the production guard). Schema exports
 // pass through untouched.

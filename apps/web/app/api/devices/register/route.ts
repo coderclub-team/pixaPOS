@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@pixa/db";
 import { authFailed, resolveRealtimeAuth } from "@/lib/realtime/auth";
-import { auth } from "@/lib/auth";
+import { auth } from "@pixa/server";
 import { headers } from "next/headers";
 
 export const dynamic = "force-dynamic";

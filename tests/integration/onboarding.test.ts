@@ -7,7 +7,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 
 const { mockBaSession } = vi.hoisted(() => ({ mockBaSession: vi.fn() }));
-vi.mock("@/lib/auth-session", () => ({ baSession: mockBaSession }));
+vi.mock("@pixa/server", async (importOriginal) => {
+  const original = (await importOriginal()) as Record<string, unknown>;
+  return { ...original, baSession: mockBaSession };
+});
 // Route the app's db() at the isolated test database without aliasing
 // DATABASE_URL (which would trip the production guard). Schema exports
 // pass through untouched.

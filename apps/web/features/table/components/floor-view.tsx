@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { floorsQueryOptions } from "@/features/floor/api/queries";

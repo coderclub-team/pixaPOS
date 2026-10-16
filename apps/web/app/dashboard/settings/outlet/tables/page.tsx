@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { TableList } from "@/features/table/components/table-list";
 import { tablesQueryOptions } from "@/features/table/api/queries";
 import type { TableStatus } from "@/features/table/api/types";
