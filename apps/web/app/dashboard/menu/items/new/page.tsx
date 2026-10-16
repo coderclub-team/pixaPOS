@@ -1,4 +1,4 @@
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import MenuForm from "@/features/menu/components/menu-form";
 
 export const metadata = { title: "Dashboard : New Product" };

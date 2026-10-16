@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { baMemberRole, baOrgId, baUser } from "@/lib/auth-session";
+import { baMemberRole, baOrgId, baUser } from "@pixa/server";
 
 /**
  * Dashboard home: role fast-paths stay (wall tablets must land directly),

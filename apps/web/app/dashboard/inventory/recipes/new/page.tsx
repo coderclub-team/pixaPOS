@@ -1,4 +1,4 @@
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import RecipeForm from "@/features/inventory/components/recipe-form";
 
 export const metadata = { title: "Dashboard : New Recipe" };

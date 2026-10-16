@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import PromoForm from "@/features/promos/components/promo-form";
 import { promoQueryOptions } from "@/features/promos/api/queries";
 

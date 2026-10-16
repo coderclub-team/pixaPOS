@@ -34,7 +34,7 @@ import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { SortTh, useSorting } from "@/components/sort-th";
+import { SortTh, useSorting } from "@pixa/ui/sort-th";
 
 export function RawMaterialList({ materials }: { materials: RawMaterial[] }) {
   const { sortKey, sortDir, toggle, sorted } = useSorting<RawMaterial>("name");

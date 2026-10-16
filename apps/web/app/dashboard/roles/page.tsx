@@ -1,4 +1,4 @@
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { RolesPermissionsPage } from "@/features/rbac/components/roles-permissions-page";
 import { getRolesPermissionsData } from "@/features/rbac/api/service";
 import { orgContext } from "@/lib/auth-server";

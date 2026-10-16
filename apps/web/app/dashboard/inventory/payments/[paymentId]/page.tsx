@@ -1,4 +1,4 @@
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import PaymentDetail from "@/features/inventory/components/payment-detail";
 
 export const metadata = { title: "Dashboard : Payment" };

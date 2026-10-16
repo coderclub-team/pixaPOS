@@ -126,7 +126,7 @@ export type MenuItemPayload = Partial<
   };
 
 // Filters
-export type MenuCategoryFilters = { search?: string; is_active?: boolean };
+export type MenuCategoryFilters = { search?: string; is_active?: boolean; outlet_id?: string };
 export type MenuItemFilters = {
   search?: string;
   category_id?: string;
@@ -134,4 +134,6 @@ export type MenuItemFilters = {
   channel?: Channel;
   item_type?: ItemType;
   is_active?: boolean;
+  /** When set, hides items unavailable in the outlet and applies price overrides. */
+  outlet_id?: string;
 };

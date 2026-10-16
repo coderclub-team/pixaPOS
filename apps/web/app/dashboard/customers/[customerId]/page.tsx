@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import CustomerViewPage from "@/features/customers/components/customer-view-page";
 
 type PageProps = { params: Promise<{ customerId: string }> };

@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { menuCategoriesQueryOptions } from "@/features/menu/api/queries";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { deleteMenuCategory, updateMenuCategory } from "@/features/menu/api/service";
@@ -48,8 +48,10 @@ import { Label } from "@pixa/ui/base-ui/label";
 import Link from "next/link";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
 import { cn } from "@pixa/ui/lib/utils";
-import { SortTh, useSorting } from "@/components/sort-th";
+import { SortTh, useSorting } from "@pixa/ui/sort-th";
 import { ExportButton, ImportDialog } from "@/features/system/components/io-dialog";
+import { BulkShareButton } from "@/features/outlet/components/bulk-share-dialog";
+
 import {
   importMenuCategories,
   menuCategoryColumns,
@@ -155,121 +157,145 @@ export default function CategoriesPage() {
             onImport={importMenuCategories}
             onDone={() => getQueryClient().invalidateQueries({ queryKey: menuKeys.all })}
           />
-        </span>
+          <BulkShareButton
+            entity="category"
+            items={(cats ?? []).map((c) => ({ id: c.id, name: c.name }))}
+          />
+        </span>{" "}
       </div>
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>
-                  <SortTh
-                    label="Name"
-                    column="name"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggle}
-                  />
-                </TableHead>
-                <TableHead>
-                  <SortTh
-                    label="Slug"
-                    column="slug"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggle}
-                  />
-                </TableHead>
-                <TableHead>
-                  <SortTh
-                    label="Sort Order"
-                    column="sort_order"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggle}
-                  />
-                </TableHead>
-                <TableHead>
-                  <SortTh
-                    label="Status"
-                    column="status"
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onToggle={toggle}
-                  />
-                </TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {c.image_url ? (
-                        <img
-                          src={c.image_url}
-                          alt={c.name}
-                          className="size-6 rounded object-cover"
-                        />
-                      ) : (
-                        <span className="size-6 rounded bg-muted" />
-                      )}
-                      <span>{c.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">{c.slug}</TableCell>
-                  <TableCell className="text-sm">{c.sort_order ?? "-"}</TableCell>
-                  <TableCell>
-                    <StatusDot isActive={c.is_active} />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu modal={false}>
-                      <DropdownMenuTrigger
-                        render={<Button variant="ghost" className="h-8 w-8 p-0" />}
-                      >
-                        <Icons.ellipsis className="h-4 w-4" />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuGroup>
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        </DropdownMenuGroup>
-                        <DropdownMenuGroup>
-                          <DropdownMenuItem
-                            onClick={() =>
-                              (window.location.href = `/dashboard/menu/categories/${c.id}/edit`)
-                            }
-                          >
-                            <Icons.edit className="mr-2 h-4 w-4" /> Update (Page)
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setEditId(c.id);
-                              setEditName(c.name);
-                              setEditActive(c.is_active);
-                              setEditOpen(true);
-                            }}
-                          >
-                            <Icons.edit className="mr-2 h-4 w-4" /> Quick Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setDeleteId(c.id);
-                              setDeleteOpen(true);
-                            }}
-                          >
-                            <Icons.trash className="mr-2 h-4 w-4" /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuGroup>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+      {rows.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <div className="mx-auto flex max-w-md flex-col items-center gap-3">
+              <div className="rounded-full border border-dashed p-3">
+                <Icons.tag className="size-6 text-muted-foreground" />
+              </div>
+              <p className="font-medium">
+                {search || status ? "No categories match" : "No categories yet"}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {search || status
+                  ? "Try a different search or status filter."
+                  : "Create categories — e.g., Starters, Biryani, Beverages — then add products to them."}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>
+                    <SortTh
+                      label="Name"
+                      column="name"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Slug"
+                      column="slug"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Sort Order"
+                      column="sort_order"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead>
+                    <SortTh
+                      label="Status"
+                      column="status"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onToggle={toggle}
+                    />
+                  </TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              </TableHeader>
+              <TableBody>
+                {rows.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {c.image_url ? (
+                          <img
+                            src={c.image_url}
+                            alt={c.name}
+                            className="size-6 rounded object-cover"
+                          />
+                        ) : (
+                          <span className="size-6 rounded bg-muted" />
+                        )}
+                        <span>{c.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">{c.slug}</TableCell>
+                    <TableCell className="text-sm">{c.sort_order ?? "-"}</TableCell>
+                    <TableCell>
+                      <StatusDot isActive={c.is_active} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu modal={false}>
+                        <DropdownMenuTrigger
+                          render={<Button variant="ghost" className="h-8 w-8 p-0" />}
+                        >
+                          <Icons.ellipsis className="h-4 w-4" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuGroup>
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          </DropdownMenuGroup>
+                          <DropdownMenuGroup>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                (window.location.href = `/dashboard/menu/categories/${c.id}/edit`)
+                              }
+                            >
+                              <Icons.edit className="mr-2 h-4 w-4" /> Update (Page)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setEditId(c.id);
+                                setEditName(c.name);
+                                setEditActive(c.is_active);
+                                setEditOpen(true);
+                              }}
+                            >
+                              <Icons.edit className="mr-2 h-4 w-4" /> Quick Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setDeleteId(c.id);
+                                setDeleteOpen(true);
+                              }}
+                            >
+                              <Icons.trash className="mr-2 h-4 w-4" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent>
           <DialogHeader>

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { adminDb, uid } from "@/lib/saas-admin";
+import { adminDb, uid } from "@pixa/server";
 import { saasAudit, saasLeads } from "@pixa/db";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

@@ -171,14 +171,21 @@ layer(base);
     animation: fadeUp 0.7s ease-out both;
   }
 
+  /* Scroll reveal: visible by default; JS adds .is-hidden only to
+     below-the-fold elements and removes it on intersect. Content can never
+     get stuck invisible when JS is off or the observer misbehaves. */
   [data-reveal] {
-    opacity: 0;
-    transform: translateY(24px) scale(0.98);
     transition:
       opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
       transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
+  [data-reveal].is-hidden {
+    opacity: 0;
+    transform: translateY(24px) scale(0.98);
+  }
+
+  /* Legacy marker (no-op): reveal is now default-visible. */
   [data-reveal].visible {
     opacity: 1;
     transform: translateY(0) scale(1);

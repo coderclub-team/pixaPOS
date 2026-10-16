@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient, baOrgs } from "@/lib/auth-client";
-import { ROLE_PERMISSIONS } from "@/config/permissions";
+import { ROLE_PERMISSIONS } from "@pixa/server/permissions";
 
 export type IdentitySource = "better" | null;
 

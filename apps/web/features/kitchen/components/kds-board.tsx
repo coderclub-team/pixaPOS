@@ -39,6 +39,8 @@ import type { KitchenTicketWithDerived, KOTStatus } from "@/features/kitchen/api
 import { getQueryClient } from "@/lib/query-client";
 import { useCrossTabSync } from "@/lib/use-cross-tab-sync";
 import { useKitchenFeed } from "@/features/kitchen/api/use-kitchen-feed";
+import { useRealtimeBootstrap } from "@/hooks/use-realtime-bootstrap";
+import { RealtimeConnectionStatus } from "@/components/realtime-connection-status";
 import { toast } from "sonner";
 import { RecipeDialogButton } from "./recipe-dialog";
 
@@ -84,7 +86,17 @@ const COLUMN_LABEL: Record<KOTStatus, string> = {
  */
 export default function KdsBoard({ compact = false }: { compact?: boolean }) {
   useCrossTabSync();
-  const feed = useKitchenFeed();
+  const legacyFeed = useKitchenFeed();
+  const [stationFilter, setStationFilter] = useState<string>("ALL");
+  const {
+    state: rtState,
+    lastSequence,
+    outletId,
+  } = useRealtimeBootstrap({
+    terminalType: "KDS",
+    stationIds: stationFilter !== "ALL" ? [stationFilter] : undefined,
+  });
+  const feed = rtState === "live" ? "live" : legacyFeed;
   const [filter, setFilter] = useState<BoardFilter>("ALL");
   const [channel, setChannel] = useState<BoardChannel>("ALL");
   const [view, setViewState] = useState<BoardView>(() => {
@@ -102,10 +114,24 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
     } catch {}
   };
 
+  const { data: stationsData } = useQuery({
+    queryKey: ["outlet-stations", outletId],
+    queryFn: async () => {
+      const res = await fetch(`/api/outlets/stations?outletId=${encodeURIComponent(outletId)}`, {
+        credentials: "include",
+      });
+      if (!res.ok) return { stations: [] as { id: string; name: string }[] };
+      return (await res.json()) as { stations: { id: string; name: string }[] };
+    },
+    enabled: !!outletId,
+    staleTime: 30000,
+  });
+  const stations = stationsData?.stations ?? [];
+
   // Fetch all tickets; tabs filter client-side so counts and
   // tab switches are instant. The board is live across dates — an open
-  // ticket stays visible until served, whenever it was fired. Live SSE feed
-  // (useKitchenFeed) pushes invalidations; the poll below is the offline
+  // ticket stays visible until served, whenever it was fired. Realtime SSE
+  // (useRealtimeBootstrap) pushes invalidations; the poll below is the offline
   // fallback and slows down while the stream is healthy.
   const {
     data: tickets,
@@ -114,8 +140,8 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
     error,
     refetch,
   } = useQuery({
-    ...kitchenTicketsQueryOptions({}),
-    refetchInterval: feed === "live" ? 30000 : 5000,
+    ...kitchenTicketsQueryOptions({ outlet_id: outletId }),
+    refetchInterval: rtState === "live" ? 30000 : 5000,
     retry: 2,
     placeholderData: (prev) => prev,
   });
@@ -127,7 +153,10 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
   const live = (tickets ?? []).filter((t) => t.status !== "SERVED" && t.status !== "CANCELLED");
   // Rider names live on the order, not the ticket — one orders read builds
   // the lookup so delivery cards can show who owns the run.
-  const ordersQuery = useQuery({ ...ordersQueryOptions(), staleTime: 15000 });
+  const ordersQuery = useQuery({
+    ...ordersQueryOptions({ outlet_id: outletId }),
+    staleTime: 15000,
+  });
   const riderByOrder = useMemo(() => {
     const map = new Map<string, string>();
     for (const o of ordersQuery.data ?? []) {
@@ -137,7 +166,12 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
   }, [ordersQuery.data]);
   const scoped = live.filter(
     (t) =>
-      (filter === "ALL" || t.status === filter) && (channel === "ALL" || t.channel === channel),
+      (filter === "ALL" || t.status === filter) &&
+      (channel === "ALL" || t.channel === channel) &&
+      (stationFilter === "ALL" ||
+        !t.station_ids ||
+        t.station_ids.length === 0 ||
+        t.station_ids.includes(stationFilter)),
   );
   const countFor = (s: BoardFilter) =>
     s === "ALL" ? live.length : live.filter((t) => t.status === s).length;
@@ -198,19 +232,7 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
         >
           Refresh board
         </Button>
-        <span
-          title={feed === "live" ? "Live stream connected" : "Polling fallback"}
-          className="flex items-center gap-1 text-[11px] text-muted-foreground"
-        >
-          <span
-            className={
-              feed === "live"
-                ? "size-1.5 rounded-full bg-emerald-500"
-                : "size-1.5 rounded-full bg-zinc-400"
-            }
-          />
-          {feed === "live" ? "Live" : "Polling"}
-        </span>
+        <RealtimeConnectionStatus state={rtState} lastSequence={lastSequence} />
       </div>
       <div className="mb-4 hidden flex-wrap items-center gap-1.5 sm:flex">
         {TABS.map((c) => (
@@ -235,6 +257,24 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
             {c.label}
           </Button>
         ))}
+        {stations.length > 0 && (
+          <>
+            <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden />
+            <Select value={stationFilter} onValueChange={setStationFilter}>
+              <SelectTrigger aria-label="Kitchen station" className="h-8 w-36">
+                <SelectValue placeholder="Station" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All stations</SelectItem>
+                {stations.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        )}
       </div>
       <div className="mb-4 grid grid-cols-2 gap-2 sm:hidden">
         <Select value={filter} onValueChange={(v) => setFilter(v as BoardFilter)}>

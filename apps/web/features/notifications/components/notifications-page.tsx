@@ -1,7 +1,7 @@
 "use client";
 
 import { Icons } from "@pixa/ui/icons";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { Button } from "@pixa/ui/base-ui/button";
 import { NotificationCard } from "@pixa/ui/base-ui/notification-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@pixa/ui/base-ui/tabs";

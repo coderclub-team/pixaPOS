@@ -1,5 +1,6 @@
 import { createTable, getTables, updateTable } from "../api/service";
 import { getFloors } from "@/features/floor/api/service";
+import { getServiceOutletId } from "@/features/outlet/api/outlets";
 import type { CsvColumn } from "@/features/system/lib/csv";
 import { parseNumber, parseYesNo } from "@/features/system/lib/csv";
 import type { ImportResult } from "@/features/system/components/io-dialog";
@@ -46,7 +47,19 @@ export const tableSample: Record<string, string>[] = [
  * matching floor is used.
  */
 export async function importTables(rows: Record<string, string>[]): Promise<ImportResult> {
-  const [floors, existing] = await Promise.all([getFloors(), getTables()]);
+  const outletId = getServiceOutletId();
+  if (!outletId) {
+    return {
+      created: 0,
+      updated: 0,
+      skipped: rows.length,
+      errors: ["No outlet selected — select or create one first"],
+    };
+  }
+  const [floors, existing] = await Promise.all([
+    getFloors({ outlet_id: outletId }),
+    getTables({ outlet_id: outletId }),
+  ]);
   const floorByName = new Map(floors.map((f) => [f.name.toLowerCase(), f]));
   const floorByCode = new Map(floors.map((f) => [f.code.toLowerCase(), f]));
   const byCode = new Map(existing.map((t) => [t.code.toUpperCase(), t]));
@@ -96,6 +109,7 @@ export async function importTables(rows: Record<string, string>[]): Promise<Impo
       const isActive = r["Active"] === "" ? undefined : parseYesNo(r["Active"]);
 
       const payload: any = {
+        outlet_id: outletId,
         floor_id: floor.id,
         number,
         code,

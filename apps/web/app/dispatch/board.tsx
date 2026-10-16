@@ -4,15 +4,16 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
+import { ThemeModeToggle } from "@pixa/ui/themes/theme-mode-toggle";
 import SyncStatus from "@/components/sync-status";
 import { useCrossTabSync } from "@/lib/use-cross-tab-sync";
 import { getQueryClient } from "@/lib/query-client";
 import { formatINR } from "@/lib/money";
-import { useAppForm } from "@/lib/form";
+import { useAppForm } from "@pixa/forms";
 import { DISPATCH_CHANNELS, type OrderWithDerived } from "@/features/orders/api/types";
 import { assignRider, dispatchOrder, completeOrder } from "@/features/orders/api/service";
 import { ordersQueryOptions } from "@/features/orders/api/queries";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
 import { Icons } from "@pixa/ui/icons";
 import { Badge } from "@pixa/ui/base-ui/badge";
 import { Button, buttonVariants } from "@pixa/ui/base-ui/button";
@@ -217,7 +218,11 @@ const COLUMNS = [
 export default function DispatchBoard() {
   useCrossTabSync();
   const [dispatchTarget, setDispatchTarget] = useState<OrderWithDerived | null>(null);
-  const ordersQuery = useQuery({ ...ordersQueryOptions(), refetchInterval: 5000 });
+  const activeOutlet = useActiveOutletId();
+  const ordersQuery = useQuery({
+    ...ordersQueryOptions({ outlet_id: activeOutlet }),
+    refetchInterval: 5000,
+  });
 
   const dispatchOrders = (ordersQuery.data ?? []).filter(
     (o) =>

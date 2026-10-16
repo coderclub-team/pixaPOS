@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { db, baOrganization, baMember, orgProfiles } from "@pixa/db";
-import { baSession } from "@/lib/auth-session";
+import {
+  db,
+  baOrganization,
+  baMember,
+  orgProfiles,
+  outlets,
+  outletKitchenStations,
+} from "@pixa/db";
+import { ulid } from "@pixa/contracts";
+import { baSession } from "@pixa/server";
 import { indiaLockError } from "@/lib/geo";
 
 const uid = (p: string) =>
@@ -158,7 +166,54 @@ export async function POST(req: Request) {
     }
   }
 
-  const res = NextResponse.json({ ok: true, organizationId: orgId, slug });
+  // Mandatory master outlet: every org starts with exactly one outlet row
+  // (named from the required outlet_name) plus default kitchen stations.
+  // Further outlets are added explicitly via POST /api/outlets.
+  const outletCode = (
+    outletName
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, "")
+      .slice(0, 6) || "MAIN"
+  ).slice(0, 12);
+  const outletId = ulid();
+  try {
+    const outletAddress = (body.outlet_address ?? "").trim();
+    await database.insert(outlets).values({
+      id: outletId,
+      organizationId: orgId,
+      name: outletName,
+      code: outletCode,
+      ...(outletAddress ? { addressLine1: outletAddress } : {}),
+      currency: metadata.currency,
+      timezone: metadata.timezone,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    for (const station of [
+      { name: "Main Kitchen", code: "KITCHEN", displayOrder: 0 },
+      { name: "Bar", code: "BAR", displayOrder: 1 },
+    ]) {
+      await database.insert(outletKitchenStations).values({
+        id: ulid(),
+        organizationId: orgId,
+        outletId,
+        name: station.name,
+        code: station.code,
+        displayOrder: station.displayOrder,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
+  } catch (e) {
+    return NextResponse.json(
+      { error: `could not create master outlet: ${dbMessage(e)}` },
+      { status: 500 },
+    );
+  }
+
+  const res = NextResponse.json({ ok: true, organizationId: orgId, slug, outletId });
   res.headers.append("Set-Cookie", "pixa_funnel=; Path=/; Max-Age=0; SameSite=Lax");
   return res;
 }

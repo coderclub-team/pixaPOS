@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Drawer as DrawerPrimitive } from "@base-ui/react/drawer";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@pixa/ui/base-ui/tabs";
 import FloorPlanCanvas from "@/features/table/components/floor-plan-canvas";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
@@ -35,6 +35,7 @@ import {
 } from "@/features/orders/api/service";
 import type { OrderWithDerived } from "@/features/orders/api/types";
 import { outletQueryOptions } from "@/features/outlet/api/queries";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Input } from "@pixa/ui/base-ui/input";
 import { Label } from "@pixa/ui/base-ui/label";
@@ -75,7 +76,8 @@ export default function OrderTerminalPage({
 }) {
   useCrossTabSync();
   const queryClient = useQueryClient();
-  const { data: floors, isLoading } = useQuery(floorsQueryOptions());
+  const activeOutlet = useActiveOutletId();
+  const { data: floors, isLoading } = useQuery(floorsQueryOptions({ outlet_id: activeOutlet }));
   const [selectedFloorId, setSelectedFloorId] = useState<string | null>(null);
   const [activeTableId, setActiveTableId] = useState<string | null>(null);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
@@ -328,7 +330,7 @@ export default function OrderTerminalPage({
 
   // Live (non-terminal) orders on this table, keyed by party.
   const { data: tableOrders } = useQuery({
-    ...ordersQueryOptions({ table_id: activeTableId ?? "" }),
+    ...ordersQueryOptions({ table_id: activeTableId ?? "", outlet_id: activeOutlet }),
     enabled: !!activeTableId,
   });
   const liveOrders = (tableOrders ?? []).filter(
@@ -348,7 +350,10 @@ export default function OrderTerminalPage({
   // orders of the selected type with no table — the dine-in open-tabs
   // equivalent. Scoped to the picked type so each flow sees its own bills.
   const { data: counterOrders } = useQuery({
-    ...ordersQueryOptions({ channel: isDineIn ? undefined : orderType }),
+    ...ordersQueryOptions({
+      channel: isDineIn ? undefined : orderType,
+      outlet_id: activeOutlet,
+    }),
     enabled: !isDineIn,
   });
   const openBills = (counterOrders ?? []).filter(
@@ -1198,8 +1203,9 @@ function CounterBillsStrip({
 }
 
 export function useLiveOrderId(tableId: string | null) {
+  const activeOutlet = useActiveOutletId();
   const { data } = useQuery({
-    ...ordersQueryOptions({ table_id: tableId ?? "" }),
+    ...ordersQueryOptions({ table_id: tableId ?? "", outlet_id: activeOutlet }),
     enabled: !!tableId,
   });
   return (data ?? []).find((o) => o.status !== "COMPLETED" && o.status !== "CANCELLED")?.id ?? null;

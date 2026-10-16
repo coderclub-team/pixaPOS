@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { FieldGroup } from "@pixa/ui/base-ui/field";
-import { useAppForm } from "@/lib/form";
+import { useAppForm } from "@pixa/forms";
 import { orderSettingsSchema, type OrderSettingsValues } from "../schemas/outlet";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateOutlet } from "../api/service";
@@ -10,12 +10,18 @@ import { outletKeys } from "../api/queries";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
-export default function OrderSettingsForm({ initialData }: { initialData: OrderSettingsValues }) {
+export default function OrderSettingsForm({
+  initialData,
+  outletId,
+}: {
+  initialData: OrderSettingsValues;
+  outletId: string;
+}) {
   const router = useRouter();
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: (values: OrderSettingsValues) => updateOutlet(values),
+    mutationFn: (values: OrderSettingsValues) => updateOutlet(outletId, values),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: outletKeys.all });
       toast.success("Order settings updated");

@@ -49,6 +49,7 @@ export type KitchenTicket = {
   lines: KOTLine[];
   voids: KOTVoidRecord[];
   returns: KOTReturnRecord[];
+  station_ids?: string[];
   fired_by?: string;
   fired_at: string;
   updated_at: string;

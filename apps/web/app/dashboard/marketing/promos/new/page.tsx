@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import PromoForm from "@/features/promos/components/promo-form";
 
 export default function NewPromoPage() {

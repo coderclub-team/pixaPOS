@@ -4,11 +4,14 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Icons } from "@pixa/ui/icons";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@pixa/ui/base-ui/sidebar";
-import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
+import { ThemeModeToggle } from "@pixa/ui/themes/theme-mode-toggle";
 import SyncStatus from "@/components/sync-status";
 import { useInstallPrompt } from "@/hooks/use-install-prompt";
 import { useServiceWorker } from "@/hooks/use-service-worker";
 import { getQueryClient } from "@/lib/query-client";
+import { RealtimeConnectionStatus } from "@/components/realtime-connection-status";
+import { PixaSoundControl } from "@/components/pixa-sound-control";
+import { usePixaNotifications } from "@/hooks/use-pixa-notifications";
 import { useNow } from "@/lib/use-now";
 import { outletQueryOptions } from "@/features/outlet/api/queries";
 import { isChannelOpen } from "@/features/outlet/api/service";
@@ -88,6 +91,7 @@ function PosShellMain() {
   };
   const { installEvt, installed, promptInstall } = useInstallPrompt();
   useServiceWorker();
+  const { state: rtState, lastSequence } = usePixaNotifications("POS");
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background">
@@ -103,6 +107,8 @@ function PosShellMain() {
         </span>
         <span className="flex items-center gap-1.5">
           <OrderTypePicker />
+          <RealtimeConnectionStatus state={rtState} lastSequence={lastSequence} />
+          <PixaSoundControl terminal="POS" />
           <SyncStatus />
           <ThemeModeToggle />
           {!installed && installEvt && (

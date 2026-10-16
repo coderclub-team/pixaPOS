@@ -1,0 +1,43 @@
+{
+  "name": "@pixa/forms",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./form.ts",
+      "default": "./form.ts"
+    },
+    "./form-context": {
+      "types": "./form-context.ts",
+      "default": "./form-context.ts"
+    },
+    "./fields/*": {
+      "types": "./fields/*.tsx",
+      "default": "./fields/*.tsx"
+    },
+    "./submit-button": {
+      "types": "./submit-button.tsx",
+      "default": "./submit-button.tsx"
+    },
+    "./file-uploader": {
+      "types": "./file-uploader.tsx",
+      "default": "./file-uploader.tsx"
+    }
+  },
+  "dependencies": {
+    "@pixa/ui": "workspace:*",
+    "@tanstack/react-form": "^1.28.5",
+    "date-fns": "^4.1.0",
+    "react-day-picker": "^10.0.1",
+    "react-dropzone": "^14.4.1",
+    "sonner": "^1.7.4"
+  },
+  "peerDependencies": {
+    "react": "*",
+    "react-dom": "*"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
+  }
+}

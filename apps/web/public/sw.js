@@ -23,7 +23,7 @@
  * 500 into a permanent-looking stall. Offline testing happens on preview
  * builds.
  */
-const VERSION = "pwa-v4";
+const VERSION = "pwa-v5";
 const SHELL = [
   "/pos",
   "/kds",
@@ -73,6 +73,41 @@ self.addEventListener("activate", (event) => {
 // Poke from the page to check for a pending update (called on visibility).
 self.addEventListener("message", (event) => {
   if (event.data === "SKIP_WAITING") self.skipWaiting();
+});
+
+// Web Push (secondary only — DB/SSE stay authoritative). Payloads carry
+// order/KOT ids, never customer PII; tapping focuses the app shell.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {}
+  const title = data.title || "pixaPOS update";
+  const body = data.body || "";
+  const url = data.url || "/pos";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      data: { url },
+      tag: data.tag || "pixa-event",
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/pos";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+      for (const w of wins) {
+        if (w.url.includes(self.location.origin)) {
+          w.navigate(url).catch(() => {});
+          return w.focus();
+        }
+      }
+      return self.clients.openWindow(url);
+    }),
+  );
 });
 
 function isApi(url) {

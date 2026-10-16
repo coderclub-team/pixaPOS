@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@pixa
 import { FieldGroup } from "@pixa/ui/base-ui/field";
 import { Input } from "@pixa/ui/base-ui/input";
 import { Label } from "@pixa/ui/base-ui/label";
-import { useAppForm } from "@/lib/form";
+import { useAppForm } from "@pixa/forms";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { menuKeys, modifierGroupsQueryOptions } from "@/features/menu/api/queries";
 import { deleteModifierGroup, updateModifierGroup } from "@/features/menu/api/service";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -39,7 +39,7 @@ import { cn } from "@pixa/ui/lib/utils";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { SortTh, useSorting } from "@/components/sort-th";
+import { SortTh, useSorting } from "@pixa/ui/sort-th";
 import { ExportButton, ImportDialog } from "@/features/system/components/io-dialog";
 import {
   importModifierGroups,

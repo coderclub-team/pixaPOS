@@ -2,17 +2,23 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { FieldGroup } from "@pixa/ui/base-ui/field";
-import { useAppForm } from "@/lib/form";
+import { useAppForm } from "@pixa/forms";
 import { contactSchema, type ContactValues } from "../schemas/outlet";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateOutlet } from "../api/service";
 import { outletKeys } from "../api/queries";
 import { toast } from "sonner";
 
-export default function ContactForm({ initialData }: { initialData: ContactValues }) {
+export default function ContactForm({
+  initialData,
+  outletId,
+}: {
+  initialData: ContactValues;
+  outletId: string;
+}) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: (values: ContactValues) => updateOutlet(values),
+    mutationFn: (values: ContactValues) => updateOutlet(outletId, values),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: outletKeys.all });
       toast.success("Contact updated");

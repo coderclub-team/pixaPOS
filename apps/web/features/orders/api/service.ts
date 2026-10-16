@@ -387,7 +387,9 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithDer
   const release = await entityMutex.acquire("order-write");
   try {
     await delay(400);
-    const outletId = input.outlet_id ?? "out_001";
+    const { getServiceOutletId } = await import("@/features/outlet/api/outlets");
+    const outletId = input.outlet_id ?? getServiceOutletId();
+    if (!outletId) throw new Error("No outlet selected — create one first");
 
     if (input.channel === "dine_in") {
       if (!input.table_id) throw new Error("Dine-in orders require a table");
@@ -1246,6 +1248,9 @@ export async function createReturn(
 ): Promise<{ order: OrderWithDerived; ret: OrderReturn }> {
   if (!params.reason?.trim()) throw new Error("A reason is required for a return");
   if (!params.lines?.length) throw new Error("Select at least one item to return");
+  const by = params.by ?? "staff";
+  let ret: OrderReturn;
+  let total = 0;
   const release = await entityMutex.acquire(`order-${orderId}`);
   try {
     await delay(300);
@@ -1258,7 +1263,6 @@ export async function createReturn(
         `Returns need a served bill (order is ${order.status.toLowerCase()}) — edit or void unfired items instead`,
       );
     }
-    const by = params.by ?? "staff";
     const kitchen = await import("@/features/kitchen/api/service");
     const tickets = kitchen.peekTickets().filter((t) => t.order_id === orderId);
     const returnLines: OrderReturnLine[] = [];
@@ -1302,8 +1306,8 @@ export async function createReturn(
     }
 
     const now = new Date().toISOString();
-    const total = returnLines.reduce((s, l) => s + l.amount_paise, 0);
-    const ret: OrderReturn = {
+    total = returnLines.reduce((s, l) => s + l.amount_paise, 0);
+    ret = {
       id: `ordret_${Date.now().toString(36)}`,
       order_id: orderId,
       outlet_id: order.outlet_id,
@@ -1335,18 +1339,25 @@ export async function createReturn(
         total_paise: total,
       },
     });
-    const { refundForReturn } = await import("@/features/payments/api/service");
-    await refundForReturn(orderId, {
-      return_id: ret.id,
-      total_paise: total,
-      reason: params.reason.trim(),
-      by,
-    });
-    await refreshOrderPaymentState(orderId);
-    return { order: enrichOrder(mockOrders[idx]), ret };
   } finally {
     release();
   }
+  // Refund + payment-state refresh run OUTSIDE the order lock: both acquire
+  // `order-${orderId}` internally (recordRefund → refreshOrderPaymentState),
+  // and entityMutex is non-reentrant — holding it here would self-deadlock.
+  // The return record above is already persisted, so a refund failure here
+  // surfaces without losing the audit trail.
+  const { refundForReturn } = await import("@/features/payments/api/service");
+  await refundForReturn(orderId, {
+    return_id: ret.id,
+    total_paise: total,
+    reason: params.reason.trim(),
+    by,
+  });
+  await refreshOrderPaymentState(orderId);
+  const updated = await getOrderById(orderId);
+  if (!updated) throw new Error("Order not found");
+  return { order: updated, ret };
 }
 
 /**

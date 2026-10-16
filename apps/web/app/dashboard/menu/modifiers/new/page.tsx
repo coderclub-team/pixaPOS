@@ -1,4 +1,4 @@
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import ModifierGroupForm from "@/features/menu/components/modifier-group-form";
 
 export const metadata = { title: "Dashboard : New Add-on Group" };

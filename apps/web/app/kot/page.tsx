@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireBaUser } from "@/lib/auth-session";
+import { redirect } from "next/navigation";
+import { requireBaUser } from "@pixa/server";
+import { listTerminalOutlets } from "@/lib/terminal-outlet";
+import { EnsureOutletDialog } from "@/components/ensure-outlet-dialog";
 
 export const metadata: Metadata = {
   title: "KOT",
@@ -8,11 +11,13 @@ export const metadata: Metadata = {
 };
 
 /**
- * /kot placeholder: this route is reserved for the future waiter-ordering
- * (KOT-focused) interface. The current counter terminal lives at /pos.
+ * Bare /kot: pick an outlet, then land on /kot/CODE. Single-outlet users
+ * skip the picker entirely.
  */
-export default async function KotPlaceholderPage() {
+export default async function KotPage() {
   await requireBaUser();
+  const { single } = await listTerminalOutlets("kot");
+  if (single) redirect(`/kot/${single.code}`);
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
       <p className="text-lg font-bold">KOT — coming soon</p>
@@ -25,6 +30,7 @@ export default async function KotPlaceholderPage() {
       >
         Open POS terminal
       </Link>
+      <EnsureOutletDialog basePath="/kot" mode="list" />
     </div>
   );
 }

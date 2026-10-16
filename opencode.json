@@ -2,7 +2,12 @@
   "$schema": "https://opencode.ai/config.json",
 
   "model": "opencode/claude-sonnet-4-5",
-
+  "snapshot": false,
+  "permission": {
+    "git.add*": "ask",
+    "git.commit": "ask",
+    "git push*": "ask"
+  },
   "instructions": ["AGENTS.md", "docs/workflows.md"],
 
   "lsp": false,

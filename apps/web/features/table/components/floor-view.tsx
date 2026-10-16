@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { floorsQueryOptions } from "@/features/floor/api/queries";
 import { tableKeys, tableQueryOptions, tablesQueryOptions } from "@/features/table/api/queries";
 import { floorKeys } from "@/features/floor/api/queries";
 import { createTable } from "@/features/table/api/service";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
+import { OutletRequiredCallout } from "@/components/outlet-required-callout";
 import TableStrip from "@/features/table/components/table-strip";
 import TableOpsDialog from "@/features/table/components/table-ops-dialog";
 
@@ -186,7 +188,10 @@ function TableInspector({ table }: { table: TableWithDerived | undefined }) {
 
 export default function FloorViewPage({ mode = "operations" }: { mode?: FloorViewMode }) {
   const queryClient = useQueryClient();
-  const { data: floors, isLoading } = useQuery(floorsQueryOptions());
+  const activeOutlet = useActiveOutletId();
+  const { data: floors, isLoading } = useQuery(
+    floorsQueryOptions({ outlet_id: activeOutlet ?? undefined }),
+  );
   const [selectedFloorId, setSelectedFloorId] = useState<string | null>(null);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   // H10: resolve the real table entity — never display ID fragments as names
@@ -197,10 +202,13 @@ export default function FloorViewPage({ mode = "operations" }: { mode?: FloorVie
 
   const addTableMut = useMutation({
     mutationFn: async (floorId: string) => {
-      const existing = await queryClient.ensureQueryData(tablesQueryOptions({ floor_id: floorId }));
+      if (!activeOutlet) throw new Error("No outlet selected — select or create one first");
+      const existing = await queryClient.ensureQueryData(
+        tablesQueryOptions({ floor_id: floorId, outlet_id: activeOutlet }),
+      );
       const n = existing.length + 1;
       return createTable({
-        outlet_id: "out_001",
+        outlet_id: activeOutlet,
         floor_id: floorId,
         number: `T${n}`,
         code: `T${n}`,
@@ -291,7 +299,12 @@ export default function FloorViewPage({ mode = "operations" }: { mode?: FloorVie
               </TabsContent>
             ))}
           </Tabs>
-          {mode === "edit" && currentFloorId && (
+          {mode === "edit" && currentFloorId && !activeOutlet && (
+            <div className="mt-3">
+              <OutletRequiredCallout what="Tables" />
+            </div>
+          )}
+          {mode === "edit" && currentFloorId && activeOutlet && (
             <div className="mt-3">
               <Button
                 variant="outline"

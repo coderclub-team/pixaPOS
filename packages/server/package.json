@@ -1,0 +1,30 @@
+{
+  "name": "@pixa/server",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./index.ts"
+    },
+    "./usage-types": {
+      "types": "./usage-types.ts",
+      "default": "./usage-types.ts"
+    },
+    "./permissions": {
+      "types": "./permissions.ts",
+      "default": "./permissions.ts"
+    },
+    "./device-token": {
+      "types": "./device-token.ts",
+      "default": "./device-token.ts"
+    }
+  },
+  "dependencies": {
+    "@pixa/db": "workspace:*",
+    "better-auth": "^1.7.5",
+    "drizzle-orm": "^0.45.2",
+    "nodemailer": "^10.0.14",
+    "pg": "^8.23.0"
+  }
+}

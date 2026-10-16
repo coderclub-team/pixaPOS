@@ -2,17 +2,23 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { FieldGroup } from "@pixa/ui/base-ui/field";
-import { useAppForm } from "@/lib/form";
+import { useAppForm } from "@pixa/forms";
 import { fssaiSchema, type FSSAIValues } from "../schemas/outlet";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateOutlet } from "../api/service";
 import { outletKeys } from "../api/queries";
 import { toast } from "sonner";
 
-export default function FSSAIForm({ initialData }: { initialData: FSSAIValues }) {
+export default function FSSAIForm({
+  initialData,
+  outletId,
+}: {
+  initialData: FSSAIValues;
+  outletId: string;
+}) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: (values: FSSAIValues) => updateOutlet(values),
+    mutationFn: (values: FSSAIValues) => updateOutlet(outletId, values),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: outletKeys.all });
       toast.success("FSSAI updated");

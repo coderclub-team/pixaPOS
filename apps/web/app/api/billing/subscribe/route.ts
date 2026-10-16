@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { adminDb } from "@/lib/saas-admin";
+import { adminDb } from "@pixa/server";
 import { orgProfiles } from "@pixa/db";
 import { createRazorpaySubscription, isRazorpayConfigured } from "@/features/billing/api/razorpay";
 import { BILLING_PLAN } from "@/features/billing/api/types";

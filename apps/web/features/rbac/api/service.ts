@@ -6,7 +6,7 @@
 import { and, eq } from "drizzle-orm";
 import { ulid } from "@pixa/contracts";
 import { db, baMember, baUser, rolePermissionOverrides } from "@pixa/db";
-import { POS_PERMISSION_META, ROLE_PERMISSIONS } from "@/config/permissions";
+import { POS_PERMISSION_META, ROLE_PERMISSIONS } from "@pixa/server/permissions";
 import type { OrgMember, OrgPermission, OrgRole, RolesPermissionsData } from "./types";
 
 const ROLE_KEYS = ["admin", "manager", "cashier", "waiter", "kitchen", "accountant"];

@@ -1,17 +1,24 @@
-import type { Metadata } from "next";
-import { requireBaUser } from "@/lib/auth-session";
-import KdsWallboard from "./wallboard";
+import { redirect } from "next/navigation";
+import { requireBaUser } from "@pixa/server";
+import { listTerminalOutlets } from "@/lib/terminal-outlet";
+import { EnsureOutletDialog } from "@/components/ensure-outlet-dialog";
 
-export const metadata: Metadata = {
+export const metadata = {
   title: "KDS Wallboard",
-  manifest: "/kds/manifest.webmanifest",
   description: "Live kitchen display — installable, works offline.",
 };
 
+/**
+ * Bare /kds: pick an outlet, then land on /kds/CODE where the wallboard
+ * runs outlet-scoped. Single-outlet users skip the picker entirely.
+ */
 export default async function KdsPage() {
-  // Defense in depth alongside proxy.ts: the wallboard shows live order
-  // data, so it requires a session even if middleware is bypassed. Wall
-  // tablets sign in once — the session cookie persists.
   await requireBaUser();
-  return <KdsWallboard />;
+  const { single } = await listTerminalOutlets("kds");
+  if (single) redirect(`/kds/${single.code}`);
+  return (
+    <div className="flex min-h-dvh items-center justify-center p-6">
+      <EnsureOutletDialog basePath="/kds" mode="list" />
+    </div>
+  );
 }

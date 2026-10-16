@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db, baMember, orgProfiles } from "@pixa/db";
-import { baSession } from "@/lib/auth-session";
+import { baSession } from "@pixa/server";
 
 /**
  * GET /api/billing/trial?organization_id= — server trial truth. The caller

@@ -1,20 +1,30 @@
 "use client";
 
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import BasicInformationForm from "@/features/outlet/components/basic-information-form";
 import { outletQueryOptions } from "@/features/outlet/api/queries";
 import { useQuery } from "@tanstack/react-query";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
+import { OutletRequiredCallout } from "@/components/outlet-required-callout";
 
 export default function BasicInformationPage() {
   const { data: outlet, isPending } = useQuery(outletQueryOptions);
+  const activeOutletId = useActiveOutletId();
 
-  if (isPending || !outlet) {
+  if (isPending)
     return (
       <PageContainer pageTitle="Basic Information" isLoading>
         <div />
       </PageContainer>
     );
-  }
+  if (!outlet || !activeOutletId)
+    return (
+      <PageContainer pageTitle="Basic Information">
+        <div className="mx-auto w-full max-w-3xl py-6">
+          <OutletRequiredCallout what="Outlet settings" />
+        </div>
+      </PageContainer>
+    );
 
   return (
     <PageContainer
@@ -22,6 +32,7 @@ export default function BasicInformationPage() {
       pageDescription="Outlet — General basic information"
     >
       <BasicInformationForm
+        outletId={activeOutletId ?? outlet.id}
         initialData={{
           name: outlet.name,
           code: outlet.code,
@@ -31,12 +42,6 @@ export default function BasicInformationPage() {
           is_active: outlet.is_active,
         }}
       />
-      <div className="mt-4 grid grid-cols-2 gap-4 text-sm text-muted-foreground">
-        <div>ID: {outlet.id}</div>
-        <div>Organization: {outlet.organization_id}</div>
-        <div>Created: {new Date(outlet.created_at).toLocaleDateString()}</div>
-        <div>Updated: {new Date(outlet.updated_at).toLocaleDateString()}</div>
-      </div>
     </PageContainer>
   );
 }

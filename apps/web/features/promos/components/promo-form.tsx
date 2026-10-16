@@ -22,6 +22,7 @@ import type { OrderChannel } from "@/features/orders/api/types";
 import type { PromoCode, PromoKind, PromoScope } from "../api/types";
 import { menuItemsQueryOptions, menuCategoriesQueryOptions } from "@/features/menu/api/queries";
 import { kotOrderTypeOptions } from "@/features/orders/components/order-type";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
 
 const CHANNELS = kotOrderTypeOptions.map((o) => o.value as OrderChannel);
 
@@ -29,6 +30,7 @@ export default function PromoForm({ initialData }: { initialData?: PromoCode }) 
   const router = useRouter();
   const search = useSearchParams();
   const queryClient = useQueryClient();
+  const activeOutletId = useActiveOutletId();
   const isEdit = !!initialData;
 
   // Prefill from Item Sales "New promo" (scope/target preset, rest editable).
@@ -102,7 +104,8 @@ export default function PromoForm({ initialData }: { initialData?: PromoCode }) 
         per_customer_limit: perCustomer.trim() === "" ? undefined : Number(perCustomer),
         is_active: active,
       };
-      return isEdit ? updatePromo(initialData!.id, payload) : createPromo(payload as any);
+      if (isEdit) return updatePromo(initialData!.id, payload);
+      return createPromo(payload as any, activeOutletId ?? undefined);
     },
     onSuccess: (p) => {
       queryClient.invalidateQueries({ queryKey: promoKeys.all });

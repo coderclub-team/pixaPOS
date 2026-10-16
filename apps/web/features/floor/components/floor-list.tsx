@@ -34,7 +34,7 @@ import { floorKeys, floorLayoutQueryOptions } from "../api/queries";
 import { toast } from "sonner";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { SortTh, useSorting } from "@/components/sort-th";
+import { SortTh, useSorting } from "@pixa/ui/sort-th";
 
 interface FloorListProps {
   floors: Floor[];

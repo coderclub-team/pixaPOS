@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     template: "%s | pixaPOS",
   },
   description:
-    "pixaPOS is a PWA-first restaurant POS for Indian cafés, QSRs, cloud kitchens, and multi-outlet food brands. Run billing, kitchen display, inventory, loyalty, and delivery operations from any device.",
+    "pixaPOS is a PWA-first restaurant POS for Indian cafés, QSRs, cloud kitchens, and multi-outlet food brands. Run billing, kitchen display, inventory, payroll, loyalty, and delivery operations from any device.",
   keywords: [
     "restaurant pos software india",
     "restaurant billing software",
@@ -35,6 +35,7 @@ export const metadata: Metadata = {
     "kitchen display system",
     "cloud kitchen software",
     "restaurant pos for cafes and qsr",
+    "restaurant payroll software",
   ],
   alternates: {
     canonical: "https://pixapos.store",

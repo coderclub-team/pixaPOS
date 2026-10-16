@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { auth } from "@/lib/auth";
-import { readDeviceCookie, verifyDeviceToken } from "@/lib/device-token";
+import { auth } from "@pixa/server";
+import { readDeviceCookie, verifyDeviceToken } from "@pixa/server";
 import { resolveSurfaceRoute } from "@/lib/hosts";
 
 // Session attach + app gates. Public paths: auth pages, API auth,
@@ -47,14 +47,14 @@ export async function middleware(request: NextRequest) {
   if (pathname === "/admin/login" || pathname.startsWith("/admin")) {
     return pass();
   }
+  const isTerminalPath = (base: string) => pathname === base || pathname.startsWith(`${base}/`);
   if (
     !pathname.startsWith("/dashboard") &&
-    pathname !== "/kds" &&
-    pathname !== "/pos" &&
-    pathname !== "/kot" &&
-    pathname !== "/dispatch" &&
-    !pathname.startsWith("/dispatch/") &&
-    pathname !== "/rider" &&
+    !isTerminalPath("/kds") &&
+    !isTerminalPath("/pos") &&
+    !isTerminalPath("/kot") &&
+    !isTerminalPath("/dispatch") &&
+    !isTerminalPath("/rider") &&
     pathname !== "/onboarding"
   ) {
     return pass();
@@ -80,6 +80,35 @@ export async function middleware(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = "/auth/sign-in";
       return NextResponse.redirect(url);
+    }
+    // Surface gate: role → allowed surfaces (kitchen staff can't open POS,
+    // waiters can't open KDS). Fail-open when role lookup fails — the page
+    // and API layers re-check. Dashboard pages enforce per-page instead.
+    try {
+      const { surfaceForPath, allowedSurfaces } = await import("@/lib/surfaces");
+      const surface = surfaceForPath(pathname);
+      if (surface && surface !== "dashboard") {
+        const { db, baMember } = await import("@pixa/db");
+        const { eq, and } = await import("drizzle-orm");
+        const orgId =
+          (session.session as { activeOrganizationId?: string } | undefined)
+            ?.activeOrganizationId ?? null;
+        if (orgId) {
+          const rows = await db()
+            .select({ role: baMember.role })
+            .from(baMember)
+            .where(and(eq(baMember.organizationId, orgId), eq(baMember.userId, session.user.id)))
+            .limit(1);
+          const role = rows[0]?.role ?? null;
+          if (role && !allowedSurfaces(role).includes(surface)) {
+            const url = request.nextUrl.clone();
+            url.pathname = "/dashboard";
+            return NextResponse.redirect(url);
+          }
+        }
+      }
+    } catch {
+      // Role lookup failed — pass through, page/API layers re-check.
     }
     return pass();
   } catch {

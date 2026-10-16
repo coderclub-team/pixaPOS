@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { FloorList } from "@/features/floor/components/floor-list";
 import { floorsQueryOptions } from "@/features/floor/api/queries";
 import { useQuery } from "@tanstack/react-query";
@@ -14,11 +14,20 @@ import { ExportButton, ImportDialog } from "@/features/system/components/io-dial
 import { floorColumns, floorSample, importFloors } from "@/features/floor/lib/io";
 import { floorKeys } from "@/features/floor/api/queries";
 import { getQueryClient } from "@/lib/query-client";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
+import { OutletRequiredCallout } from "@/components/outlet-required-callout";
 
 export default function FloorsPage() {
   const [search, setSearch] = React.useState("");
+  const activeOutlet = useActiveOutletId();
 
-  const { data: floors, isPending } = useQuery(floorsQueryOptions(search ? { search } : undefined));
+  const { data: floors, isPending } = useQuery(
+    floorsQueryOptions(
+      search || activeOutlet
+        ? { search: search || undefined, outlet_id: activeOutlet ?? undefined }
+        : undefined,
+    ),
+  );
 
   // Debounce search input
   const [inputValue, setInputValue] = React.useState("");
@@ -67,6 +76,12 @@ export default function FloorsPage() {
           />
         </span>
       </div>
+
+      {!activeOutlet && (
+        <div className="mb-4">
+          <OutletRequiredCallout what="Floors" />
+        </div>
+      )}
 
       <FloorList floors={floors ?? []} />
 

@@ -36,7 +36,7 @@ import { getQueryClient } from "@/lib/query-client";
 import { toast } from "sonner";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { SortTh, useSorting } from "@/components/sort-th";
+import { SortTh, useSorting } from "@pixa/ui/sort-th";
 
 interface CustomerListProps {
   customers: CustomerWithDerived[];

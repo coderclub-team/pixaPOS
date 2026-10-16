@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { CustomerList } from "@/features/customers/components/customer-list";
 import { customerKeys, customersQueryOptions } from "@/features/customers/api/queries";
 import { getQueryClient } from "@/lib/query-client";

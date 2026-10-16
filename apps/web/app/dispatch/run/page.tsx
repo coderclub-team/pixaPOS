@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { requireBaUser } from "@/lib/auth-session";
+import { requireBaUser } from "@pixa/server";
 import RunSheet from "./run-sheet";
 
 export const metadata: Metadata = {

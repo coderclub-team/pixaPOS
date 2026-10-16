@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { FieldGroup } from "@pixa/ui/base-ui/field";
-import { useAppForm } from "@/lib/form";
+import { useAppForm } from "@pixa/forms";
 import { timezoneSchema, type TimezoneValues } from "../schemas/outlet";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateOutlet } from "../api/service";
@@ -26,10 +26,16 @@ const localeOptions = [
   { label: "en-US", value: "en-US" },
 ];
 
-export default function TimezoneForm({ initialData }: { initialData: TimezoneValues }) {
+export default function TimezoneForm({
+  initialData,
+  outletId,
+}: {
+  initialData: TimezoneValues;
+  outletId: string;
+}) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: (values: TimezoneValues) => updateOutlet(values),
+    mutationFn: (values: TimezoneValues) => updateOutlet(outletId, values),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: outletKeys.all });
       toast.success("Localization updated");

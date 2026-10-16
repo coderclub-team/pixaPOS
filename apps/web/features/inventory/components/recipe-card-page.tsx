@@ -3,7 +3,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { notFound } from "next/navigation";
 import { recipeQueryOptions } from "@/features/inventory/api/queries";
 import { menuItemsQueryOptions } from "@/features/menu/api/queries";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { Button } from "@pixa/ui/base-ui/button";
 import {

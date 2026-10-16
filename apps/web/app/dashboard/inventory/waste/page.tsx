@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { WasteList, wasteExportColumns } from "@/features/inventory/components/waste-list";
 import { wasteQueryOptions } from "@/features/inventory/api/queries";
 import { useQuery } from "@tanstack/react-query";

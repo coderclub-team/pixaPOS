@@ -38,6 +38,12 @@ const FEATURES = [
     paragraph:
       "Launch a branded restaurant ecommerce website with menus, delivery radius, order capture, and store-ready online sales.",
   },
+  {
+    icon: "payroll",
+    title: "Payroll & HR",
+    paragraph:
+      "Run staff payroll end-to-end — hourly & salaried pay, leave & holiday rules, incentives, deductions and auto-generated payslips with bank CSV.",
+  },
 ] as const;
 
 export default function Surfaces() {

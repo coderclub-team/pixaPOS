@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import PrinterForm from "@/features/print-studio/components/printer-form";
 import PrinterList from "@/features/print-studio/components/printer-list";
 import { printersQueryOptions } from "@/features/print-studio/api/queries";

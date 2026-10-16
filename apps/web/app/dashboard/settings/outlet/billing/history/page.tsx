@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import PrintHistory from "@/features/print-studio/components/print-history";
 import { printJobsQueryOptions } from "@/features/print-studio/api/queries";
 

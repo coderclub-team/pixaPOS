@@ -2,17 +2,23 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { FieldGroup } from "@pixa/ui/base-ui/field";
-import { useAppForm } from "@/lib/form";
+import { useAppForm } from "@pixa/forms";
 import { gstSchema, type GSTValues } from "../schemas/outlet";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateOutlet } from "../api/service";
 import { outletKeys } from "../api/queries";
 import { toast } from "sonner";
 
-export default function GSTForm({ initialData }: { initialData: GSTValues }) {
+export default function GSTForm({
+  initialData,
+  outletId,
+}: {
+  initialData: GSTValues;
+  outletId: string;
+}) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: (values: GSTValues) => updateOutlet(values),
+    mutationFn: (values: GSTValues) => updateOutlet(outletId, values),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: outletKeys.all });
       toast.success("GST details updated");

@@ -12,12 +12,15 @@ import type {
   CommandContext,
 } from "./types";
 import { deriveTableInfo, canTransition, nextPartyLabel } from "./utils";
+import { getServiceOutletId, requireServiceOutletId } from "@/features/outlet/api/outlets";
 import type { TableStatus } from "./types";
 
-const DEFAULT_CTX: CommandContext = { outlet_id: "out_001", actor_id: "staff" };
+function defaultCtx(): CommandContext {
+  return { outlet_id: getServiceOutletId(), actor_id: "staff" };
+}
 
 function ctxOf(ctx?: Partial<CommandContext>): CommandContext {
-  return { ...DEFAULT_CTX, ...ctx };
+  return { ...defaultCtx(), ...ctx };
 }
 
 function assertOutlet(entityOutlet: string | undefined, ctx: CommandContext, what: string) {
@@ -26,32 +29,7 @@ function assertOutlet(entityOutlet: string | undefined, ctx: CommandContext, wha
   }
 }
 
-let mockTables: RestaurantTable[] = [
-  {
-    id: "tbl_001",
-    outlet_id: "out_001",
-    floor_id: "fl_001",
-    floor_name: "Ground Floor",
-    number: "101",
-    code: "T101",
-    capacity: 4,
-    shape: "square",
-    type: "standard",
-    allows_sharing: false,
-    status: "available",
-    is_active: true,
-    sort_order: 1,
-    x_mm: 500,
-    y_mm: 500,
-    w_mm: 800,
-    h_mm: 800,
-    rotation_deg: 0,
-    z_index: 1,
-    version: 1,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
+let mockTables: RestaurantTable[] = [];
 
 let mockGroups: OccupancyGroup[] = [];
 let mockBlocks: TableBlock[] = [];
@@ -320,7 +298,7 @@ export async function duplicateTable(
     await delay(500);
     const source = mockTables.find((t) => t.id === id && !t.deleted_at);
     if (!source) throw new Error("Table not found");
-    const outletId = overrides?.outlet_id ?? source.outlet_id;
+    const outletId = overrides?.outlet_id ?? source.outlet_id ?? requireServiceOutletId();
 
     const outletTables = mockTables.filter((t) => !t.deleted_at && t.outlet_id === outletId);
     const number = (
@@ -391,7 +369,7 @@ export async function createTable(payload: TablePayload): Promise<TableWithDeriv
   const release = await entityMutex.acquire("table-write");
   try {
     await delay(500);
-    const outletId = payload.outlet_id ?? "out_001";
+    const outletId = payload.outlet_id ?? requireServiceOutletId();
     if (
       mockTables.some(
         (t) =>
@@ -739,6 +717,7 @@ export async function releaseOccupancy(params: {
   ctx?: Partial<CommandContext>;
 }): Promise<void> {
   // C2: resolve the table first (for lock key), but re-read the group INSIDE the lock
+  if (!params.reason?.trim()) throw new Error("A reason is required to release occupancy");
   const probe = mockGroups.find((g) => g.id === params.group_id);
   if (!probe) throw new Error("Group not found");
 

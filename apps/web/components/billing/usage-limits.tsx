@@ -5,8 +5,8 @@ import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent } from "@pixa/ui/base-ui/card";
 import { Icons } from "@pixa/ui/icons";
 import type { LimitMap } from "@pixa/db";
-import { UsageBars, buildAllBars } from "@/components/billing/usage-bars";
-import { emptyUsage, type UsageMap } from "@/lib/usage-types";
+import { UsageBars, buildAllBars } from "@pixa/ui/billing/usage-bars";
+import { emptyUsage, type UsageMap } from "@pixa/server/usage-types";
 
 type UsageResponse = {
   ok: boolean;

@@ -1,20 +1,25 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
-import { requireBaUser } from "@/lib/auth-session";
-import PosShell from "./shell";
+import { redirect } from "next/navigation";
+import { requireBaUser } from "@pixa/server";
+import { listTerminalOutlets } from "@/lib/terminal-outlet";
+import { EnsureOutletDialog } from "@/components/ensure-outlet-dialog";
 
 export const metadata: Metadata = {
   title: "POS Terminal",
-  manifest: "/pos/manifest.webmanifest",
   description: "Standalone order terminal — dine-in, counter, takeaway and delivery.",
 };
 
+/**
+ * Bare /pos: pick an outlet, then land on /pos/CODE where the terminal
+ * runs outlet-scoped. Single-outlet users skip the picker entirely.
+ */
 export default async function PosPage() {
-  // Same gate as /kds: live order and payment data, never anonymous.
   await requireBaUser();
+  const { single } = await listTerminalOutlets("pos");
+  if (single) redirect(`/pos/${single.code}`);
   return (
-    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading terminal…</div>}>
-      <PosShell />
-    </Suspense>
+    <div className="flex min-h-dvh items-center justify-center p-6">
+      <EnsureOutletDialog basePath="/pos" mode="list" />
+    </div>
   );
 }

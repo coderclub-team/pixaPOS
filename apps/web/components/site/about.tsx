@@ -23,6 +23,11 @@ const FEATURES = [
       "Track stock, purchase orders, recipes, stock movement, and wastage from a single operational view.",
   },
   {
+    title: "Payroll & HR",
+    description:
+      "Pay hourly and salaried staff accurately — leave, holidays, overtime, incentives, deductions and bank-ready payslips in one place.",
+  },
+  {
     title: "CRM & loyalty",
     description:
       "Capture customer details, repeat-orders, promos, and loyalty activity in one connected system.",
@@ -47,9 +52,9 @@ export default function About() {
               Built for fast-moving restaurants, cafés, and multi-outlet groups.
             </h2>
             <p className="text-base leading-relaxed text-body-color dark:text-dark-6">
-              pixaPOS helps restaurant operators run billing, menu, kitchen, order flow, stock, and
-              customer experience from one connected system without juggling different apps for each
-              outlet.
+              pixaPOS helps restaurant operators run billing, menu, kitchen, order flow, stock,
+              payroll, and customer experience from one connected system without juggling different
+              apps for each outlet.
             </p>
 
             <div className="mt-7 grid gap-3 sm:grid-cols-3" aria-label="pixaPOS key strengths">
@@ -80,10 +85,10 @@ export default function About() {
                 One platform for service, stock, and growth.
               </h3>
               <p className="mb-5 text-base leading-7 text-body-color dark:text-dark-6">
-                From front-of-house billing to KOT and KDS coordination, pixaPOS keeps every order,
-                table, kitchen ticket, promotion, and customer touchpoint connected. It is designed
-                for busy Indian food businesses that need speed, visibility, and fewer manual errors
-                across every shift.
+                From front-of-house billing to KOT and KDS coordination and now staff payroll,
+                pixaPOS keeps every order, table, kitchen ticket, leave request, payslip, and
+                customer touchpoint connected. It is designed for busy Indian food businesses that
+                need speed, visibility, and fewer manual errors across every shift.
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/60">

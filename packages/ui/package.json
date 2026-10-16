@@ -177,6 +177,20 @@
     "./user-avatar-profile": {
       "types": "./user-avatar-profile.tsx",
       "default": "./user-avatar-profile.tsx"
+    },
+    "./sort-th": "./sort-th.tsx",
+    "./heading": "./heading.tsx",
+    "./billing/*": {
+      "types": "./billing/*.tsx",
+      "default": "./billing/*.tsx"
+    },
+    "./admin/*": {
+      "types": "./admin/*.tsx",
+      "default": "./admin/*.tsx"
+    },
+    "./charts/*": {
+      "types": "./charts/*.tsx",
+      "default": "./charts/*.tsx"
     }
   },
   "dependencies": {
@@ -213,7 +227,9 @@
     "sonner": "^1.7.4",
     "tailwind-merge": "^3.5.0",
     "uuid": "^11.1.0",
-    "zod": "^3.24.0"
+    "zod": "^3.24.0",
+    "@pixa/db": "workspace:*",
+    "@pixa/server": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

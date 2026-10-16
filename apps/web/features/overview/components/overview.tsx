@@ -1,4 +1,4 @@
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { Button } from "@pixa/ui/base-ui/button";
 import {
   Card,
@@ -9,9 +9,9 @@ import {
   CardAction,
 } from "@pixa/ui/base-ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@pixa/ui/base-ui/tabs";
-import { AreaGraph } from "./area-graph";
-import { BarGraph } from "./bar-graph";
-import { PieGraph } from "./pie-graph";
+import { AreaGraph } from "@pixa/ui/charts/area-graph";
+import { BarGraph } from "@pixa/ui/charts/bar-graph";
+import { PieGraph } from "@pixa/ui/charts/pie-graph";
 import { RecentSales } from "./recent-sales";
 import { Icons } from "@pixa/ui/icons";
 import { Badge } from "@pixa/ui/base-ui/badge";

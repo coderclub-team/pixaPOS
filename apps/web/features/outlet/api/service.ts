@@ -1,71 +1,67 @@
 import { delay } from "@/constants/mock-api";
 import type { BusinessHours, DayHours, Outlet, OutletPayload } from "./types";
 
-const OUTLET_STORAGE_KEY = "pixaOutlet";
+type ServerProfile = Record<string, unknown>;
 
-function saveOutlet(): void {
-  if (typeof window === "undefined") return;
+async function fetchServerProfile(id: string): Promise<ServerProfile | null> {
+  if (typeof window === "undefined" || typeof fetch === "undefined") return null;
   try {
-    localStorage.setItem(OUTLET_STORAGE_KEY, JSON.stringify({ outlet: mockOutlet }));
-  } catch {}
+    const res = await fetch(`/api/outlets/${encodeURIComponent(id)}`, { credentials: "include" });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { outlet?: ServerProfile };
+    return data.outlet ?? null;
+  } catch {
+    return null;
+  }
 }
 
-function loadOutlet(): void {
-  if (typeof window === "undefined") return;
-  try {
-    const raw = localStorage.getItem(OUTLET_STORAGE_KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw);
-    if (parsed?.outlet && parsed.outlet.id === mockOutlet.id) {
-      mockOutlet = { ...mockOutlet, ...parsed.outlet, upi_ids: parsed.outlet.upi_ids ?? [] };
-    }
-  } catch {}
+/** Server profile → full Outlet shape (neutral defaults fill type gaps). */
+function toOutlet(p: ServerProfile): Outlet {
+  const str = (v: unknown, fb = "") => (typeof v === "string" ? v : fb);
+  const now = new Date().toISOString();
+  return {
+    id: String(p.id ?? ""),
+    organization_id: String(p.organization_id ?? ""),
+    name: str(p.name),
+    code: str(p.code),
+    alias: typeof p.alias === "string" ? p.alias : undefined,
+    type: str(p.type, "restaurant"),
+    logo_url: "",
+    phone: str(p.phone),
+    alternate_phone: str(p.alternate_phone),
+    email: str(p.email),
+    website: str(p.website),
+    whatsapp: str(p.whatsapp),
+    address_line_1: str(p.address_line_1),
+    address_line_2: str(p.address_line_2),
+    locality: str(p.locality),
+    city: str(p.city),
+    district: str(p.district),
+    state: str(p.state),
+    country: str(p.country, "India"),
+    postal_code: str(p.postal_code),
+    latitude: typeof p.latitude === "number" ? p.latitude : undefined,
+    longitude: typeof p.longitude === "number" ? p.longitude : undefined,
+    gst_registered: p.gst_registered === true,
+    gstin: str(p.gstin),
+    legal_name: str(p.legal_name),
+    pan: str(p.pan),
+    fssai_number: str(p.fssai_number),
+    currency: str(p.currency, "INR"),
+    timezone: str(p.timezone, "Asia/Kolkata"),
+    locale: str(p.locale, "en-IN"),
+    ask_customer_details: p.ask_customer_details === true,
+    allow_off_hours_orders: p.allow_off_hours_orders === true,
+    require_off_hours_reason: p.require_off_hours_reason !== false,
+    business_hours: (p.business_hours as BusinessHours | undefined) ?? defaultBusinessHours(),
+    upi_id: undefined,
+    upi_ids: Array.isArray(p.upi_ids) ? (p.upi_ids as Outlet["upi_ids"]) : [],
+    kiosk_pin_hash: typeof p.kiosk_pin_hash === "string" ? p.kiosk_pin_hash : undefined,
+    is_active: p.is_active !== false,
+    created_at: str(p.created_at, now),
+    updated_at: str(p.updated_at, now),
+  };
 }
-
-let mockOutlet: Outlet = {
-  id: "out_001",
-  organization_id: "org_001",
-  name: "PixaPOS Main Outlet",
-  code: "PX001",
-  alias: "Main",
-  type: "restaurant",
-  logo_url: "",
-  phone: "9876543210",
-  alternate_phone: "",
-  email: "outlet@pixapos.com",
-  website: "https://pixapos.com",
-  whatsapp: "9876543210",
-  address_line_1: "123 MG Road",
-  address_line_2: "Near City Center",
-  locality: "MG Road",
-  city: "Ahmedabad",
-  district: "Ahmedabad",
-  state: "Gujarat",
-  country: "India",
-  postal_code: "380015",
-  latitude: 23.0225,
-  longitude: 72.5714,
-  gst_registered: true,
-  gstin: "24ABCDE1234F1Z5",
-  legal_name: "PixaPOS Pvt Ltd",
-  pan: "ABCDE1234F",
-  fssai_number: "12345678901234",
-  currency: "INR",
-  timezone: "Asia/Kolkata",
-  locale: "en-IN",
-  ask_customer_details: false,
-  allow_off_hours_orders: false,
-  require_off_hours_reason: true,
-  business_hours: defaultBusinessHours(),
-  upi_id: "",
-  upi_ids: [],
-  is_active: true,
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-};
-
-// Restore persisted edits (logo, UPI IDs, details) after the base is defined.
-loadOutlet();
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
@@ -200,21 +196,60 @@ export function minutesToClose(
   return close - minutes;
 }
 
-export async function getOutlet(): Promise<Outlet> {
+/**
+ * Active terminal outlet from the server. Null when no outlet is selected
+ * or reachable — callers show setup instead of mock data.
+ */
+export async function getOutlet(): Promise<Outlet | null> {
   await delay(500);
-  return { ...mockOutlet };
+  try {
+    const { outletsQueryOptions, resolveActiveOutlet } = await import("./outlets");
+    const { getQueryClient } = await import("@/lib/query-client");
+    const list = await getQueryClient()
+      .fetchQuery(outletsQueryOptions)
+      .catch(() => [] as { id: string }[]);
+    const activeId = resolveActiveOutlet(
+      list as {
+        id: string;
+        organization_id: string;
+        name: string;
+        code: string;
+        is_active: boolean;
+      }[],
+    );
+    if (!activeId) return null;
+    const profile = await fetchServerProfile(activeId);
+    return profile ? toOutlet(profile) : null;
+  } catch {
+    return null;
+  }
 }
 
-export async function updateOutlet(payload: OutletPayload): Promise<Outlet> {
+export async function updateOutlet(outletId: string, payload: OutletPayload): Promise<Outlet> {
   await delay(800);
-  mockOutlet = { ...mockOutlet, ...payload, updated_at: new Date().toISOString() };
-  saveOutlet();
-  return { ...mockOutlet };
+  if (!outletId) throw new Error("No outlet selected — create one first");
+  const res = await fetch(`/api/outlets/${encodeURIComponent(outletId)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Failed to update outlet");
+  }
+  const data = (await res.json()) as { outlet?: ServerProfile };
+  if (!data.outlet) throw new Error("Failed to update outlet");
+  const { getQueryClient } = await import("@/lib/query-client");
+  const { outletKeys } = await import("./queries");
+  getQueryClient().invalidateQueries({ queryKey: outletKeys.all });
+  return toOutlet(data.outlet);
 }
 
 export async function getOutletById(id: string): Promise<Outlet | null> {
   await delay(300);
-  return mockOutlet.id === id ? { ...mockOutlet } : null;
+  const profile = await fetchServerProfile(id);
+  return profile ? toOutlet(profile) : null;
 }
 
 /**
@@ -229,98 +264,87 @@ export async function checkKioskPin(
   opts?: { allowSet?: boolean },
 ): Promise<boolean> {
   await delay(200);
-  if (mockOutlet.id !== outletId) return false;
   if (!/^[0-9]{4,8}$/.test(pin)) return false;
-  const { hashKioskPin } = await import("@/lib/device-token");
-  if (!mockOutlet.kiosk_pin_hash) {
+  const { hashKioskPin } = await import("@pixa/server/device-token");
+  // Verify (or first-set) against the server hash so every kiosk of the
+  // outlet shares one PIN.
+  try {
+    const profile = await fetchServerProfile(outletId);
+    const serverHash =
+      profile && typeof profile.kiosk_pin_hash === "string"
+        ? (profile.kiosk_pin_hash as string)
+        : null;
+    if (serverHash) return (await hashKioskPin(pin, outletId)) === serverHash;
     if (!opts?.allowSet) return false;
-    mockOutlet = {
-      ...mockOutlet,
-      kiosk_pin_hash: await hashKioskPin(pin, outletId),
-      updated_at: new Date().toISOString(),
-    };
-    saveOutlet();
-    return true;
+    const res = await fetch(`/api/outlets/${encodeURIComponent(outletId)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kiosk_pin_hash: await hashKioskPin(pin, outletId) }),
+      credentials: "include",
+    }).catch(() => null);
+    return res !== null && res.ok;
+  } catch {
+    return false;
   }
-  return (await hashKioskPin(pin, outletId)) === mockOutlet.kiosk_pin_hash;
 }
 
 const VPA_RE = /^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/;
 
 /** Add a UPI VPA. First account becomes the default automatically. */
-export async function addUpiAccount(label: string, vpa: string): Promise<Outlet> {
+export async function addUpiAccount(outletId: string, label: string, vpa: string): Promise<Outlet> {
   await delay(300);
   const cleanLabel = label.trim();
   const cleanVpa = vpa.trim();
   if (cleanLabel.length < 2) throw new Error("Label must be at least 2 characters");
   if (!VPA_RE.test(cleanVpa)) throw new Error("Enter a valid UPI ID (e.g. outlet@okhdfc)");
-  loadOutletIds();
-  if (mockOutlet.upi_ids.some((u) => u.vpa.toLowerCase() === cleanVpa.toLowerCase())) {
+  const current = await getOutletById(outletId);
+  if (!current) throw new Error("Outlet not found");
+  const ids = current.upi_ids ?? [];
+  if (ids.some((u) => u.vpa.toLowerCase() === cleanVpa.toLowerCase())) {
     throw new Error("This UPI ID is already added");
   }
   const account = {
     id: `upi_${Date.now().toString(36)}`,
     label: cleanLabel,
     vpa: cleanVpa,
-    is_active: mockOutlet.upi_ids.length === 0,
+    is_active: ids.length === 0,
     created_at: new Date().toISOString(),
   };
-  mockOutlet = {
-    ...mockOutlet,
-    upi_ids: [...mockOutlet.upi_ids, account],
-    updated_at: new Date().toISOString(),
-  };
-  saveOutlet();
-  return { ...mockOutlet };
+  return updateOutlet(outletId, { upi_ids: [...ids, account] } as OutletPayload);
 }
 
 /** Set exactly one default VPA (manual default — no implicit fallback). */
-export async function setDefaultUpiAccount(id: string): Promise<Outlet> {
+export async function setDefaultUpiAccount(outletId: string, id: string): Promise<Outlet> {
   await delay(300);
-  loadOutletIds();
-  if (!mockOutlet.upi_ids.some((u) => u.id === id)) throw new Error("UPI account not found");
-  mockOutlet = {
-    ...mockOutlet,
-    upi_ids: mockOutlet.upi_ids.map((u) => ({ ...u, is_active: u.id === id })),
-    updated_at: new Date().toISOString(),
-  };
-  saveOutlet();
-  return { ...mockOutlet };
+  const current = await getOutletById(outletId);
+  if (!current) throw new Error("Outlet not found");
+  const ids = current.upi_ids ?? [];
+  if (!ids.some((u) => u.id === id)) throw new Error("UPI account not found");
+  return updateOutlet(outletId, {
+    upi_ids: ids.map((u) => ({ ...u, is_active: u.id === id })),
+  } as OutletPayload);
 }
 
 /** Remove a VPA. If the default goes away, the oldest remaining becomes
  * default so bill QR keeps working (announced via toast at the call site). */
-export async function removeUpiAccount(id: string): Promise<{ outlet: Outlet; promoted: boolean }> {
+export async function removeUpiAccount(
+  outletId: string,
+  id: string,
+): Promise<{ outlet: Outlet; promoted: boolean }> {
   await delay(300);
-  loadOutletIds();
-  const target = mockOutlet.upi_ids.find((u) => u.id === id);
+  const current = await getOutletById(outletId);
+  if (!current) throw new Error("Outlet not found");
+  const ids = current.upi_ids ?? [];
+  const target = ids.find((u) => u.id === id);
   if (!target) throw new Error("UPI account not found");
-  let rest = mockOutlet.upi_ids.filter((u) => u.id !== id);
+  let rest = ids.filter((u) => u.id !== id);
   let promoted = false;
   if (target.is_active && rest.length > 0) {
     rest = rest.map((u, i) => ({ ...u, is_active: i === 0 }));
     promoted = true;
   }
-  mockOutlet = { ...mockOutlet, upi_ids: rest, updated_at: new Date().toISOString() };
-  saveOutlet();
-  return { outlet: { ...mockOutlet }, promoted };
-}
-
-/** Backfill for the single-VPA era + storage safety. */
-function loadOutletIds(): void {
-  if (!Array.isArray(mockOutlet.upi_ids)) mockOutlet.upi_ids = [];
-  if (mockOutlet.upi_id && !mockOutlet.upi_ids.some((u) => u.vpa === mockOutlet.upi_id)) {
-    mockOutlet.upi_ids = [
-      ...mockOutlet.upi_ids,
-      {
-        id: "upi_legacy",
-        label: "Counter",
-        vpa: mockOutlet.upi_id,
-        is_active: mockOutlet.upi_ids.length === 0,
-        created_at: new Date().toISOString(),
-      },
-    ];
-  }
+  const outlet = await updateOutlet(outletId, { upi_ids: rest } as OutletPayload);
+  return { outlet, promoted };
 }
 
 /**

@@ -3,8 +3,11 @@
 import { useEffect, useState } from "react";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Icons } from "@pixa/ui/icons";
-import { ThemeModeToggle } from "@/components/themes/theme-mode-toggle";
+import { ThemeModeToggle } from "@pixa/ui/themes/theme-mode-toggle";
 import SyncStatus from "@/components/sync-status";
+import { RealtimeConnectionStatus } from "@/components/realtime-connection-status";
+import { PixaSoundControl } from "@/components/pixa-sound-control";
+import { usePixaNotifications } from "@/hooks/use-pixa-notifications";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@pixa/ui/base-ui/sidebar";
 import AppSidebar from "@/components/layout/app-sidebar";
 import { useInstallPrompt } from "@/hooks/use-install-prompt";
@@ -20,6 +23,7 @@ import KdsBoard from "@/features/kitchen/components/kds-board";
 export default function KdsWallboard() {
   const { installEvt, installed, promptInstall: install } = useInstallPrompt();
   const swReady = useServiceWorker();
+  const { state: rtState, lastSequence } = usePixaNotifications("KDS");
   const [wake, setWake] = useState(false);
 
   useEffect(() => {
@@ -66,6 +70,8 @@ export default function KdsWallboard() {
               </span>
             </span>
             <span className="flex items-center gap-1.5">
+              <RealtimeConnectionStatus state={rtState} lastSequence={lastSequence} />
+              <PixaSoundControl terminal="KDS" />
               <SyncStatus />
               <ThemeModeToggle />
               {!installed && installEvt && (

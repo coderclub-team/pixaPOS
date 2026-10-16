@@ -14,7 +14,7 @@ import { Icons } from "@pixa/ui/icons";
 import { StatusDot } from "@pixa/ui/base-ui/status-dot";
 import { POS_ROLES } from "@/config/roles";
 import { CellAction } from "./users-table/cell-action";
-import { SortTh, useSorting } from "@/components/sort-th";
+import { SortTh, useSorting } from "@pixa/ui/sort-th";
 import type { CsvColumn } from "@/features/system/lib/csv";
 
 function roleLabel(value: string) {

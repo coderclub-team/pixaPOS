@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import { SupplierList } from "@/features/inventory/components/supplier-list";
 import { suppliersQueryOptions } from "@/features/inventory/api/queries";
 import { useQuery } from "@tanstack/react-query";
@@ -17,6 +17,8 @@ import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
 import { ExportButton, ImportDialog } from "@/features/system/components/io-dialog";
+import { BulkShareButton } from "@/features/outlet/components/bulk-share-dialog";
+
 import {
   importSuppliers,
   supplierColumns,
@@ -88,7 +90,11 @@ export default function SuppliersPage() {
             onImport={importSuppliers}
             onDone={() => getQueryClient().invalidateQueries({ queryKey: inventoryKeys.all })}
           />
-        </span>
+          <BulkShareButton
+            entity="supplier"
+            items={(suppliers ?? []).map((m) => ({ id: m.id, name: m.name }))}
+          />
+        </span>{" "}
       </div>
       <SupplierList suppliers={suppliers ?? []} />
     </PageContainer>

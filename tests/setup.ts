@@ -1,0 +1,24 @@
+import "@testing-library/jest-dom/vitest";
+import { cleanup } from "@testing-library/react";
+import { afterEach } from "vitest";
+
+// jsdom lacks these in some versions — stub for component tests.
+if (typeof window !== "undefined") {
+  window.HTMLElement.prototype.scrollIntoView ??= () => {};
+  if (!window.matchMedia) {
+    window.matchMedia = () => ({
+      matches: false,
+      media: "",
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    });
+  }
+}
+
+afterEach(() => {
+  cleanup();
+});

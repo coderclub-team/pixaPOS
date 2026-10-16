@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { FieldGroup } from "@pixa/ui/base-ui/field";
-import { useAppForm } from "@/lib/form";
+import { useAppForm } from "@pixa/forms";
 import { businessDetailsSchema, type BusinessDetailsValues } from "../schemas/outlet";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateOutlet } from "../api/service";
@@ -11,12 +11,14 @@ import { toast } from "sonner";
 
 export default function BusinessDetailsForm({
   initialData,
+  outletId,
 }: {
   initialData: BusinessDetailsValues;
+  outletId: string;
 }) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: (values: BusinessDetailsValues) => updateOutlet(values),
+    mutationFn: (values: BusinessDetailsValues) => updateOutlet(outletId, values),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: outletKeys.all });
       toast.success("Business details updated");

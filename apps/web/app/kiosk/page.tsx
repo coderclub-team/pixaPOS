@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { EnsureOutletDialog } from "@/components/ensure-outlet-dialog";
 import KioskShell from "./shell";
 
 export const metadata: Metadata = {
@@ -8,11 +9,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * /kiosk placeholder: customer self-ordering lives here next. Deliberately
- * public (no session gate) — customers never sign in. Future: menu browsing,
- * cart, customer notes (allergies) capture, KOT firing and payment.
+ * Bare /kiosk (public): enter the outlet code to land on /kiosk/CODE.
  */
-export default async function KioskPlaceholderPage() {
+export default async function KioskPage() {
   return (
     <KioskShell>
       <div className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
@@ -20,6 +19,7 @@ export default async function KioskPlaceholderPage() {
         <p className="max-w-sm text-sm text-muted-foreground">
           The customer kiosk will live here: browse the menu, build a cart and pay.
         </p>
+        <EnsureOutletDialog basePath="/kiosk" mode="code" />
       </div>
     </KioskShell>
   );

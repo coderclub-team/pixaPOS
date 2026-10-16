@@ -3,7 +3,7 @@
  * DB (`saas_plans`) so the landing page shows exactly what admins edit. Falls
  * back to the static `PLANS` when the DB is unavailable at render time.
  */
-import { adminDb } from "@/lib/saas-admin";
+import { adminDb } from "@pixa/server";
 import { saasPlans } from "@pixa/db";
 import { resolveLimits, type LimitMap } from "@pixa/db/plans";
 import { PLANS as STATIC_PLANS, planPricing, type Plan } from "./plans";

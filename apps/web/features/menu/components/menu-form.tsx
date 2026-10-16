@@ -24,7 +24,7 @@ import {
   CommandList,
 } from "@pixa/ui/base-ui/command";
 import { Textarea } from "@pixa/ui/base-ui/textarea";
-import { useAppForm } from "@/lib/form";
+import { useAppForm } from "@pixa/forms";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -41,7 +41,7 @@ import type { MenuItem, ProductType, ItemType } from "../api/types";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { useState } from "react";
-import { FileUploader } from "@/components/file-uploader";
+import { FileUploader } from "@pixa/forms/file-uploader";
 import { useImageUpload } from "@/hooks/use-image-upload";
 import { SortableList, SortableItem, SortableItemHandle } from "@pixa/ui/base-ui/sortable";
 

@@ -11,28 +11,10 @@ import type {
   FloorObjectKind,
 } from "./types";
 import { getTablesWithDerivedByFloor } from "@/features/table/api/service";
+import { requireServiceOutletId } from "@/features/outlet/api/outlets";
 
 // In-memory stores
-let mockFloors: Floor[] = [
-  {
-    id: "fl_001",
-    outlet_id: "out_001",
-    name: "Ground Floor",
-    code: "GF",
-    description: "Main dining area",
-    level: 0,
-    capacity: 50,
-    sort_order: 1,
-    is_active: true,
-    is_outdoor: false,
-    width_mm: 12000,
-    height_mm: 8000,
-    grid_size_mm: 100,
-    version: 1,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
+let mockFloors: Floor[] = [];
 
 // Persist mock floors to localStorage so created floors survive dev-server
 // restarts (same PO_STORAGE_KEY pattern as inventory service).
@@ -280,7 +262,7 @@ export async function createFloor(payload: FloorPayload): Promise<Floor> {
     const now = new Date().toISOString();
     const floor: Floor = {
       id: `fl_${Date.now().toString(36)}`,
-      outlet_id: payload.outlet_id ?? "out_001",
+      outlet_id: payload.outlet_id ?? requireServiceOutletId(),
       name: payload.name,
       code: payload.code.toUpperCase(),
       description: payload.description,
@@ -378,8 +360,12 @@ export async function reorderFloors(input: ReorderFloorInput[]): Promise<void> {
       }
     });
     saveFloors();
+    const touchedOutlet =
+      input
+        .map((item) => mockFloors.find((f) => f.id === item.floor_id)?.outlet_id)
+        .find((o): o is string => !!o) ?? requireServiceOutletId();
     await recordEvent({
-      outlet_id: "out_001",
+      outlet_id: touchedOutlet,
       entity_type: "FLOOR",
       entity_id: "global",
       event_type: "FLOOR_REORDERED",

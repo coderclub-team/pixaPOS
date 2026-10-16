@@ -83,19 +83,11 @@ export const navGroups: NavGroup[] = [
     label: "Outlet",
     items: [
       {
-        title: "Profile",
-        url: "#",
+        title: "Outlets",
+        url: "/dashboard/settings/outlets",
         icon: "user",
-        isActive: false,
-        items: [
-          {
-            title: "Outlet Profile",
-            url: "/dashboard/settings/outlet/profile",
-            icon: "user",
-            shortcut: ["o", "o"],
-            access: { requireOrg: true, permission: "org:sys_profile:manage" },
-          },
-        ],
+        shortcut: ["o", "o"],
+        access: { requireOrg: true, permission: "org:sys_profile:manage" },
       },
       {
         title: "Setup",
@@ -361,6 +353,56 @@ export const navGroups: NavGroup[] = [
             url: "/dashboard/marketing/rewards",
             icon: "sparkles",
             shortcut: ["m", "r"],
+            access: { requireOrg: true },
+          },
+        ],
+      },
+    ],
+  },
+  {
+    label: "Payroll",
+    items: [
+      {
+        title: "Payroll",
+        url: "#",
+        icon: "receipt",
+        isActive: false,
+        access: { requireOrg: true },
+        items: [
+          {
+            title: "Employees",
+            url: "/dashboard/payroll/employees",
+            icon: "teams",
+            access: { requireOrg: true, permission: "org:payroll:manage" },
+          },
+          {
+            title: "Leave Requests",
+            url: "/dashboard/payroll/leaves",
+            icon: "calendar",
+            access: { requireOrg: true, permission: "org:leave:approve" },
+          },
+          {
+            title: "Holidays",
+            url: "/dashboard/payroll/holidays",
+            icon: "sparkles",
+            access: { requireOrg: true, permission: "org:payroll:manage" },
+          },
+          {
+            title: "Pay Runs",
+            url: "/dashboard/payroll/runs",
+            icon: "billing",
+            access: { requireOrg: true, permission: "org:payroll:manage" },
+          },
+          {
+            title: "Attendance",
+            url: "/dashboard/payroll/attendance",
+            icon: "clock",
+            access: { requireOrg: true, permission: "org:payroll:manage" },
+          },
+          {
+            title: "My Payroll",
+            url: "/dashboard/payroll/me",
+            icon: "user",
             access: { requireOrg: true },
           },
         ],

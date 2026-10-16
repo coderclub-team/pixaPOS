@@ -32,6 +32,11 @@ const ROWS = [
     pixa: "All orders visible on one screen",
   },
   {
+    label: "Staff payroll, leave & payslips",
+    ordinary: "Separate HR tool or manual sheets",
+    pixa: "Built-in payroll — hourly/salary, leave, holidays, incentives & bank CSV",
+  },
+  {
     label: "Price",
     ordinary: "Higher with recurring add-ons",
     pixa: "From ₹399/month",

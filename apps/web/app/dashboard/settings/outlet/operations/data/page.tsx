@@ -1,6 +1,6 @@
 "use client";
 
-import PageContainer from "@/components/layout/page-container";
+import PageContainer from "@pixa/ui/layout/page-container";
 import SnapshotPanel from "@/features/system/components/snapshot-panel";
 
 export default function DataBackupsPage() {
