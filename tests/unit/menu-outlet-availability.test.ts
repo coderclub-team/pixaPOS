@@ -5,15 +5,6 @@ vi.mock("@/lib/db/repo", () => ({
   readScope: vi.fn(async () => []),
 }));
 
-const CATALOG_KEY = "pixaMenu";
-
-function seedCatalog(categories: Array<Record<string, unknown>>) {
-  window.localStorage.setItem(
-    CATALOG_KEY,
-    JSON.stringify({ version: 1, categories, items: [], modifierGroups: [], modifiers: [] }),
-  );
-}
-
 async function loadMenu() {
   return await import("@/features/menu/api/service");
 }
@@ -25,6 +16,7 @@ async function loadAvailability() {
 beforeEach(() => {
   window.localStorage.clear();
   vi.resetModules();
+  vi.restoreAllMocks();
 });
 
 describe("outlet availability (closed by default)", () => {
@@ -54,14 +46,13 @@ describe("outlet availability (closed by default)", () => {
     expect(inB.map((m) => m.id)).not.toContain(item.id);
   }, 15000);
 
-  it("grandfathers pre-existing local rows at the first outlet that reads them", async () => {
-    const { getMenuCategories } = await loadMenu();
-    seedCatalog([{ id: "legacy-cat-1", name: "Legacy Cat", slug: "legacy-cat", is_active: true }]);
-    // First filtered read at outlet-c stamps the legacy row visible there...
-    const inC = await getMenuCategories({ outlet_id: "outlet-c" });
-    expect(inC.map((c) => c.id)).toContain("legacy-cat-1");
-    // ...but it stays hidden at an outlet that never saw it.
-    const inD = await getMenuCategories({ outlet_id: "outlet-d" });
-    expect(inD.map((c) => c.id)).not.toContain("legacy-cat-1");
+  it("does not persist the catalog to localStorage (Phase 2: in-memory only)", async () => {
+    const setSpy = vi.spyOn(Storage.prototype, "setItem");
+    const { createMenuCategory, getMenuCategories } = await loadMenu();
+    await createMenuCategory({ name: "Ephemeral Cat" }, { outletId: "outlet-a" });
+    await getMenuCategories({ outlet_id: "outlet-a" });
+    const menuWrites = setSpy.mock.calls.filter(([key]) => key === "pixaMenu");
+    expect(menuWrites).toHaveLength(0);
+    setSpy.mockRestore();
   }, 15000);
 });

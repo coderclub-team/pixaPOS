@@ -118,6 +118,8 @@ function toDoc(o: {
 
 /** Durable SQLite mirror (fire-and-forget; repo never throws). */
 function mirrorMenu() {
+  /* OFFLINE-FIRST-DISABLED: mirror writes commented out (Phase 2) — the
+   * catalog lives in memory only. Restore the body to re-enable.
   if (typeof window === "undefined") return;
   import("@/lib/db/repo").then(({ writeScope }) => {
     void writeScope("menu_categories", mockCategories.map(toDoc));
@@ -125,12 +127,15 @@ function mirrorMenu() {
     void writeScope("modifier_groups", mockModifierGroups.map(toDoc));
     void writeScope("modifiers", mockModifiers.map(toDoc));
   });
+  */
 }
 
 /** Adopt the durable mirror on app startup — only when localStorage is
  * missing/empty. Never overwrites existing localStorage (the seed-version
  * reseed in loadMenu stays authoritative for shape changes). */
 export async function hydrateMenuFromMirror(): Promise<void> {
+  /* OFFLINE-FIRST-DISABLED: no mirror adoption (Phase 2) — catalog starts
+   * empty every load. Restore the body to re-enable.
   if (typeof window === "undefined") return;
   try {
     const raw = localStorage.getItem(MENU_STORAGE_KEY);
@@ -156,9 +161,12 @@ export async function hydrateMenuFromMirror(): Promise<void> {
     );
     loadMenu();
   } catch {}
+  */
 }
 
 function saveMenu() {
+  /* OFFLINE-FIRST-DISABLED: no localStorage writes (Phase 2) — in-memory
+   * only. Restore the body to re-enable.
   if (typeof window !== "undefined") {
     try {
       localStorage.setItem(
@@ -174,9 +182,13 @@ function saveMenu() {
       mirrorMenu();
     } catch {}
   }
+  */
 }
 
 function loadMenu(): void {
+  /* OFFLINE-FIRST-DISABLED: no localStorage reads (Phase 2) — arrays stay
+   * as-is (empty on fresh load, in-session rows otherwise). Restore the
+   * body to re-enable.
   if (typeof window !== "undefined") {
     try {
       const raw = localStorage.getItem(MENU_STORAGE_KEY);
@@ -200,6 +212,7 @@ function loadMenu(): void {
       }
     } catch {}
   }
+  */
 }
 
 // Categories
