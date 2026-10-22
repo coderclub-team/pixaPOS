@@ -10,6 +10,7 @@ import { INDIA, countryOptions, currencyOptions, indiaLockError, timeZoneOptions
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
 import { FieldGroup } from "@pixa/ui/base-ui/field";
+import { AuthCardSkeleton } from "@pixa/ui/base-ui/auth-card-skeleton";
 
 const SOURCES = [
   "YouTube",
@@ -120,136 +121,140 @@ export default function OnboardingForm() {
 
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-xl flex-col justify-center p-6 md:p-10">
-      <Card>
-        <CardHeader className="text-center">
-          <CardTitle className="text-xl">Set up your business</CardTitle>
-          <CardDescription>
-            14-day free trial · No credit card — workspace, outlet and trial in one step
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void form.handleSubmit();
-            }}
-            className="grid gap-4"
-          >
-            <FieldGroup>
-              <form.AppField
-                name="business_name"
-                children={(field) => (
-                  <field.TextField
-                    label="Business / restaurant name"
-                    required
-                    placeholder="e.g. Annapoorani Bhavan"
-                  />
-                )}
-              />
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {!orgsLoaded ? (
+        <AuthCardSkeleton />
+      ) : (
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle className="text-xl">Set up your business</CardTitle>
+            <CardDescription>
+              14-day free trial · No credit card — workspace, outlet and trial in one step
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void form.handleSubmit();
+              }}
+              className="grid gap-4"
+            >
+              <FieldGroup>
                 <form.AppField
-                  name="country"
-                  children={(field) => (
-                    <field.SelectField
-                      label="Country"
-                      required
-                      options={countryOptions()}
-                      description="India only for now"
-                    />
-                  )}
-                />
-                <form.AppField
-                  name="currency"
-                  children={(field) => (
-                    <field.SelectField label="Currency" required options={currencyOptions()} />
-                  )}
-                />
-                <form.AppField
-                  name="timezone"
-                  children={(field) => (
-                    <field.SelectField label="Timezone" required options={timeZoneOptions()} />
-                  )}
-                />
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <form.AppField
-                  name="outlet_name"
+                  name="business_name"
                   children={(field) => (
                     <field.TextField
-                      label="Initial outlet name"
+                      label="Business / restaurant name"
                       required
-                      placeholder="Main counter"
+                      placeholder="e.g. Annapoorani Bhavan"
                     />
                   )}
                 />
-                <form.AppField
-                  name="outlets_count"
-                  children={(field) => (
-                    <field.SelectField
-                      label="Number of outlets"
-                      required
-                      options={OUTLET_COUNTS.map((o) => ({ value: o, label: o }))}
-                    />
-                  )}
-                />
-              </div>
-              <form.AppField
-                name="outlet_address"
-                children={(field) => (
-                  <field.TextField
-                    label="Outlet address"
-                    placeholder="Shop no, street, area, city, PIN"
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <form.AppField
+                    name="country"
+                    children={(field) => (
+                      <field.SelectField
+                        label="Country"
+                        required
+                        options={countryOptions()}
+                        description="India only for now"
+                      />
+                    )}
                   />
-                )}
-              />
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={useLocation}
-                  disabled={locating}
-                >
-                  {locating
-                    ? "Reading location…"
-                    : form.state.values.lat
-                      ? `📍 ${form.state.values.lat}, ${form.state.values.lng}`
-                      : "Use my location (optional)"}
-                </Button>
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <form.AppField
+                    name="currency"
+                    children={(field) => (
+                      <field.SelectField label="Currency" required options={currencyOptions()} />
+                    )}
+                  />
+                  <form.AppField
+                    name="timezone"
+                    children={(field) => (
+                      <field.SelectField label="Timezone" required options={timeZoneOptions()} />
+                    )}
+                  />
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <form.AppField
+                    name="outlet_name"
+                    children={(field) => (
+                      <field.TextField
+                        label="Initial outlet name"
+                        required
+                        placeholder="Main counter"
+                      />
+                    )}
+                  />
+                  <form.AppField
+                    name="outlets_count"
+                    children={(field) => (
+                      <field.SelectField
+                        label="Number of outlets"
+                        required
+                        options={OUTLET_COUNTS.map((o) => ({ value: o, label: o }))}
+                      />
+                    )}
+                  />
+                </div>
                 <form.AppField
-                  name="source"
-                  children={(field) => (
-                    <field.SelectField
-                      label="Where did you hear about us?"
-                      options={SOURCES.map((s) => ({ value: s, label: s }))}
-                      placeholder="Select one"
-                    />
-                  )}
-                />
-                <form.AppField
-                  name="monthly_orders"
+                  name="outlet_address"
                   children={(field) => (
                     <field.TextField
-                      label="Monthly orders (optional)"
-                      placeholder="e.g. 3000"
-                      inputMode="numeric"
+                      label="Outlet address"
+                      placeholder="Shop no, street, area, city, PIN"
                     />
                   )}
                 />
-              </div>
-            </FieldGroup>
-            <form.Subscribe selector={(s) => s.isSubmitting}>
-              {(submitting) => (
-                <Button type="submit" className="w-full" disabled={submitting}>
-                  {submitting ? "Creating workspace…" : "Create workspace & start trial"}
-                </Button>
-              )}
-            </form.Subscribe>
-          </form>
-        </CardContent>
-      </Card>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={useLocation}
+                    disabled={locating}
+                  >
+                    {locating
+                      ? "Reading location…"
+                      : form.state.values.lat
+                        ? `📍 ${form.state.values.lat}, ${form.state.values.lng}`
+                        : "Use my location (optional)"}
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <form.AppField
+                    name="source"
+                    children={(field) => (
+                      <field.SelectField
+                        label="Where did you hear about us?"
+                        options={SOURCES.map((s) => ({ value: s, label: s }))}
+                        placeholder="Select one"
+                      />
+                    )}
+                  />
+                  <form.AppField
+                    name="monthly_orders"
+                    children={(field) => (
+                      <field.TextField
+                        label="Monthly orders (optional)"
+                        placeholder="e.g. 3000"
+                        inputMode="numeric"
+                      />
+                    )}
+                  />
+                </div>
+              </FieldGroup>
+              <form.Subscribe selector={(s) => s.isSubmitting}>
+                {(submitting) => (
+                  <Button type="submit" className="w-full" disabled={submitting}>
+                    {submitting ? "Creating workspace…" : "Create workspace & start trial"}
+                  </Button>
+                )}
+              </form.Subscribe>
+            </form>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

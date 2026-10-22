@@ -28,20 +28,43 @@ function poolMax(): number {
   return 5;
 }
 
+/**
+ * Shared pool factory. Normalizes `sslmode=require` to `verify-full`:
+ * same TLS, plus hostname verification, and silences pg-connection-string's
+ * libpq-compat warning. Both Neon and Layerbase serve valid public certs.
+ */
+export function createDbPool(url: string, max = poolMax()): Pool {
+  const normalized = url.replace(/([?&])sslmode=require(&|$)/, "$1sslmode=verify-full$2");
+  const pool = new Pool({ connectionString: normalized, max });
+  pool.on("error", (err) => {
+    // Idle-client errors must not crash the server; queries will surface
+    // their own errors to callers.
+    console.error("[db] idle pool client error", err instanceof Error ? err.message : err);
+  });
+  return pool;
+}
+
 let cached: ReturnType<typeof drizzle<typeof fullSchema>> | null = null;
 let pool: Pool | null = null;
+let loggedTarget = false;
+
+/** Host + database only — never logs credentials. */
+function describeTarget(url: string): string {
+  const m = url.match(/^postgresql:\/\/.*@([^/]+)\/([^?]+)/);
+  if (!m) return "DATABASE_URL=<unparseable>";
+  return `host=${m[1]} db=${m[2]}`;
+}
 
 export function db() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");
   if (!cached) {
+    if (!loggedTarget) {
+      loggedTarget = true;
+      console.info(`[db] connecting: ${describeTarget(url)}`);
+    }
     // `?sslmode=require` in the URL is honored by node-postgres.
-    pool = new Pool({ connectionString: url, max: poolMax() });
-    pool.on("error", (err) => {
-      // Idle-client errors must not crash the server; queries will surface
-      // their own errors to callers.
-      console.error("[db] idle pool client error", err instanceof Error ? err.message : err);
-    });
+    pool = createDbPool(url);
     cached = drizzle(pool, { schema: fullSchema });
   }
   return cached;

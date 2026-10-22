@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
 import {
   Select,
   SelectContent,
@@ -17,9 +17,10 @@ import { Icons } from "@pixa/ui/icons";
 import {
   outletKeys,
   outletsQueryOptions,
-  resolveActiveOutlet,
   setActiveOutletId,
+  swapOutletSegment,
 } from "@/features/outlet/api/queries";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
 import { getQueryClient } from "@/lib/query-client";
 
 /**
@@ -56,8 +57,11 @@ export function OutletSwitcher() {
   const allowed = access?.outlets;
   const list = allowed ? all.filter((o) => allowed.some((a) => a.id === o.id)) : all;
   const router = useRouter();
-  const activeId = mounted ? resolveActiveOutlet(list.length > 0 ? list : all) : null;
-  const active = mounted ? all.find((o) => o.id === activeId) : undefined;
+  const pathname = usePathname();
+  const activeOutletId = useActiveOutletId();
+  const activeId = mounted ? (activeOutletId ?? list[0]?.id ?? all[0]?.id ?? null) : null;
+  const active = mounted ? (all.find((o) => o.id === activeId) ?? list[0] ?? all[0]) : undefined;
+  const activeCode = active?.code ?? "—";
 
   const switchTo = (value: string | null) => {
     if (value === null) return;
@@ -68,7 +72,7 @@ export function OutletSwitcher() {
     if (!value || value === activeId || value.startsWith("__")) return;
     const chosen = all.find((o) => o.id === value);
     if (!chosen) return;
-    setActiveOutletId(value);
+    setActiveOutletId(value, pathname);
     const qc = getQueryClient();
     qc.invalidateQueries({ queryKey: outletKeys.list() });
     qc.invalidateQueries({ queryKey: ["orders"] });
@@ -76,6 +80,13 @@ export function OutletSwitcher() {
     qc.invalidateQueries({ queryKey: ["tables"] });
     qc.invalidateQueries({ queryKey: ["floors"] });
     qc.invalidateQueries({ queryKey: ["menu"] });
+    // On outlet-scoped routes (/pos/<id>, /kds/<id>, …) the URL owns the
+    // outlet via OutletRouteSync — it would instantly revert a storage-only
+    // switch. Navigate with the new id so URL and storage converge.
+    if (activeId) {
+      const next = swapOutletSegment(pathname, activeId, value);
+      if (next) router.replace(next);
+    }
     toast.success(`Switched this terminal to ${chosen.name}`);
   };
 
@@ -90,7 +101,7 @@ export function OutletSwitcher() {
         aria-label={`Switch outlet (currently ${active?.name ?? "none"})`}
         className="justify-start gap-1 font-mono text-xs font-semibold"
       >
-        <span>{active?.code ?? "—"}</span>
+        <span>{activeCode}</span>
         <Icons.chevronDown className="text-muted-foreground size-3.5" />
       </SelectTrigger>
       <SelectContent align="end">

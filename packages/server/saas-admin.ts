@@ -5,7 +5,8 @@ import * as schema from "@pixa/db";
 export function adminDb() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");
-  const pool = new Pool({ connectionString: url, max: 5 });
+  const normalized = url.replace(/([?&])sslmode=require(&|$)/, "$1sslmode=verify-full$2");
+  const pool = new Pool({ connectionString: normalized, max: 5 });
   return drizzle(pool, { schema });
 }
 

@@ -1,7 +1,40 @@
 import { defineConfig, devices } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3111";
 const CI = !!process.env.CI;
+
+/**
+ * Fail fast unless the dev server's database looks non-production.
+ * The spawned `next dev` loads apps/web/.env.local, so read the same file.
+ * This guard exists because e2e runs once wrote test fixtures into prod.
+ */
+function assertNonProdDatabase(): void {
+  let url = "";
+  try {
+    const env = readFileSync(join(process.cwd(), "apps", "web", ".env.local"), "utf8");
+    for (const line of env.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("DATABASE_URL=")) continue;
+      url = trimmed.slice("DATABASE_URL=".length).trim();
+    }
+  } catch {
+    // No local env file (e.g. CI injects env directly) — nothing to check here.
+    return;
+  }
+  if (!url) return;
+  const m = url.match(/^postgresql:\/\/.*@([^/]+)\/([^?]+)/);
+  const dbName = m ? m[2] : "";
+  if (!/dev|test/i.test(dbName)) {
+    throw new Error(
+      `[e2e] refusing to run: DATABASE_URL points at database "${dbName || "<unparseable>"}" ` +
+        `which does not look like a dev/test database. Point local dev at the sage dev DB first.`,
+    );
+  }
+}
+
+assertNonProdDatabase();
 
 /**
  * E2E against a dedicated Next dev server on :3111 (never the :3000 dev

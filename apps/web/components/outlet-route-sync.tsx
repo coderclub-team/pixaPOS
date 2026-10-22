@@ -7,7 +7,9 @@ import { getQueryClient } from "@/lib/query-client";
 /**
  * Syncs the URL outlet into the terminal's active-outlet storage so every
  * downstream hook (useActiveOutletId, realtime bootstrap, queries) follows
- * the route. Runs before children effects on mount and on outlet change.
+ * the route. Effect-only (no render-phase writes): the header switcher moves
+ * the URL along on outlet-scoped routes, so the two converge instead of the
+ * route reverting an explicit switch.
  */
 export function OutletRouteSync({
   outletId,
@@ -16,12 +18,9 @@ export function OutletRouteSync({
   outletId: string;
   children: React.ReactNode;
 }) {
-  if (typeof window !== "undefined" && getActiveOutletId() !== outletId) {
-    setActiveOutletId(outletId);
-  }
-
   useEffect(() => {
-    setActiveOutletId(outletId);
+    if (getActiveOutletId(window.location.pathname) !== outletId)
+      setActiveOutletId(outletId, window.location.pathname);
     const qc = getQueryClient();
     qc.invalidateQueries({ queryKey: ["orders"] });
     qc.invalidateQueries({ queryKey: ["kitchen"] });

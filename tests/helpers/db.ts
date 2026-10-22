@@ -52,7 +52,12 @@ let pool: Pool | null = null;
 
 function testPool(): Pool {
   if (!pool) {
-    pool = new Pool({ connectionString: requireTestDatabaseUrl(), max: 5 });
+    // Mirror createDbPool: verify-full silences pg's libpq-compat warning.
+    const url = requireTestDatabaseUrl().replace(
+      /([?&])sslmode=require(&|$)/,
+      "$1sslmode=verify-full$2",
+    );
+    pool = new Pool({ connectionString: url, max: 5 });
     pool.on("error", (err) => {
       console.error("[test db] idle pool client error", err instanceof Error ? err.message : err);
     });
@@ -70,6 +75,29 @@ export function getTestDb() {
 
 // Child-first order; CASCADE makes this belt-and-braces.
 const TRUNCATE_TABLES = [
+  "attendance_days",
+  "crm_enquiries",
+  "crm_followups",
+  "crm_ticket_notes",
+  "crm_tickets",
+  "customers",
+  "msg_outbox",
+  "msg_providers",
+  "msg_templates",
+  "org_usage",
+  "outlet_menu_categories",
+  "outlet_menu_items",
+  "outlet_modifier_groups",
+  "outlet_raw_materials",
+  "outlet_recipes",
+  "outlet_suppliers",
+  "role_permission_overrides",
+  "saas_audit",
+  "saas_leads",
+  "saas_owner_roles",
+  "saas_owner_sessions",
+  "saas_owners",
+  "saas_plans",
   "purchase_items",
   "purchase_order_items",
   "recipe_ingredients",

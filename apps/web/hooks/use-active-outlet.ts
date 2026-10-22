@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
+  getActiveOutletStorageKey,
   outletsQueryOptions,
   resolveActiveOutlet,
   setActiveOutletId,
@@ -17,23 +19,37 @@ import {
  * Cross-tab switches propagate via storage events + query invalidation.
  */
 export function useActiveOutletId(): string | null {
+  const pathname = usePathname();
   const { data: outlets } = useQuery(outletsQueryOptions);
   const [, setTick] = useState(0);
-  const resolved = resolveActiveOutlet(outlets ?? []);
+  const storageKey = getActiveOutletStorageKey(pathname);
+  const resolved = resolveActiveOutlet(outlets ?? [], pathname);
 
   useEffect(() => {
     if (!outlets || outlets.length === 0) return;
-    if (!getActiveOutletId()) setActiveOutletId(resolved);
-  }, [outlets, resolved]);
+    const current = getActiveOutletId(pathname);
+    if (!current && resolved) setActiveOutletId(resolved, pathname);
+    else if (current && !outlets.some((outlet) => outlet.id === current)) {
+      setActiveOutletId(resolved ?? outlets[0]?.id ?? "", pathname);
+    }
+  }, [outlets, pathname, resolved]);
 
-  // Cross-tab "Use here" from another tab re-resolves here.
+  // Cross-tab or same-tab "Use here" updates should re-resolve immediately.
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === "pixa:activeOutlet") setTick((t) => t + 1);
+      if (e.key === storageKey) setTick((t) => t + 1);
+    };
+    const onOutletChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ key?: string }>).detail;
+      if (detail?.key === storageKey) setTick((t) => t + 1);
     };
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
+    window.addEventListener("pixa:active-outlet-change", onOutletChange);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("pixa:active-outlet-change", onOutletChange);
+    };
+  }, [storageKey]);
 
-  return resolved;
+  return getActiveOutletId(pathname) ?? resolved;
 }

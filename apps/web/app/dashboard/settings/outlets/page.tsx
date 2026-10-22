@@ -27,13 +27,9 @@ import {
 import { StatusDot } from "@pixa/ui/base-ui/status-dot";
 import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
-import {
-  outletKeys,
-  outletsQueryOptions,
-  resolveActiveOutlet,
-  setActiveOutletId,
-} from "@/features/outlet/api/queries";
+import { outletKeys, outletsQueryOptions, setActiveOutletId } from "@/features/outlet/api/queries";
 import { OutletTeamDialog } from "@/features/outlet/components/outlet-team-dialog";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
 import { getQueryClient } from "@/lib/query-client";
 
 /**
@@ -45,9 +41,8 @@ import { getQueryClient } from "@/lib/query-client";
  */
 export default function OutletsPage() {
   const { data: outlets, isPending } = useQuery(outletsQueryOptions);
-  const [, setTick] = useState(0);
   const [teamFor, setTeamFor] = useState<string | null>(null);
-  const resolved = resolveActiveOutlet(outlets ?? []);
+  const resolved = useActiveOutletId();
 
   return (
     <PageContainer
@@ -113,7 +108,7 @@ export default function OutletsPage() {
                           isActive={isActive}
                           canUseHere={o.is_active}
                           onTeam={() => setTeamFor(o.id)}
-                          onSwitched={() => setTick((t) => t + 1)}
+                          onSwitched={() => undefined}
                         />
                       </TableCell>
                     </TableRow>
@@ -168,7 +163,7 @@ function OutletActions({
           {!isActive && canUseHere && (
             <DropdownMenuItem
               onClick={() => {
-                setActiveOutletId(outletId);
+                setActiveOutletId(outletId, window.location.pathname);
                 onSwitched();
                 getQueryClient().invalidateQueries({ queryKey: outletKeys.list() });
                 toast.success(`Switched this terminal to ${outletName}`);

@@ -638,6 +638,71 @@ export const outletItemConfig = pgTable(
   (t) => [uniqueIndex("outlet_item_config_uidx").on(t.outletId, t.sourceItemId)],
 );
 
+/* ------------------------------------------------------------------ */
+/* Outlet ↔ master availability. Masters (menu, modifiers, recipes,     */
+/* materials, suppliers) are org-shared rows; a mapping row means the    */
+/* master is available at that outlet. Modifiers follow their group,      */
+/* variants follow their item, recipe ingredients follow their recipe —    */
+/* so only the six tables below need explicit mappings.                  */
+/* ------------------------------------------------------------------ */
+
+const outletMappingColumns = () => ({
+  id: text("id").primaryKey(),
+  organizationId: text("organization_id").notNull(),
+  outletId: text("outlet_id")
+    .notNull()
+    .references(() => outlets.id, { onDelete: "cascade" }),
+  // Entity id (category_id / item_id / group_id / recipe_id / material_id /
+  // supplier_id depending on the table). Variants follow items, modifiers
+  // follow groups, ingredients follow recipes — no mapping rows needed.
+  entityId: text("entity_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const outletMenuCategories = pgTable(
+  "outlet_menu_categories",
+  outletMappingColumns(),
+  (t) => [
+    uniqueIndex("outlet_menu_categories_uidx").on(t.outletId, t.entityId),
+    index("outlet_menu_categories_outlet_idx").on(t.outletId),
+    index("outlet_menu_categories_entity_idx").on(t.entityId),
+  ],
+);
+
+export const outletMenuItems = pgTable("outlet_menu_items", outletMappingColumns(), (t) => [
+  uniqueIndex("outlet_menu_items_uidx").on(t.outletId, t.entityId),
+  index("outlet_menu_items_outlet_idx").on(t.outletId),
+  index("outlet_menu_items_entity_idx").on(t.entityId),
+]);
+
+export const outletModifierGroups = pgTable(
+  "outlet_modifier_groups",
+  outletMappingColumns(),
+  (t) => [
+    uniqueIndex("outlet_modifier_groups_uidx").on(t.outletId, t.entityId),
+    index("outlet_modifier_groups_outlet_idx").on(t.outletId),
+    index("outlet_modifier_groups_entity_idx").on(t.entityId),
+  ],
+);
+
+export const outletRecipes = pgTable("outlet_recipes", outletMappingColumns(), (t) => [
+  uniqueIndex("outlet_recipes_uidx").on(t.outletId, t.entityId),
+  index("outlet_recipes_outlet_idx").on(t.outletId),
+  index("outlet_recipes_entity_idx").on(t.entityId),
+]);
+
+export const outletRawMaterials = pgTable("outlet_raw_materials", outletMappingColumns(), (t) => [
+  uniqueIndex("outlet_raw_materials_uidx").on(t.outletId, t.entityId),
+  index("outlet_raw_materials_outlet_idx").on(t.outletId),
+  index("outlet_raw_materials_entity_idx").on(t.entityId),
+]);
+
+export const outletSuppliers = pgTable("outlet_suppliers", outletMappingColumns(), (t) => [
+  uniqueIndex("outlet_suppliers_uidx").on(t.outletId, t.entityId),
+  index("outlet_suppliers_outlet_idx").on(t.outletId),
+  index("outlet_suppliers_entity_idx").on(t.entityId),
+]);
+
 /** Audit trail for bulk mapping runs. */
 export const bulkMappingRuns = pgTable(
   "bulk_mapping_runs",

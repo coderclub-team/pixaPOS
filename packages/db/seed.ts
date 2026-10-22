@@ -3,8 +3,9 @@
  * categories, items, variants, modifiers) + SaaS plans + floor/table parity.
  *
  * Best-practice rules:
- * - IDEMPOTENT: every insert is upsert-or-ignore on stable `seed_*` ids.
- *   Safe to re-run; never wipes.
+ * - IDEMPOTENT: every insert is upsert-or-ignore on org-scoped `seed_*` ids
+ *   (`sid()` namespaces the stable names per SEED_ORG_ID). Safe to re-run;
+ *   legacy unscoped rows for the same org are cleaned first, never wiped.
  * - SCOPED: requires SEED_ORG_ID (never guess an org). Outlet code via
  *   SEED_OUTLET_CODE (default "MAIN").
  * - NO fake transactions: orders/KOTs/payments are never seeded (audit).
@@ -13,7 +14,7 @@
  * Usage:
  *   SEED_ORG_ID=org_xxx [SEED_OUTLET_CODE=MAIN] DATABASE_URL=... pnpm --filter @pixa/db seed
  */
-import { eq } from "drizzle-orm";
+import { and, eq, like, notLike, sql } from "drizzle-orm";
 import { db } from "./index";
 import {
   floors,
@@ -45,10 +46,50 @@ if (!ORG) {
   process.exit(1);
 }
 
+// Org-scoped seed ids: stable `seed_*` ids are global, so a second org would
+// silently skip every master (onConflictDoNothing hits the first org's rows).
+// `sid()` namespaces them per org; reruns stay idempotent via the same tag.
+const TAG =
+  ORG.replace(/[^a-zA-Z0-9]/g, "")
+    .slice(-8)
+    .toLowerCase() || "org";
+const sid = (id: string): string =>
+  id.startsWith("seed_") ? `seed_${TAG}_${id.slice("seed_".length)}` : id;
+
 async function main() {
   const database = db();
   const now = new Date();
   const base = { organizationId: ORG, isActive: true, createdAt: now, updatedAt: now };
+
+  // Drop this org's legacy unscoped seed rows (from runs before org-scoped
+  // ids): they would otherwise linger next to the scoped copies. Child
+  // tables first for FK safety. Scoped `seed_<tag>_*` rows are untouched.
+  const legacyTables = [
+    purchaseItems,
+    purchases,
+    purchaseOrderItems,
+    purchaseOrders,
+    recipeIngredients,
+    menuVariants,
+    modifiers,
+    modifierGroups,
+    recipes,
+    rawMaterials,
+    suppliers,
+    menuItems,
+    menuCategories,
+  ] as const;
+  for (const t of legacyTables) {
+    await database
+      .delete(t)
+      .where(
+        and(
+          eq((t as typeof suppliers).organizationId, ORG),
+          like((t as typeof suppliers).id, "seed\\_%"),
+          notLike((t as typeof suppliers).id, `seed\\_${TAG}\\_%`),
+        ),
+      );
+  }
 
   // SaaS plans (source of truth for launch pricing/limits/flags).
   for (const p of DEFAULT_PLANS) {
@@ -125,10 +166,10 @@ async function main() {
 
   // Suppliers.
   const sups = [
-    { id: "seed_sup_veg", name: "FreshVeg Traders", phone: "+919820011122" },
-    { id: "seed_sup_dairy", name: "Amul Dairy Route", phone: "+919820033344" },
-    { id: "seed_sup_poultry", name: "Suguna Poultry", phone: "+919820055566" },
-    { id: "seed_sup_dry", name: "Metro Dry Goods", phone: "+919820077788" },
+    { id: sid("seed_sup_veg"), name: "FreshVeg Traders", phone: "+919820011122" },
+    { id: sid("seed_sup_dairy"), name: "Amul Dairy Route", phone: "+919820033344" },
+    { id: sid("seed_sup_poultry"), name: "Suguna Poultry", phone: "+919820055566" },
+    { id: sid("seed_sup_dry"), name: "Metro Dry Goods", phone: "+919820077788" },
   ];
   for (const s of sups) {
     await database
@@ -140,70 +181,88 @@ async function main() {
   // Raw materials.
   const mats: { id: string; name: string; sku: string; unit: string; supplierId: string }[] = [
     {
-      id: "seed_rm_paneer",
+      id: sid("seed_rm_paneer"),
       name: "Paneer",
       sku: "RM-PANEER",
       unit: "kg",
-      supplierId: "seed_sup_dairy",
+      supplierId: sid("seed_sup_dairy"),
     },
-    { id: "seed_rm_milk", name: "Milk", sku: "RM-MILK", unit: "l", supplierId: "seed_sup_dairy" },
     {
-      id: "seed_rm_butter",
+      id: sid("seed_rm_milk"),
+      name: "Milk",
+      sku: "RM-MILK",
+      unit: "l",
+      supplierId: sid("seed_sup_dairy"),
+    },
+    {
+      id: sid("seed_rm_butter"),
       name: "Butter",
       sku: "RM-BUTTER",
       unit: "kg",
-      supplierId: "seed_sup_dairy",
+      supplierId: sid("seed_sup_dairy"),
     },
     {
-      id: "seed_rm_cheese",
+      id: sid("seed_rm_cheese"),
       name: "Cheese",
       sku: "RM-CHEESE",
       unit: "kg",
-      supplierId: "seed_sup_dairy",
+      supplierId: sid("seed_sup_dairy"),
     },
     {
-      id: "seed_rm_chicken",
+      id: sid("seed_rm_chicken"),
       name: "Chicken",
       sku: "RM-CHICKEN",
       unit: "kg",
-      supplierId: "seed_sup_poultry",
+      supplierId: sid("seed_sup_poultry"),
     },
     {
-      id: "seed_rm_rice",
+      id: sid("seed_rm_rice"),
       name: "Basmati Rice",
       sku: "RM-RICE",
       unit: "kg",
-      supplierId: "seed_sup_dry",
+      supplierId: sid("seed_sup_dry"),
     },
     {
-      id: "seed_rm_flour",
+      id: sid("seed_rm_flour"),
       name: "Wheat Flour",
       sku: "RM-FLOUR",
       unit: "kg",
-      supplierId: "seed_sup_dry",
+      supplierId: sid("seed_sup_dry"),
     },
-    { id: "seed_rm_sugar", name: "Sugar", sku: "RM-SUGAR", unit: "kg", supplierId: "seed_sup_dry" },
     {
-      id: "seed_rm_coffee",
+      id: sid("seed_rm_sugar"),
+      name: "Sugar",
+      sku: "RM-SUGAR",
+      unit: "kg",
+      supplierId: sid("seed_sup_dry"),
+    },
+    {
+      id: sid("seed_rm_coffee"),
       name: "Coffee Beans",
       sku: "RM-COFFEE",
       unit: "kg",
-      supplierId: "seed_sup_dry",
+      supplierId: sid("seed_sup_dry"),
     },
     {
-      id: "seed_rm_tomato",
+      id: sid("seed_rm_tomato"),
       name: "Tomato",
       sku: "RM-TOMATO",
       unit: "kg",
-      supplierId: "seed_sup_veg",
+      supplierId: sid("seed_sup_veg"),
     },
-    { id: "seed_rm_onion", name: "Onion", sku: "RM-ONION", unit: "kg", supplierId: "seed_sup_veg" },
     {
-      id: "seed_rm_spices",
+      id: sid("seed_rm_onion"),
+      name: "Onion",
+      sku: "RM-ONION",
+      unit: "kg",
+      supplierId: sid("seed_sup_veg"),
+    },
+    {
+      id: sid("seed_rm_spices"),
       name: "Garam Masala",
       sku: "RM-SPICES",
       unit: "g",
-      supplierId: "seed_sup_dry",
+      supplierId: sid("seed_sup_dry"),
     },
   ];
   for (const m of mats) {
@@ -221,45 +280,45 @@ async function main() {
     ingredients: { materialId: string; qty: number; unit: string }[];
   }[] = [
     {
-      id: "seed_rec_pbm",
+      id: sid("seed_rec_pbm"),
       name: "Paneer Butter Masala",
       yields: "4 serves",
       ingredients: [
-        { materialId: "seed_rm_paneer", qty: 500, unit: "g" },
-        { materialId: "seed_rm_tomato", qty: 300, unit: "g" },
-        { materialId: "seed_rm_butter", qty: 50, unit: "g" },
-        { materialId: "seed_rm_spices", qty: 10, unit: "g" },
+        { materialId: sid("seed_rm_paneer"), qty: 500, unit: "g" },
+        { materialId: sid("seed_rm_tomato"), qty: 300, unit: "g" },
+        { materialId: sid("seed_rm_butter"), qty: 50, unit: "g" },
+        { materialId: sid("seed_rm_spices"), qty: 10, unit: "g" },
       ],
     },
     {
-      id: "seed_rec_biryani",
+      id: sid("seed_rec_biryani"),
       name: "Chicken Biryani",
       yields: "4 serves",
       ingredients: [
-        { materialId: "seed_rm_chicken", qty: 750, unit: "g" },
-        { materialId: "seed_rm_rice", qty: 500, unit: "g" },
-        { materialId: "seed_rm_onion", qty: 200, unit: "g" },
-        { materialId: "seed_rm_spices", qty: 15, unit: "g" },
+        { materialId: sid("seed_rm_chicken"), qty: 750, unit: "g" },
+        { materialId: sid("seed_rm_rice"), qty: 500, unit: "g" },
+        { materialId: sid("seed_rm_onion"), qty: 200, unit: "g" },
+        { materialId: sid("seed_rm_spices"), qty: 15, unit: "g" },
       ],
     },
     {
-      id: "seed_rec_coffee",
+      id: sid("seed_rec_coffee"),
       name: "Cold Coffee",
       yields: "2 serves",
       ingredients: [
-        { materialId: "seed_rm_milk", qty: 400, unit: "ml" },
-        { materialId: "seed_rm_coffee", qty: 30, unit: "g" },
-        { materialId: "seed_rm_sugar", qty: 40, unit: "g" },
+        { materialId: sid("seed_rm_milk"), qty: 400, unit: "ml" },
+        { materialId: sid("seed_rm_coffee"), qty: 30, unit: "g" },
+        { materialId: sid("seed_rm_sugar"), qty: 40, unit: "g" },
       ],
     },
     {
-      id: "seed_rec_friedrice",
+      id: sid("seed_rec_friedrice"),
       name: "Veg Fried Rice",
       yields: "2 serves",
       ingredients: [
-        { materialId: "seed_rm_rice", qty: 300, unit: "g" },
-        { materialId: "seed_rm_onion", qty: 100, unit: "g" },
-        { materialId: "seed_rm_tomato", qty: 100, unit: "g" },
+        { materialId: sid("seed_rm_rice"), qty: 300, unit: "g" },
+        { materialId: sid("seed_rm_onion"), qty: 100, unit: "g" },
+        { materialId: sid("seed_rm_tomato"), qty: 100, unit: "g" },
       ],
     },
   ];
@@ -285,10 +344,10 @@ async function main() {
 
   // Categories.
   const cats = [
-    { id: "seed_cat_starters", name: "Starters", slug: "starters", sortOrder: 0 },
-    { id: "seed_cat_mains", name: "Mains", slug: "mains", sortOrder: 1 },
-    { id: "seed_cat_rice", name: "Biryani & Rice", slug: "biryani-rice", sortOrder: 2 },
-    { id: "seed_cat_beverages", name: "Beverages", slug: "beverages", sortOrder: 3 },
+    { id: sid("seed_cat_starters"), name: "Starters", slug: "starters", sortOrder: 0 },
+    { id: sid("seed_cat_mains"), name: "Mains", slug: "mains", sortOrder: 1 },
+    { id: sid("seed_cat_rice"), name: "Biryani & Rice", slug: "biryani-rice", sortOrder: 2 },
+    { id: sid("seed_cat_beverages"), name: "Beverages", slug: "beverages", sortOrder: 3 },
   ];
   for (const c of cats) {
     await database
@@ -300,14 +359,14 @@ async function main() {
   // Modifier groups + modifiers.
   const groups = [
     {
-      id: "seed_mg_spice",
+      id: sid("seed_mg_spice"),
       name: "Spice Level",
       selectionType: "single",
       minSelection: 0,
       maxSelection: 1,
     },
     {
-      id: "seed_mg_addon",
+      id: sid("seed_mg_addon"),
       name: "Add-ons",
       selectionType: "multiple",
       minSelection: 0,
@@ -321,19 +380,37 @@ async function main() {
       .onConflictDoNothing({ target: modifierGroups.id });
   }
   const mods = [
-    { id: "seed_mod_mild", groupId: "seed_mg_spice", name: "Mild", price: 0, sortOrder: 0 },
-    { id: "seed_mod_medium", groupId: "seed_mg_spice", name: "Medium", price: 0, sortOrder: 1 },
-    { id: "seed_mod_hot", groupId: "seed_mg_spice", name: "Extra Hot", price: 0, sortOrder: 2 },
     {
-      id: "seed_mod_cheese",
-      groupId: "seed_mg_addon",
+      id: sid("seed_mod_mild"),
+      groupId: sid("seed_mg_spice"),
+      name: "Mild",
+      price: 0,
+      sortOrder: 0,
+    },
+    {
+      id: sid("seed_mod_medium"),
+      groupId: sid("seed_mg_spice"),
+      name: "Medium",
+      price: 0,
+      sortOrder: 1,
+    },
+    {
+      id: sid("seed_mod_hot"),
+      groupId: sid("seed_mg_spice"),
+      name: "Extra Hot",
+      price: 0,
+      sortOrder: 2,
+    },
+    {
+      id: sid("seed_mod_cheese"),
+      groupId: sid("seed_mg_addon"),
       name: "Extra Cheese",
       price: 4000,
       sortOrder: 0,
     },
     {
-      id: "seed_mod_paneer",
-      groupId: "seed_mg_addon",
+      id: sid("seed_mod_paneer"),
+      groupId: sid("seed_mg_addon"),
       name: "Extra Paneer",
       price: 6000,
       sortOrder: 1,
@@ -363,94 +440,96 @@ async function main() {
     }[];
   }[] = [
     {
-      id: "seed_item_pbm",
+      id: sid("seed_item_pbm"),
       name: "Paneer Butter Masala",
-      categoryId: "seed_cat_mains",
-      groups: ["seed_mg_spice"],
+      categoryId: sid("seed_cat_mains"),
+      groups: [sid("seed_mg_spice")],
       tax: 5,
       variants: [
         {
-          id: "seed_var_pbm",
+          id: sid("seed_var_pbm"),
           name: "Regular",
           sku: "PBM-REG",
           price: 24000,
-          recipe: "seed_rec_pbm",
+          recipe: sid("seed_rec_pbm"),
           dflt: true,
         },
       ],
     },
     {
-      id: "seed_item_biryani",
+      id: sid("seed_item_biryani"),
       name: "Chicken Biryani",
-      categoryId: "seed_cat_rice",
-      groups: ["seed_mg_spice", "seed_mg_addon"],
+      categoryId: sid("seed_cat_rice"),
+      groups: [sid("seed_mg_spice"), sid("seed_mg_addon")],
       tax: 5,
       variants: [
         {
-          id: "seed_var_bir_half",
+          id: sid("seed_var_bir_half"),
           name: "Half",
           sku: "BIR-HALF",
           price: 16000,
-          recipe: "seed_rec_biryani",
+          recipe: sid("seed_rec_biryani"),
         },
         {
-          id: "seed_var_bir_full",
+          id: sid("seed_var_bir_full"),
           name: "Full",
           sku: "BIR-FULL",
           price: 26000,
-          recipe: "seed_rec_biryani",
+          recipe: sid("seed_rec_biryani"),
           dflt: true,
         },
       ],
     },
     {
-      id: "seed_item_friedrice",
+      id: sid("seed_item_friedrice"),
       name: "Veg Fried Rice",
-      categoryId: "seed_cat_rice",
-      groups: ["seed_mg_addon"],
+      categoryId: sid("seed_cat_rice"),
+      groups: [sid("seed_mg_addon")],
       tax: 5,
       variants: [
         {
-          id: "seed_var_fr",
+          id: sid("seed_var_fr"),
           name: "Regular",
           sku: "VFR-REG",
           price: 18000,
-          recipe: "seed_rec_friedrice",
+          recipe: sid("seed_rec_friedrice"),
           dflt: true,
         },
       ],
     },
     {
-      id: "seed_item_coffee",
+      id: sid("seed_item_coffee"),
       name: "Cold Coffee",
-      categoryId: "seed_cat_beverages",
+      categoryId: sid("seed_cat_beverages"),
       groups: [],
       tax: 5,
       variants: [
         {
-          id: "seed_var_cof_s",
+          id: sid("seed_var_cof_s"),
           name: "Small",
           sku: "CC-S",
           price: 12000,
-          recipe: "seed_rec_coffee",
+          recipe: sid("seed_rec_coffee"),
         },
         {
-          id: "seed_var_cof_l",
+          id: sid("seed_var_cof_l"),
           name: "Large",
           sku: "CC-L",
           price: 16000,
-          recipe: "seed_rec_coffee",
+          recipe: sid("seed_rec_coffee"),
           dflt: true,
         },
       ],
     },
     {
-      id: "seed_item_pakora",
+      id: sid("seed_item_pakora"),
       name: "Paneer Pakora",
-      categoryId: "seed_cat_starters",
-      groups: ["seed_mg_spice"],
+      categoryId: sid("seed_cat_starters"),
+      groups: [sid("seed_mg_spice")],
       tax: 5,
-      variants: [{ id: "seed_var_pak", name: "8 pc", sku: "PP-8PC", price: 14000, dflt: true }],
+      variants: [
+        { id: sid("seed_var_pak"), name: "8 pc", sku: "PP-8PC", price: 14000, dflt: true },
+      ],
     },
   ];
   for (const item of items) {
@@ -489,42 +568,42 @@ async function main() {
     .insert(recipes)
     .values({
       ...base,
-      id: "seed_rec_pbm",
+      id: sid("seed_rec_pbm"),
       name: "Paneer Butter Masala",
       yields: "4 serves",
-      menuItemId: "seed_item_pbm",
+      menuItemId: sid("seed_item_pbm"),
     })
-    .onConflictDoUpdate({ target: recipes.id, set: { menuItemId: "seed_item_pbm" } });
+    .onConflictDoUpdate({ target: recipes.id, set: { menuItemId: sid("seed_item_pbm") } });
   await database
     .insert(recipes)
     .values({
       ...base,
-      id: "seed_rec_biryani",
+      id: sid("seed_rec_biryani"),
       name: "Chicken Biryani",
       yields: "4 serves",
-      menuItemId: "seed_item_biryani",
+      menuItemId: sid("seed_item_biryani"),
     })
-    .onConflictDoUpdate({ target: recipes.id, set: { menuItemId: "seed_item_biryani" } });
+    .onConflictDoUpdate({ target: recipes.id, set: { menuItemId: sid("seed_item_biryani") } });
   await database
     .insert(recipes)
     .values({
       ...base,
-      id: "seed_rec_coffee",
+      id: sid("seed_rec_coffee"),
       name: "Cold Coffee",
       yields: "2 serves",
-      menuItemId: "seed_item_coffee",
+      menuItemId: sid("seed_item_coffee"),
     })
-    .onConflictDoUpdate({ target: recipes.id, set: { menuItemId: "seed_item_coffee" } });
+    .onConflictDoUpdate({ target: recipes.id, set: { menuItemId: sid("seed_item_coffee") } });
   await database
     .insert(recipes)
     .values({
       ...base,
-      id: "seed_rec_friedrice",
+      id: sid("seed_rec_friedrice"),
       name: "Veg Fried Rice",
       yields: "2 serves",
-      menuItemId: "seed_item_friedrice",
+      menuItemId: sid("seed_item_friedrice"),
     })
-    .onConflictDoUpdate({ target: recipes.id, set: { menuItemId: "seed_item_friedrice" } });
+    .onConflictDoUpdate({ target: recipes.id, set: { menuItemId: sid("seed_item_friedrice") } });
 
   // Floor/table starter rows (org-scoped ids — global fl_001/tbl_001
   // belong to the legacy mock outlet and must not be reused).
@@ -577,24 +656,42 @@ async function main() {
     items: { id: string; material: string; qty: number; unit: string; cost: number }[];
   }[] = [
     {
-      id: "seed_po_01",
+      id: sid("seed_po_01"),
       no: "PO-2025-001",
-      supplier: "seed_sup_dry",
+      supplier: sid("seed_sup_dry"),
       status: "received",
       items: [
-        { id: "seed_poi_01", material: "seed_rm_rice", qty: 50, unit: "kg", cost: 6500 },
-        { id: "seed_poi_02", material: "seed_rm_sugar", qty: 25, unit: "kg", cost: 4200 },
-        { id: "seed_poi_03", material: "seed_rm_coffee", qty: 5, unit: "kg", cost: 85000 },
+        { id: sid("seed_poi_01"), material: sid("seed_rm_rice"), qty: 50, unit: "kg", cost: 6500 },
+        { id: sid("seed_poi_02"), material: sid("seed_rm_sugar"), qty: 25, unit: "kg", cost: 4200 },
+        {
+          id: sid("seed_poi_03"),
+          material: sid("seed_rm_coffee"),
+          qty: 5,
+          unit: "kg",
+          cost: 85000,
+        },
       ],
     },
     {
-      id: "seed_po_02",
+      id: sid("seed_po_02"),
       no: "PO-2025-002",
-      supplier: "seed_sup_dairy",
+      supplier: sid("seed_sup_dairy"),
       status: "draft",
       items: [
-        { id: "seed_poi_04", material: "seed_rm_paneer", qty: 10, unit: "kg", cost: 32000 },
-        { id: "seed_poi_05", material: "seed_rm_butter", qty: 5, unit: "kg", cost: 55000 },
+        {
+          id: sid("seed_poi_04"),
+          material: sid("seed_rm_paneer"),
+          qty: 10,
+          unit: "kg",
+          cost: 32000,
+        },
+        {
+          id: sid("seed_poi_05"),
+          material: sid("seed_rm_butter"),
+          qty: 5,
+          unit: "kg",
+          cost: 55000,
+        },
       ],
     },
   ];
@@ -653,25 +750,25 @@ async function main() {
     }[];
   }[] = [
     {
-      id: "seed_pur_01",
+      id: sid("seed_pur_01"),
       no: "PUR-2025-001",
-      po: "seed_po_01",
-      supplier: "seed_sup_dry",
+      po: sid("seed_po_01"),
+      supplier: sid("seed_sup_dry"),
       paid: 200000,
       status: "partial",
       mode: "upi",
       items: [
         {
-          id: "seed_pi_01",
-          material: "seed_rm_rice",
+          id: sid("seed_pi_01"),
+          material: sid("seed_rm_rice"),
           qty: 50,
           unit: "kg",
           cost: 6500,
           batch: "B-RICE-01",
         },
         {
-          id: "seed_pi_02",
-          material: "seed_rm_sugar",
+          id: sid("seed_pi_02"),
+          material: sid("seed_rm_sugar"),
           qty: 25,
           unit: "kg",
           cost: 4200,
@@ -680,14 +777,14 @@ async function main() {
       ],
     },
     {
-      id: "seed_pur_02",
+      id: sid("seed_pur_02"),
       no: "PUR-2025-002",
-      supplier: "seed_sup_veg",
+      supplier: sid("seed_sup_veg"),
       paid: 0,
       status: "unpaid",
       items: [
-        { id: "seed_pi_03", material: "seed_rm_tomato", qty: 20, unit: "kg", cost: 3000 },
-        { id: "seed_pi_04", material: "seed_rm_onion", qty: 25, unit: "kg", cost: 2800 },
+        { id: sid("seed_pi_03"), material: sid("seed_rm_tomato"), qty: 20, unit: "kg", cost: 3000 },
+        { id: sid("seed_pi_04"), material: sid("seed_rm_onion"), qty: 25, unit: "kg", cost: 2800 },
       ],
     },
   ];
@@ -731,6 +828,27 @@ async function main() {
         })
         .onConflictDoNothing({ target: purchaseItems.id });
     }
+  }
+
+  // Map every seeded master to every outlet of the org, so the fresh
+  // catalog is visible everywhere (admins narrow it per outlet later).
+  const mapPairs: [string, string][] = [
+    ["outlet_menu_categories", "menu_categories"],
+    ["outlet_menu_items", "menu_items"],
+    ["outlet_modifier_groups", "modifier_groups"],
+    ["outlet_recipes", "recipes"],
+    ["outlet_raw_materials", "raw_materials"],
+    ["outlet_suppliers", "suppliers"],
+  ];
+  for (const [mapTable, masterTable] of mapPairs) {
+    await database.execute(sql`
+      INSERT INTO ${sql.raw(`"${mapTable}"`)}
+        ("id", "organization_id", "outlet_id", "entity_id")
+      SELECT gen_random_uuid()::text, m."organization_id", o."id", m."id"
+      FROM ${sql.raw(`"${masterTable}"`)} m
+      JOIN "outlets" o ON o."organization_id" = m."organization_id"
+      WHERE m."organization_id" = ${ORG}
+      ON CONFLICT DO NOTHING`);
   }
 
   console.log(`seed ok: org=${ORG} outlet=${OUTLET_CODE} (${outletId})`);

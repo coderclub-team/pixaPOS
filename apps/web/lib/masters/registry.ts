@@ -4,6 +4,12 @@ import {
   menuVariants,
   modifierGroups,
   modifiers,
+  outletMenuCategories,
+  outletMenuItems,
+  outletModifierGroups,
+  outletRawMaterials,
+  outletRecipes,
+  outletSuppliers,
   rawMaterials,
   recipes,
   suppliers,
@@ -42,6 +48,13 @@ type RegistryEntry = {
   table: any;
   permission: string;
   columns: string[];
+  /**
+   * Outlet-availability mapping for shareable masters. When present and the
+   * request carries `outlet_id`, only mapped rows are returned/kept.
+   * Modifiers follow their group, variants their item, ingredients their
+   * recipe — no mapping rows needed for those types.
+   */
+  outletMap?: { table: any; entityColumn: string };
 };
 
 export const MASTER_REGISTRY: Record<MasterType, RegistryEntry> = {
@@ -49,6 +62,7 @@ export const MASTER_REGISTRY: Record<MasterType, RegistryEntry> = {
     table: menuCategories,
     permission: "org:menu:manage",
     columns: ["name", "slug", "parent_id", "sort_order", "is_active"],
+    outletMap: { table: outletMenuCategories, entityColumn: "category_id" },
   },
   items: {
     table: menuItems,
@@ -65,6 +79,7 @@ export const MASTER_REGISTRY: Record<MasterType, RegistryEntry> = {
       "modifier_group_ids",
       "is_active",
     ],
+    outletMap: { table: outletMenuItems, entityColumn: "item_id" },
   },
   variants: {
     table: menuVariants,
@@ -84,6 +99,7 @@ export const MASTER_REGISTRY: Record<MasterType, RegistryEntry> = {
     table: modifierGroups,
     permission: "org:menu:manage",
     columns: ["name", "selection_type", "min_selection", "max_selection", "is_active"],
+    outletMap: { table: outletModifierGroups, entityColumn: "group_id" },
   },
   modifiers: {
     table: modifiers,
@@ -94,15 +110,18 @@ export const MASTER_REGISTRY: Record<MasterType, RegistryEntry> = {
     table: rawMaterials,
     permission: "org:inventory:manage",
     columns: ["name", "sku", "unit", "supplier_id", "tax_percent", "hsn_code", "is_active"],
+    outletMap: { table: outletRawMaterials, entityColumn: "material_id" },
   },
   recipes: {
     table: recipes,
     permission: "org:inventory:manage",
     columns: ["name", "yields", "menu_item_id", "is_active"],
+    outletMap: { table: outletRecipes, entityColumn: "recipe_id" },
   },
   suppliers: {
     table: suppliers,
     permission: "org:inventory:manage",
     columns: ["name", "phone", "gstin", "is_active"],
+    outletMap: { table: outletSuppliers, entityColumn: "supplier_id" },
   },
 };

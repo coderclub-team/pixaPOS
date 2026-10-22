@@ -29,7 +29,9 @@ export {
   outletListKeys,
   outletsQueryOptions,
   getActiveOutletId,
+  getActiveOutletStorageKey,
   setActiveOutletId,
   resolveActiveOutlet,
+  swapOutletSegment,
   type OutletRow,
 } from "./outlets";
