@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { createPurchase } from "../api/service";
 import PurchaseForm from "./purchase-form";
 import { Button } from "@pixa/ui/base-ui/button";
+import { FormSkeleton } from "@pixa/ui/base-ui/form-skeleton";
 import { Icons } from "@pixa/ui/icons";
 
 export default function PurchaseEditPage({ purchaseId }: { purchaseId: string }) {
@@ -56,12 +57,7 @@ export default function PurchaseEditPage({ purchaseId }: { purchaseId: string })
       } else window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
     } catch {}
   };
-  if (isPending)
-    return (
-      <div className="mx-auto w-full max-w-3xl py-12 text-center text-muted-foreground">
-        Loading…
-      </div>
-    );
+  if (isPending) return <FormSkeleton fieldCount={7} />;
   if (!p)
     return (
       <div className="mx-auto w-full max-w-3xl rounded-lg border p-8 text-center">

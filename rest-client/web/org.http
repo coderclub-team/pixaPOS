@@ -1,0 +1,7 @@
+# Organization membership
+# Requires org:users:manage permission.
+
+### List org members and their assigned outlet IDs
+GET {{host}}/api/org/members
+Accept: application/json
+Origin: {{origin}}

@@ -24,6 +24,79 @@ function slugify(s: string) {
     .replace(/^-|-$/g, "");
 }
 
+/**
+ * One-time grandfathering for the closed-by-default outlet rule: the first
+ * filtered read after this ships writes explicit is_available:true overrides
+ * for every entity id currently in the local catalog, scoped to the CURRENT
+ * outlet. Runs ONCE globally (persisted flag) — rows created afterwards are
+ * stamped only at their creation outlet, so unmapped rows stay hidden
+ * everywhere else. Legacy mixed catalogs can't be attributed, so the
+ * first-visited outlet keeps seeing everything it already saw; every other
+ * outlet starts closed.
+ */
+let availabilityMigrated: boolean | null = null;
+const MIGRATION_FLAG_KEY = "pixaOutletAvailMigratedV1";
+
+function isAvailabilityMigrated(): boolean {
+  if (availabilityMigrated !== null) return availabilityMigrated;
+  availabilityMigrated = false;
+  if (typeof window === "undefined") return false;
+  try {
+    availabilityMigrated = window.localStorage.getItem(MIGRATION_FLAG_KEY) === "1";
+  } catch {
+    /* ignore */
+  }
+  return availabilityMigrated;
+}
+
+function markAvailabilityMigrated(): void {
+  availabilityMigrated = true;
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(MIGRATION_FLAG_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+}
+
+async function ensureOutletAvailabilityMigrated(outletId: string): Promise<void> {
+  if (!outletId || isAvailabilityMigrated()) return;
+  // Mark first so a failure doesn't retry-loop on every read; reads then
+  // fall back to closed default for anything unstamped.
+  markAvailabilityMigrated();
+  try {
+    const { setAvailability } = await import("@/features/outlet/api/availability");
+    for (const c of mockCategories)
+      setAvailability(outletId, "category", c.id, { is_available: true });
+    for (const m of mockMenuItems)
+      setAvailability(outletId, "menu_item", m.id, { is_available: true });
+    for (const g of mockModifierGroups)
+      setAvailability(outletId, "modifier_group", g.id, { is_available: true });
+  } catch {
+    /* availability store unreachable — reads fall back to closed default */
+  }
+}
+
+/** Stamp a newly created row visible at its home outlet (closed-by-default). */
+async function stampCreatedAtOutlet(
+  entity: "category" | "menu_item" | "modifier_group",
+  entityId: string,
+  outletId?: string,
+): Promise<void> {
+  try {
+    let id = outletId;
+    if (!id) {
+      const { getServiceOutletId } = await import("@/features/outlet/api/outlets");
+      id = getServiceOutletId() ?? undefined;
+    }
+    if (!id) return;
+    const { setAvailability } = await import("@/features/outlet/api/availability");
+    setAvailability(id, entity, entityId, { is_available: true });
+  } catch {
+    /* ignore — row stays hidden until curated via the availability picker */
+  }
+}
+
 const MENU_STORAGE_KEY = "pixaMenu";
 
 function toDoc(o: {
@@ -140,6 +213,7 @@ export async function getMenuCategories(filters?: MenuCategoryFilters): Promise<
   }
   if (filters?.is_active !== undefined) r = r.filter((c) => c.is_active === filters.is_active);
   if (filters?.outlet_id) {
+    await ensureOutletAvailabilityMigrated(filters.outlet_id);
     const { isAvailableInOutlet } = await import("@/features/outlet/api/availability");
     r = r.filter((c) => isAvailableInOutlet(filters.outlet_id!, "category", c.id));
   }
@@ -150,7 +224,10 @@ export async function getMenuCategoryById(id: string): Promise<MenuCategory | nu
   loadMenu();
   return mockCategories.find((c) => c.id === id) ?? null;
 }
-export async function createMenuCategory(payload: MenuCategoryPayload): Promise<MenuCategory> {
+export async function createMenuCategory(
+  payload: MenuCategoryPayload,
+  opts?: { outletId?: string },
+): Promise<MenuCategory> {
   await delay(500);
   if (mockCategories.some((c) => c.name.toLowerCase() === payload.name.toLowerCase()))
     throw new Error("Category already exists");
@@ -169,6 +246,7 @@ export async function createMenuCategory(payload: MenuCategoryPayload): Promise<
   };
   mockCategories.push(cat);
   saveMenu();
+  await stampCreatedAtOutlet("category", cat.id, opts?.outletId);
   return { ...cat };
 }
 export async function updateMenuCategory(
@@ -226,6 +304,7 @@ export async function getMenuItems(filters?: MenuItemFilters): Promise<MenuItem[
   if (filters?.item_type) r = r.filter((m) => (m as any).item_type === filters.item_type);
   if (filters?.is_active !== undefined) r = r.filter((m) => m.is_active === filters.is_active);
   if (filters?.outlet_id) {
+    await ensureOutletAvailabilityMigrated(filters.outlet_id);
     const { isAvailableInOutlet, getPriceOverride } =
       await import("@/features/outlet/api/availability");
     const outletId = filters.outlet_id;
@@ -247,7 +326,10 @@ export async function getMenuItemById(id: string): Promise<MenuItem | null> {
   loadMenu();
   return mockMenuItems.find((m) => m.id === id) ?? null;
 }
-export async function createMenuItem(payload: MenuItemPayload): Promise<MenuItem> {
+export async function createMenuItem(
+  payload: MenuItemPayload,
+  opts?: { outletId?: string },
+): Promise<MenuItem> {
   await delay(600);
   const productType =
     (payload as any).product_type ??
@@ -341,6 +423,7 @@ export async function createMenuItem(payload: MenuItemPayload): Promise<MenuItem
   };
   mockMenuItems.push(item);
   saveMenu();
+  await stampCreatedAtOutlet("menu_item", item.id, opts?.outletId);
   return { ...item };
 }
 export async function updateMenuItem(id: string, payload: MenuItemPayload): Promise<MenuItem> {
@@ -405,10 +488,18 @@ export async function updateMenuItem(id: string, payload: MenuItemPayload): Prom
   return { ...updated };
 }
 
-export async function getModifierGroups(): Promise<import("./types").ModifierGroup[]> {
+export async function getModifierGroups(filters?: {
+  outlet_id?: string;
+}): Promise<import("./types").ModifierGroup[]> {
   await delay(300);
   loadMenu();
-  return [...mockModifierGroups];
+  let r = [...mockModifierGroups];
+  if (filters?.outlet_id) {
+    await ensureOutletAvailabilityMigrated(filters.outlet_id);
+    const { isAvailableInOutlet } = await import("@/features/outlet/api/availability");
+    r = r.filter((g) => isAvailableInOutlet(filters.outlet_id!, "modifier_group", g.id));
+  }
+  return r;
 }
 export async function getModifierGroupById(
   id: string,
@@ -432,12 +523,15 @@ function nextModifierSort(groupId: string): number {
   return orders.length ? Math.max(...orders) + 1 : 0;
 }
 
-export async function createModifierGroup(payload: {
-  name: string;
-  selection_type?: "single" | "multiple";
-  min_selection?: number;
-  max_selection?: number;
-}): Promise<import("./types").ModifierGroup> {
+export async function createModifierGroup(
+  payload: {
+    name: string;
+    selection_type?: "single" | "multiple";
+    min_selection?: number;
+    max_selection?: number;
+  },
+  opts?: { outletId?: string },
+): Promise<import("./types").ModifierGroup> {
   await delay(400);
   loadMenu();
   const name = payload.name.trim();
@@ -466,6 +560,7 @@ export async function createModifierGroup(payload: {
   };
   mockModifierGroups.push(group);
   saveMenu();
+  await stampCreatedAtOutlet("modifier_group", group.id, opts?.outletId);
   return { ...group };
 }
 

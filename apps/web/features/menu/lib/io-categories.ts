@@ -36,7 +36,10 @@ export const menuCategorySample: Record<string, string>[] = [
 /**
  * Bulk upsert menu categories matched by slug (auto-derived from name when blank).
  */
-export async function importMenuCategories(rows: Record<string, string>[]): Promise<ImportResult> {
+export async function importMenuCategories(
+  rows: Record<string, string>[],
+  opts?: { outletId?: string },
+): Promise<ImportResult> {
   const existing = await getMenuCategories();
   const bySlug = new Map(existing.map((c) => [c.slug, c]));
   let created = 0;
@@ -67,7 +70,7 @@ export async function importMenuCategories(rows: Record<string, string>[]): Prom
         await updateMenuCategory(hit.id, payload);
         updated++;
       } else {
-        await createMenuCategory(payload);
+        await createMenuCategory(payload, opts?.outletId ? { outletId: opts.outletId } : undefined);
         created++;
       }
     } catch (e) {

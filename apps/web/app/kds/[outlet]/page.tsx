@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import { requireBaUser } from "@pixa/server";
+import { BoardSkeleton } from "@pixa/ui/base-ui/board-skeleton";
 import { requireTerminalOutlet } from "@/lib/terminal-outlet";
 import { OutletRouteSync } from "@/components/outlet-route-sync";
 import KdsWallboard from "../wallboard";
@@ -14,7 +16,9 @@ export default async function KdsOutletPage({ params }: { params: Promise<{ outl
   const terminal = await requireTerminalOutlet(outlet, "kds");
   return (
     <OutletRouteSync outletId={terminal.id}>
-      <KdsWallboard />
+      <Suspense fallback={<BoardSkeleton />}>
+        <KdsWallboard />
+      </Suspense>
     </OutletRouteSync>
   );
 }

@@ -1,0 +1,39 @@
+# Outlet management
+# Requires a valid session and an active organization.
+
+### List outlets for the active org
+GET {{host}}/api/outlets
+Accept: application/json
+Origin: {{origin}}
+
+### Create an outlet
+POST {{host}}/api/outlets
+Content-Type: application/json
+Origin: {{origin}}
+
+{
+  "name": "Main Dining Hall",
+  "code": "MAIN"
+}
+
+### Get one outlet profile
+GET {{host}}/api/outlets/{{outletId}}
+Accept: application/json
+Origin: {{origin}}
+
+### Update one outlet profile
+PUT {{host}}/api/outlets/{{outletId}}
+Content-Type: application/json
+Origin: {{origin}}
+
+{
+  "name": "Main Dining Hall",
+  "alias": "Main",
+  "type": "restaurant",
+  "phone": "+919876543210",
+  "city": "Bengaluru",
+  "state": "Karnataka",
+  "currency": "INR",
+  "timezone": "Asia/Kolkata",
+  "is_active": true
+}

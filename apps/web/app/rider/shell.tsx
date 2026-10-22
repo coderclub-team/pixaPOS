@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ThemeModeToggle } from "@pixa/ui/themes/theme-mode-toggle";
+import { Skeleton } from "@pixa/ui/base-ui/skeleton";
 import SyncStatus from "@/components/sync-status";
 import { useCrossTabSync } from "@/lib/use-cross-tab-sync";
 import { getQueryClient } from "@/lib/query-client";
@@ -206,7 +207,29 @@ export default function RiderShell() {
             </Button>
           </div>
         ) : ordersQuery.isPending ? (
-          <p className="text-xs text-muted-foreground">Loading runs…</p>
+          <div className="grid animate-pulse gap-2" role="status" aria-label="Loading runs">
+            {[0, 1].map((i) => (
+              <div key={i} className="rounded-lg border bg-card p-3">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-5 w-16" />
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                  <Skeleton className="ml-auto h-4 w-20" />
+                </div>
+                <Skeleton className="mt-1 h-4 w-2/3" />
+                <Skeleton className="mt-0.5 h-3 w-full" />
+                <div className="mt-1 grid gap-1">
+                  <Skeleton className="h-3 w-1/2" />
+                  <Skeleton className="h-3 w-2/5" />
+                  <Skeleton className="h-3 w-1/3" />
+                </div>
+                <Skeleton className="mt-1 h-3 w-28" />
+                <div className="mt-2 flex gap-2">
+                  <Skeleton className="h-8 flex-1 rounded-md" />
+                  <Skeleton className="h-8 flex-1 rounded-md" />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : ordersQuery.isError ? (
           <p className="text-xs text-destructive">
             Couldn&apos;t load runs.{" "}

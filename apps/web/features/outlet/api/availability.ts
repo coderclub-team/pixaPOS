@@ -51,7 +51,7 @@ function writeState(state: AvailabilityState): void {
   }
 }
 
-/** Explicit override, if any. Absence means shared + available. */
+/** Explicit override, if any. Absence means hidden (closed by default). */
 export function getAvailability(
   outletId: string,
   entity: ShareableEntity,
@@ -60,13 +60,15 @@ export function getAvailability(
   return readState()[keyOf(outletId, entity, entityId)] ?? null;
 }
 
-/** Availability check used by ordering surfaces. Defaults to shared. */
+/** Availability check used by ordering surfaces. Closed by default: an
+ * entity is visible at an outlet only with a server mapping row or an
+ * explicit local override. */
 export function isAvailableInOutlet(
   outletId: string,
   entity: ShareableEntity,
   entityId: string,
 ): boolean {
-  return getAvailability(outletId, entity, entityId)?.is_available ?? true;
+  return getAvailability(outletId, entity, entityId)?.is_available ?? false;
 }
 
 export function getPriceOverride(

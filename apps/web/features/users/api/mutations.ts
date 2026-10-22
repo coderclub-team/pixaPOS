@@ -5,22 +5,23 @@ import { userKeys } from "./queries";
 import type { UserMutationPayload } from "./types";
 
 export const createUserMutation = mutationOptions({
-  mutationFn: (data: UserMutationPayload) => createUser(data),
+  mutationFn: ({ orgId, values }: { orgId: string; values: UserMutationPayload }) =>
+    createUser(orgId, values),
   onSuccess: () => {
     getQueryClient().invalidateQueries({ queryKey: userKeys.all });
   },
 });
 
 export const updateUserMutation = mutationOptions({
-  mutationFn: ({ id, values }: { id: number; values: UserMutationPayload }) =>
-    updateUser(id, values),
+  mutationFn: ({ orgId, id, values }: { orgId: string; id: number; values: UserMutationPayload }) =>
+    updateUser(orgId, id, values),
   onSuccess: () => {
     getQueryClient().invalidateQueries({ queryKey: userKeys.all });
   },
 });
 
 export const deleteUserMutation = mutationOptions({
-  mutationFn: (id: number) => deleteUser(id),
+  mutationFn: ({ orgId, id }: { orgId: string; id: number }) => deleteUser(orgId, id),
   onSuccess: () => {
     getQueryClient().invalidateQueries({ queryKey: userKeys.all });
   },

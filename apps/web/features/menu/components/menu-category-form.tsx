@@ -9,6 +9,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createMenuCategory, updateMenuCategory } from "../api/service";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
+import { OutletAvailabilityPicker } from "./outlet-availability-picker";
 import { menuKeys, menuCategoriesQueryOptions, menuCategoryQueryOptions } from "../api/queries";
 import { getQueryClient } from "@/lib/query-client";
 import type { MenuCategory } from "../api/types";
@@ -70,7 +72,10 @@ function MenuCategoryFormInner({
 }) {
   const router = useRouter();
   const { upload, uploading } = useImageUpload("category");
-  const { data: categories } = useQuery(menuCategoriesQueryOptions());
+  const activeOutletId = useActiveOutletId();
+  const { data: categories } = useQuery(
+    menuCategoriesQueryOptions(activeOutletId ? { outlet_id: activeOutletId } : {}),
+  );
   const parentOptions = (categories ?? [])
     .filter((c) => c.id !== initialData?.id)
     .map((c) => ({ label: c.name, value: c.id }));
@@ -79,7 +84,8 @@ function MenuCategoryFormInner({
   );
 
   const createMut = useMutation({
-    mutationFn: (v: any) => createMenuCategory(v),
+    mutationFn: (v: any) =>
+      createMenuCategory(v, activeOutletId ? { outletId: activeOutletId } : undefined),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: menuKeys.all });
       toast.success("Category created");
@@ -227,6 +233,13 @@ function MenuCategoryFormInner({
             </FieldGroup>
           </CardContent>
         </Card>
+        {isEdit && initialData?.id && (
+          <OutletAvailabilityPicker
+            entityType="categories"
+            entityId={initialData.id}
+            entityName={initialData.name}
+          />
+        )}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => router.back()}>
             Cancel

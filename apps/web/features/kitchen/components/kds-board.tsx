@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@pixa/ui/base-ui/select";
 import { Icons } from "@pixa/ui/icons";
+import { Skeleton } from "@pixa/ui/base-ui/skeleton";
 import { cn } from "@pixa/ui/lib/utils";
 import { formatAge } from "@/lib/utils";
 import { kitchenKeys, kitchenTicketsQueryOptions } from "@/features/kitchen/api/queries";
@@ -184,7 +185,7 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
   );
 
   if (isPending && !tickets) {
-    return <p className="py-12 text-center text-sm text-muted-foreground">Loading tickets…</p>;
+    return <KdsBoardSkeleton compact={compact} />;
   }
 
   if (isError && !tickets) {
@@ -361,6 +362,61 @@ export default function KdsBoard({ compact = false }: { compact?: boolean }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Pending-state mirror of the kanban board: view-toggle + refresh toolbar,
+ * status/channel tab rows, then the four live station columns each holding
+ * ticket cards (header lines + item rows + action button). Same hierarchy,
+ * gaps and fixed heights as the real board so CLS stays 0.
+ */
+function KdsBoardSkeleton({ compact = false }: { compact?: boolean }) {
+  return (
+    <div role="status" aria-label="Loading kitchen tickets" className="flex animate-pulse flex-col">
+      <div className="mb-3 flex flex-wrap items-center gap-1.5">
+        <div className="flex gap-1">
+          <Skeleton className="h-8 w-9 rounded-md" />
+          <Skeleton className="h-8 w-9 rounded-md" />
+        </div>
+        <Skeleton className="h-8 w-28 rounded-md" />
+        <Skeleton className="h-5 w-24 rounded-full" />
+      </div>
+      <div className="mb-4 hidden flex-wrap items-center gap-1.5 sm:flex">
+        <Skeleton className="h-8 w-20 rounded-md" />
+        <Skeleton className="h-8 w-20 rounded-md" />
+        <Skeleton className="h-8 w-24 rounded-md" />
+        <Skeleton className="h-8 w-20 rounded-md" />
+        <Skeleton className="h-8 w-36 rounded-md" />
+      </div>
+      <div className="flex items-start gap-3 overflow-x-auto pb-2">
+        {["New", "Accepted", "Preparing", "Ready"].map((label) => (
+          <div
+            key={label}
+            className={cn("w-full shrink-0 space-y-2", compact ? "sm:w-[260px]" : "sm:w-[300px]")}
+          >
+            <Skeleton className="h-4 w-28" />
+            {[0, 1].map((c) => (
+              <div key={c} className="flex h-full flex-col rounded-xl border p-4">
+                <div className="flex items-center justify-between gap-2 pb-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-12" />
+                </div>
+                <Skeleton className="h-3 w-40" />
+                <div className="flex min-h-0 flex-1 flex-col space-y-1 pt-2">
+                  <Skeleton className="h-9 w-full rounded-md" />
+                  <Skeleton className="h-9 w-full rounded-md" />
+                  <Skeleton className="h-9 w-3/4 rounded-md" />
+                </div>
+                <div className="flex gap-1.5 pt-2">
+                  <Skeleton className="h-8 w-24 rounded-md" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { Switch } from "@pixa/ui/base-ui/switch";
 import { Icons } from "@pixa/ui/icons";
 import { menuKeys } from "../api/queries";
 import { createModifierGroup, updateModifierGroup } from "../api/service";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
 import type { ModifierGroup } from "../api/types";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -22,6 +23,7 @@ import { useRouter } from "next/navigation";
 export default function ModifierGroupForm({ initialData }: { initialData?: ModifierGroup }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const activeOutletId = useActiveOutletId();
   const isEdit = !!initialData;
   const [name, setName] = useState(initialData?.name ?? "");
   const [min, setMin] = useState(initialData?.min_selection ?? 0);
@@ -38,12 +40,15 @@ export default function ModifierGroupForm({ initialData }: { initialData?: Modif
             selection_type: max === 1 ? "single" : "multiple",
             is_active: active,
           })
-        : createModifierGroup({
-            name,
-            min_selection: min,
-            max_selection: max,
-            selection_type: max === 1 ? "single" : "multiple",
-          }),
+        : createModifierGroup(
+            {
+              name,
+              min_selection: min,
+              max_selection: max,
+              selection_type: max === 1 ? "single" : "multiple",
+            },
+            activeOutletId ? { outletId: activeOutletId } : undefined,
+          ),
     onSuccess: (group) => {
       queryClient.invalidateQueries({ queryKey: menuKeys.all });
       toast.success(isEdit ? "Add-on group updated" : "Add-on group created");

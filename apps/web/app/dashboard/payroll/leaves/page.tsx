@@ -16,6 +16,7 @@ import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { LeaveList } from "@/features/payroll/components/leave-list";
+import { DataTableSkeleton } from "@pixa/ui/base-ui/table/data-table-skeleton";
 import {
   employeesQueryOptions,
   leaveRequestsQueryOptions,
@@ -33,8 +34,15 @@ export default function LeavesPage() {
 
   if (isPending) {
     return (
-      <PageContainer pageTitle="Leave Requests" pageDescription="Payroll — Leave" isLoading>
-        <div />
+      <PageContainer pageTitle="Leave Requests" pageDescription="Payroll — Leave">
+        <div role="status" aria-label="Loading leave requests">
+          <DataTableSkeleton
+            columnCount={6}
+            rowCount={10}
+            filterCount={1}
+            cellWidths={["180px", "130px", "190px", "70px", "110px", "140px"]}
+          />
+        </div>
       </PageContainer>
     );
   }

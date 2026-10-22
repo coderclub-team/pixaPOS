@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { BoardSkeleton } from "@pixa/ui/base-ui/board-skeleton";
 import { requireBaUser } from "@pixa/server";
 import RiderShell from "./shell";
 
@@ -12,7 +13,7 @@ export const metadata: Metadata = {
 export default async function RiderPage() {
   await requireBaUser();
   return (
-    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading rider…</div>}>
+    <Suspense fallback={<BoardSkeleton />}>
       <RiderShell />
     </Suspense>
   );

@@ -26,6 +26,7 @@ import {
 } from "@/features/inventory/lib/io-suppliers";
 import { inventoryKeys } from "@/features/inventory/api/queries";
 import { getQueryClient } from "@/lib/query-client";
+import { DataTableSkeleton } from "@pixa/ui/base-ui/table/data-table-skeleton";
 
 export default function SuppliersPage() {
   const [search, setSearch] = React.useState("");
@@ -43,8 +44,15 @@ export default function SuppliersPage() {
   );
   if (isPending)
     return (
-      <PageContainer pageTitle="Suppliers" pageDescription="Inventory — Suppliers" isLoading>
-        <div />
+      <PageContainer pageTitle="Suppliers" pageDescription="Inventory — Suppliers">
+        <div role="status" aria-label="Loading suppliers">
+          <DataTableSkeleton
+            columnCount={5}
+            rowCount={10}
+            filterCount={2}
+            cellWidths={["220px", "140px", "160px", "100px", "56px"]}
+          />
+        </div>
       </PageContainer>
     );
   return (

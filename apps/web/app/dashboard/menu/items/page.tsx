@@ -24,6 +24,10 @@ import Link from "next/link";
 import { ExportButton, ImportDialog } from "@/features/system/components/io-dialog";
 import { BulkShareButton } from "@/features/outlet/components/bulk-share-dialog";
 import { importMenuItems, menuItemColumns, menuItemSample } from "@/features/menu/lib/io";
+import { DataTableSkeleton } from "@pixa/ui/base-ui/table/data-table-skeleton";
+import { Card, CardContent } from "@pixa/ui/base-ui/card";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
+import { outletsQueryOptions } from "@/features/outlet/api/queries";
 
 export default function MenuItemsPage() {
   const [search, setSearch] = React.useState("");
@@ -37,21 +41,52 @@ export default function MenuItemsPage() {
     const id = setTimeout(() => setSearch(inputValue), 300);
     return () => clearTimeout(id);
   }, [inputValue]);
-  const { data: categories } = useQuery(menuCategoriesQueryOptions());
-  const { data: items, isPending } = useQuery(
-    menuItemsQueryOptions({
+  const activeOutletId = useActiveOutletId();
+  const { isPending: outletsPending } = useQuery(outletsQueryOptions);
+  // Outlet-scoped catalog: only rows mapped (or explicitly shared) to the
+  // active outlet are listed. Without a resolved outlet we show setup
+  // instead of leaking the whole org catalog.
+  const outletReady = !outletsPending && !!activeOutletId;
+  const { data: categories } = useQuery({
+    ...menuCategoriesQueryOptions(outletReady ? { outlet_id: activeOutletId! } : {}),
+    enabled: outletReady,
+  });
+  const { data: items, isPending } = useQuery({
+    ...menuItemsQueryOptions({
       search: search || undefined,
       category_id: categoryId,
       veg_type: veg as any,
       channel: channel as any,
       item_type: itemType as any,
       is_active: status === "active" ? true : status === "inactive" ? false : undefined,
+      ...(outletReady ? { outlet_id: activeOutletId! } : {}),
     }),
-  );
+    enabled: outletReady,
+  });
+  if (!outletReady)
+    return (
+      <PageContainer pageTitle="Products" pageDescription="Catalog — Products">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="font-medium">Select an outlet to manage its menu</p>
+            <p className="text-sm text-muted-foreground">
+              Products are managed per outlet. Pick an outlet to see and edit its catalog.
+            </p>
+          </CardContent>
+        </Card>
+      </PageContainer>
+    );
   if (isPending)
     return (
-      <PageContainer pageTitle="Products" pageDescription="Catalog — Products" isLoading>
-        <div />
+      <PageContainer pageTitle="Products" pageDescription="Catalog — Products">
+        <div role="status" aria-label="Loading products">
+          <DataTableSkeleton
+            columnCount={7}
+            rowCount={10}
+            filterCount={3}
+            cellWidths={["240px", "120px", "180px", "110px", "130px", "100px", "56px"]}
+          />
+        </div>
       </PageContainer>
     );
   return (
@@ -151,7 +186,9 @@ export default function MenuItemsPage() {
             sampleFilename="menu-items"
             columns={menuItemColumns}
             sampleRows={menuItemSample}
-            onImport={importMenuItems}
+            onImport={(rows) =>
+              importMenuItems(rows, outletReady ? { outletId: activeOutletId! } : undefined)
+            }
             onDone={() => getQueryClient().invalidateQueries({ queryKey: menuKeys.all })}
           />
           <BulkShareButton

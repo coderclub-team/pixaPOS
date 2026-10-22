@@ -162,6 +162,13 @@
       "when": 1791876024189,
       "tag": "0022_attendance_register",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792582907666,
+      "tag": "0023_outlet_master_availability",
+      "breakpoints": true
     }
   ]
 }

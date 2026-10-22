@@ -1,7 +1,9 @@
+import { Suspense } from "react";
 import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
 import { getQueryClient } from "@/lib/query-client";
 import { rawMaterialQueryOptions } from "@/features/inventory/api/queries";
 import PageContainer from "@pixa/ui/layout/page-container";
+import { FormSkeleton } from "@pixa/ui/base-ui/form-skeleton";
 import RawMaterialViewPage from "@/features/inventory/components/raw-material-view-page";
 export const metadata = { title: "Dashboard : Raw Material" };
 type PageProps = { params: Promise<{ materialId: string }> };
@@ -14,7 +16,9 @@ export default async function Page(props: PageProps) {
     <PageContainer>
       <div className="flex-1 space-y-4">
         <HydrationBoundary state={dehydrate(queryClient)}>
-          <RawMaterialViewPage materialId={params.materialId} />
+          <Suspense fallback={<FormSkeleton fieldCount={8} />}>
+            <RawMaterialViewPage materialId={params.materialId} />
+          </Suspense>
         </HydrationBoundary>
       </div>
     </PageContainer>

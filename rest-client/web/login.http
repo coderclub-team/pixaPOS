@@ -1,0 +1,79 @@
+# pixaPOS web app — auth (Better Auth, cookie sessions)
+# Pick an environment (local / develop / prod) in your REST client.
+# The session cookie returned by sign-in / sign-up is reused automatically
+# for the requests below it in this file.
+
+### Sign up (email + password) — creates a test account
+# Expect: 200 + Set-Cookie: better-auth.session_token
+POST {{host}}/api/auth/sign-up/email
+Content-Type: application/json
+Origin: {{origin}}
+
+{
+  "name": "{{fullName}}",
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### Sign in (email + password)
+# Expect: 200 + Set-Cookie: better-auth.session_token
+POST {{host}}/api/auth/sign-in/email
+Content-Type: application/json
+Origin: {{origin}}
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### Get session — verify the login worked
+# Expect: 200 with { user, session }; user is null when signed out
+GET {{host}}/api/auth/get-session
+Accept: application/json
+Origin: {{origin}}
+
+### Get current user profile (app endpoint)
+# Expect: 200 with { user, organization_id, active_organization_id, role }
+GET {{host}}/api/me
+Accept: application/json
+Origin: {{origin}}
+
+### Sign out — ends the session
+# Expect: 200; the session cookie is cleared
+POST {{host}}/api/auth/sign-out
+Content-Type: application/json
+Origin: {{origin}}
+
+{}
+
+### Phone OTP: request code (dev uses the static OTP code — check server logs)
+# Expect: 200 with { status: true }
+POST {{host}}/api/auth/phone-number/send-otp
+Content-Type: application/json
+Origin: {{origin}}
+
+{
+  "phoneNumber": "{{phone}}"
+}
+
+### Phone OTP: verify code
+# Expect: 200 + session cookie when the code is correct
+POST {{host}}/api/auth/phone-number/verify
+Content-Type: application/json
+Origin: {{origin}}
+
+{
+  "phoneNumber": "{{phone}}",
+  "code": "{{otp}}"
+}
+
+### Phone sign-in — sign in with a verified phone number
+# Expect: 200 + session cookie (requires the number to be verified already)
+POST {{host}}/api/auth/sign-in/phone-number
+Content-Type: application/json
+Origin: {{origin}}
+
+{
+  "phoneNumber": "{{phone}}",
+  "password": "{{password}}"
+}

@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import { BoardSkeleton } from "@pixa/ui/base-ui/board-skeleton";
 import { EnsureOutletDialog } from "@/components/ensure-outlet-dialog";
 import QrShell from "./shell";
 
@@ -14,13 +16,15 @@ export const metadata = {
 export default async function QrPage() {
   return (
     <QrShell>
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
-        <p className="text-lg font-bold">Table ordering — coming soon</p>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          Scan a table QR code to order from your seat — menu, cart and payment.
-        </p>
-        <EnsureOutletDialog basePath="/qr" mode="code" />
-      </div>
+      <Suspense fallback={<BoardSkeleton />}>
+        <div className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
+          <p className="text-lg font-bold">Table ordering — coming soon</p>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Scan a table QR code to order from your seat — menu, cart and payment.
+          </p>
+          <EnsureOutletDialog basePath="/qr" mode="code" />
+        </div>
+      </Suspense>
     </QrShell>
   );
 }

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { clonePurchaseOrder } from "../api/service";
 import PurchaseOrderForm from "./purchase-order-form";
 import { Button } from "@pixa/ui/base-ui/button";
+import { FormSkeleton } from "@pixa/ui/base-ui/form-skeleton";
 import { Icons } from "@pixa/ui/icons";
 
 export default function PurchaseOrderEditPage({ poId }: { poId: string }) {
@@ -45,12 +46,7 @@ export default function PurchaseOrderEditPage({ poId }: { poId: string }) {
       } else window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
     } catch {}
   };
-  if (isPending)
-    return (
-      <div className="mx-auto w-full max-w-3xl py-12 text-center text-muted-foreground">
-        Loading…
-      </div>
-    );
+  if (isPending) return <FormSkeleton fieldCount={6} />;
   if (!po)
     return (
       <div className="mx-auto w-full max-w-3xl rounded-lg border p-8 text-center">

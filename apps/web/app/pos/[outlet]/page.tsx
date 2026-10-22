@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import PosShell, { PosShellSkeleton } from "../shell";
 import { requireBaUser } from "@pixa/server";
 import { requireTerminalOutlet } from "@/lib/terminal-outlet";
 import { OutletRouteSync } from "@/components/outlet-route-sync";
-import PosShell from "../shell";
 
 export const metadata: Metadata = {
   title: "POS Terminal",
@@ -15,7 +15,7 @@ export default async function PosOutletPage({ params }: { params: Promise<{ outl
   const { outlet } = await params;
   const terminal = await requireTerminalOutlet(outlet, "pos");
   return (
-    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading terminal…</div>}>
+    <Suspense fallback={<PosShellSkeleton />}>
       <OutletRouteSync outletId={terminal.id}>
         <PosShell />
       </OutletRouteSync>

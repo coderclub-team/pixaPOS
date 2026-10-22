@@ -15,6 +15,7 @@ import {
 import { Input } from "@pixa/ui/base-ui/input";
 import { Label } from "@pixa/ui/base-ui/label";
 import { Icons } from "@pixa/ui/icons";
+import { Skeleton } from "@pixa/ui/base-ui/skeleton";
 import { outletKeys } from "@/features/outlet/api/queries";
 import { getQueryClient } from "@/lib/query-client";
 
@@ -96,7 +97,11 @@ export function EnsureOutletDialog({
         {mode === "list" ? (
           <>
             {isPending ? (
-              <p className="text-muted-foreground py-4 text-center text-sm">Loading outlets…</p>
+              <div className="grid gap-2 py-2" role="status" aria-label="Loading outlets">
+                <Skeleton className="h-9 w-full rounded-md" />
+                <Skeleton className="h-9 w-full rounded-md" />
+                <Skeleton className="h-9 w-full rounded-md" />
+              </div>
             ) : list.length > 0 ? (
               <div className="max-h-[40dvh] space-y-1 overflow-y-auto">
                 {list.map((o) => (

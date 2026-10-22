@@ -27,6 +27,9 @@ import {
 } from "@pixa/ui/base-ui/dialog";
 import { Icons } from "@pixa/ui/icons";
 import { StatusDot } from "@pixa/ui/base-ui/status-dot";
+import Link from "next/link";
+import { buttonVariants } from "@pixa/ui/base-ui/button";
+import { cn } from "@pixa/ui/lib/utils";
 import { useMutation } from "@tanstack/react-query";
 import { deleteMenuItem } from "../api/service";
 import { menuKeys } from "../api/queries";
@@ -57,6 +60,12 @@ export function MenuList({ items }: { items: MenuItem[] }) {
             <p className="text-sm text-muted-foreground">
               Add dishes — e.g., Biryani, Cold Coffee with variants Small/Large/250ml.
             </p>
+            <Link
+              href="/dashboard/menu/items/new"
+              className={cn(buttonVariants({ size: "sm" }), "text-xs")}
+            >
+              <Icons.add className="mr-2 h-4 w-4" /> Add Product
+            </Link>
           </div>
         </CardContent>
       </Card>

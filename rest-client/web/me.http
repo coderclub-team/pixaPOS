@@ -1,0 +1,12 @@
+# Current user + accessible outlets
+# Requires a valid Better Auth session cookie from login.http.
+
+### Get current user + active org context
+GET {{host}}/api/me
+Accept: application/json
+Origin: {{origin}}
+
+### List outlets the user can access
+GET {{host}}/api/me/outlets
+Accept: application/json
+Origin: {{origin}}

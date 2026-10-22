@@ -57,7 +57,10 @@ export const menuItemSample: Record<string, string>[] = [
  * categories first). Price sets the single Regular variant; multi-variant
  * products stay a dashboard edit.
  */
-export async function importMenuItems(rows: Record<string, string>[]): Promise<ImportResult> {
+export async function importMenuItems(
+  rows: Record<string, string>[],
+  opts?: { outletId?: string },
+): Promise<ImportResult> {
   const [cats, existing] = await Promise.all([getMenuCategories(), getMenuItems()]);
   const bySlug = new Map(existing.map((m) => [m.slug, m]));
   let created = 0;
@@ -115,7 +118,7 @@ export async function importMenuItems(rows: Record<string, string>[]): Promise<I
         await updateMenuItem(hit.id, payload);
         updated++;
       } else {
-        await createMenuItem(payload);
+        await createMenuItem(payload, opts?.outletId ? { outletId: opts.outletId } : undefined);
         created++;
       }
     } catch (e) {

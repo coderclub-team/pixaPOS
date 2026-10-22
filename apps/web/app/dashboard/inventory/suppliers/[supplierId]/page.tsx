@@ -1,7 +1,9 @@
+import { Suspense } from "react";
 import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
 import { getQueryClient } from "@/lib/query-client";
 import { supplierQueryOptions } from "@/features/inventory/api/queries";
 import PageContainer from "@pixa/ui/layout/page-container";
+import { FormSkeleton } from "@pixa/ui/base-ui/form-skeleton";
 import SupplierViewPage from "@/features/inventory/components/supplier-view-page";
 
 export const metadata = { title: "Dashboard : Supplier" };
@@ -15,7 +17,9 @@ export default async function Page(props: PageProps) {
     <PageContainer>
       <div className="flex-1 space-y-4">
         <HydrationBoundary state={dehydrate(queryClient)}>
-          <SupplierViewPage supplierId={params.supplierId} />
+          <Suspense fallback={<FormSkeleton fieldCount={7} />}>
+            <SupplierViewPage supplierId={params.supplierId} />
+          </Suspense>
         </HydrationBoundary>
       </div>
     </PageContainer>

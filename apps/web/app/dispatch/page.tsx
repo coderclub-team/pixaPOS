@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { BoardSkeleton } from "@pixa/ui/base-ui/board-skeleton";
 import { requireBaUser } from "@pixa/server";
 import DispatchBoard from "./board";
 
@@ -13,7 +14,7 @@ export default async function DispatchPage() {
   // Same gate as /kds: live order data, never anonymous.
   await requireBaUser();
   return (
-    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading dispatch…</div>}>
+    <Suspense fallback={<BoardSkeleton />}>
       <DispatchBoard />
     </Suspense>
   );

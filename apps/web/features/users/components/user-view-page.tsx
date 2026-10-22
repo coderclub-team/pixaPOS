@@ -4,6 +4,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { notFound } from "next/navigation";
 import UserForm from "./user-form";
 import { userQueryOptions } from "../api/queries";
+import { useIdentity } from "@/hooks/use-identity";
 
 type UserViewPageProps = {
   userId: string;
@@ -20,8 +21,10 @@ export default function UserViewPage({ userId }: UserViewPageProps) {
 function EditUserView({ userId }: { userId: string }) {
   const id = Number(userId);
   if (Number.isNaN(id)) notFound();
+  const { organization: activeOrg } = useIdentity();
+  const orgId = activeOrg?.id ?? "";
 
-  const { data } = useSuspenseQuery(userQueryOptions(id));
+  const { data } = useSuspenseQuery(userQueryOptions(orgId, id));
 
   if (!data) notFound();
 

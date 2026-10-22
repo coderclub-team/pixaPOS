@@ -19,19 +19,6 @@ function load() {
     const raw = localStorage.getItem(RULES_KEY);
     if (raw) mockRules = JSON.parse(raw).rules ?? [];
   } catch {}
-  // Seed the launch program so history predates any edit.
-  if (mockRules.length === 0) {
-    mockRules = [
-      {
-        id: "rr_seed",
-        earn_paise_per_point: REWARD_RULES.earn_paise_per_point,
-        redeem_paise_per_point: REWARD_RULES.redeem_paise_per_point,
-        from_at: "2020-01-01T00:00:00.000Z",
-        created_at: new Date().toISOString(),
-      },
-    ];
-    saveRules();
-  }
 }
 
 function save() {

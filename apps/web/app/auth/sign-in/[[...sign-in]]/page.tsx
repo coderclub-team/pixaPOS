@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { AuthCardSkeleton } from "@pixa/ui/base-ui/auth-card-skeleton";
 import BaSignInForm from "@/components/auth/ba-sign-in-form";
 
 export const metadata: Metadata = {
@@ -7,5 +9,9 @@ export const metadata: Metadata = {
 };
 
 export default function SignInPage() {
-  return <BaSignInForm />;
+  return (
+    <Suspense fallback={<AuthCardSkeleton />}>
+      <BaSignInForm />
+    </Suspense>
+  );
 }

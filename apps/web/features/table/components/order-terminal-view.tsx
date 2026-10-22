@@ -403,8 +403,38 @@ export default function OrderTerminalPage({
 
   if (isLoading) {
     return (
-      <PageContainer pageTitle="Order Terminal" isLoading>
-        <div />
+      <PageContainer pageTitle="Order Terminal">
+        <div
+          role="status"
+          aria-label="Loading order terminal"
+          className="flex min-h-0 animate-pulse flex-1 flex-col gap-3 px-3 pt-3 pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:flex-row lg:gap-4 lg:pb-3"
+        >
+          <div className="flex min-h-0 min-w-0 flex-col gap-2 lg:flex-1">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-9 w-24 rounded-md" />
+              <Skeleton className="h-9 flex-1 rounded-md" />
+              <Skeleton className="h-9 w-20 rounded-md" />
+            </div>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
+                <Skeleton key={i} className="h-20 w-full rounded-xl" />
+              ))}
+            </div>
+          </div>
+          <div className="hidden w-96 shrink-0 flex-col gap-2 rounded-xl border p-3 lg:flex">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-5 w-28" />
+              <Skeleton className="h-5 w-16" />
+            </div>
+            <Skeleton className="h-10 w-full rounded-md" />
+            <Skeleton className="h-10 w-full rounded-md" />
+            <Skeleton className="h-10 w-3/4 rounded-md" />
+            <div className="mt-auto grid gap-1.5">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-11 w-full rounded-md" />
+            </div>
+          </div>
+        </div>
       </PageContainer>
     );
   }

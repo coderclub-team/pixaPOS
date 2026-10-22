@@ -41,7 +41,10 @@ export const modifierGroupSample: Record<string, string>[] = [
 /**
  * Bulk upsert modifier groups matched by name.
  */
-export async function importModifierGroups(rows: Record<string, string>[]): Promise<ImportResult> {
+export async function importModifierGroups(
+  rows: Record<string, string>[],
+  opts?: { outletId?: string },
+): Promise<ImportResult> {
   const existing = await getModifierGroups();
   const byName = new Map(existing.map((g) => [g.name.toLowerCase(), g]));
   let created = 0;
@@ -77,7 +80,10 @@ export async function importModifierGroups(rows: Record<string, string>[]): Prom
         await updateModifierGroup(hit.id, payload);
         updated++;
       } else {
-        const group = await createModifierGroup(payload);
+        const group = await createModifierGroup(
+          payload,
+          opts?.outletId ? { outletId: opts.outletId } : undefined,
+        );
         if (isActive === false) {
           await updateModifierGroup(group.id, { is_active: false });
         }

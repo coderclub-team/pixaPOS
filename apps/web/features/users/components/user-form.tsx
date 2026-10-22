@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createUser, updateUser } from "../api/service";
 import { getQueryClient } from "@/lib/query-client";
+import { useIdentity } from "@/hooks/use-identity";
 import { userKeys } from "../api/queries";
 import type { User } from "../api/types";
 import { ROLE_OPTIONS } from "./users-table/options";
@@ -29,9 +30,11 @@ export default function UserForm({
 }) {
   const router = useRouter();
   const isEdit = !!initialData;
+  const { organization: activeOrg } = useIdentity();
+  const orgId = activeOrg?.id ?? "";
 
   const createMutation = useMutation({
-    mutationFn: (values: UserFormValues) => createUser(values),
+    mutationFn: (values: UserFormValues) => createUser(orgId, values),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: userKeys.all });
       toast.success("User created");
@@ -41,7 +44,7 @@ export default function UserForm({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (values: UserFormValues) => updateUser(initialData!.id, values),
+    mutationFn: (values: UserFormValues) => updateUser(orgId, initialData!.id, values),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: userKeys.all });
       toast.success("User updated");

@@ -4,6 +4,7 @@ import * as React from "react";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Badge } from "@pixa/ui/base-ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
+import { Skeleton } from "@pixa/ui/base-ui/skeleton";
 import { Input } from "@pixa/ui/base-ui/input";
 import {
   Dialog,
@@ -39,6 +40,45 @@ import { getQueryClient } from "@/lib/query-client";
 
 const fmt = (rupees: number) => inr(rupees);
 
+/**
+ * Pending-state mirror of the run detail: summary header card (period +
+ * status + total + actions) followed by the employee pay-items table.
+ */
+function RunDetailSkeleton() {
+  return (
+    <div role="status" aria-label="Loading pay run" className="animate-pulse space-y-4">
+      <div className="grid gap-2 rounded-xl border p-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-16 rounded-full" />
+          <Skeleton className="ml-auto h-6 w-24" />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Skeleton className="h-8 w-28 rounded-md" />
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+      </div>
+      <div className="grid gap-2 rounded-xl border p-6">
+        <div className="flex gap-2">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="ml-auto h-4 w-16" />
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-4 w-16" />
+        </div>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="ml-auto h-4 w-16" />
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-4 w-16" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function RunDetail({ runId }: { runId: string }) {
   const { data, isPending } = useQuery(payrollRunQueryOptions(runId));
   const invalidate = () => {
@@ -56,10 +96,11 @@ export function RunDetail({ runId }: { runId: string }) {
   });
 
   if (isPending || !data) {
+    if (isPending) return <RunDetailSkeleton />;
     return (
       <Card>
         <CardContent className="py-12 text-center text-sm text-muted-foreground">
-          Loading run…
+          Run not found
         </CardContent>
       </Card>
     );

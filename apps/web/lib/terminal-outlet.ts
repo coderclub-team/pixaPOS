@@ -51,7 +51,15 @@ export async function requireTerminalOutlet(
   const user = session?.user;
   if (!user) redirect("/auth/sign-in");
 
-  const memberships = await callerOrgs(user.id).catch(() => [] as OrgRow[]);
+  // DB failure means "unknown", never "new user" — send them to the
+  // dashboard and let the error-aware client guard decide. Bouncing to
+  // /onboarding on transient errors flashes completed users through setup.
+  let memberships: OrgRow[];
+  try {
+    memberships = await callerOrgs(user.id);
+  } catch {
+    redirect("/dashboard");
+  }
   if (memberships.length === 0) redirect("/onboarding");
   const activeOrg =
     (session.session as { activeOrganizationId?: string } | undefined)?.activeOrganizationId ??
@@ -103,7 +111,14 @@ export async function listTerminalOutlets(
   const user = session?.user;
   if (!user) redirect("/auth/sign-in");
 
-  const memberships = await callerOrgs(user.id).catch(() => [] as OrgRow[]);
+  // Same fail-safe as requireTerminalOutlet: DB errors go to the dashboard,
+  // only a cleanly-loaded empty membership list means "new user".
+  let memberships: OrgRow[];
+  try {
+    memberships = await callerOrgs(user.id);
+  } catch {
+    redirect("/dashboard");
+  }
   if (memberships.length === 0) redirect("/onboarding");
 
   const collected: TerminalOutlet[] = [];

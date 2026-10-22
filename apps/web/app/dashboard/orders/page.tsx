@@ -51,6 +51,7 @@ import { useCrossTabSync } from "@/lib/use-cross-tab-sync";
 import { toast } from "sonner";
 import { SortTh, useSorting } from "@pixa/ui/sort-th";
 import { ExportButton } from "@/features/system/components/io-dialog";
+import { DataTableSkeleton } from "@pixa/ui/base-ui/table/data-table-skeleton";
 import type { CsvColumn } from "@/features/system/lib/csv";
 
 const CHANNELS: { value: OrderChannel | "all"; label: string }[] = [
@@ -130,8 +131,25 @@ export default function OrdersPage() {
 
   if (isPending) {
     return (
-      <PageContainer pageTitle="Orders" pageDescription="Sales — Orders" isLoading>
-        <div />
+      <PageContainer pageTitle="Orders" pageDescription="Sales — Orders">
+        <div role="status" aria-label="Loading orders">
+          <DataTableSkeleton
+            columnCount={9}
+            rowCount={10}
+            filterCount={3}
+            cellWidths={[
+              "120px",
+              "110px",
+              "160px",
+              "80px",
+              "64px",
+              "110px",
+              "80px",
+              "130px",
+              "56px",
+            ]}
+          />
+        </div>
       </PageContainer>
     );
   }

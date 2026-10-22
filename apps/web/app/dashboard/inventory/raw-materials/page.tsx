@@ -26,6 +26,7 @@ import {
 } from "@/features/inventory/lib/io-raw-materials";
 import { inventoryKeys } from "@/features/inventory/api/queries";
 import { getQueryClient } from "@/lib/query-client";
+import { DataTableSkeleton } from "@pixa/ui/base-ui/table/data-table-skeleton";
 
 const CATEGORIES = [
   "Vegetables",
@@ -54,12 +55,15 @@ export default function RawMaterialsPage() {
   );
   if (isPending)
     return (
-      <PageContainer
-        pageTitle="Raw Materials"
-        pageDescription="Inventory — Raw Materials"
-        isLoading
-      >
-        <div />
+      <PageContainer pageTitle="Raw Materials" pageDescription="Inventory — Raw Materials">
+        <div role="status" aria-label="Loading raw materials">
+          <DataTableSkeleton
+            columnCount={7}
+            rowCount={10}
+            filterCount={2}
+            cellWidths={["220px", "120px", "130px", "110px", "120px", "100px", "56px"]}
+          />
+        </div>
       </PageContainer>
     );
   return (

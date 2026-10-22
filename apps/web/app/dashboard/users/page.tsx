@@ -5,6 +5,7 @@ import PageContainer from "@pixa/ui/layout/page-container";
 import { UserList, userExportColumns } from "@/features/users/components/user-list";
 import { usersQueryOptions } from "@/features/users/api/queries";
 import { useQuery } from "@tanstack/react-query";
+import { useIdentity } from "@/hooks/use-identity";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
 import { Input } from "@pixa/ui/base-ui/input";
 import {
@@ -19,30 +20,41 @@ import { Icons } from "@pixa/ui/icons";
 import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
 import { ExportButton } from "@/features/system/components/io-dialog";
+import { DataTableSkeleton } from "@pixa/ui/base-ui/table/data-table-skeleton";
 
 export default function UsersPage() {
   const [search, setSearch] = React.useState("");
   const [role, setRole] = React.useState<string | undefined>(undefined);
   const [inputValue, setInputValue] = React.useState("");
+  const { organization: activeOrg, orgsLoaded } = useIdentity();
+  const orgId = activeOrg?.id ?? "";
 
-  const { data, isPending } = useQuery(
-    usersQueryOptions({
+  const { data, isPending } = useQuery({
+    ...usersQueryOptions(orgId, {
       search: search || undefined,
       roles: role,
       // TODO(scroll-pagination): replace with useInfiniteQuery + sentinel row.
       limit: 500,
     }),
-  );
+    enabled: orgsLoaded && orgId !== "",
+  });
 
   React.useEffect(() => {
     const id = setTimeout(() => setSearch(inputValue), 300);
     return () => clearTimeout(id);
   }, [inputValue]);
 
-  if (isPending) {
+  if (isPending || !orgsLoaded) {
     return (
-      <PageContainer pageTitle="Users" pageDescription="Sales — Users" isLoading>
-        <div />
+      <PageContainer pageTitle="Users" pageDescription="Sales — Users">
+        <div role="status" aria-label="Loading users">
+          <DataTableSkeleton
+            columnCount={5}
+            rowCount={10}
+            filterCount={2}
+            cellWidths={["220px", "140px", "120px", "120px", "56px"]}
+          />
+        </div>
       </PageContainer>
     );
   }

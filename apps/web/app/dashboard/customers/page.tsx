@@ -13,6 +13,7 @@ import { cn } from "@pixa/ui/lib/utils";
 import Link from "next/link";
 import { ExportButton, ImportDialog } from "@/features/system/components/io-dialog";
 import { customerColumns, customerSample, importCustomers } from "@/features/customers/lib/io";
+import { DataTableSkeleton } from "@pixa/ui/base-ui/table/data-table-skeleton";
 
 export default function CustomersPage() {
   const [search, setSearch] = React.useState("");
@@ -29,8 +30,15 @@ export default function CustomersPage() {
 
   if (isPending) {
     return (
-      <PageContainer pageTitle="Customers" pageDescription="Sales — Customers" isLoading>
-        <div />
+      <PageContainer pageTitle="Customers" pageDescription="Sales — Customers">
+        <div role="status" aria-label="Loading customers">
+          <DataTableSkeleton
+            columnCount={6}
+            rowCount={10}
+            filterCount={1}
+            cellWidths={["220px", "140px", "120px", "80px", "100px", "56px"]}
+          />
+        </div>
       </PageContainer>
     );
   }

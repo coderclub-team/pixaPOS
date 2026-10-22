@@ -123,20 +123,31 @@ export function useIdentity() {
   // "zero organizations" (first-run redirect) must wait for this, otherwise
   // users WITH orgs get bounced while the list is still loading.
   const [orgsReady, setOrgsReady] = useState(false);
+  // True only when the org list FETCH FAILED (not when it legitimately came
+  // back empty). Guards must treat error as "unknown", never as "new user",
+  // or a transient failure bounces completed users to /onboarding.
+  const [orgsError, setOrgsError] = useState(false);
 
   useEffect(() => {
     if (!baSession?.user) {
       setBetter(null);
       setOrgsReady(true);
+      setOrgsError(false);
       return;
     }
     let cancelled = false;
     (async () => {
+      setOrgsError(false);
+      let failed = false;
       const orgs = await baOrgs
         .list()
         .then((r) => r.data ?? [])
-        .catch(() => []);
+        .catch(() => {
+          failed = true;
+          return [];
+        });
       if (cancelled) return;
+      if (failed) setOrgsError(true);
       const activeId = baSession.session?.activeOrganizationId;
       let active = orgs.find((o) => o.id === activeId) ?? null;
       // First-run: orgs exist but none active — activate the first so server
@@ -257,6 +268,7 @@ export function useIdentity() {
     source: (baSession?.user ? "better" : null) as IdentitySource,
     loaded: !baPending,
     orgsLoaded: orgsReady || usingCache,
+    orgsError,
     offlineIdentity: usingCache,
     user: effUser,
     organization: effOrg,

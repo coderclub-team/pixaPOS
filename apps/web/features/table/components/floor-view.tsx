@@ -67,9 +67,9 @@ function TableDetailPanel({
 
   if (!table) {
     return (
-      <div className="flex h-40 flex-col items-center justify-center text-center text-muted-foreground">
-        <Icons.table className="mb-2 size-8 opacity-20" />
-        <p className="text-sm">Loading table…</p>
+      <div className="flex h-40 flex-col gap-2" role="status" aria-label="Loading table">
+        <Skeleton className="h-8 w-40" />
+        <Skeleton className="h-24 w-full rounded-lg" />
       </div>
     );
   }
@@ -228,8 +228,38 @@ export default function FloorViewPage({ mode = "operations" }: { mode?: FloorVie
 
   if (isLoading)
     return (
-      <PageContainer pageTitle={mode === "edit" ? "Floor Plan Editor" : "Floor View"} isLoading>
-        <div />
+      <PageContainer pageTitle={mode === "edit" ? "Floor Plan Editor" : "Floor View"}>
+        <div
+          role="status"
+          aria-label="Loading floor plan"
+          className="grid h-[calc(100vh-200px)] animate-pulse grid-cols-1 gap-6 lg:grid-cols-12"
+        >
+          <div className="lg:col-span-8">
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <div className="flex gap-1.5">
+                <Skeleton className="h-9 w-24 rounded-md" />
+                <Skeleton className="h-9 w-24 rounded-md" />
+              </div>
+              <div className="hidden flex-wrap gap-2 sm:flex">
+                <Skeleton className="h-6 w-20 rounded-full" />
+                <Skeleton className="h-6 w-20 rounded-full" />
+                <Skeleton className="h-6 w-20 rounded-full" />
+              </div>
+            </div>
+            <Skeleton className="h-[calc(100%-60px)] min-h-72 w-full rounded-xl" />
+          </div>
+          <div className="lg:col-span-4">
+            <div className="flex h-full flex-col gap-2 rounded-xl border p-6">
+              <Skeleton className="h-5 w-32" />
+              <div className="flex h-40 flex-col gap-2">
+                <Skeleton className="h-8 w-40" />
+                <Skeleton className="h-24 w-full rounded-lg" />
+              </div>
+              <Skeleton className="h-9 w-full rounded-md" />
+              <Skeleton className="h-9 w-full rounded-md" />
+            </div>
+          </div>
+        </div>
       </PageContainer>
     );
 

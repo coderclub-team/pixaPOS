@@ -27,6 +27,7 @@ import {
   useOrderType,
   type KotOrderType,
 } from "@/features/orders/components/order-type";
+import { Skeleton } from "@pixa/ui/base-ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -53,6 +54,74 @@ export default function PosShell() {
         </CategorySelectionProvider>
       </OrderTypeProvider>
     </SidebarProvider>
+  );
+}
+
+/**
+ * Pending-state mirror of the POS terminal: header row, then the terminal
+ * workspace — left product-grid region (toolbar + category row + card grid)
+ * and right bill/keypad panel (header + line rows + totals + action footer).
+ * Same proportions as OrderTerminalPage + bill panel so CLS stays 0.
+ */
+export function PosShellSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-label="Loading POS terminal"
+      className="flex h-dvh animate-pulse flex-col overflow-hidden bg-background"
+    >
+      <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-8 w-8 rounded-md" />
+          <div className="grid gap-1">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-3 w-44" />
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Skeleton className="h-8 w-32 rounded-md" />
+          <Skeleton className="h-8 w-8 rounded-md" />
+          <Skeleton className="h-8 w-20 rounded-md" />
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 lg:flex-row lg:gap-4">
+        <div className="flex min-h-0 min-w-0 flex-col gap-2 lg:flex-1">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-9 w-24 rounded-md" />
+            <Skeleton className="h-9 flex-1 rounded-md" />
+            <Skeleton className="h-9 w-20 rounded-md" />
+          </div>
+          <div className="flex gap-1.5">
+            <Skeleton className="h-8 w-20 rounded-full" />
+            <Skeleton className="h-8 w-20 rounded-full" />
+            <Skeleton className="h-8 w-20 rounded-full" />
+            <Skeleton className="h-8 w-20 rounded-full" />
+          </div>
+          <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+            {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+              <Skeleton key={i} className="h-24 w-full rounded-xl" />
+            ))}
+          </div>
+        </div>
+        <div className="hidden w-96 shrink-0 flex-col gap-2 rounded-xl border p-3 lg:flex">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-5 w-28" />
+            <Skeleton className="h-5 w-16" />
+          </div>
+          <div className="grid gap-1.5">
+            <Skeleton className="h-10 w-full rounded-md" />
+            <Skeleton className="h-10 w-full rounded-md" />
+            <Skeleton className="h-10 w-3/4 rounded-md" />
+          </div>
+          <div className="mt-auto grid gap-1.5">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-5 w-2/3" />
+            <Skeleton className="h-11 w-full rounded-md" />
+            <Skeleton className="h-9 w-full rounded-md" />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -11,6 +11,7 @@ import {
 import { deleteUserMutation } from "../../api/mutations";
 import type { User } from "../../api/types";
 import { Icons } from "@pixa/ui/icons";
+import { useIdentity } from "@/hooks/use-identity";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -30,6 +31,8 @@ interface CellActionProps {
 export function CellAction({ data }: CellActionProps) {
   const router = useRouter();
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const { organization: activeOrg } = useIdentity();
+  const orgId = activeOrg?.id ?? "";
 
   const deleteMutation = useMutation({
     ...deleteUserMutation,
@@ -57,7 +60,7 @@ export function CellAction({ data }: CellActionProps) {
             </Button>
             <Button
               variant="destructive"
-              onClick={() => deleteMutation.mutate(data.id)}
+              onClick={() => deleteMutation.mutate({ orgId, id: data.id })}
               disabled={deleteMutation.isPending}
             >
               Delete

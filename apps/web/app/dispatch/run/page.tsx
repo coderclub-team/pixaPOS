@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { BoardSkeleton } from "@pixa/ui/base-ui/board-skeleton";
 import { requireBaUser } from "@pixa/server";
 import RunSheet from "./run-sheet";
 
@@ -11,9 +12,7 @@ export const metadata: Metadata = {
 export default async function DispatchRunPage() {
   await requireBaUser();
   return (
-    <Suspense
-      fallback={<div className="p-4 text-sm text-muted-foreground">Loading run sheet…</div>}
-    >
+    <Suspense fallback={<BoardSkeleton />}>
       <RunSheet />
     </Suspense>
   );

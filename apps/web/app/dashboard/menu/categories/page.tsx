@@ -3,6 +3,8 @@ import * as React from "react";
 import PageContainer from "@pixa/ui/layout/page-container";
 import { menuCategoriesQueryOptions } from "@/features/menu/api/queries";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
+import { outletsQueryOptions } from "@/features/outlet/api/queries";
 import { deleteMenuCategory, updateMenuCategory } from "@/features/menu/api/service";
 import { menuKeys } from "@/features/menu/api/queries";
 import { getQueryClient } from "@/lib/query-client";
@@ -66,12 +68,25 @@ export default function CategoriesPage() {
     const id = setTimeout(() => setSearch(inputValue), 300);
     return () => clearTimeout(id);
   }, [inputValue]);
-  const { data: cats, isPending } = useQuery(
-    menuCategoriesQueryOptions({
-      search: search || undefined,
-      is_active: status === "active" ? true : status === "inactive" ? false : undefined,
-    }),
-  );
+  const activeOutletId = useActiveOutletId();
+  const { isPending: outletsPending } = useQuery(outletsQueryOptions);
+  // Outlet-scoped catalog: only rows mapped (or explicitly shared) to the
+  // active outlet are listed. Without a resolved outlet we show setup
+  // instead of leaking the whole org catalog.
+  const outletReady = !outletsPending && !!activeOutletId;
+  const { data: cats, isPending } = useQuery({
+    ...menuCategoriesQueryOptions(
+      outletReady
+        ? {
+            search: search || undefined,
+            is_active: status === "active" ? true : status === "inactive" ? false : undefined,
+            outlet_id: activeOutletId!,
+          }
+        : {},
+    ),
+    enabled: outletReady,
+  });
+  const showEmptyCta = !isPending && (cats ?? []).length === 0 && !search && !status;
   const [editOpen, setEditOpen] = React.useState(false);
   const [editId, setEditId] = React.useState<string | null>(null);
   const [editName, setEditName] = React.useState("");
@@ -104,6 +119,19 @@ export default function CategoriesPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  if (!outletReady)
+    return (
+      <PageContainer pageTitle="Menu Categories">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="font-medium">Select an outlet to manage its menu</p>
+            <p className="text-sm text-muted-foreground">
+              Categories are managed per outlet. Pick an outlet to see and edit its catalog.
+            </p>
+          </CardContent>
+        </Card>
+      </PageContainer>
+    );
   if (isPending)
     return (
       <PageContainer pageTitle="Menu Categories" isLoading>
@@ -154,7 +182,9 @@ export default function CategoriesPage() {
             sampleFilename="menu-categories"
             columns={menuCategoryColumns}
             sampleRows={menuCategorySample}
-            onImport={importMenuCategories}
+            onImport={(rows) =>
+              importMenuCategories(rows, outletReady ? { outletId: activeOutletId! } : undefined)
+            }
             onDone={() => getQueryClient().invalidateQueries({ queryKey: menuKeys.all })}
           />
           <BulkShareButton
@@ -178,6 +208,16 @@ export default function CategoriesPage() {
                   ? "Try a different search or status filter."
                   : "Create categories — e.g., Starters, Biryani, Beverages — then add products to them."}
               </p>
+              {showEmptyCta && (
+                <div className="mt-1 flex flex-col items-center gap-1">
+                  <Link
+                    href="/dashboard/menu/categories/new"
+                    className={cn(buttonVariants({ size: "sm" }), "text-xs")}
+                  >
+                    <Icons.add className="mr-2 h-4 w-4" /> Add Category
+                  </Link>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

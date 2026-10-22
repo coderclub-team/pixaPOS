@@ -29,6 +29,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createMenuItem, updateMenuItem } from "../api/service";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
+import { OutletAvailabilityPicker } from "./outlet-availability-picker";
 import {
   menuKeys,
   menuCategoriesQueryOptions,
@@ -70,7 +72,10 @@ export default function MenuForm({
 }) {
   const router = useRouter();
   const isEdit = !!initialData;
-  const { data: categories } = useQuery(menuCategoriesQueryOptions());
+  const activeOutletId = useActiveOutletId();
+  const { data: categories } = useQuery(
+    menuCategoriesQueryOptions(activeOutletId ? { outlet_id: activeOutletId } : {}),
+  );
   const categoryOptions = (categories ?? []).map((c) => ({ label: c.name, value: c.id }));
   const { data: recipes } = useQuery(recipesQueryOptions());
   const recipeOptions = (recipes ?? []).map((r) => ({
@@ -208,47 +213,50 @@ export default function MenuForm({
 
   const createMut = useMutation({
     mutationFn: (v: any) =>
-      createMenuItem({
-        ...v,
-        item_type: itemType,
-        product_type: productType,
-        barcode: itemType === "goods" ? itemBarcode.trim() || undefined : undefined,
-        image_urls: images,
-        images: images.map((url, i) => ({ url, sort_order: i })),
-        variants:
-          productType === "simple"
-            ? [
-                {
-                  name: "Regular",
-                  sku: variants[0]?.sku || "",
-                  selling_price: Number(variants[0]?.selling_price ?? 0),
+      createMenuItem(
+        {
+          ...v,
+          item_type: itemType,
+          product_type: productType,
+          barcode: itemType === "goods" ? itemBarcode.trim() || undefined : undefined,
+          image_urls: images,
+          images: images.map((url, i) => ({ url, sort_order: i })),
+          variants:
+            productType === "simple"
+              ? [
+                  {
+                    name: "Regular",
+                    sku: variants[0]?.sku || "",
+                    selling_price: Number(variants[0]?.selling_price ?? 0),
+                    compare_price:
+                      variants[0]?.compare_price === "" || variants[0]?.compare_price === undefined
+                        ? undefined
+                        : Number(variants[0]?.compare_price),
+                    qty: variants[0]?.qty === "" ? undefined : Number(variants[0]?.qty),
+                    unit: variants[0]?.unit,
+                    barcode: variants[0]?.barcode,
+                    recipe_id: variants[0]?.recipe_id || undefined,
+                    is_active: true,
+                  },
+                ]
+              : variants.map(({ _uid, ...x }) => ({
+                  ...x,
+                  selling_price: Number(x.selling_price),
                   compare_price:
-                    variants[0]?.compare_price === "" || variants[0]?.compare_price === undefined
+                    x.compare_price === "" || x.compare_price === undefined
                       ? undefined
-                      : Number(variants[0]?.compare_price),
-                  qty: variants[0]?.qty === "" ? undefined : Number(variants[0]?.qty),
-                  unit: variants[0]?.unit,
-                  barcode: variants[0]?.barcode,
-                  recipe_id: variants[0]?.recipe_id || undefined,
-                  is_active: true,
-                },
-              ]
-            : variants.map(({ _uid, ...x }) => ({
-                ...x,
-                selling_price: Number(x.selling_price),
-                compare_price:
-                  x.compare_price === "" || x.compare_price === undefined
-                    ? undefined
-                    : Number(x.compare_price),
-                qty: x.qty === "" ? undefined : Number(x.qty),
-                recipe_id: (x.recipe_id as string) || undefined,
-              })),
-        available_channels: availableChannels,
-        modifier_group_ids: linkedGroups,
-        nutrition: cleanNutrition(),
-        pairs_well_with: pairIds,
-        is_bestseller: isBestseller,
-      }),
+                      : Number(x.compare_price),
+                  qty: x.qty === "" ? undefined : Number(x.qty),
+                  recipe_id: (x.recipe_id as string) || undefined,
+                })),
+          available_channels: availableChannels,
+          modifier_group_ids: linkedGroups,
+          nutrition: cleanNutrition(),
+          pairs_well_with: pairIds,
+          is_bestseller: isBestseller,
+        },
+        activeOutletId ? { outletId: activeOutletId } : undefined,
+      ),
     onSuccess: () => {
       getQueryClient().invalidateQueries({ queryKey: menuKeys.all });
       toast.success("Product created");
@@ -410,7 +418,9 @@ export default function MenuForm({
     setAvailableChannels((prev) =>
       prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch],
     );
-  const { data: modifierGroups } = useQuery(modifierGroupsQueryOptions());
+  const { data: modifierGroups } = useQuery(
+    modifierGroupsQueryOptions(activeOutletId ? { outlet_id: activeOutletId } : {}),
+  );
   const [linkedGroups, setLinkedGroups] = useState<string[]>(
     ((initialData as any)?.modifier_group_ids as string[]) ?? [],
   );
@@ -1304,6 +1314,13 @@ export default function MenuForm({
             />
           </CardContent>
         </Card>
+        {isEdit && initialData?.id && (
+          <OutletAvailabilityPicker
+            entityType="items"
+            entityId={initialData.id}
+            entityName={initialData.name}
+          />
+        )}
       </form>
     </div>
   );

@@ -1,0 +1,64 @@
+# Shared master data
+# These routes drive org-level master rows and outlet availability mapping.
+# Exact supported types: categories, items, variants, modifier-groups, modifiers,
+# materials, recipes, suppliers.
+
+### List categories (all org rows)
+GET {{host}}/api/masters/categories
+Accept: application/json
+Origin: {{origin}}
+
+### List categories for one outlet only
+GET {{host}}/api/masters/categories?outlet_id={{outletId}}
+Accept: application/json
+Origin: {{origin}}
+
+### Create a category
+POST {{host}}/api/masters/categories
+Content-Type: application/json
+Origin: {{origin}}
+
+{
+  "name": "South Indian",
+  "slug": "south-indian",
+  "sort_order": 1,
+  "is_active": true,
+  "outlet_ids": ["{{outletId}}"]
+}
+
+### List items (all org rows)
+GET {{host}}/api/masters/items
+Accept: application/json
+Origin: {{origin}}
+
+### List items for one outlet only
+GET {{host}}/api/masters/items?outlet_id={{outletId}}
+Accept: application/json
+Origin: {{origin}}
+
+### Create an item
+POST {{host}}/api/masters/items
+Content-Type: application/json
+Origin: {{origin}}
+
+{
+  "name": "Masala Dosa",
+  "category_id": "{{categoryId}}",
+  "product_type": "simple",
+  "item_type": "service",
+  "veg_type": "veg",
+  "taxable": true,
+  "tax_percent": 5,
+  "is_active": true,
+  "outlet_ids": ["{{outletId}}"]
+}
+
+### List modifier groups
+GET {{host}}/api/masters/modifier-groups
+Accept: application/json
+Origin: {{origin}}
+
+### List suppliers
+GET {{host}}/api/masters/suppliers
+Accept: application/json
+Origin: {{origin}}

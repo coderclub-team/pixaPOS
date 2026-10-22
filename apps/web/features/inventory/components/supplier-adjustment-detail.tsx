@@ -14,6 +14,7 @@ import {
 } from "../api/service";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
+import { FormSkeleton } from "@pixa/ui/base-ui/form-skeleton";
 import { Input } from "@pixa/ui/base-ui/input";
 import {
   Select,
@@ -62,7 +63,7 @@ export default function SupplierAdjustmentDetail({ adjustmentId }: { adjustmentI
     onError: (e: Error) => toast.error(e.message),
   });
 
-  if (isPending) return <div className="py-12 text-center text-muted-foreground">Loading…</div>;
+  if (isPending) return <FormSkeleton fieldCount={8} />;
   if (!adj)
     return (
       <div className="mx-auto max-w-3xl rounded-lg border p-8 text-center">

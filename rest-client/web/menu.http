@@ -1,0 +1,63 @@
+# Menu categories + menu items via the real shared master routes.
+# The app currently uses org-scoped masters under /api/masters/*, not a direct
+# /api/menu CRUD controller, so this file mirrors the real API contract.
+
+### Sign in first (reuses the cookie jar for the requests below)
+POST {{host}}/api/auth/sign-in/email
+Content-Type: application/json
+Origin: {{origin}}
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### List categories
+GET {{host}}/api/masters/categories
+Accept: application/json
+Origin: {{origin}}
+
+### List categories for a specific outlet
+GET {{host}}/api/masters/categories?outlet_id={{outletId}}
+Accept: application/json
+Origin: {{origin}}
+
+### Create a category
+POST {{host}}/api/masters/categories
+Content-Type: application/json
+Origin: {{origin}}
+
+{
+  "name": "Starters",
+  "slug": "starters",
+  "sort_order": 1,
+  "is_active": true,
+  "outlet_ids": ["{{outletId}}"]
+}
+
+### List items
+GET {{host}}/api/masters/items
+Accept: application/json
+Origin: {{origin}}
+
+### List items for a specific outlet
+GET {{host}}/api/masters/items?outlet_id={{outletId}}
+Accept: application/json
+Origin: {{origin}}
+
+### Create an item
+POST {{host}}/api/masters/items
+Content-Type: application/json
+Origin: {{origin}}
+
+{
+  "name": "{{menuItemName}}",
+  "category_id": "{{categoryId}}",
+  "product_type": "simple",
+  "item_type": "service",
+  "veg_type": "veg",
+  "taxable": true,
+  "tax_percent": 5,
+  "is_active": true,
+  "outlet_ids": ["{{outletId}}"]
+}

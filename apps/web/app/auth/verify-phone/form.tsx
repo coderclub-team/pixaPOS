@@ -7,7 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@pixa
 import { Input } from "@pixa/ui/base-ui/input";
 import { Label } from "@pixa/ui/base-ui/label";
 import { Icons } from "@pixa/ui/icons";
+import { AuthCardSkeleton } from "@pixa/ui/base-ui/auth-card-skeleton";
 import { authClient } from "@/lib/auth-client";
+import { useIdentity } from "@/hooks/use-identity";
 import { toast } from "sonner";
 
 type PhoneClient = {
@@ -46,11 +48,18 @@ export default function VerifyPhoneForm() {
   const [busy, setBusy] = useState(false);
 
   const verified = session?.user?.phoneNumberVerified;
+  const { organizations, orgsLoaded, orgsError } = useIdentity();
+  // Zero-org users go straight to workspace setup; the dashboard guard would
+  // bounce them there anyway, this just skips the flash in between. Requires
+  // a cleanly-loaded empty list — on fetch error we fall back to /dashboard
+  // where the error-aware guard decides, instead of flashing through setup.
+  const nextAfterVerify =
+    orgsLoaded && !orgsError && (organizations ?? []).length === 0 ? "/onboarding" : "/dashboard";
 
   useEffect(() => {
     if (!isPending && !session?.user) router.replace("/auth/sign-in");
-    if (!isPending && verified) router.replace("/dashboard");
-  }, [isPending, session, verified, router]);
+    if (!isPending && verified && orgsLoaded) router.replace(nextAfterVerify);
+  }, [isPending, session, verified, orgsLoaded, nextAfterVerify, router]);
 
   const sendOtp = async () => {
     const phoneNumber = normalizePhone(phone);
@@ -86,7 +95,7 @@ export default function VerifyPhoneForm() {
       });
       if (res?.error) throw new Error(res.error.message ?? "Invalid or expired code");
       toast.success("Mobile number verified");
-      router.push("/dashboard");
+      router.push(nextAfterVerify);
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Verification failed");
@@ -98,75 +107,79 @@ export default function VerifyPhoneForm() {
   return (
     <div className="flex min-h-svh items-center justify-center p-6 md:p-10">
       <div className="w-full max-w-sm">
-        <Card>
-          <CardHeader className="text-center">
-            <CardTitle className="text-xl">Verify your mobile number</CardTitle>
-            <CardDescription>
-              We send a one-time code to your mobile. We use this number for booking follow-ups and
-              payment receipts — it is never shared.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="vp-phone">Mobile number</Label>
-              <Input
-                id="vp-phone"
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
-                placeholder="+91 98765 43210"
-                value={phone}
-                disabled={otpSent || busy}
-                onChange={(e) => setPhone(e.target.value)}
-              />
-            </div>
-
-            {otpSent && (
+        {isPending || !orgsLoaded ? (
+          <AuthCardSkeleton />
+        ) : (
+          <Card>
+            <CardHeader className="text-center">
+              <CardTitle className="text-xl">Verify your mobile number</CardTitle>
+              <CardDescription>
+                We send a one-time code to your mobile. We use this number for booking follow-ups
+                and payment receipts — it is never shared.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="vp-code">6-digit code</Label>
+                <Label htmlFor="vp-phone">Mobile number</Label>
                 <Input
-                  id="vp-code"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  placeholder="______"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                  id="vp-phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="+91 98765 43210"
+                  value={phone}
+                  disabled={otpSent || busy}
+                  onChange={(e) => setPhone(e.target.value)}
                 />
               </div>
-            )}
 
-            {!otpSent ? (
-              <Button className="w-full" disabled={busy} onClick={() => void sendOtp()}>
-                <Icons.send className="size-4" aria-hidden />
-                {busy ? "Sending…" : "Send code"}
-              </Button>
-            ) : (
-              <div className="grid gap-2">
-                <Button className="w-full" disabled={busy} onClick={() => void verify()}>
-                  <Icons.check className="size-4" aria-hidden />
-                  {busy ? "Verifying…" : "Verify & continue"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => {
-                    setOtpSent(false);
-                    setCode("");
-                  }}
-                >
-                  Change number / resend
-                </Button>
-              </div>
-            )}
+              {otpSent && (
+                <div className="grid gap-2">
+                  <Label htmlFor="vp-code">6-digit code</Label>
+                  <Input
+                    id="vp-code"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    placeholder="______"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                  />
+                </div>
+              )}
 
-            <p className="text-center text-xs text-muted-foreground">
-              Verification is required before you can use pixaPOS.
-            </p>
-          </CardContent>
-        </Card>
+              {!otpSent ? (
+                <Button className="w-full" disabled={busy} onClick={() => void sendOtp()}>
+                  <Icons.send className="size-4" aria-hidden />
+                  {busy ? "Sending…" : "Send code"}
+                </Button>
+              ) : (
+                <div className="grid gap-2">
+                  <Button className="w-full" disabled={busy} onClick={() => void verify()}>
+                    <Icons.check className="size-4" aria-hidden />
+                    {busy ? "Verifying…" : "Verify & continue"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => {
+                      setOtpSent(false);
+                      setCode("");
+                    }}
+                  >
+                    Change number / resend
+                  </Button>
+                </div>
+              )}
+
+              <p className="text-center text-xs text-muted-foreground">
+                Verification is required before you can use pixaPOS.
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

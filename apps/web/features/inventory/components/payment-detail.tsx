@@ -6,6 +6,7 @@ import { getQueryClient } from "@/lib/query-client";
 import { cancelPayment } from "../api/service";
 import { Button } from "@pixa/ui/base-ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pixa/ui/base-ui/card";
+import { FormSkeleton } from "@pixa/ui/base-ui/form-skeleton";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Icons } from "@pixa/ui/icons";
@@ -22,7 +23,7 @@ export default function PaymentDetail({ paymentId }: { paymentId: string }) {
     },
     onError: (e: Error) => toast.error(e.message),
   });
-  if (isPending) return <div className="py-12 text-center text-muted-foreground">Loading…</div>;
+  if (isPending) return <FormSkeleton fieldCount={7} />;
   if (!pay)
     return (
       <div className="mx-auto max-w-3xl rounded-lg border p-8 text-center">

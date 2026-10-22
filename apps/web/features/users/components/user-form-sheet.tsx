@@ -15,6 +15,7 @@ import {
 } from "@pixa/ui/base-ui/sheet";
 import { Icons } from "@pixa/ui/icons";
 import { useMutation } from "@tanstack/react-query";
+import { useIdentity } from "@/hooks/use-identity";
 import { createUserMutation, updateUserMutation } from "../api/mutations";
 import type { User } from "../api/types";
 import { toast } from "sonner";
@@ -35,6 +36,8 @@ interface UserFormSheetProps {
 
 export function UserFormSheet({ user, open, onOpenChange }: UserFormSheetProps) {
   const isEdit = !!user;
+  const { organization: activeOrg } = useIdentity();
+  const orgId = activeOrg?.id ?? "";
 
   const createMutation = useMutation({
     ...createUserMutation,
@@ -69,9 +72,9 @@ export function UserFormSheet({ user, open, onOpenChange }: UserFormSheetProps) 
     },
     onSubmit: async ({ value }) => {
       if (isEdit) {
-        await updateMutation.mutateAsync({ id: user.id, values: value });
+        await updateMutation.mutateAsync({ orgId, id: user.id, values: value });
       } else {
-        await createMutation.mutateAsync(value);
+        await createMutation.mutateAsync({ orgId, values: value });
       }
     },
   });

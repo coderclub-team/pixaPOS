@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import { BoardSkeleton } from "@pixa/ui/base-ui/board-skeleton";
 import { resolvePublicOutlet } from "@/lib/terminal-outlet";
 import { OutletRouteSync } from "@/components/outlet-route-sync";
 import QrShell from "../shell";
@@ -23,20 +25,22 @@ export default async function QrOutletPage({
   const terminal = await resolvePublicOutlet(outlet);
   return (
     <OutletRouteSync outletId={terminal.id}>
-      <QrShell>
-        <div className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
-          <p className="text-lg font-bold">
-            {table
-              ? `Table ${table} — ${terminal.name} (order soon)`
-              : `Table ordering — ${terminal.name} (coming soon)`}
-          </p>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            {table
-              ? `You scanned table ${table}. Digital ordering from the table lands here next: menu, cart and payment.`
-              : "Scan a table QR code to order from your seat — menu, cart and payment."}
-          </p>
-        </div>
-      </QrShell>
+      <Suspense fallback={<BoardSkeleton />}>
+        <QrShell>
+          <div className="flex min-h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
+            <p className="text-lg font-bold">
+              {table
+                ? `Table ${table} — ${terminal.name} (order soon)`
+                : `Table ordering — ${terminal.name} (coming soon)`}
+            </p>
+            <p className="max-w-sm text-sm text-muted-foreground">
+              {table
+                ? `You scanned table ${table}. Digital ordering from the table lands here next: menu, cart and payment.`
+                : "Scan a table QR code to order from your seat — menu, cart and payment."}
+            </p>
+          </div>
+        </QrShell>
+      </Suspense>
     </OutletRouteSync>
   );
 }

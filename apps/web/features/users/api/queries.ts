@@ -6,18 +6,18 @@ export type { User };
 
 export const userKeys = {
   all: ["users"] as const,
-  list: (filters: UserFilters) => [...userKeys.all, "list", filters] as const,
-  detail: (id: number) => [...userKeys.all, "detail", id] as const,
+  list: (orgId: string, filters: UserFilters) => [...userKeys.all, "list", orgId, filters] as const,
+  detail: (orgId: string, id: number) => [...userKeys.all, "detail", orgId, id] as const,
 };
 
-export const usersQueryOptions = (filters: UserFilters) =>
+export const usersQueryOptions = (orgId: string, filters: UserFilters) =>
   queryOptions({
-    queryKey: userKeys.list(filters),
-    queryFn: () => getUsers(filters),
+    queryKey: userKeys.list(orgId, filters),
+    queryFn: () => getUsers(orgId, filters),
   });
 
-export const userQueryOptions = (id: number) =>
+export const userQueryOptions = (orgId: string, id: number) =>
   queryOptions({
-    queryKey: userKeys.detail(id),
-    queryFn: () => getUser(id),
+    queryKey: userKeys.detail(orgId, id),
+    queryFn: () => getUser(orgId, id),
   });

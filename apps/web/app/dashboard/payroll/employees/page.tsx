@@ -17,6 +17,7 @@ import { cn } from "@pixa/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { EmployeeList } from "@/features/payroll/components/employee-list";
 import { employeesQueryOptions } from "@/features/payroll/api/queries";
+import { DataTableSkeleton } from "@pixa/ui/base-ui/table/data-table-skeleton";
 
 export default function EmployeesPage() {
   const [search, setSearch] = React.useState("");
@@ -32,8 +33,15 @@ export default function EmployeesPage() {
 
   if (isPending) {
     return (
-      <PageContainer pageTitle="Employees" pageDescription="Payroll — Employees" isLoading>
-        <div />
+      <PageContainer pageTitle="Employees" pageDescription="Payroll — Employees">
+        <div role="status" aria-label="Loading employees">
+          <DataTableSkeleton
+            columnCount={6}
+            rowCount={10}
+            filterCount={2}
+            cellWidths={["220px", "110px", "120px", "180px", "110px", "56px"]}
+          />
+        </div>
       </PageContainer>
     );
   }

@@ -39,6 +39,8 @@ import { cn } from "@pixa/ui/lib/utils";
 import { buttonVariants } from "@pixa/ui/base-ui/button";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { useActiveOutletId } from "@/hooks/use-active-outlet";
+import { outletsQueryOptions } from "@/features/outlet/api/queries";
 import { SortTh, useSorting } from "@pixa/ui/sort-th";
 import { ExportButton, ImportDialog } from "@/features/system/components/io-dialog";
 import {
@@ -59,7 +61,15 @@ export default function ModifiersPage() {
     const id = setTimeout(() => setSearch(inputValue), 300);
     return () => clearTimeout(id);
   }, [inputValue]);
-  const { data: groups, isPending } = useQuery(modifierGroupsQueryOptions());
+  const activeOutletId = useActiveOutletId();
+  const { isPending: outletsPending } = useQuery(outletsQueryOptions);
+  // Outlet-scoped catalog: only mapped/shared groups are listed. Without a
+  // resolved outlet we show setup instead of leaking the whole org catalog.
+  const outletReady = !outletsPending && !!activeOutletId;
+  const { data: groups, isPending } = useQuery({
+    ...modifierGroupsQueryOptions(outletReady ? { outlet_id: activeOutletId! } : {}),
+    enabled: outletReady,
+  });
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
 
@@ -96,6 +106,19 @@ export default function ModifiersPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  if (!outletReady)
+    return (
+      <PageContainer pageTitle="Add-ons">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="font-medium">Select an outlet to manage its add-ons</p>
+            <p className="text-sm text-muted-foreground">
+              Add-on groups are managed per outlet. Pick an outlet to see and edit its catalog.
+            </p>
+          </CardContent>
+        </Card>
+      </PageContainer>
+    );
   if (isPending)
     return (
       <PageContainer pageTitle="Add-ons" isLoading>
@@ -153,7 +176,9 @@ export default function ModifiersPage() {
             sampleFilename="modifier-groups"
             columns={modifierGroupColumns}
             sampleRows={modifierGroupSample}
-            onImport={importModifierGroups}
+            onImport={(rows) =>
+              importModifierGroups(rows, outletReady ? { outletId: activeOutletId! } : undefined)
+            }
             onDone={() => queryClient.invalidateQueries({ queryKey: menuKeys.all })}
           />
           <ImportDialog

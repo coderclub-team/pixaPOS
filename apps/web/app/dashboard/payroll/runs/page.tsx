@@ -16,6 +16,7 @@ import {
 import { cn } from "@pixa/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { inr } from "@/features/payroll/components/employee-list";
+import { DataTableSkeleton } from "@pixa/ui/base-ui/table/data-table-skeleton";
 import { PayrunWizard } from "@/features/payroll/components/payrun-wizard";
 import {
   employeesQueryOptions,
@@ -30,8 +31,16 @@ export default function PayrollRunsPage() {
 
   if (isPending) {
     return (
-      <PageContainer pageTitle="Payroll Runs" pageDescription="Payroll — Runs" isLoading>
-        <div />
+      <PageContainer pageTitle="Payroll Runs" pageDescription="Payroll — Runs">
+        <div role="status" aria-label="Loading payroll runs">
+          <DataTableSkeleton
+            columnCount={5}
+            rowCount={10}
+            filterCount={0}
+            withPagination={false}
+            cellWidths={["200px", "110px", "120px", "120px", "56px"]}
+          />
+        </div>
       </PageContainer>
     );
   }
