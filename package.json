@@ -40,8 +40,6 @@
     "pipeline:migrate": "node scripts/pipeline.mjs migrate",
     "pipeline:health": "node scripts/pipeline.mjs health",
     "pipeline:deploy": "node scripts/pipeline.mjs deploy",
-    "seed": "pnpm --filter @pixa/db seed",
-    "seed:dev": "set -a; . apps/web/.env.local; set +a; pnpm --filter @pixa/db seed",
     "vitest": "vitest run",
     "vitest:watch": "vitest",
     "playwright": "playwright test"

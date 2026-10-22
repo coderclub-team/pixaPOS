@@ -2,9 +2,13 @@
 
 import { useEffect } from "react";
 import { ensureLocalMirror } from "@/lib/db/bootstrap";
+/* OFFLINE-FIRST-DISABLED: sync engine + SW registration commented out (see below).
 import { startSyncEngine } from "@/lib/db/sync-engine";
+*/
 import { maybeAutoSnapshot } from "@/features/system/api/service";
+/* OFFLINE-FIRST-DISABLED: see above.
 import { useServiceWorker } from "@/hooks/use-service-worker";
+*/
 
 /**
  * Mount once at the app root: purge legacy mock data once, adopt the durable
@@ -14,14 +18,20 @@ import { useServiceWorker } from "@/hooks/use-service-worker";
  * visited via pos/kds.
  */
 export default function LocalMirrorBootstrap() {
-  useServiceWorker();
+  /* OFFLINE-FIRST-DISABLED: service-worker registration commented out —
+   * re-enable with useServiceWorker() to restore offline shells. */
+  // useServiceWorker();
   useEffect(() => {
     void purgeLegacyMockData().finally(() => {
       void ensureLocalMirror().finally(() => {});
     });
     maybeAutoSnapshot();
+    /* OFFLINE-FIRST-DISABLED: sync engine commented out — nothing drains
+     * the outbox until this is restored.
     const stop = startSyncEngine();
     return () => stop();
+    */
+    return () => {};
   }, []);
   return null;
 }

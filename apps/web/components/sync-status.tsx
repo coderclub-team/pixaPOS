@@ -1,19 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { cn } from "@pixa/ui/lib/utils";
+/* OFFLINE-FIRST-DISABLED: outbox polling + manual retry commented out below.
+ * The pill is a static online indicator until sync returns.
+import { useEffect, useState } from "react";
 import { outboxStatusCounts } from "@/lib/db/outbox";
 import { runSyncCycle } from "@/lib/db/sync-engine";
+*/
 
 /**
- * Sync status pill for pos/kds headers (offline doc rule: sync state is
- * always visible, never silent). Green = sent, amber = pending,
- * red = failed rows need attention, gray = browser offline. Click retries.
- *
- * Honest wording: "Sent" means the server acknowledged transport — server-side
- * application to Postgres lands next (audit 2026-09-28 #6). The pill never
- * claims full reconciliation.
+ * Online indicator for pos/kds headers. (Previously a live sync-status
+ * pill — green = sent, amber = pending, red = failed, gray = offline, click
+ * to retry. See OFFLINE-FIRST-DISABLED block below to restore.)
  */
+export default function SyncStatus({ className }: { className?: string }) {
+  return (
+    <span
+      title="Online"
+      aria-label="Sync status: online (sync disabled)"
+      className={cn(
+        "flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] text-muted-foreground",
+        "max-sm:gap-0 max-sm:px-1.5",
+        className,
+      )}
+    >
+      <span className={cn("size-1.5 rounded-full", "bg-emerald-500")} />
+      <span className="max-sm:hidden">Online</span>
+    </span>
+  );
+}
+
+/* OFFLINE-FIRST-DISABLED: live outbox pill. Restore to re-enable.
 export default function SyncStatus({ className }: { className?: string }) {
   const [counts, setCounts] = useState({ pending: 0, failed: 0, synced: 0 });
   const [online, setOnline] = useState(true);
@@ -55,10 +72,10 @@ export default function SyncStatus({ className }: { className?: string }) {
   const dot = !online
     ? "bg-zinc-400"
     : counts.failed > 0
-      ? "bg-red-500"
-      : counts.pending > 0
-        ? "bg-amber-500 animate-pulse"
-        : "bg-emerald-500";
+    ? "bg-red-500"
+    : counts.pending > 0
+      ? "bg-amber-500 animate-pulse"
+      : "bg-emerald-500";
   const label = !online
     ? "Offline"
     : counts.failed > 0
@@ -79,7 +96,6 @@ export default function SyncStatus({ className }: { className?: string }) {
       aria-label={`Sync status: ${label}. Activate to retry.`}
       className={cn(
         "flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground",
-        // Subdomain headers on phones: dot only, label via tooltip.
         "max-sm:gap-0 max-sm:px-1.5",
         className,
       )}
@@ -89,3 +105,4 @@ export default function SyncStatus({ className }: { className?: string }) {
     </button>
   );
 }
+*/

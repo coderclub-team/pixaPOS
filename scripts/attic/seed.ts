@@ -1,4 +1,9 @@
 /**
+ * ATTIC — retired dev seed script (moved out of packages/db, not wired to any
+ * pnpm script and not imported anywhere). Kept for reference only; to reuse,
+ * move it back next to packages/db/index.ts (its relative imports assume
+ * that location) and re-add a runner.
+ *
  * Dev seed: outlet + shared masters (suppliers, raw materials, recipes,
  * categories, items, variants, modifiers) + SaaS plans + floor/table parity.
  *
@@ -11,8 +16,8 @@
  * - NO fake transactions: orders/KOTs/payments are never seeded (audit).
  * - DEV ONLY: run with the dev branch DATABASE_URL.
  *
- * Usage:
- *   SEED_ORG_ID=org_xxx [SEED_OUTLET_CODE=MAIN] DATABASE_URL=... pnpm --filter @pixa/db seed
+ * Usage (when restored next to packages/db/index.ts with a runner):
+ *   SEED_ORG_ID=org_xxx [SEED_OUTLET_CODE=MAIN] DATABASE_URL=... <runner>
  */
 import { and, eq, like, notLike, sql } from "drizzle-orm";
 import { db } from "./index";
