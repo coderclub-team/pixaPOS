@@ -492,6 +492,8 @@ export const menuCategories = pgTable(
     id: text("id").primaryKey(),
     ...master,
     slug: text("slug"),
+    description: text("description"),
+    imageUrl: text("image_url"),
     parentId: text("parent_id"),
     sortOrder: integer("sort_order").default(0).notNull(),
   },
@@ -507,9 +509,23 @@ export const menuItems = pgTable(
     productType: text("product_type").default("simple").notNull(),
     itemType: text("item_type").default("goods").notNull(),
     vegType: text("veg_type"),
+    description: text("description"),
+    barcode: text("barcode"),
+    spiceLevel: text("spice_level"),
+    prepTimeMin: integer("prep_time_min"),
+    allergens: jsonb("allergens").$type<string[]>().default([]).notNull(),
+    taxType: text("tax_type"),
+    nutrition: jsonb("nutrition").$type<Record<string, number | string>>(),
+    pairsWellWith: jsonb("pairs_well_with").$type<string[]>().default([]).notNull(),
+    isBestseller: boolean("is_bestseller").default(false).notNull(),
     hsnCode: text("hsn_code"),
     taxable: boolean("taxable").default(true).notNull(),
     taxPercent: integer("tax_percent").default(0).notNull(),
+    images: jsonb("images").$type<{ url: string; sort_order: number }[]>().default([]).notNull(),
+    availableChannels: jsonb("available_channels")
+      .$type<string[]>()
+      .default(["dine_in", "pickup", "delivery", "zomato", "swiggy", "ondc"])
+      .notNull(),
     modifierGroupIds: jsonb("modifier_group_ids").$type<string[]>().default([]).notNull(),
   },
   (t) => [
@@ -527,6 +543,9 @@ export const menuVariants = pgTable(
       .notNull()
       .references(() => menuItems.id, { onDelete: "cascade" }),
     sku: text("sku"),
+    barcode: text("barcode"),
+    qty: numeric("qty", { mode: "number" }),
+    unit: text("unit"),
     sellingPrice: bigint("selling_price", { mode: "number" }).default(0).notNull(),
     comparePrice: bigint("compare_price", { mode: "number" }),
     recipeId: text("recipe_id"),
@@ -558,6 +577,7 @@ export const modifiers = pgTable(
     groupId: text("group_id")
       .notNull()
       .references(() => modifierGroups.id, { onDelete: "cascade" }),
+    alias: text("alias"),
     price: bigint("price", { mode: "number" }).default(0).notNull(),
     sortOrder: integer("sort_order").default(0).notNull(),
   },

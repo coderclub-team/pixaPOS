@@ -169,6 +169,20 @@
       "when": 1792582907666,
       "tag": "0023_outlet_master_availability",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792683024532,
+      "tag": "0024_menu-display-columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792683185155,
+      "tag": "0025_menu-extra-fields",
+      "breakpoints": true
     }
   ]
 }

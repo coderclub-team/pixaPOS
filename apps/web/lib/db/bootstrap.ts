@@ -10,7 +10,6 @@ import { hydrateTicketsFromMirror } from "@/features/kitchen/api/service";
 import { hydratePaymentsFromMirror } from "@/features/payments/api/service";
 import { hydrateTablesFromMirror } from "@/features/table/api/service";
 import { hydrateFloorsFromMirror } from "@/features/floor/api/service";
-import { hydrateMenuFromMirror } from "@/features/menu/api/service";
 import { hydrateInventoryFromMirror } from "@/features/inventory/api/service";
 import { hydrateCustomersFromMirror } from "@/features/customers/api/service";
 
@@ -25,7 +24,6 @@ export async function ensureLocalMirror(): Promise<void> {
     hydratePaymentsFromMirror(),
     hydrateTablesFromMirror(),
     hydrateFloorsFromMirror(),
-    hydrateMenuFromMirror(),
     hydrateInventoryFromMirror(),
     hydrateCustomersFromMirror(),
   ]);
