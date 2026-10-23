@@ -12,15 +12,15 @@ export default defineConfig({
     "menu-images": { access: "public_read" },
   },
   functions: {
-    "usage-sync": {
-      name: "usage-sync forwarder",
+    usagesync: {
+      name: "usagesync forwarder",
       source: "neon/functions/usage-sync.ts",
     },
   },
   triggers: {
-    "usage-sync-daily": {
+    usagesyncdaily: {
       type: "schedule",
-      function: "usage-sync",
+      function: "usagesync",
       cron: "0 3 * * *",
     },
   },
