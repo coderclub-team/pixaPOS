@@ -32,12 +32,12 @@
     "react-dropzone": "^14.4.1",
     "sonner": "^1.7.4"
   },
-  "peerDependencies": {
-    "react": "*",
-    "react-dom": "*"
-  },
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0"
+  },
+  "peerDependencies": {
+    "react": "*",
+    "react-dom": "*"
   }
 }

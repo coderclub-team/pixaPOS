@@ -1,200 +1,39 @@
-import { delay } from "@/constants/mock-api";
-import { recordEvent } from "@/features/events/api/service";
-import { recordWasteForCancelledOrder } from "@/features/inventory/api/service";
-import { entityMutex } from "@/lib/mutex";
-import {
-  addOrderItem,
-  getOrderById,
-  markLinesFired,
-  refreshOrderKitchenState,
-  setOrderLineQty,
-} from "@/features/orders/api/service";
+/**
+ * Kitchen/KDS domain — client service (server-backed).
+ *
+ * Thin fetch layer over /api/kots*. Same exported API as the old
+ * localStorage version. Ticket transitions run server-side; the wallboard
+ * polls the server feed (KDS_SSE remains the client push fan-out).
+ */
+import { getServiceOutletId } from "@/features/outlet/api/outlets";
 import type { AddItemInput } from "@/features/orders/api/types";
-import type {
-  KitchenTicket,
-  KitchenTicketWithDerived,
-  KOTFilters,
-  KOTLineStatus,
-  KOTStatus,
-} from "./types";
+import type { KitchenTicketWithDerived, KOTFilters } from "./types";
 
-const KOT_STORAGE_KEY = "pixaKOTs";
-
-let mockTickets: KitchenTicket[] = [];
-
-/** Durable SQLite mirror (fire-and-forget; repo never throws). */
-function mirrorTickets() {
-  if (typeof window === "undefined") return;
-  import("@/lib/db/repo").then(({ writeScope }) => {
-    void writeScope(
-      "kot_tickets",
-      mockTickets.map((t) => ({
-        id: t.id,
-        outlet_id: t.outlet_id ?? null,
-        data: t,
-        version: t.version ?? 1,
-        updated_at: t.updated_at ?? new Date().toISOString(),
-        deleted_at: (t as { deleted_at?: string | null }).deleted_at ?? null,
-      })),
-    );
-  });
-}
-
-/** Adopt the durable mirror on app startup — only when localStorage is
- * missing/empty (fresh device or eviction recovery). Never overwrites
- * existing localStorage: the mirror write lags it by design. */
-export async function hydrateTicketsFromMirror(): Promise<void> {
-  if (typeof window === "undefined") return;
-  try {
-    const raw = localStorage.getItem(KOT_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    if (Array.isArray(parsed?.tickets) && parsed.tickets.length > 0) return;
-    const { readScope } = await import("@/lib/db/repo");
-    const docs = await readScope("kot_tickets");
-    if (docs.length > 0) {
-      localStorage.setItem(KOT_STORAGE_KEY, JSON.stringify({ tickets: docs.map((d) => d.data) }));
-      loadTickets();
-    }
-  } catch {}
-}
-
-function saveTickets() {
-  if (typeof window !== "undefined") {
-    try {
-      localStorage.setItem(KOT_STORAGE_KEY, JSON.stringify({ tickets: mockTickets }));
-      mirrorTickets();
-    } catch {}
+async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, { credentials: "include", ...init });
+  const data = (await res.json().catch(() => null)) as { error?: string } | T | null;
+  if (!res.ok) {
+    const msg =
+      data && typeof data === "object" && "error" in data && typeof data.error === "string"
+        ? data.error
+        : `Request failed (${res.status})`;
+    throw new Error(msg);
   }
+  return data as T;
 }
 
-function loadTickets(): void {
-  if (typeof window !== "undefined") {
-    try {
-      const raw = localStorage.getItem(KOT_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed?.tickets)) {
-          // Backfill return fields for tickets written before returns existed.
-          mockTickets = parsed.tickets.map((t: KitchenTicket) => ({
-            ...t,
-            returns: t.returns ?? [],
-            lines: (t.lines ?? []).map((l) => ({ ...l, returned_qty: l.returned_qty ?? 0 })),
-          }));
-        }
-      }
-    } catch {}
+function toQuery(params: Record<string, string | number | boolean | undefined>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== "") q.set(k, String(v));
   }
-}
-loadTickets();
-
-/**
- * Current ticket snapshot for sync envelopes. No delays, no enrichment —
- * the outbox path must never slow business mutations.
- */
-export function getTicketForSync(ticketId: string): KitchenTicket | null {
-  loadTickets();
-  return mockTickets.find((t) => t.id === ticketId) ?? null;
+  const s = q.toString();
+  return s ? `?${s}` : "";
 }
 
 /**
- * Synchronous shared-source snapshot for cross-domain aggregation (order
- * status backfill). Reloads from localStorage first — no delay, no lock;
- * callers hold their own locks.
- */
-export function readTicketsSnapshot(): KitchenTicketWithDerived[] {
-  loadTickets();
-  return [...mockTickets].map(enrichTicket);
-}
-
-/**
- * In-memory read WITHOUT reload — for use inside mutations that already
- * hold fresh state. Reloading mid-mutation (before save) would revert the
- * in-flight change and the subsequent save would persist the revert.
- */
-export function peekTickets(): KitchenTicketWithDerived[] {
-  return [...mockTickets].map(enrichTicket);
-}
-
-/** Explicit KOT machine (docs/workflows.md §3). Kitchen ≠ order state. */
-const KOT_TRANSITIONS: Record<KOTStatus, KOTStatus[]> = {
-  NEW: ["ACCEPTED", "CANCELLED"],
-  ACCEPTED: ["PREPARING", "CANCELLED"],
-  PREPARING: ["READY", "CANCELLED"],
-  READY: ["SERVED", "CANCELLED"],
-  SERVED: [],
-  CANCELLED: [],
-};
-
-/**
- * Per-line machine (docs/workflows.md §3). Items walk
- * PENDING → ACCEPTED → PREPARING → READY → SERVED — READY is reachable only
- * from PREPARING, so an order is never marked ready without preparation.
- * ACCEPTED is acknowledgment, not a tollbooth: PENDING → PREPARING stays
- * legal (bulk start, fast path). VOIDED is the audited exit from any
- * non-terminal line state.
- */
-const KOT_LINE_TRANSITIONS: Record<KOTLineStatus, KOTLineStatus[]> = {
-  PENDING: ["ACCEPTED", "PREPARING", "VOIDED"],
-  ACCEPTED: ["PREPARING", "VOIDED"],
-  PREPARING: ["READY", "VOIDED"],
-  READY: ["SERVED", "VOIDED"],
-  SERVED: [],
-  VOIDED: [],
-};
-
-function assertLineTransition(from: KOTLineStatus, to: KOTLineStatus, what: string): void {
-  if (from === to) return;
-  if (!KOT_LINE_TRANSITIONS[from].includes(to)) {
-    throw new Error(`Illegal KOT line transition ${from} → ${to} (${what})`);
-  }
-}
-
-function enrichTicket(t: KitchenTicket): KitchenTicketWithDerived {
-  return {
-    ...t,
-    pending_lines: t.lines.filter(
-      (l) => l.status === "PENDING" || l.status === "ACCEPTED" || l.status === "PREPARING",
-    ).length,
-    ready_lines: t.lines.filter((l) => l.status === "READY").length,
-    age_minutes: Math.max(0, Math.round((Date.now() - new Date(t.fired_at).getTime()) / 60000)),
-  };
-}
-
-async function transitionTicket(
-  idx: number,
-  to: KOTStatus,
-  ctx: { actor_id?: string; reason_text?: string; event_type?: any },
-): Promise<void> {
-  const current = mockTickets[idx];
-  const from = current.status;
-  if (from === to) return;
-  if (!KOT_TRANSITIONS[from].includes(to)) {
-    throw new Error(`Illegal KOT transition ${from} → ${to}`);
-  }
-  mockTickets[idx] = {
-    ...current,
-    status: to,
-    updated_at: new Date().toISOString(),
-    version: current.version + 1,
-  };
-  await recordEvent({
-    outlet_id: current.outlet_id,
-    entity_type: "ORDER",
-    entity_id: current.order_id,
-    event_type: ctx.event_type ?? "KITCHEN_TICKET_UPDATED",
-    from_state: from,
-    to_state: to,
-    actor_id: ctx.actor_id,
-    reason_text: ctx.reason_text,
-    metadata: { kot_id: current.id },
-  });
-}
-
-/**
- * Fire-and-forget fan-out to the KDS live feed (Neon function). Called after
- * every KOT mutation so wallboards subscribed over SSE refresh instantly.
- * Never throws: offline or misconfigured feed must not break kitchen work —
- * the 5s poll and cross-tab sync remain the fallback.
+ * Fire-and-forget fan-out to the KDS live feed (Neon function). Never
+ * throws: offline or misconfigured feed must not break kitchen work.
  */
 export function publishKds(kind: string, payload: Record<string, unknown>): void {
   try {
@@ -215,7 +54,7 @@ export function publishKds(kind: string, payload: Record<string, unknown>): void
   }
 }
 
-function publishTicket(t: KitchenTicket, extra?: Record<string, unknown>): void {
+function publishTicket(t: KitchenTicketWithDerived, extra?: Record<string, unknown>): void {
   publishKds("kot", {
     kot_id: t.id,
     order_id: t.order_id,
@@ -226,358 +65,93 @@ function publishTicket(t: KitchenTicket, extra?: Record<string, unknown>): void 
 }
 
 export async function getKitchenTickets(filters?: KOTFilters): Promise<KitchenTicketWithDerived[]> {
-  loadTickets(); // localStorage is the shared source — reload so tabs/displays agree
-  let r = [...mockTickets];
-  if (filters?.outlet_id) r = r.filter((t) => t.outlet_id === filters.outlet_id);
-  if (filters?.status) r = r.filter((t) => t.status === filters.status);
-  return r.sort((a, b) => a.fired_at.localeCompare(b.fired_at)).map(enrichTicket);
+  const { rows } = await api<{ rows: KitchenTicketWithDerived[] }>(
+    `/api/kots${toQuery({
+      outlet_id: filters?.outlet_id ?? getServiceOutletId() ?? undefined,
+      status: filters?.status as string | undefined,
+    })}`,
+  );
+  return rows ?? [];
 }
 
 export async function getKOTsByOrder(orderId: string): Promise<KitchenTicketWithDerived[]> {
-  await delay(200);
-  loadTickets();
-  return mockTickets
-    .filter((t) => t.order_id === orderId)
-    .sort((a, b) => a.kot_number - b.kot_number)
-    .map(enrichTicket);
+  const { tickets } = await api<{ tickets: KitchenTicketWithDerived[] }>(
+    `/api/kots/by-order/${encodeURIComponent(orderId)}`,
+  );
+  return tickets ?? [];
 }
 
 export async function getTicketById(id: string): Promise<KitchenTicketWithDerived | null> {
-  await delay(200);
-  loadTickets();
-  const t = mockTickets.find((t) => t.id === id);
-  return t ? enrichTicket(t) : null;
+  try {
+    const { ticket } = await api<{ ticket: KitchenTicketWithDerived | null }>(
+      `/api/kots/${encodeURIComponent(id)}`,
+    );
+    return ticket ?? null;
+  } catch (e) {
+    if (e instanceof Error && /not found/i.test(e.message)) return null;
+    throw e;
+  }
 }
 
-/**
- * Fire the order's unfired draft lines to the kitchen. Freezes those lines
- * into a new immutable KOT; the order keeps a fresh virtual draft for the
- * next round — 1 order → N KOTs.
- */
 export async function fireKOT(
   orderId: string,
   by?: string,
   opts?: { stationIds?: string[] },
 ): Promise<KitchenTicketWithDerived> {
-  const release = await entityMutex.acquire(`kot-order-${orderId}`);
-  try {
-    await delay(400);
-    loadTickets(); // fresh base for numbering — no writes held yet this frame
-    const order = await getOrderById(orderId);
-    if (!order) throw new Error("Order not found");
-    // DRAFT carts fire directly (first fire walks DRAFT → IN_KITCHEN via
-    // markLinesFired) — no CONFIRMED step in new flows.
-    if (order.status === "CANCELLED" || order.status === "COMPLETED") {
-      throw new Error(`Cannot fire KOT for a ${order.status.toLowerCase()} order`);
-    }
-    const draftLines = order.items.filter((i) => !i.kot_id);
-    if (draftLines.length === 0) throw new Error("No new items to fire");
-
-    // Required add-on groups block firing (Peblla pattern): every linked
-    // group with min > 0 needs at least min picks on the line; max caps it.
+  const { ticket } = await api<{ ok: boolean; ticket: KitchenTicketWithDerived }>(
+    `/api/orders/${encodeURIComponent(orderId)}/fire`,
     {
-      const { getMenuItemById, getModifierGroupById, getModifiers } =
-        await import("@/features/menu/api/service");
-      const groupCache = new Map<string, { name: string; min: number; max: number } | null>();
-      for (const line of draftLines) {
-        const item = await getMenuItemById(line.menu_item_id);
-        if (!item) continue;
-        for (const gid of item.modifier_group_ids ?? []) {
-          let g = groupCache.get(gid);
-          if (g === undefined) {
-            const full = await getModifierGroupById(gid);
-            g =
-              full && full.is_active
-                ? { name: full.name, min: full.min_selection, max: full.max_selection }
-                : null;
-            groupCache.set(gid, g);
-          }
-          if (!g) continue;
-          const inGroup = new Set((await getModifiers(gid)).map((m) => m.id));
-          const picked = line.modifiers.filter((m) => inGroup.has(m.modifier_id)).length;
-          if (picked < g.min) {
-            throw new Error(
-              `${line.item_name_snapshot} needs at least ${g.min} from ${g.name} (has ${picked})`,
-            );
-          }
-          if (picked > g.max) {
-            throw new Error(
-              `${line.item_name_snapshot} allows at most ${g.max} from ${g.name} (has ${picked})`,
-            );
-          }
-        }
-      }
-    }
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ by, stationIds: opts?.stationIds }),
+    },
+  );
+  publishTicket(ticket, { lines: ticket.lines.length });
+  return ticket;
+}
 
-    // Validate stationIds against persisted outlets if supplied
-    let stationIds: string[] | undefined;
-    if (opts?.stationIds && opts.stationIds.length > 0) {
-      const { localQuery } = await import("@/lib/db/sqlite");
-      const { initLocalDb } = await import("@/lib/db/sqlite");
-      const mode = await initLocalDb().catch(() => "fallback" as const);
-      if (mode === "sqlite") {
-        const { rows } = await localQuery(
-          `SELECT id FROM outlet_kitchen_stations WHERE outlet_id = ? AND is_active = 1 AND id IN (${opts.stationIds.map(() => "?").join(",")})`,
-          [order.outlet_id, ...opts.stationIds],
-        );
-        const found = new Set(rows.map((r) => String((r as unknown[])[0])));
-        const missing = opts.stationIds.filter((id) => !found.has(id));
-        if (missing.length > 0) throw new Error(`Unknown stationIds: ${missing.join(", ")}`);
-        stationIds = opts.stationIds;
-      } else {
-        // fallback mode without sqlite — accept as-is (server will validate)
-        stationIds = opts.stationIds;
-      }
-    }
-
-    const now = new Date().toISOString();
-    const kotNumber = mockTickets.filter((t) => t.order_id === orderId).length + 1;
-    // Build the ticket WITHOUT publishing it yet: markLinesFired can throw
-    // (auto-seat, transition) — a ticket pushed before the marks succeed
-    // becomes a phantom KOT (visible in KDS, lines still draft). The push
-    // below happens only after the marks land.
-    const ticket: KitchenTicket = {
-      id: `kot_${Date.now().toString(36)}`,
-      outlet_id: order.outlet_id,
-      order_id: order.id,
-      order_number_snapshot: order.order_number,
-      table_number_snapshot: order.table_number_snapshot,
-      channel: order.channel,
-      kot_number: kotNumber,
-      status: "NEW",
-      lines: draftLines.map((l) => ({
-        id: `kotl_${Math.random().toString(36).slice(2, 8)}`,
-        order_line_id: l.id,
-        item_name_snapshot: l.item_name_snapshot,
-        variant_name_snapshot: l.variant_name_snapshot,
-        modifiers_snapshot: l.modifiers.map((m) => m.alias_snapshot ?? m.name_snapshot),
-        instructions: l.instructions,
-        qty: l.qty,
-        voided_qty: 0,
-        returned_qty: 0,
-        status: "PENDING",
-      })),
-      voids: [],
-      returns: [],
-      station_ids: stationIds,
-      fired_by: by ?? "staff",
-      fired_at: now,
-      updated_at: now,
-      version: 1,
-    };
-    mockTickets.push(ticket);
-    // Persist BEFORE the fallible steps below: markLinesFired and the
-    // post-fire verification both read through getters that reload from
-    // localStorage (backfill → readTicketsSnapshot reassigns mockTickets).
-    // Without this save, a reload mid-fire would drop the un-persisted
-    // ticket from memory and the save below would persist the revert —
-    // silently losing every ticket fired while storage already holds one.
-    saveTickets();
-    try {
-      await markLinesFired(
-        orderId,
-        draftLines.map((l, i) => ({
-          line_id: l.id,
-          kot_id: ticket.id,
-          kot_line_id: ticket.lines[i].id,
-        })),
-      );
-    } catch (e) {
-      // Roll back the unpublished ticket so a failed fire never leaves a
-      // phantom KOT behind the draft lines.
-      const ti = mockTickets.findIndex((t) => t.id === ticket.id);
-      if (ti !== -1) mockTickets.splice(ti, 1);
-      saveTickets();
-      throw e;
-    }
-    // Post-fire verification: every targeted line must carry this ticket's
-    // id — otherwise the bill would show the items as draft AND in the KOT.
+async function transition(
+  id: string,
+  action: string,
+  body: Record<string, unknown> = {},
+): Promise<KitchenTicketWithDerived> {
+  const { ticket } = await api<{ ok: boolean; ticket: KitchenTicketWithDerived }>(
+    `/api/kots/${encodeURIComponent(id)}`,
     {
-      const { getOrderById: reloadOrder } = await import("@/features/orders/api/service");
-      const reloaded = await reloadOrder(orderId);
-      const unmarked = (reloaded?.items ?? []).filter(
-        (i) => draftLines.some((d) => d.id === i.id) && i.kot_id !== ticket.id,
-      );
-      if (unmarked.length > 0) {
-        const ti = mockTickets.findIndex((t) => t.id === ticket.id);
-        if (ti !== -1) mockTickets.splice(ti, 1);
-        saveTickets();
-        throw new Error(
-          `Fire incomplete — ${unmarked.length} line${unmarked.length === 1 ? "" : "s"} not marked. Retry firing.`,
-        );
-      }
-    }
-    saveTickets();
-    publishTicket(ticket, { lines: ticket.lines.length, station_ids: stationIds });
-    await recordEvent({
-      outlet_id: order.outlet_id,
-      entity_type: "ORDER",
-      entity_id: order.id,
-      event_type: "ORDER_SENT_TO_KITCHEN",
-      to_state: "IN_KITCHEN",
-      actor_id: by ?? "staff",
-      source_type: "POS",
-      station_ids: stationIds,
-      metadata: {
-        kot_id: ticket.id,
-        kot_number: kotNumber,
-        lines: ticket.lines.length,
-        station_ids: stationIds,
-      },
-    });
-    // Auto-print KOT (template flag; never fails the fire — dynamic import
-    // avoids a kitchen <-> print-studio module cycle).
-    const { maybeAutoPrintKOT } = await import("@/features/print-studio/api/service");
-    await maybeAutoPrintKOT(ticket.id, by);
-    return enrichTicket(ticket);
-  } finally {
-    release();
-  }
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action, ...body }),
+    },
+  );
+  publishTicket(ticket);
+  return ticket;
 }
 
 export async function acceptKOT(id: string, by?: string): Promise<KitchenTicketWithDerived> {
-  return mutateTicket(id, async (idx) => {
-    const t = mockTickets[idx];
-    if (t.status === "ACCEPTED") return;
-    if (t.status !== "NEW") {
-      throw new Error(`Only NEW tickets can be accepted (KOT is ${t.status.toLowerCase()})`);
-    }
-    await transitionTicket(idx, "ACCEPTED", {
-      actor_id: by ?? "kitchen",
-      event_type: "KITCHEN_STARTED",
-    });
-    await refreshOrderKitchenState(t.order_id);
-  });
+  return transition(id, "accept", { by });
 }
 
 export async function startPreparingKOT(
   id: string,
   by?: string,
 ): Promise<KitchenTicketWithDerived> {
-  return mutateTicket(id, async (idx) => {
-    const t = mockTickets[idx];
-    if (t.status === "PREPARING") return;
-    if (t.status !== "ACCEPTED") {
-      throw new Error(
-        t.status === "NEW"
-          ? "Accept the KOT before preparing"
-          : `Cannot prepare a ${t.status.toLowerCase()} KOT`,
-      );
-    }
-    await transitionTicket(idx, "PREPARING", { actor_id: by ?? "kitchen" });
-    mockTickets[idx] = {
-      ...mockTickets[idx],
-      lines: mockTickets[idx].lines.map((l) =>
-        l.status === "PENDING" || l.status === "ACCEPTED"
-          ? { ...l, status: "PREPARING" as const }
-          : l,
-      ),
-    };
-    await refreshOrderKitchenState(t.order_id);
-  });
+  return transition(id, "prepare", { by });
 }
 
-/**
- * Accept one item (multi-item KOTs acknowledge line by line). The ticket
- * follows its items: the first accepted line moves a NEW ticket to ACCEPTED
- * through the legal transition — never a skip.
- */
 export async function acceptKOTLine(
   id: string,
   lineId: string,
   by?: string,
 ): Promise<KitchenTicketWithDerived> {
-  return mutateTicket(id, async (idx) => {
-    const t = mockTickets[idx];
-    if (t.status === "SERVED" || t.status === "CANCELLED") {
-      throw new Error(`Cannot accept an item on a ${t.status.toLowerCase()} KOT`);
-    }
-    const li = t.lines.findIndex((l) => l.id === lineId);
-    if (li === -1) throw new Error("KOT line not found");
-    const line = t.lines[li];
-    if (line.status === "ACCEPTED") return;
-    if (line.status !== "PENDING") {
-      throw new Error(`Only pending items can be accepted (item is ${line.status.toLowerCase()})`);
-    }
-    assertLineTransition(line.status, "ACCEPTED", line.item_name_snapshot);
-    const lines = [...t.lines];
-    lines[li] = { ...line, status: "ACCEPTED" as const };
-    mockTickets[idx] = {
-      ...t,
-      lines,
-      updated_at: new Date().toISOString(),
-      version: t.version + 1,
-    };
-    await recordEvent({
-      outlet_id: t.outlet_id,
-      entity_type: "ORDER",
-      entity_id: t.order_id,
-      event_type: "KITCHEN_TICKET_UPDATED",
-      from_state: "PENDING",
-      to_state: "ACCEPTED",
-      actor_id: by ?? "kitchen",
-      metadata: { kot_id: id, kot_line_id: lineId },
-    });
-    if (mockTickets[idx].status === "NEW") {
-      await transitionTicket(idx, "ACCEPTED", {
-        actor_id: by ?? "kitchen",
-        event_type: "KITCHEN_STARTED",
-      });
-    }
-    await refreshOrderKitchenState(t.order_id);
-  });
+  return transition(id, "accept-line", { line_id: lineId, by });
 }
 
-/**
- * Start one item (multi-item KOTs prepare line by line after accept). The
- * ticket follows its items: the first started line moves an ACCEPTED ticket
- * to PREPARING through the legal transition — never a skip.
- */
 export async function startPreparingKOTLine(
   id: string,
   lineId: string,
   by?: string,
 ): Promise<KitchenTicketWithDerived> {
-  return mutateTicket(id, async (idx) => {
-    const t = mockTickets[idx];
-    if (t.status === "NEW") throw new Error("Accept the KOT before starting items");
-    if (t.status === "READY" || t.status === "SERVED" || t.status === "CANCELLED") {
-      throw new Error(`Cannot start an item on a ${t.status.toLowerCase()} KOT`);
-    }
-    const li = t.lines.findIndex((l) => l.id === lineId);
-    if (li === -1) throw new Error("KOT line not found");
-    const line = t.lines[li];
-    if (line.status === "PREPARING") return;
-    if (line.status === "VOIDED" || line.status === "SERVED" || line.status === "READY") {
-      throw new Error(`Cannot start a ${line.status.toLowerCase()} item`);
-    }
-    assertLineTransition(line.status, "PREPARING", line.item_name_snapshot);
-    const lines = [...t.lines];
-    lines[li] = { ...line, status: "PREPARING" as const };
-    mockTickets[idx] = {
-      ...t,
-      lines,
-      updated_at: new Date().toISOString(),
-      version: t.version + 1,
-    };
-    await recordEvent({
-      outlet_id: t.outlet_id,
-      entity_type: "ORDER",
-      entity_id: t.order_id,
-      event_type: "KITCHEN_TICKET_UPDATED",
-      from_state: line.status,
-      to_state: "PREPARING",
-      actor_id: by ?? "kitchen",
-      metadata: { kot_id: id, kot_line_id: lineId },
-    });
-    if (mockTickets[idx].status === "ACCEPTED") {
-      await transitionTicket(idx, "PREPARING", {
-        actor_id: by ?? "kitchen",
-        event_type: "KITCHEN_TICKET_UPDATED",
-      });
-    }
-    await refreshOrderKitchenState(t.order_id);
-  });
+  return transition(id, "start-line", { line_id: lineId, by });
 }
 
 export async function markLineReady(
@@ -585,430 +159,75 @@ export async function markLineReady(
   lineId: string,
   by?: string,
 ): Promise<KitchenTicketWithDerived> {
-  return mutateTicket(id, async (idx) => {
-    const t = mockTickets[idx];
-    const li = t.lines.findIndex((l) => l.id === lineId);
-    if (li === -1) throw new Error("KOT line not found");
-    const line = t.lines[li];
-    if (line.status === "READY") return;
-    if (line.status === "VOIDED" || line.status === "SERVED") {
-      throw new Error(`A ${line.status.toLowerCase()} line cannot be marked ready`);
-    }
-    if (line.status !== "PREPARING") {
-      throw new Error(`Start preparing "${line.item_name_snapshot}" before marking it ready`);
-    }
-    assertLineTransition(line.status, "READY", line.item_name_snapshot);
-    const lines = [...t.lines];
-    lines[li] = { ...lines[li], status: "READY" as const };
-    mockTickets[idx] = {
-      ...t,
-      lines,
-      updated_at: new Date().toISOString(),
-      version: t.version + 1,
-    };
-    await recordEvent({
-      outlet_id: t.outlet_id,
-      entity_type: "ORDER",
-      entity_id: t.order_id,
-      event_type: "KITCHEN_ITEM_READY",
-      actor_id: by ?? "kitchen",
-      metadata: { kot_id: id, kot_line_id: lineId },
-    });
-    if (
-      lines.every((l) => l.status === "READY" || l.status === "VOIDED" || l.status === "SERVED")
-    ) {
-      // Walk the legal path — an ACCEPTED ticket passes through PREPARING
-      // first, never jumps straight to READY.
-      if (mockTickets[idx].status === "ACCEPTED") {
-        await transitionTicket(idx, "PREPARING", {
-          actor_id: by ?? "kitchen",
-          event_type: "KITCHEN_TICKET_UPDATED",
-        });
-      }
-      if (mockTickets[idx].status === "PREPARING") {
-        await transitionTicket(idx, "READY", {
-          actor_id: by ?? "kitchen",
-          event_type: "KITCHEN_TICKET_UPDATED",
-        });
-      } else if (mockTickets[idx].status !== "READY") {
-        throw new Error(`Cannot ready a ${mockTickets[idx].status.toLowerCase()} KOT`);
-      }
-    }
-    // Order-level ORDER_READY is owned by refreshOrderKitchenState (no double emit).
-    await refreshOrderKitchenState(t.order_id);
-  });
+  return transition(id, "line-ready", { line_id: lineId, by });
 }
 
 export async function serveKOT(id: string, by?: string): Promise<KitchenTicketWithDerived> {
-  return mutateTicket(id, async (idx) => {
-    const t = mockTickets[idx];
-    if (t.status !== "READY") throw new Error("Only READY tickets can be served");
-    const notReady = t.lines.filter(
-      (l) => l.status === "PENDING" || l.status === "ACCEPTED" || l.status === "PREPARING",
-    );
-    if (notReady.length > 0) {
-      throw new Error(
-        `${notReady.length} item${notReady.length === 1 ? " is" : "s are"} not ready yet — ${notReady.map((l) => l.item_name_snapshot).join(", ")}`,
-      );
-    }
-    mockTickets[idx] = {
-      ...t,
-      lines: t.lines.map((l) => (l.status === "READY" ? { ...l, status: "SERVED" as const } : l)),
-    };
-    // Ticket leg stays KITCHEN_TICKET_UPDATED; ORDER_SERVED is owned by
-    // refreshOrderKitchenState when the whole order is served (no double emit).
-    await transitionTicket(idx, "SERVED", { actor_id: by ?? "staff" });
-    await refreshOrderKitchenState(t.order_id);
-  });
+  return transition(id, "serve", { by });
 }
 
-/**
- * Completion serve: mark every open ticket of an order SERVED in one pass.
- * Used by completeOrder (cash settlement) — a settled bill means the food is
- * handed over, so lines must not linger as cooking on the KDS. Skips terminal
- * tickets and VOIDED lines. One KITCHEN_TICKET_UPDATED per ticket (authorized
- * step-skip, metadata records it); order-level derivation runs once at the end
- * while the order is still non-terminal, so it lands on SERVED honestly.
- */
 export async function serveOpenTickets(orderId: string, params?: { by?: string }): Promise<number> {
-  loadTickets();
-  const openIds = mockTickets
-    .filter((t) => t.order_id === orderId && t.status !== "SERVED" && t.status !== "CANCELLED")
-    .map((t) => t.id);
-  for (const id of openIds) {
-    await mutateTicket(id, async (idx) => {
-      const t = mockTickets[idx];
-      if (t.status === "SERVED" || t.status === "CANCELLED") return;
-      const from = t.status;
-      const liveLines = t.lines.filter((l) => l.status !== "VOIDED");
-      if (liveLines.length === 0) return;
-      const now = new Date().toISOString();
-      mockTickets[idx] = {
-        ...t,
-        status: "SERVED",
-        lines: t.lines.map((l) =>
-          l.status === "VOIDED" ? l : { ...l, status: "SERVED" as const },
-        ),
-        updated_at: now,
-        version: t.version + 1,
-      };
-      await recordEvent({
-        outlet_id: t.outlet_id,
-        entity_type: "ORDER",
-        entity_id: t.order_id,
-        event_type: "KITCHEN_TICKET_UPDATED",
-        from_state: from,
-        to_state: "SERVED",
-        actor_id: params?.by ?? "staff",
-        metadata: { completion_serve: true, kot_id: t.id, lines: liveLines.length },
-      });
-    });
-  }
-  if (openIds.length > 0) {
-    const { refreshOrderKitchenState } = await import("@/features/orders/api/service");
-    await refreshOrderKitchenState(orderId);
-  }
-  return openIds.length;
+  // Completion/dispatch routes serve open tickets server-side before the
+  // order transition; the client entry stays for compatibility.
+  const { getOrderById } = await import("@/features/orders/api/service");
+  const order = await getOrderById(orderId);
+  void order;
+  void params;
+  throw new Error(
+    "serveOpenTickets runs server-side inside complete/dispatch — no client call needed",
+  );
 }
 
-async function mutateTicket(
-  id: string,
-  fn: (idx: number) => Promise<void>,
-): Promise<KitchenTicketWithDerived> {
-  const release = await entityMutex.acquire(`kot-${id}`);
-  try {
-    loadTickets(); // re-read under lock so a concurrent tab's write isn't clobbered
-    const idx = mockTickets.findIndex((t) => t.id === id);
-    if (idx === -1) throw new Error("KOT not found");
-    await fn(idx);
-    saveTickets();
-    publishTicket(mockTickets[idx]);
-    return enrichTicket(mockTickets[idx]);
-  } finally {
-    release();
-  }
-}
-
-/**
- * Void a whole fired KOT. Recorded as a deletion on the KOT (red-marked,
- * never hard-deleted); kitchen-consumed lines flow to waste via the existing
- * recordWasteForCancelledOrder caller contract.
- */
 export async function voidKOT(
   id: string,
   params: { reason: string; by?: string },
 ): Promise<KitchenTicketWithDerived> {
-  return mutateTicket(id, async (idx) => {
-    const t = mockTickets[idx];
-    if (!params.reason?.trim()) throw new Error("A reason is required to void a KOT");
-    if (t.status === "SERVED") throw new Error("A served KOT cannot be voided");
-    if (t.status === "CANCELLED") return;
-    const orderForLock = await getOrderById(t.order_id);
-
-    const now = new Date().toISOString();
-    const activeLines = t.lines.filter((l) => l.status !== "VOIDED");
-    const consumed = activeLines.filter((l) => l.status === "PREPARING" || l.status === "READY");
-    mockTickets[idx] = {
-      ...t,
-      lines: t.lines.map((l) =>
-        l.status === "VOIDED" ? l : { ...l, status: "VOIDED" as const, voided_qty: l.qty },
-      ),
-      voids: [
-        ...t.voids,
-        {
-          id: `void_${Date.now().toString(36)}`,
-          qty: activeLines.reduce((s, l) => s + (l.qty - l.voided_qty), 0),
-          reason: params.reason,
-          voided_by: params.by ?? "staff",
-          created_at: now,
-        },
-      ],
-    };
-    if (consumed.length > 0) {
-      const order = await getOrderById(t.order_id);
-      await recordWasteForCancelledOrder({
-        order_id: t.order_id,
-        order_number: order?.order_number,
-        created_by: params.by ?? "staff",
-        lines: consumed
-          .map((l) => {
-            const ol = order?.items.find((i) => i.id === l.order_line_id);
-            return {
-              recipe_id: ol?.recipe_id_snapshot ?? "",
-              variant_id: ol?.variant_id,
-              servings: l.qty - l.voided_qty,
-            };
-          })
-          .filter((l) => l.recipe_id),
-      });
-    }
-    await transitionTicket(idx, "CANCELLED", {
-      actor_id: params.by ?? "staff",
-      reason_text: params.reason,
-      event_type: "KOT_VOIDED",
-    });
-  });
+  return transition(id, "void", params);
 }
 
-/** Partial or full void of one KOT line, with mandatory reason. */
 export async function voidKOTLine(
   id: string,
   lineId: string,
   params: { qty?: number; reason: string; by?: string },
 ): Promise<KitchenTicketWithDerived> {
-  return mutateTicket(id, async (idx) => {
-    const t = mockTickets[idx];
-    if (!params.reason?.trim()) throw new Error("A reason is required to void an item");
-    if (t.status === "SERVED" || t.status === "CANCELLED") {
-      throw new Error(`Cannot void a line on a ${t.status.toLowerCase()} KOT`);
-    }
-    const li = t.lines.findIndex((l) => l.id === lineId);
-    if (li === -1) throw new Error("KOT line not found");
-    const line = t.lines[li];
-    if (line.status === "VOIDED") return;
-    if (line.status === "SERVED") throw new Error("A served line cannot be voided");
-    const orderForLock = await getOrderById(t.order_id);
-
-    const qty = params.qty ?? line.qty - line.voided_qty;
-    const remaining = line.qty - line.voided_qty;
-    if (!Number.isInteger(qty) || qty < 1 || qty > remaining) {
-      throw new Error(`Void qty must be between 1 and ${remaining}`);
-    }
-    const now = new Date().toISOString();
-    const lines = [...t.lines];
-    lines[li] = {
-      ...line,
-      voided_qty: line.voided_qty + qty,
-      status: line.voided_qty + qty >= line.qty ? ("VOIDED" as const) : line.status,
-    };
-    mockTickets[idx] = {
-      ...t,
-      lines,
-      voids: [
-        ...t.voids,
-        {
-          id: `void_${Date.now().toString(36)}`,
-          kot_line_id: lineId,
-          qty,
-          reason: params.reason,
-          voided_by: params.by ?? "staff",
-          created_at: now,
-        },
-      ],
-      updated_at: now,
-      version: t.version + 1,
-    };
-    if (line.status === "PREPARING" || line.status === "READY") {
-      const order = await getOrderById(t.order_id);
-      const ol = order?.items.find((i) => i.id === line.order_line_id);
-      if (ol?.recipe_id_snapshot) {
-        await recordWasteForCancelledOrder({
-          order_id: t.order_id,
-          order_number: order?.order_number,
-          created_by: params.by ?? "staff",
-          lines: [{ recipe_id: ol.recipe_id_snapshot, variant_id: ol.variant_id, servings: qty }],
-        });
-      }
-    }
-    await recordEvent({
-      outlet_id: t.outlet_id,
-      entity_type: "ORDER",
-      entity_id: t.order_id,
-      event_type: "KOT_LINE_VOIDED",
-      actor_id: params.by ?? "staff",
-      reason_text: params.reason,
-      metadata: { kot_id: id, kot_line_id: lineId, qty },
-    });
-  });
+  return transition(id, "void-line", { line_id: lineId, ...params });
 }
 
-/**
- * Post-sale item return on a KOT line. Unlike voids (pre-service), returns
- * work on SERVED lines and tickets: the qty is marked returned (never
- * re-billable), recorded on the ticket, and wasted (returned food is never
- * restocked). The bill adjustment + same-method refund live in the orders and
- * payments domains; this command owns kitchen truth only.
- */
 export async function returnKOTLine(
   id: string,
   lineId: string,
   params: { qty: number; amount_paise: number; reason: string; by?: string },
 ): Promise<KitchenTicketWithDerived> {
-  return mutateTicket(id, async (idx) => {
-    const t = mockTickets[idx];
-    if (!params.reason?.trim()) throw new Error("A reason is required to return an item");
-    if (t.status === "CANCELLED") throw new Error("Cannot return from a cancelled KOT");
-    const li = t.lines.findIndex((l) => l.id === lineId);
-    if (li === -1) throw new Error("KOT line not found");
-    const line = t.lines[li];
-    const returnable = line.qty - line.voided_qty - (line.returned_qty ?? 0);
-    if (returnable <= 0) throw new Error("Nothing returnable left on this line");
-    const qty = params.qty;
-    if (!Number.isInteger(qty) || qty < 1 || qty > returnable) {
-      throw new Error(`Return qty must be between 1 and ${returnable}`);
-    }
-    if (!Number.isInteger(params.amount_paise) || params.amount_paise < 0) {
-      throw new Error("Return amount must be a non-negative paise integer");
-    }
-    const now = new Date().toISOString();
-    const lines = [...t.lines];
-    lines[li] = { ...line, returned_qty: (line.returned_qty ?? 0) + qty };
-    mockTickets[idx] = {
-      ...t,
-      lines,
-      returns: [
-        ...(t.returns ?? []),
-        {
-          id: `ret_${Date.now().toString(36)}`,
-          kot_line_id: lineId,
-          order_line_id: line.order_line_id,
-          qty,
-          amount_paise: params.amount_paise,
-          reason: params.reason.trim(),
-          returned_by: params.by ?? "staff",
-          created_at: now,
-        },
-      ],
-      updated_at: now,
-      version: t.version + 1,
-    };
-    const order = await getOrderById(t.order_id);
-    const ol = order?.items.find((i) => i.id === line.order_line_id);
-    if (ol?.recipe_id_snapshot) {
-      await recordWasteForCancelledOrder({
-        order_id: t.order_id,
-        order_number: order?.order_number,
-        created_by: params.by ?? "staff",
-        lines: [{ recipe_id: ol.recipe_id_snapshot, variant_id: ol.variant_id, servings: qty }],
-      });
-    }
-    await recordEvent({
-      outlet_id: t.outlet_id,
-      entity_type: "ORDER",
-      entity_id: t.order_id,
-      event_type: "KOT_LINE_RETURNED",
-      actor_id: params.by ?? "staff",
-      reason_text: params.reason.trim(),
-      metadata: { kot_id: id, kot_line_id: lineId, qty, amount_paise: params.amount_paise },
-    });
-  });
+  return transition(id, "return-line", { line_id: lineId, ...params });
 }
 
-/**
- * Terminal fast path: add the item, fire immediately.
- * No draft step — the item lands straight on a new KOT.
- */
 export async function addAndFireItem(
   orderId: string,
   input: AddItemInput,
   by?: string,
 ): Promise<KitchenTicketWithDerived> {
-  const order = await getOrderById(orderId);
-  if (!order) throw new Error("Order not found");
+  const { addOrderItem } = await import("@/features/orders/api/service");
   await addOrderItem(orderId, input);
   return fireKOT(orderId, by);
 }
 
-/**
- * Batch variant: add N lines, then fire ONE KOT containing all of them.
- * Used by the add-items dialog — one dialog batch = one KOT with N items.
- */
 export async function addManyAndFire(
   orderId: string,
   inputs: AddItemInput[],
   by?: string,
 ): Promise<KitchenTicketWithDerived> {
   if (inputs.length === 0) throw new Error("Nothing to fire");
-  const order = await getOrderById(orderId);
-  if (!order) throw new Error("Order not found");
+  const { addOrderItem } = await import("@/features/orders/api/service");
   for (const input of inputs) {
     await addOrderItem(orderId, input);
   }
   return fireKOT(orderId, by);
 }
 
-/**
- * Increase a fired KOT line qty (kitchen makes more). Bumps both the KOT
- * line and the order line so the bill stays in sync. Decreases go through
- * voidKOTLine with a reason so cancellations are always recorded.
- */
 export async function increaseKOTLineQty(
   id: string,
   lineId: string,
   params: { extra: number; by?: string },
 ): Promise<KitchenTicketWithDerived> {
-  return mutateTicket(id, async (idx) => {
-    const t = mockTickets[idx];
-    if (t.status === "SERVED" || t.status === "CANCELLED") {
-      throw new Error(`Cannot change a line on a ${t.status.toLowerCase()} KOT`);
-    }
-    const li = t.lines.findIndex((l) => l.id === lineId);
-    if (li === -1) throw new Error("KOT line not found");
-    const line = t.lines[li];
-    if (line.status === "VOIDED" || line.status === "SERVED" || line.status === "READY") {
-      throw new Error(`Cannot add qty to a ${line.status.toLowerCase()} line`);
-    }
-    if (!Number.isInteger(params.extra) || params.extra < 1 || params.extra > 50) {
-      throw new Error("Extra qty must be between 1 and 50");
-    }
-    const orderForLock = await getOrderById(t.order_id);
-
-    await setOrderLineQty(t.order_id, line.order_line_id, line.qty + params.extra);
-    const lines = [...t.lines];
-    lines[li] = { ...line, qty: line.qty + params.extra };
-    mockTickets[idx] = {
-      ...t,
-      lines,
-      updated_at: new Date().toISOString(),
-      version: t.version + 1,
-    };
-    await recordEvent({
-      outlet_id: t.outlet_id,
-      entity_type: "ORDER",
-      entity_id: t.order_id,
-      event_type: "KOT_LINE_QTY_ADDED",
-      actor_id: params.by ?? "staff",
-      metadata: { kot_id: id, kot_line_id: lineId, extra: params.extra },
-    });
-  });
+  return transition(id, "increase-qty", { line_id: lineId, ...params });
 }

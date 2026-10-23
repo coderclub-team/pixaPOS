@@ -1,7 +1,12 @@
-import { delay } from "@/constants/mock-api";
-import { recordEvent } from "@/features/events/api/service";
-import { entityMutex } from "@/lib/mutex";
-import { getOrders } from "@/features/orders/api/service";
+/**
+ * Payments domain — client service (server-backed).
+ *
+ * Thin fetch layer over /api/payments + /api/orders/:id/pay. Row reads go
+ * straight at the payments ledger; billing math (paid/balance/partition
+ * guards) is derived client-side from the same rows or via the billing
+ * endpoint. No local persistence.
+ */
+import { getServiceOutletId } from "@/features/outlet/api/outlets";
 import type {
   Payment,
   PaymentFilters,
@@ -11,175 +16,59 @@ import type {
   RefundWithMethod,
 } from "./types";
 
-const PAYMENT_STORAGE_KEY = "pixaPayments";
-
-let mockPayments: Payment[] = [];
-let mockRefunds: Refund[] = [];
-
-/** Durable SQLite mirror (fire-and-forget; repo never throws). */
-function mirrorPayments() {
-  if (typeof window === "undefined") return;
-  import("@/lib/db/repo").then(({ writeScope }) => {
-    void writeScope(
-      "payments",
-      mockPayments.map((p) => ({
-        id: p.id,
-        outlet_id: (p as { outlet_id?: string }).outlet_id ?? null,
-        data: p,
-        version: (p as { version?: number }).version ?? 1,
-        updated_at: (p as { updated_at?: string }).updated_at ?? new Date().toISOString(),
-        deleted_at: (p as { deleted_at?: string | null }).deleted_at ?? null,
-      })),
-    );
-    void writeScope(
-      "payment_refunds",
-      mockRefunds.map((r) => ({
-        id: r.id,
-        outlet_id: (r as { outlet_id?: string }).outlet_id ?? null,
-        data: r,
-        version: (r as { version?: number }).version ?? 1,
-        updated_at: (r as { updated_at?: string }).updated_at ?? new Date().toISOString(),
-        deleted_at: (r as { deleted_at?: string | null }).deleted_at ?? null,
-      })),
-    );
-  });
-}
-
-/** Adopt the durable mirror on app startup — only when localStorage is
- * missing/empty (fresh device or eviction recovery). Never overwrites
- * existing localStorage: the mirror write lags it by design. */
-export async function hydratePaymentsFromMirror(): Promise<void> {
-  if (typeof window === "undefined") return;
-  try {
-    const raw = localStorage.getItem(PAYMENT_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    if (
-      (Array.isArray(parsed?.payments) && parsed.payments.length > 0) ||
-      (Array.isArray(parsed?.refunds) && parsed.refunds.length > 0)
-    ) {
-      return;
-    }
-    const { readScope } = await import("@/lib/db/repo");
-    const [payments, refunds] = await Promise.all([
-      readScope("payments"),
-      readScope("payment_refunds"),
-    ]);
-    if (payments.length > 0 || refunds.length > 0) {
-      localStorage.setItem(
-        PAYMENT_STORAGE_KEY,
-        JSON.stringify({
-          payments: payments.map((d) => d.data),
-          refunds: refunds.map((d) => d.data),
-        }),
-      );
-      loadPayments();
-    }
-  } catch {}
-}
-
-function savePayments() {
-  if (typeof window !== "undefined") {
-    try {
-      localStorage.setItem(
-        PAYMENT_STORAGE_KEY,
-        JSON.stringify({ payments: mockPayments, refunds: mockRefunds }),
-      );
-    } catch {}
+async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, { credentials: "include", ...init });
+  const data = (await res.json().catch(() => null)) as { error?: string } | T | null;
+  if (!res.ok) {
+    const msg =
+      data && typeof data === "object" && "error" in data && typeof data.error === "string"
+        ? data.error
+        : `Request failed (${res.status})`;
+    throw new Error(msg);
   }
+  return data as T;
 }
 
-function loadPayments(): void {
-  if (typeof window !== "undefined") {
-    try {
-      const raw = localStorage.getItem(PAYMENT_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed?.payments)) mockPayments = parsed.payments;
-        if (Array.isArray(parsed?.refunds)) mockRefunds = parsed.refunds;
-      }
-    } catch {}
+function toQuery(params: Record<string, string | number | boolean | undefined>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== "") q.set(k, String(v));
   }
-}
-loadPayments();
-
-/**
- * Current payment/refund snapshot for sync envelopes. Money always syncs —
- * no eligibility gate. No delays: safe for the outbox path.
- */
-export function getPaymentForSync(
-  id: string,
-): { kind: "PAYMENT" | "REFUND"; record: unknown } | null {
-  loadPayments();
-  const payment = mockPayments.find((p) => p.id === id);
-  if (payment) return { kind: "PAYMENT", record: payment };
-  const refund = mockRefunds.find((r) => r.id === id);
-  if (refund) return { kind: "REFUND", record: refund };
-  return null;
+  const s = q.toString();
+  return s ? `?${s}` : "";
 }
 
 export async function getPayments(filters?: PaymentFilters): Promise<Payment[]> {
-  await delay(200);
-  loadPayments(); // localStorage is the shared source — reload so tabs/displays agree
-  let r = [...mockPayments];
-  if (filters?.outlet_id) r = r.filter((p) => p.outlet_id === filters.outlet_id);
-  if (filters?.order_id) r = r.filter((p) => p.order_id === filters.order_id);
-  if (filters?.method) r = r.filter((p) => p.method === filters.method);
-  if (filters?.status) r = r.filter((p) => p.status === filters.status);
-  return r.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const { rows } = await api<{ rows: Payment[] }>(
+    `/api/payments${toQuery({
+      outlet_id: filters?.outlet_id ?? getServiceOutletId() ?? undefined,
+      order_id: filters?.order_id,
+      method: filters?.method,
+      status: filters?.status,
+    })}`,
+  );
+  return rows ?? [];
 }
 
 export async function getRefundsByOrder(orderId: string): Promise<Refund[]> {
-  await delay(200);
-  loadPayments();
-  return mockRefunds.filter((r) => r.order_id === orderId);
+  const { rows } = await api<{ rows: Refund[] }>(
+    `/api/payments${toQuery({ kind: "refund", order_id: orderId })}`,
+  );
+  return rows ?? [];
 }
 
-/** Global refunds ledger, newest first, with source method resolved. */
 export async function getRefunds(filters?: RefundFilters): Promise<RefundWithMethod[]> {
-  await delay(200);
-  loadPayments();
-  let r = [...mockRefunds].sort((a, b) => b.created_at.localeCompare(a.created_at));
-  if (filters?.outlet_id) r = r.filter((x) => x.outlet_id === filters.outlet_id);
-  if (filters?.status) r = r.filter((x) => x.status === filters.status);
-  if (filters?.search) {
-    const q = filters.search.toLowerCase();
-    r = r.filter(
-      (x) =>
-        x.id.toLowerCase().includes(q) ||
-        x.order_id.toLowerCase().includes(q) ||
-        x.reason.toLowerCase().includes(q),
-    );
-  }
-  const methodByPayment = new Map(mockPayments.map((p) => [p.id, p.method]));
-  const numberByOrder = new Map<string, string>();
-  for (const o of await getOrders().catch(() => [] as { id: string; order_number: string }[])) {
-    numberByOrder.set(o.id, o.order_number);
-  }
-  return r.map((x) => ({
-    ...x,
-    method: methodByPayment.get(x.payment_id),
-    order_number: numberByOrder.get(x.order_id),
-  }));
+  const { rows } = await api<{ rows: Refund[] }>(
+    `/api/payments${toQuery({
+      kind: "refund",
+      outlet_id: filters?.outlet_id ?? getServiceOutletId() ?? undefined,
+      status: filters?.status,
+      search: filters?.search,
+    })}`,
+  );
+  return (rows ?? []) as RefundWithMethod[];
 }
 
-/**
- * In-memory reads WITHOUT reload — for use inside mutations that already
- * hold fresh state (a reload before save would revert the in-flight
- * payment/refund and persist the revert).
- */
-export function peekPayments(): Payment[] {
-  return [...mockPayments];
-}
-
-export function peekRefunds(): Refund[] {
-  return [...mockRefunds];
-}
-
-/**
- * Collect a payment against an order's balance. Non-cash methods must match
- * the balance exactly; cash may over-tender with change due. Each payment is
- * an immutable record — post-paid edits add balance, never rewrite history.
- */
 export async function collectPayment(params: {
   order_id: string;
   method: PaymentMethod;
@@ -188,148 +77,34 @@ export async function collectPayment(params: {
   partition_label?: string;
   received_by?: string;
 }): Promise<Payment> {
-  const release = await entityMutex.acquire(`pay-order-${params.order_id}`);
-  try {
-    await delay(400);
-    loadPayments(); // re-read under lock so a concurrent tab's write isn't clobbered
-    const { getOrderWithBilling } = await import("@/features/orders/api/service");
-    const billing = await getOrderWithBilling(params.order_id);
-    if (!billing) throw new Error("Order not found");
-    if (!Number.isInteger(params.amount_paise) || params.amount_paise < 1) {
-      throw new Error("Amount must be a positive paise integer");
-    }
-    if (params.amount_paise > billing.balance_paise) {
-      throw new Error(`Amount exceeds the balance of ${billing.balance_paise} paise`);
-    }
-
-    let change = 0;
-    if (params.method === "cash" && params.tendered_paise !== undefined) {
-      if (!Number.isInteger(params.tendered_paise) || params.tendered_paise < params.amount_paise) {
-        throw new Error("Tendered cash must cover the amount");
-      }
-      change = params.tendered_paise - params.amount_paise;
-    } else if (params.tendered_paise !== undefined) {
-      throw new Error("Tendered/change applies to cash only");
-    }
-
-    const now = new Date().toISOString();
-    const payment: Payment = {
-      id: `pay_${Date.now().toString(36)}`,
-      outlet_id: billing.order.outlet_id,
-      order_id: params.order_id,
-      method: params.method,
-      amount_paise: params.amount_paise,
-      tendered_paise: params.tendered_paise,
-      change_paise: change || undefined,
-      partition_label: params.partition_label?.trim() || undefined,
-      status: "PAID",
-      received_by: params.received_by ?? "staff",
-      created_at: now,
-      updated_at: now,
-    };
-    mockPayments.push(payment);
-    savePayments();
-
-    const { refreshOrderPaymentState } = await import("@/features/orders/api/service");
-    await refreshOrderPaymentState(params.order_id);
-
-    await recordEvent({
-      outlet_id: payment.outlet_id,
-      entity_type: "PAYMENT",
-      entity_id: payment.id,
-      event_type: "PAYMENT_COMPLETED",
-      actor_id: payment.received_by,
-      metadata: {
-        order_id: params.order_id,
+  const { payment } = await api<{ ok: boolean; payment: Payment }>(
+    `/api/orders/${encodeURIComponent(params.order_id)}/pay`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
         method: params.method,
         amount_paise: params.amount_paise,
-        change_paise: change || undefined,
-        partition_label: payment.partition_label,
-      },
-    });
-    return { ...payment };
-  } finally {
-    release();
-  }
+        tendered_paise: params.tendered_paise,
+        partition_label: params.partition_label,
+        received_by: params.received_by,
+      }),
+    },
+  );
+  return payment;
 }
 
-/** Record-only refund against a paid payment. Does not mutate the payment. */
-export async function recordRefund(params: {
-  payment_id: string;
-  amount_paise: number;
-  reason: string;
-  by?: string;
-  /** Item linkage for item-wise returns. */
-  order_line_id?: string;
-  qty?: number;
-  return_id?: string;
-  /**
-   * Gateway handoff (phase 2): when the payment carries a gateway_payment_id,
-   * the refund is created REFUND_PENDING (visible, never silent) until the
-   * Razorpay refund API + webhook reconcile it. Cash/manual refunds settle
-   * instantly as REFUNDED.
-   */
-  gateway_payment_id?: string;
-}): Promise<Refund> {
-  loadPayments(); // shared source may have moved in another tab
-  const payment = mockPayments.find((p) => p.id === params.payment_id);
-  if (!payment) throw new Error("Payment not found");
-  const release = await entityMutex.acquire(`pay-${params.payment_id}`);
-  try {
-    await delay(300);
-    if (payment.status !== "PAID") throw new Error("Only paid payments can be refunded");
-    if (!params.reason?.trim()) throw new Error("A reason is required for a refund");
-    const reserved = mockRefunds
-      .filter((r) => r.payment_id === payment.id && r.status !== "REFUND_FAILED")
-      .reduce((s, r) => s + r.amount_paise, 0);
-    if (!Number.isInteger(params.amount_paise) || params.amount_paise < 1) {
-      throw new Error("Refund amount must be a positive paise integer");
-    }
-    if (reserved + params.amount_paise > payment.amount_paise) {
-      throw new Error("Refund exceeds the payment amount");
-    }
-    const gatewayId = params.gateway_payment_id ?? payment.gateway_payment_id;
-    const now = new Date().toISOString();
-    const refund: Refund = {
-      id: `ref_${Date.now().toString(36)}`,
-      payment_id: payment.id,
-      order_id: payment.order_id,
-      outlet_id: payment.outlet_id,
-      amount_paise: params.amount_paise,
-      reason: params.reason.trim(),
-      status: gatewayId ? "REFUND_PENDING" : "REFUNDED",
-      created_by: params.by ?? "staff",
-      created_at: now,
-      order_line_id: params.order_line_id,
-      qty: params.qty,
-      return_id: params.return_id,
-      gateway_payment_id: gatewayId,
-      gateway_status: gatewayId ? "PENDING" : undefined,
-    };
-    mockRefunds.push(refund);
-    savePayments();
-
-    const { refreshOrderPaymentState } = await import("@/features/orders/api/service");
-    await refreshOrderPaymentState(payment.order_id);
-
-    await recordEvent({
-      outlet_id: payment.outlet_id,
-      entity_type: "PAYMENT",
-      entity_id: payment.id,
-      event_type: "REFUND_CREATED",
-      actor_id: refund.created_by,
-      reason_text: refund.reason,
-      metadata: {
-        order_id: payment.order_id,
-        amount_paise: refund.amount_paise,
-        return_id: refund.return_id,
-        gateway_status: refund.gateway_status,
-      },
-    });
-    return { ...refund };
-  } finally {
-    release();
-  }
+/** Net paid on an order: PAID rows minus REFUNDED rows (client-side math). */
+export async function paidTotalForOrder(orderId: string): Promise<number> {
+  const [payments, refunds] = await Promise.all([
+    getPayments({ order_id: orderId, status: "PAID" }),
+    getRefundsByOrder(orderId),
+  ]);
+  const paid = payments.reduce((s, p) => s + p.amount_paise, 0);
+  const refunded = refunds
+    .filter((r) => r.status === "REFUNDED")
+    .reduce((s, r) => s + r.amount_paise, 0);
+  return paid - refunded;
 }
 
 /** Preview of a return's refund split across the order's paid methods. */
@@ -344,17 +119,17 @@ export async function previewReturnAllocation(
   orderId: string,
   total_paise: number,
 ): Promise<{ allocations: RefundAllocation[]; shortfall_paise: number }> {
-  const payments = (await getPayments({ order_id: orderId, status: "PAID" })).sort(
-    (a, b) => b.amount_paise - a.amount_paise,
-  );
-  const refunds = await getRefundsByOrder(orderId);
+  const [payments, refunds] = await Promise.all([
+    getPayments({ order_id: orderId, status: "PAID" }),
+    getRefundsByOrder(orderId),
+  ]);
   const reserved = (pid: string) =>
     refunds
       .filter((r) => r.payment_id === pid && r.status !== "REFUND_FAILED")
       .reduce((s, r) => s + r.amount_paise, 0);
   let remaining = total_paise;
   const allocations: RefundAllocation[] = [];
-  for (const p of payments) {
+  for (const p of [...payments].sort((a, b) => b.amount_paise - a.amount_paise)) {
     if (remaining <= 0) break;
     const headroom = p.amount_paise - reserved(p.id);
     if (headroom <= 0) continue;
@@ -370,46 +145,17 @@ export async function previewReturnAllocation(
   return { allocations, shortfall_paise: remaining };
 }
 
-/**
- * Same-method refund for an item-wise return. Splits the return total across
- * the order's paid payments (largest-first), each capped by its unrefunded
- * remainder. Cash/manual settle instantly; gateway-sourced payments land as
- * REFUND_PENDING until the Razorpay phase reconciles them.
- */
+/** Item-wise refund allocation (server executes via returns route). */
 export async function refundForReturn(
   orderId: string,
   params: { return_id: string; total_paise: number; reason: string; by?: string },
 ): Promise<Refund[]> {
-  if (!Number.isInteger(params.total_paise) || params.total_paise < 1) {
-    throw new Error("Return total must be a positive paise integer");
-  }
-  const { allocations, shortfall_paise } = await previewReturnAllocation(
-    orderId,
-    params.total_paise,
+  throw new Error(
+    `refundForReturn is server-executed via POST /api/orders/${orderId}/returns — pass line qtys instead (return_id ${params.return_id})`,
   );
-  if (shortfall_paise > 0) {
-    throw new Error("Return exceeds refundable payments — collect history is short");
-  }
-  const created: Refund[] = [];
-  for (const a of allocations) {
-    created.push(
-      await recordRefund({
-        payment_id: a.payment_id,
-        amount_paise: a.amount_paise,
-        reason: params.reason,
-        by: params.by,
-        return_id: params.return_id,
-      }),
-    );
-  }
-  return created;
 }
 
-export async function paidTotalForOrder(orderId: string): Promise<number> {
-  const payments = await getPayments({ order_id: orderId, status: "PAID" });
-  const refunds = await getRefundsByOrder(orderId);
-  const refunded = refunds
-    .filter((r) => r.status === "REFUNDED")
-    .reduce((s, r) => s + r.amount_paise, 0);
-  return payments.reduce((s, p) => s + p.amount_paise, 0) - refunded;
+/** Record-only refund (server-executed inside returns; no direct client use). */
+export async function recordRefund(): Promise<never> {
+  throw new Error("Refunds are server-executed inside the returns flow — no direct client call");
 }

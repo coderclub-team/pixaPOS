@@ -155,72 +155,18 @@ async function appendOutboxGate(event: BusinessEvent): Promise<void> {
     });
   };
 
+  // Orders, KOTs and payments are server-authoritative now: every mutation
+  // writes through to Postgres, so there is nothing to snapshot for sync.
+  // The audit event itself is still queued below for the local trail.
   if (event.entity_type === "ORDER") {
-    let eligible = true;
-    let snapshot: unknown = null;
-    try {
-      const svc = await import("@/features/orders/api/service");
-      eligible = svc.orderSyncEligible(event.entity_id);
-      if (eligible) snapshot = svc.getOrderForSync(event.entity_id);
-    } catch {
-      // Fail-open by design (see above).
-    }
-    if (!eligible || !snapshot) return;
     await queueEvent();
-    await appendOutbox({
-      outlet_id: event.outlet_id,
-      entity_type: "ORDER",
-      entity_id: event.entity_id,
-      operation: event.event_type === "ORDER_CREATED" ? "CREATE" : "UPDATE",
-      payload: { order: snapshot },
-      actor_id: event.actor_id ?? "staff",
-    }).catch((e) => {
-      console.error("[events] outbox snapshot failed for order", event.entity_id, e);
-    });
-    const kotId = (event.metadata as { kot_id?: string } | undefined)?.kot_id;
-    if (kotId) {
-      try {
-        const { getTicketForSync } = await import("@/features/kitchen/api/service");
-        const ticket = getTicketForSync(kotId);
-        if (ticket) {
-          await appendOutbox({
-            outlet_id: event.outlet_id,
-            entity_type: "KOT",
-            entity_id: kotId,
-            operation: event.event_type === "ORDER_SENT_TO_KITCHEN" ? "CREATE" : "UPDATE",
-            payload: { ticket },
-            actor_id: event.actor_id ?? "staff",
-          }).catch((e) => {
-            console.error("[events] outbox snapshot failed for kot", kotId, e);
-          });
-        }
-      } catch {
-        // Fail-open: the ORDER snapshot above already carries the state.
-      }
-    }
     return;
   }
 
   if (event.entity_type === "PAYMENT") {
+    // Server-authoritative: the mutation already wrote Postgres. The audit
+    // event itself is queued (carries order/method/amount) — no snapshot.
     await queueEvent();
-    try {
-      const { getPaymentForSync } = await import("@/features/payments/api/service");
-      const found = getPaymentForSync(event.entity_id);
-      if (found) {
-        await appendOutbox({
-          outlet_id: event.outlet_id,
-          entity_type: found.kind,
-          entity_id: event.entity_id,
-          operation: "CREATE",
-          payload: { [found.kind === "PAYMENT" ? "payment" : "refund"]: found.record },
-          actor_id: event.actor_id ?? "staff",
-        }).catch((e) => {
-          console.error("[events] outbox snapshot failed for payment", event.entity_id, e);
-        });
-      }
-    } catch {
-      // Fail-open: the PAYMENT event above already carries order/method/amount.
-    }
     return;
   }
 

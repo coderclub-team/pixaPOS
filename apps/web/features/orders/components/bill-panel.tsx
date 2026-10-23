@@ -1320,18 +1320,10 @@ function DiscountDialog({
   const [kind, setKind] = useState<"percent" | "flat">("percent");
   const [value, setValue] = useState("");
   const [reason, setReason] = useState(order?.discount_reason ?? "");
-  const [promoCode, setPromoCode] = useState("");
-  const [rewardPts, setRewardPts] = useState("");
 
-  const rewardsMut = useMutation({
-    mutationFn: () => redeemRewards(orderId, Number(rewardPts)),
-    onSuccess: (o) => {
-      invalidateBill(orderId, queryClient);
-      toast.success(`${o.reward_points} pts tendered — ${formatINR(o.discount_paise ?? 0)} off`);
-      setRewardPts("");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+  // Promo/reward application is deferred to v2 (server catalogs). The tender
+  // UI below stays visible-but-disabled as a placeholder; display branches
+  // for existing promo/reward state are kept so server data still renders.
   const rewardsRemoveMut = useMutation({
     mutationFn: () => removeRewardsRedeem(orderId),
     onSuccess: () => {
@@ -1341,15 +1333,6 @@ function DiscountDialog({
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const promoMut = useMutation({
-    mutationFn: () => applyPromo(orderId, promoCode),
-    onSuccess: (o) => {
-      invalidateBill(orderId, queryClient);
-      toast.success(`Promo ${o.promo_code} applied — ${formatINR(o.discount_paise ?? 0)} off`);
-      setPromoCode("");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
   const promoRemoveMut = useMutation({
     mutationFn: () => removePromo(orderId),
     onSuccess: () => {
@@ -1419,17 +1402,12 @@ function DiscountDialog({
           <div className="flex items-end gap-2">
             <div className="flex-1 space-y-1.5">
               <Label className="text-xs text-muted-foreground">Promo code</Label>
-              <Input
-                value={promoCode}
-                onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                placeholder="DIWALI10"
-                autoComplete="off"
-              />
+              <Input value="" placeholder="DIWALI10" autoComplete="off" disabled />
             </div>
             <Button
               variant="outline"
-              disabled={promoMut.isPending || !promoCode.trim()}
-              onClick={() => promoMut.mutate()}
+              disabled
+              title="Promo codes arrive with the server catalogs (v2)"
             >
               Apply
             </Button>
@@ -1439,19 +1417,12 @@ function DiscountDialog({
           <div className="flex items-end gap-2">
             <div className="flex-1 space-y-1.5">
               <Label className="text-xs text-muted-foreground">Reward points (1 pt = ₹1)</Label>
-              <Input
-                type="number"
-                min={1}
-                value={rewardPts}
-                onChange={(e) => setRewardPts(e.target.value)}
-                placeholder="50"
-              />
+              <Input type="number" min={1} value="" placeholder="50" disabled />
             </div>
             <Button
               variant="outline"
-              disabled={rewardsMut.isPending || !rewardPts.trim()}
-              onClick={() => rewardsMut.mutate()}
-              title={!order?.customer_id ? "Link a customer first" : "Tender points on this bill"}
+              disabled
+              title="Reward tendering arrives with the server catalogs (v2)"
             >
               Tender
             </Button>

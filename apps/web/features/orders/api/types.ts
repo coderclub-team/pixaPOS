@@ -190,6 +190,7 @@ export type AddItemInput = {
 };
 
 export type ItemSalesFilters = {
+  outlet_id?: string;
   from?: string; // ISO date (inclusive)
   to?: string; // ISO date (inclusive)
   channel?: OrderChannel;

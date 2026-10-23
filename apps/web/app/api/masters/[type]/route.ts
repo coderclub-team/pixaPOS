@@ -97,11 +97,11 @@ export async function GET(req: Request, ctx: { params: Promise<{ type: string }>
         .where(eq(entry.table.organizationId, a.organizationId))
         .limit(2000)) as Record<string, unknown>[];
     } else {
-      rows = await db()
+      rows = (await db()
         .select()
         .from(entry.table)
         .where(eq(entry.table.organizationId, a.organizationId))
-        .limit(2000) as Record<string, unknown>[];
+        .limit(2000)) as Record<string, unknown>[];
     }
     if (type === "items" && rows.length > 0) {
       // Embed variants + category name so menu surfaces render in one round trip.
@@ -111,7 +111,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ type: string }>
           .select()
           .from(menuVariants)
           .where(
-            and(eq(menuVariants.organizationId, a.organizationId), inArray(menuVariants.menuItemId, itemIds)),
+            and(
+              eq(menuVariants.organizationId, a.organizationId),
+              inArray(menuVariants.menuItemId, itemIds),
+            ),
           ),
         db()
           .select({ id: menuCategories.id, name: menuCategories.name })
