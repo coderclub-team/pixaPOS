@@ -1,6 +1,12 @@
-import { delay } from "@/constants/mock-api";
-import { recordEvent } from "@/features/events/api/service";
-import { entityMutex } from "@/lib/mutex";
+/**
+ * Tables domain — server-backed (Postgres via /api/tables*, /api/floors*).
+ *
+ * Same exported API as the old localStorage version so all callers
+ * (terminal floor map, table-ops dialog, dashboard settings) work unchanged.
+ * Reads are outlet-scoped server-side; writes carry the caller's outlet and
+ * actor through. No local persistence, no mock data, no cross-tab mirror —
+ * the server is the single source of truth.
+ */
 import type {
   RestaurantTable,
   TableFilters,
@@ -10,247 +16,104 @@ import type {
   ReservationHold,
   TableWithDerived,
   CommandContext,
+  TableStatus,
 } from "./types";
-import { deriveTableInfo, canTransition, nextPartyLabel } from "./utils";
-import { getServiceOutletId, requireServiceOutletId } from "@/features/outlet/api/outlets";
-import type { TableStatus } from "./types";
+import { getServiceOutletId } from "@/features/outlet/api/outlets";
 
-function defaultCtx(): CommandContext {
-  return { outlet_id: getServiceOutletId(), actor_id: "staff" };
+function defaultCtx(ctx?: Partial<CommandContext>): CommandContext {
+  return {
+    outlet_id: ctx?.outlet_id ?? getServiceOutletId() ?? "",
+    actor_id: ctx?.actor_id ?? "staff",
+    ...(ctx?.idempotency_key !== undefined ? { idempotency_key: ctx.idempotency_key } : {}),
+    ...(ctx?.expected_version !== undefined ? { expected_version: ctx.expected_version } : {}),
+  };
 }
 
 function ctxOf(ctx?: Partial<CommandContext>): CommandContext {
-  return { ...defaultCtx(), ...ctx };
+  return defaultCtx(ctx);
 }
 
-function assertOutlet(entityOutlet: string | undefined, ctx: CommandContext, what: string) {
-  if (entityOutlet && entityOutlet !== ctx.outlet_id) {
-    throw new Error(`${what} belongs to another outlet`);
+async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, { credentials: "include", ...init });
+  const data = (await res.json().catch(() => null)) as { error?: string } | T | null;
+  if (!res.ok) {
+    const msg =
+      data && typeof data === "object" && "error" in data && typeof data.error === "string"
+        ? data.error
+        : `Request failed (${res.status})`;
+    throw new Error(msg);
   }
+  return data as T;
 }
 
-let mockTables: RestaurantTable[] = [];
-
-let mockGroups: OccupancyGroup[] = [];
-let mockBlocks: TableBlock[] = [];
-let mockHolds: ReservationHold[] = [];
-
-// Persist mock state to localStorage so created tables/groups survive dev-server
-// restarts (same PO_STORAGE_KEY pattern as inventory service).
-const TABLE_STORAGE_KEY = "pixaTables";
-
-function toDoc(o: {
-  id: string;
-  outlet_id?: string;
-  version?: number;
-  updated_at?: string;
-  deleted_at?: string | null;
-}) {
-  return {
-    id: o.id,
-    outlet_id: o.outlet_id ?? null,
-    data: o,
-    version: o.version ?? 1,
-    updated_at: o.updated_at ?? new Date().toISOString(),
-    deleted_at: o.deleted_at ?? null,
-  };
-}
-
-/** Durable SQLite mirror (fire-and-forget; repo never throws). */
-function mirrorTables() {
-  if (typeof window === "undefined") return;
-  import("@/lib/db/repo").then(({ writeScope }) => {
-    void writeScope("tables", mockTables.map(toDoc));
-    void writeScope("occupancy_groups", mockGroups.map(toDoc));
-    void writeScope("table_blocks", mockBlocks.map(toDoc));
-    void writeScope("reservation_holds", mockHolds.map(toDoc));
-  });
-}
-
-/** Adopt the durable mirror on app startup — only when localStorage is
- * missing/empty. Never overwrites existing localStorage. */
-export async function hydrateTablesFromMirror(): Promise<void> {
-  if (typeof window === "undefined") return;
-  try {
-    const raw = localStorage.getItem(TABLE_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    if (Array.isArray(parsed?.tables) && parsed.tables.length > 0) return;
-    const { readScope } = await import("@/lib/db/repo");
-    const [tables, groups, blocks, holds] = await Promise.all([
-      readScope("tables"),
-      readScope("occupancy_groups"),
-      readScope("table_blocks"),
-      readScope("reservation_holds"),
-    ]);
-    if (tables.length + groups.length + blocks.length + holds.length === 0) return;
-    localStorage.setItem(
-      TABLE_STORAGE_KEY,
-      JSON.stringify({
-        tables: tables.map((d) => d.data),
-        groups: groups.map((d) => d.data),
-        blocks: blocks.map((d) => d.data),
-        holds: holds.map((d) => d.data),
-      }),
-    );
-    loadTables();
-  } catch {}
-}
-
-function saveTables() {
-  if (typeof window !== "undefined") {
-    try {
-      localStorage.setItem(
-        TABLE_STORAGE_KEY,
-        JSON.stringify({
-          tables: mockTables,
-          groups: mockGroups,
-          blocks: mockBlocks,
-          holds: mockHolds,
-        }),
-      );
-      mirrorTables();
-    } catch {}
+function toQuery(params: Record<string, string | number | boolean | undefined>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== "") q.set(k, String(v));
   }
-}
-function loadTables(): void {
-  if (typeof window !== "undefined") {
-    try {
-      const raw = localStorage.getItem(TABLE_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed?.tables) && parsed.tables.length > 0) {
-          mockTables = parsed.tables;
-        }
-        if (Array.isArray(parsed?.groups)) {
-          mockGroups = parsed.groups;
-        }
-        if (Array.isArray(parsed?.blocks)) {
-          mockBlocks = parsed.blocks;
-        }
-        if (Array.isArray(parsed?.holds)) {
-          mockHolds = parsed.holds;
-        }
-      }
-    } catch {}
-  }
-}
-// hydrate from storage on browser init
-loadTables();
-
-// Exported for layout read-model in floor-service
-export { mockTables, mockGroups, mockBlocks, mockHolds };
-
-/**
- * C1: single choke point for ALL table status writes.
- * Asserts the explicit transition map, bumps version, emits the event.
- */
-async function transitionTable(
-  idx: number,
-  to: TableStatus,
-  ctx: { actor_id?: string; reason_code?: string; reason_text?: string; event_type?: any },
-): Promise<void> {
-  const current = mockTables[idx];
-  const from = current.status;
-  if (from === to) return;
-  if (!canTransition(from, to)) {
-    throw new Error(`Illegal table transition ${from} → ${to}`);
-  }
-  const now = new Date().toISOString();
-  mockTables[idx] = { ...current, status: to, updated_at: now, version: current.version + 1 };
-  await recordEvent({
-    outlet_id: current.outlet_id,
-    entity_type: "TABLE",
-    entity_id: current.id,
-    event_type: ctx.event_type ?? "TABLE_UPDATED",
-    from_state: from,
-    to_state: to,
-    actor_id: ctx.actor_id,
-    reason_code: ctx.reason_code,
-    reason_text: ctx.reason_text,
-  });
+  const s = q.toString();
+  return s ? `?${s}` : "";
 }
 
-function enrichTable(table: RestaurantTable): TableWithDerived {
-  const activeGroups = mockGroups.filter(
-    (g) => g.table_id === table.id && (g.status === "SEATED" || g.status === "ORDERING"),
-  );
-  const activeBlock = mockBlocks.find((b) => b.table_id === table.id && !b.released_at);
-  const activeHold = mockHolds.find((h) => h.table_id === table.id && h.status === "HELD");
-
-  const info = deriveTableInfo(table, activeGroups, activeBlock, activeHold);
-
-  return {
-    ...table,
-    occupancy_fill: info.occupancyFill,
-    seated_seats: info.seatedSeats,
-    active_groups: activeGroups,
-    active_block: activeBlock,
-    active_hold: activeHold,
-  };
-}
+/* ---------------- queries ---------------- */
 
 export async function getTables(filters?: TableFilters): Promise<TableWithDerived[]> {
-  await delay(300);
-  let r = [...mockTables].filter((t) => !t.deleted_at);
-  if (filters?.outlet_id) r = r.filter((t) => t.outlet_id === filters.outlet_id);
-  if (filters?.search) {
-    const q = filters.search.toLowerCase();
-    r = r.filter((t) => t.number.toLowerCase().includes(q) || t.code.toLowerCase().includes(q));
-  }
-  if (filters?.floor_id) r = r.filter((t) => t.floor_id === filters.floor_id);
-  if (filters?.status) r = r.filter((t) => t.status === filters.status);
-  if (filters?.is_active !== undefined) r = r.filter((t) => t.is_active === filters.is_active);
-
-  return r.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)).map(enrichTable);
+  const { rows } = await api<{ rows: TableWithDerived[] }>(
+    `/api/tables${toQuery({
+      outlet_id: filters?.outlet_id,
+      floor_id: filters?.floor_id,
+      status: filters?.status as string | undefined,
+      is_active: filters?.is_active,
+      search: filters?.search,
+    })}`,
+  );
+  return rows ?? [];
 }
 
 export async function getTableById(id: string): Promise<TableWithDerived | null> {
-  await delay(200);
-  const t = mockTables.find((t) => t.id === id && !t.deleted_at);
-  return t ? enrichTable(t) : null;
+  try {
+    const { row } = await api<{ row: TableWithDerived | null }>(
+      `/api/tables/${encodeURIComponent(id)}`,
+    );
+    return row ?? null;
+  } catch (e) {
+    if (e instanceof Error && /not found/i.test(e.message)) return null;
+    throw e;
+  }
 }
 
-/**
- * C4: typed layout API for the floor module.
- * Floor service must compose through this — never the raw mock arrays.
- */
 export async function getTablesWithDerivedByFloor(floorId: string): Promise<{
   tables: TableWithDerived[];
   groups: OccupancyGroup[];
   blocks: TableBlock[];
   holds: ReservationHold[];
 }> {
-  await delay(100);
-  const tables = mockTables.filter((t) => t.floor_id === floorId && !t.deleted_at).map(enrichTable);
-  const tableIds = new Set(tables.map((t) => t.id));
+  const data = await api<{
+    tables: TableWithDerived[];
+    groups: OccupancyGroup[];
+    blocks: TableBlock[];
+    holds: ReservationHold[];
+  }>(`/api/floors/${encodeURIComponent(floorId)}/layout`);
   return {
-    tables,
-    groups: mockGroups.filter(
-      (g) => tableIds.has(g.table_id) && (g.status === "SEATED" || g.status === "ORDERING"),
-    ),
-    blocks: mockBlocks.filter((b) => tableIds.has(b.table_id) && !b.released_at),
-    holds: mockHolds.filter((h) => tableIds.has(h.table_id) && h.status === "HELD"),
+    tables: data.tables ?? [],
+    groups: data.groups ?? [],
+    blocks: data.blocks ?? [],
+    holds: data.holds ?? [],
   };
 }
 
 const DUPLICATE_POSE_OFFSET_MM = 200;
 
-/** Bump a trailing number (T1 -> T2, T-GF01 -> T-GF02, zero-padded). Null when no trailing digits. */
 function incrementTrailing(value: string): string | null {
   const m = value.match(/^(.*?)(\d+)$/);
   if (!m) return null;
-  const next = String(parseInt(m[2], 10) + 1).padStart(m[2].length, "0");
-  return `${m[1]}${next}`;
+  const next = parseInt(m[2], 10) + 1;
+  return `${m[1]}${next.toString().padStart(m[2].length, "0")}`;
 }
 
-/**
- * Suggest the next free identifier for a duplicated table.
- * Tries trailing-number increment (T1 -> T2), then `-COPY` suffixes.
- * Comparison is case-insensitive; result keeps the source casing.
- */
-export function suggestUniqueTableValue(base: string, taken: Iterable<string>): string {
+export function suggestUniqueTableValue(taken: Iterable<string>, base: string): string {
   const takenUpper = new Set([...taken].map((t) => t.toUpperCase()));
-  let candidate: string | null = incrementTrailing(base);
+  let candidate = incrementTrailing(base);
   for (let i = 0; i < 99 && candidate; i++) {
     if (!takenUpper.has(candidate.toUpperCase())) return candidate;
     candidate = incrementTrailing(candidate);
@@ -264,7 +127,6 @@ export function suggestUniqueTableValue(base: string, taken: Iterable<string>): 
   throw new Error(`Cannot suggest a unique value for "${base}" — too many copies`);
 }
 
-/** Prefill identifiers for the duplicate form: next free number + code within the outlet. */
 export function suggestDuplicateIdentifiers(
   source: Pick<RestaurantTable, "outlet_id" | "number" | "code">,
   existing: Pick<RestaurantTable, "outlet_id" | "number" | "code" | "deleted_at">[],
@@ -272,69 +134,55 @@ export function suggestDuplicateIdentifiers(
   const outletTables = existing.filter((t) => t.outlet_id === source.outlet_id && !t.deleted_at);
   return {
     number: suggestUniqueTableValue(
-      source.number,
       outletTables.map((t) => t.number),
+      source.number,
     ),
     code: suggestUniqueTableValue(
-      source.code,
       outletTables.map((t) => t.code),
+      source.code,
     ),
   };
 }
 
-/**
- * One-click duplicate: copies layout + config from the source, resets lifecycle
- * (new id, status=available, version=1), offsets pose so the copy doesn't stack
- * on the original, and never copies occupancy. Emits TABLE_CREATED with
- * metadata.duplicated_from. For the review-before-save flow, the form instead
- * uses suggestDuplicateIdentifiers + createTable.
- */
 export async function duplicateTable(
   id: string,
   overrides?: Partial<TablePayload>,
 ): Promise<TableWithDerived> {
-  const release = await entityMutex.acquire("table-write");
-  try {
-    await delay(500);
-    const source = mockTables.find((t) => t.id === id && !t.deleted_at);
-    if (!source) throw new Error("Table not found");
-    const outletId = overrides?.outlet_id ?? source.outlet_id ?? requireServiceOutletId();
-
-    const outletTables = mockTables.filter((t) => !t.deleted_at && t.outlet_id === outletId);
-    const number = (
-      overrides?.number ??
-      suggestUniqueTableValue(
-        source.number,
-        outletTables.map((t) => t.number),
-      )
-    ).toUpperCase();
-    const code = (
-      overrides?.code ??
-      suggestUniqueTableValue(
-        source.code,
-        outletTables.map((t) => t.code),
-      )
-    ).toUpperCase();
-    if (
-      mockTables.some(
-        (t) => !t.deleted_at && t.outlet_id === outletId && t.code.toUpperCase() === code,
-      )
-    ) {
-      throw new Error(`Table code "${code}" already exists in this outlet`);
-    }
-
-    const now = new Date().toISOString();
-    const table: RestaurantTable = {
-      id: `tbl_${Date.now().toString(36)}`,
+  const source = await getTableById(id);
+  if (!source) throw new Error("Table not found");
+  const outletId = overrides?.outlet_id ?? source.outlet_id ?? getServiceOutletId() ?? undefined;
+  const tables = await getTables(outletId ? { outlet_id: outletId } : {});
+  const outletTables = tables.filter((t) => !t.deleted_at && t.outlet_id === outletId);
+  const number = (
+    overrides?.number ??
+    suggestUniqueTableValue(
+      outletTables.map((t) => t.number),
+      source.number,
+    )
+  ).toUpperCase();
+  const code = (
+    overrides?.code ??
+    suggestUniqueTableValue(
+      outletTables.map((t) => t.code),
+      source.code,
+    )
+  ).toUpperCase();
+  return createTable(
+    {
       outlet_id: outletId,
       floor_id: overrides?.floor_id ?? source.floor_id,
       number,
       code,
       capacity: overrides?.capacity ?? source.capacity,
-      shape: (overrides?.shape as RestaurantTable["shape"]) ?? source.shape,
-      type: ((overrides as any)?.type as RestaurantTable["type"]) ?? source.type,
-      allows_sharing: (overrides as any)?.allows_sharing ?? source.allows_sharing,
-      status: "available",
+      shape: (overrides?.shape as TablePayload["shape"]) ?? source.shape,
+      type: (overrides as Record<string, unknown> | undefined)?.type as TablePayload extends never
+        ? never
+        : (TablePayload & { type?: RestaurantTable["type"] })["type"] extends infer _T
+          ? RestaurantTable["type"]
+          : never,
+      allows_sharing: (overrides as Record<string, unknown> | undefined)?.allows_sharing as
+        | boolean
+        | undefined,
       is_active: overrides?.is_active ?? true,
       sort_order:
         overrides?.sort_order ?? Math.max(0, ...outletTables.map((t) => t.sort_order || 0)) + 1,
@@ -344,221 +192,53 @@ export async function duplicateTable(
       h_mm: source.h_mm,
       rotation_deg: source.rotation_deg,
       z_index: source.z_index,
-      version: 1,
-      created_at: now,
-      updated_at: now,
-    };
-
-    mockTables.push(table);
-    saveTables();
-    await recordEvent({
-      outlet_id: table.outlet_id,
-      entity_type: "TABLE",
-      entity_id: table.id,
-      event_type: "TABLE_CREATED",
-      to_state: "available",
-      metadata: { duplicated_from: id },
-    });
-    return enrichTable(table);
-  } finally {
-    release();
-  }
+    } as TablePayload,
+    { outlet_id: outletId },
+  );
 }
 
-export async function createTable(payload: TablePayload): Promise<TableWithDerived> {
-  const release = await entityMutex.acquire("table-write");
-  try {
-    await delay(500);
-    const outletId = payload.outlet_id ?? requireServiceOutletId();
-    if (
-      mockTables.some(
-        (t) =>
-          !t.deleted_at &&
-          t.outlet_id === outletId &&
-          t.code.toUpperCase() === payload.code.toUpperCase(),
-      )
-    ) {
-      throw new Error(`Table code "${payload.code}" already exists in this outlet`);
-    }
-
-    const now = new Date().toISOString();
-    const table: RestaurantTable = {
-      id: `tbl_${Date.now().toString(36)}`,
-      outlet_id: outletId,
-      floor_id: payload.floor_id,
-      number: payload.number.toUpperCase(),
-      code: payload.code.toUpperCase(),
-      capacity: payload.capacity,
-      shape: payload.shape ?? "square",
-      type: (payload as any).type ?? "standard",
-      allows_sharing: (payload as any).allows_sharing ?? false,
-      status: "available",
-      is_active: payload.is_active ?? true,
-      sort_order: payload.sort_order ?? mockTables.length + 1,
-      x_mm: (payload as any).x_mm ?? 0,
-      y_mm: (payload as any).y_mm ?? 0,
-      w_mm: (payload as any).w_mm ?? 800,
-      h_mm: (payload as any).h_mm ?? 800,
-      rotation_deg: (payload as any).rotation_deg ?? 0,
-      z_index: (payload as any).z_index ?? 1,
-      version: 1,
-      created_at: now,
-      updated_at: now,
-    };
-
-    mockTables.push(table);
-    saveTables();
-    await recordEvent({
-      outlet_id: table.outlet_id,
-      entity_type: "TABLE",
-      entity_id: table.id,
-      event_type: "TABLE_CREATED",
-      to_state: "available",
-    });
-    return enrichTable(table);
-  } finally {
-    release();
-  }
+export async function createTable(
+  payload: TablePayload,
+  ctx?: Partial<CommandContext>,
+): Promise<TableWithDerived> {
+  const c = ctxOf(ctx);
+  const { row } = await api<{ row: TableWithDerived }>(`/api/tables`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...payload, outlet_id: payload.outlet_id ?? c.outlet_id }),
+  });
+  if (!row) throw new Error("Table created but could not be reloaded");
+  return row;
 }
 
-export async function updateTable(id: string, payload: TablePayload): Promise<TableWithDerived> {
-  const release = await entityMutex.acquire(`table-${id}`);
-  try {
-    await delay(500);
-    const idx = mockTables.findIndex((t) => t.id === id);
-    if (idx === -1) throw new Error("Table not found");
-
-    const current = mockTables[idx];
-    if (payload.outlet_id !== undefined && payload.outlet_id !== current.outlet_id) {
-      throw new Error("Table cannot move across outlets");
-    }
-    const activeGroups = mockGroups.filter(
-      (g) => g.table_id === id && (g.status === "SEATED" || g.status === "ORDERING"),
-    );
-
-    // H2: moving a seated table across floors orphans its groups — reject
-    if (
-      payload.floor_id !== undefined &&
-      payload.floor_id !== current.floor_id &&
-      activeGroups.length > 0
-    ) {
-      throw new Error(
-        "Cannot move table to another floor with active guests. Release or transfer groups first.",
-      );
-    }
-
-    // Safety guard on structural changes (H5: presence-checked, not truthiness-checked)
-    if (activeGroups.length > 0) {
-      const seated = activeGroups.reduce((s, g) => s + g.seats, 0);
-      if (payload.capacity !== undefined && payload.capacity < seated) {
-        throw new Error(`Cannot reduce capacity below current occupancy (${seated})`);
-      }
-      if (
-        "allows_sharing" in payload &&
-        (payload as any).allows_sharing === false &&
-        activeGroups.length > 1
-      ) {
-        throw new Error("Cannot disable sharing with multiple active groups");
-      }
-    }
-
-    const updated = {
-      ...current,
-      ...payload,
-      number: payload.number?.toUpperCase() ?? current.number,
-      code: payload.code?.toUpperCase() ?? current.code,
-      updated_at: new Date().toISOString(),
-      version: current.version + 1,
-    } as any;
-
-    mockTables[idx] = updated;
-    saveTables();
-
-    await recordEvent({
-      outlet_id: current.outlet_id,
-      entity_type: "TABLE",
-      entity_id: id,
-      event_type: "TABLE_UPDATED",
-      metadata: { payload },
-    });
-
-    return enrichTable(mockTables[idx]);
-  } finally {
-    release();
-  }
+export async function updateTable(
+  id: string,
+  payload: TablePayload,
+  ctx?: Partial<CommandContext>,
+): Promise<TableWithDerived> {
+  const c = ctxOf(ctx);
+  const { row } = await api<{ row: TableWithDerived }>(`/api/tables/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...payload, outlet_id: payload.outlet_id ?? c.outlet_id }),
+  });
+  if (!row) throw new Error("Table not found");
+  return row;
 }
 
 export async function deleteTable(id: string): Promise<void> {
-  const release = await entityMutex.acquire(`table-${id}`);
-  try {
-    await delay(400);
-    const idx = mockTables.findIndex((t) => t.id === id);
-    if (idx === -1) throw new Error("Table not found");
-
-    const activeGroups = mockGroups.filter(
-      (g) => g.table_id === id && (g.status === "SEATED" || g.status === "ORDERING"),
-    );
-    if (activeGroups.length > 0) {
-      throw new Error("Cannot delete table with active guests");
-    }
-
-    mockTables[idx].deleted_at = new Date().toISOString();
-    mockTables[idx].is_active = false;
-    saveTables();
-
-    await recordEvent({
-      outlet_id: mockTables[idx].outlet_id,
-      entity_type: "TABLE",
-      entity_id: id,
-      event_type: "TABLE_DELETED",
-    });
-  } finally {
-    release();
-  }
+  await api(`/api/tables/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
-
-// Layout Commands — C3: single pose writer with lock, version bump, and audit.
-// Callers must batch a drag into ONE setTablePose call per pointer-up.
 
 export async function setTablePose(
   id: string,
   params: { x_mm?: number; y_mm?: number; w_mm?: number; h_mm?: number; rotation_deg?: number },
 ): Promise<void> {
-  const release = await entityMutex.acquire(`table-${id}`);
-  try {
-    await delay(200);
-    const idx = mockTables.findIndex((t) => t.id === id && !t.deleted_at);
-    if (idx === -1) return;
-    const moved =
-      (params.x_mm !== undefined && params.x_mm !== mockTables[idx].x_mm) ||
-      (params.y_mm !== undefined && params.y_mm !== mockTables[idx].y_mm);
-    const resized =
-      (params.w_mm !== undefined && params.w_mm !== mockTables[idx].w_mm) ||
-      (params.h_mm !== undefined && params.h_mm !== mockTables[idx].h_mm);
-    const rotated =
-      params.rotation_deg !== undefined && params.rotation_deg !== mockTables[idx].rotation_deg;
-    if (!moved && !resized && !rotated) return;
-    mockTables[idx] = {
-      ...mockTables[idx],
-      ...(params.x_mm !== undefined ? { x_mm: params.x_mm } : {}),
-      ...(params.y_mm !== undefined ? { y_mm: params.y_mm } : {}),
-      ...(params.w_mm !== undefined ? { w_mm: params.w_mm } : {}),
-      ...(params.h_mm !== undefined ? { h_mm: params.h_mm } : {}),
-      ...(params.rotation_deg !== undefined ? { rotation_deg: params.rotation_deg } : {}),
-      updated_at: new Date().toISOString(),
-      version: mockTables[idx].version + 1,
-    };
-    saveTables();
-    await recordEvent({
-      outlet_id: mockTables[idx].outlet_id,
-      entity_type: "TABLE",
-      entity_id: id,
-      event_type: resized ? "TABLE_RESIZED" : "TABLE_MOVED",
-      metadata: { ...params },
-    });
-  } finally {
-    release();
-  }
+  await api(`/api/tables/${encodeURIComponent(id)}/pose`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(params),
+  });
 }
 
 export async function moveTable(id: string, params: { x_mm: number; y_mm: number }): Promise<void> {
@@ -576,8 +256,6 @@ export async function rotateTable(id: string, params: { rotation_deg: number }):
   return setTablePose(id, params);
 }
 
-// Occupancy Commands (Transactional - Design ruling C4)
-
 export async function seatOccupancy(params: {
   table_id: string;
   seats: number;
@@ -588,125 +266,38 @@ export async function seatOccupancy(params: {
   group_id?: string;
   ctx?: Partial<CommandContext>;
 }): Promise<OccupancyGroup> {
-  const ctx = ctxOf(params.ctx);
-  // Idempotent replay: client-generated group id already seated
-  if (params.group_id) {
-    const existing = mockGroups.find((g) => g.id === params.group_id);
-    if (existing) return { ...existing };
-  }
-  const release = await entityMutex.acquire(`table-${params.table_id}`);
-  try {
-    await delay(400);
-    const table = mockTables.find((t) => t.id === params.table_id && !t.deleted_at);
-    if (!table) throw new Error("Table not found");
-    assertOutlet(table.outlet_id, ctx, "Table");
-    if (params.seats < 1 || !Number.isInteger(params.seats)) {
-      throw new Error("Seats must be a positive integer");
-    }
-    if (table.status === "out_of_service") throw new Error("Table is out of service");
-    if (table.status === "cleaning") {
-      throw new Error("Table is being cleaned. Mark it cleaned first.");
-    }
-    const liveBlock = mockBlocks.find((b) => b.table_id === table.id && !b.released_at);
-    if (liveBlock && !params.force) {
-      throw new Error(
-        `Table is blocked (${liveBlock.reason}). Unblock it first or force with a reason.`,
-      );
-    }
-
-    const activeGroups = mockGroups.filter(
-      (g) => g.table_id === params.table_id && (g.status === "SEATED" || g.status === "ORDERING"),
-    );
-
-    if (!table.allows_sharing && activeGroups.length > 0) {
-      throw new Error("Table does not allow sharing");
-    }
-
-    const currentSeated = activeGroups.reduce((s, g) => s + g.seats, 0);
-    if (currentSeated + params.seats > table.capacity) {
-      throw new Error(
-        `Insufficient capacity. Only ${table.capacity - currentSeated} seats available.`,
-      );
-    }
-
-    // Hold consume-by-identity: explicit hold_id wins; otherwise exactly one live
-    // HELD hold may be consumed; zero or ambiguous holds consume nothing.
-    let consumedHoldId: string | undefined;
-    if (params.hold_id) {
-      const hold = mockHolds.find((h) => h.id === params.hold_id);
-      if (!hold || hold.table_id !== table.id || hold.status !== "HELD") {
-        throw new Error("Reservation hold is not available for seating");
-      }
-      const nowHold = new Date().toISOString();
-      if (nowHold < hold.hold_from || nowHold > hold.hold_until) {
-        throw new Error("Reservation hold is outside its time window");
-      }
-      hold.status = "SEATED";
-      consumedHoldId = hold.id;
-    } else {
-      const liveHolds = mockHolds.filter((h) => h.table_id === table.id && h.status === "HELD");
-      if (liveHolds.length === 1) {
-        liveHolds[0].status = "SEATED";
-        consumedHoldId = liveHolds[0].id;
-      }
-    }
-
-    const now = new Date().toISOString();
-    const siblingLabels = activeGroups.map((g) => g.label);
-    const group: OccupancyGroup = {
-      id: params.group_id ?? `occ_${Date.now().toString(36)}`,
-      table_id: params.table_id,
-      outlet_id: table.outlet_id,
-      floor_id: table.floor_id,
-      seats: params.seats,
-      label: nextPartyLabel(siblingLabels),
-      color_index: activeGroups.length % 8,
-      order_id: null,
-      status: "SEATED",
-      seated_at: now,
-      floor_name_snapshot: table.floor_name,
-      table_number_snapshot: table.number,
-      table_code_snapshot: table.code,
-      capacity_at_seating: table.capacity,
-      created_by: params.created_by ?? ctx.actor_id,
-      created_at: now,
-      updated_at: now,
-      version: 1,
-    };
-
-    mockGroups.push(group);
-
-    // Side effect: update table status
-    const tableIdx = mockTables.findIndex((t) => t.id === params.table_id);
-    if (tableIdx !== -1) {
-      const oldStatus = mockTables[tableIdx].status;
-      if (oldStatus === "available" || oldStatus === "reserved") {
-        await transitionTable(tableIdx, "occupied", { actor_id: ctx.actor_id });
-      }
-    }
-    saveTables();
-
-    await recordEvent({
-      outlet_id: group.outlet_id,
-      entity_type: "OCCUPANCY_GROUP",
-      entity_id: group.id,
-      event_type: "OCCUPANCY_SEATED",
-      to_state: "SEATED",
-      actor_id: ctx.actor_id,
-      reason_text: params.force ? params.reason : undefined,
-      metadata: { table_id: table.id, seats: params.seats, hold_id: consumedHoldId },
-    });
-
-    return { ...group };
-  } finally {
-    release();
-  }
+  const c = ctxOf(params.ctx);
+  const { group } = await api<{ group: OccupancyGroup }>(
+    `/api/tables/${encodeURIComponent(params.table_id)}/occupancy`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "seat",
+        seats: params.seats,
+        created_by: params.created_by ?? c.actor_id,
+        hold_id: params.hold_id,
+        force: params.force,
+        reason: params.reason,
+        group_id: params.group_id,
+        outlet_id: c.outlet_id,
+      }),
+    },
+  );
+  if (!group) throw new Error("Seating failed");
+  return group;
 }
 
-/** Read-only group lookup for order-domain composition (no lock, no mutation). */
-export function getOccupancyGroup(groupId: string): OccupancyGroup | undefined {
-  const g = mockGroups.find((x) => x.id === groupId);
-  return g ? { ...g } : undefined;
+export async function getOccupancyGroup(groupId: string): Promise<OccupancyGroup | null> {
+  try {
+    const { group } = await api<{ group: OccupancyGroup | null }>(
+      `/api/occupancy-groups/${encodeURIComponent(groupId)}`,
+    );
+    return group ?? null;
+  } catch (e) {
+    if (e instanceof Error && /not found/i.test(e.message)) return null;
+    throw e;
+  }
 }
 
 export async function releaseOccupancy(params: {
@@ -716,76 +307,22 @@ export async function releaseOccupancy(params: {
   force?: boolean;
   ctx?: Partial<CommandContext>;
 }): Promise<void> {
-  // C2: resolve the table first (for lock key), but re-read the group INSIDE the lock
-  if (!params.reason?.trim()) throw new Error("A reason is required to release occupancy");
-  const probe = mockGroups.find((g) => g.id === params.group_id);
-  if (!probe) throw new Error("Group not found");
-
-  const release = await entityMutex.acquire(`table-${probe.table_id}`);
-  try {
-    await delay(400);
-    const idx = mockGroups.findIndex((g) => g.id === params.group_id);
-    if (idx === -1) throw new Error("Group not found");
-    const group = mockGroups[idx];
-    if (group.status === "RELEASED" || group.status === "CANCELLED") return;
-    const ctx = ctxOf({ ...params.ctx, actor_id: params.released_by ?? params.ctx?.actor_id });
-    assertOutlet(group.outlet_id, ctx, "Occupancy group");
-
-    // Release frees seats — the order (if any) lives on independently:
-    // items, discounts, KOTs, splits and payments never check occupancy.
-    // The group keeps its order pointer for history; the order stays linked
-    // by table_id. Force is folded in (compat alias below) — one path.
-    const forced = !!params.force;
-
-    const now = new Date().toISOString();
-    mockGroups[idx] = {
-      ...group,
-      status: "RELEASED",
-      released_at: now,
-      released_by: ctx.actor_id,
-      release_reason: params.reason,
-      force_released: forced || undefined,
-      updated_at: now,
-      version: group.version + 1,
-    };
-
-    // Side effect: Transition table to CLEANING if last group (Design Ruling C6)
-    const activeOnTable = mockGroups.filter(
-      (g) =>
-        g.table_id === group.table_id &&
-        g.id !== group.id &&
-        (g.status === "SEATED" || g.status === "ORDERING"),
-    );
-
-    if (activeOnTable.length === 0) {
-      const tableIdx = mockTables.findIndex((t) => t.id === group.table_id);
-      if (tableIdx !== -1 && mockTables[tableIdx].status === "occupied") {
-        // Order still open → straight back to available so the table reseats
-        // at once (order settles independently). Otherwise normal hygiene path.
-        const to = group.order_id ? "available" : "cleaning";
-        await transitionTable(tableIdx, to, {
-          actor_id: params.released_by,
-          event_type: to === "available" ? "TABLE_UPDATED" : "TABLE_CLEANING_STARTED",
-        });
-      }
-    }
-
-    saveTables();
-
-    await recordEvent({
-      outlet_id: group.outlet_id,
-      entity_type: "OCCUPANCY_GROUP",
-      entity_id: group.id,
-      event_type: forced ? "OCCUPANCY_FORCE_RELEASED" : "OCCUPANCY_RELEASED",
-      from_state: group.status,
-      to_state: "RELEASED",
-      actor_id: ctx.actor_id,
-      reason_text: params.reason,
-      metadata: group.order_id ? { order_id: group.order_id } : undefined,
-    });
-  } finally {
-    release();
-  }
+  const c = ctxOf(params.ctx);
+  // Resolve the table for the route path.
+  const current = await getOccupancyGroup(params.group_id);
+  if (!current) throw new Error("Group not found");
+  await api(`/api/tables/${encodeURIComponent(current.table_id)}/occupancy`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      action: "release",
+      group_id: params.group_id,
+      released_by: params.released_by ?? c.actor_id,
+      reason: params.reason,
+      force: params.force,
+      outlet_id: c.outlet_id,
+    }),
+  });
 }
 
 export async function forceReleaseOccupancy(params: {
@@ -803,56 +340,24 @@ export async function addGuests(params: {
   extra_seats: number;
   ctx?: Partial<CommandContext>;
 }): Promise<OccupancyGroup> {
-  const probe = mockGroups.find((g) => g.id === params.group_id);
-  if (!probe) throw new Error("Group not found");
-  const release = await entityMutex.acquire(`table-${probe.table_id}`);
-  try {
-    await delay(300);
-    const idx = mockGroups.findIndex((g) => g.id === params.group_id);
-    const group = mockGroups[idx];
-    if (group.status !== "SEATED" && group.status !== "ORDERING") {
-      throw new Error("Can only add guests to an active group");
-    }
-    const ctx = ctxOf(params.ctx);
-    assertOutlet(group.outlet_id, ctx, "Occupancy group");
-    if (!Number.isInteger(params.extra_seats) || params.extra_seats < 1) {
-      throw new Error("Extra seats must be a positive integer");
-    }
-    const table = mockTables.find((t) => t.id === group.table_id && !t.deleted_at);
-    if (!table) throw new Error("Table not found");
-    const seatedOthers = mockGroups
-      .filter(
-        (g) =>
-          g.table_id === group.table_id &&
-          g.id !== group.id &&
-          (g.status === "SEATED" || g.status === "ORDERING"),
-      )
-      .reduce((s, g) => s + g.seats, 0);
-    if (seatedOthers + group.seats + params.extra_seats > table.capacity) {
-      throw new Error(
-        `Insufficient capacity. Only ${table.capacity - seatedOthers - group.seats} seats available.`,
-      );
-    }
-    const now = new Date().toISOString();
-    mockGroups[idx] = {
-      ...group,
-      seats: group.seats + params.extra_seats,
-      updated_at: now,
-      version: group.version + 1,
-    };
-    saveTables();
-    await recordEvent({
-      outlet_id: group.outlet_id,
-      entity_type: "OCCUPANCY_GROUP",
-      entity_id: group.id,
-      event_type: "OCCUPANCY_GUESTS_ADDED",
-      actor_id: ctx.actor_id,
-      metadata: { extra_seats: params.extra_seats, total_seats: group.seats + params.extra_seats },
-    });
-    return { ...mockGroups[idx] };
-  } finally {
-    release();
-  }
+  const c = ctxOf(params.ctx);
+  const current = await getOccupancyGroup(params.group_id);
+  if (!current) throw new Error("Group not found");
+  const { group } = await api<{ group: OccupancyGroup }>(
+    `/api/tables/${encodeURIComponent(current.table_id)}/occupancy`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "add-guests",
+        group_id: params.group_id,
+        extra_seats: params.extra_seats,
+        outlet_id: c.outlet_id,
+      }),
+    },
+  );
+  if (!group) throw new Error("Add guests failed");
+  return group;
 }
 
 export async function attachOrder(params: {
@@ -860,85 +365,44 @@ export async function attachOrder(params: {
   order_id: string;
   ctx?: Partial<CommandContext>;
 }): Promise<OccupancyGroup> {
-  const probe = mockGroups.find((g) => g.id === params.group_id);
-  if (!probe) throw new Error("Group not found");
-  const release = await entityMutex.acquire(`table-${probe.table_id}`);
-  try {
-    await delay(300);
-    const idx = mockGroups.findIndex((g) => g.id === params.group_id);
-    const group = mockGroups[idx];
-    if (group.status !== "SEATED") throw new Error("Order can only attach to a SEATED group");
-    if (group.order_id) throw new Error("Group already has an order attached");
-    if (!params.order_id?.trim()) throw new Error("order_id is required");
-    const ctx = ctxOf(params.ctx);
-    assertOutlet(group.outlet_id, ctx, "Occupancy group");
-    const now = new Date().toISOString();
-    mockGroups[idx] = {
-      ...group,
-      order_id: params.order_id,
-      status: "ORDERING",
-      updated_at: now,
-      version: group.version + 1,
-    };
-    saveTables();
-    await recordEvent({
-      outlet_id: group.outlet_id,
-      entity_type: "OCCUPANCY_GROUP",
-      entity_id: group.id,
-      event_type: "OCCUPANCY_ORDER_ATTACHED",
-      from_state: "SEATED",
-      to_state: "ORDERING",
-      actor_id: ctx.actor_id,
-      metadata: { order_id: params.order_id },
-    });
-    return { ...mockGroups[idx] };
-  } finally {
-    release();
-  }
+  const c = ctxOf(params.ctx);
+  const current = await getOccupancyGroup(params.group_id);
+  if (!current) throw new Error("Group not found");
+  const { group } = await api<{ group: OccupancyGroup }>(
+    `/api/tables/${encodeURIComponent(current.table_id)}/occupancy`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "attach-order",
+        group_id: params.group_id,
+        order_id: params.order_id,
+        outlet_id: c.outlet_id,
+      }),
+    },
+  );
+  if (!group) throw new Error("Attach failed");
+  return group;
 }
 
-/**
- * Counterpart to attachOrder: clears the order pointer when the linked order
- * is deleted as a draft. Idempotent when the group points elsewhere (or
- * nowhere) — only detaches the exact order id passed in.
- */
 export async function detachOrder(params: {
   group_id: string;
   order_id: string;
   ctx?: Partial<CommandContext>;
 }): Promise<void> {
-  const probe = mockGroups.find((g) => g.id === params.group_id);
-  if (!probe) return;
-  const release = await entityMutex.acquire(`table-${probe.table_id}`);
-  try {
-    await delay(200);
-    const idx = mockGroups.findIndex((g) => g.id === params.group_id);
-    const group = mockGroups[idx];
-    if (group.order_id !== params.order_id) return;
-    const ctx = ctxOf(params.ctx);
-    assertOutlet(group.outlet_id, ctx, "Occupancy group");
-    const now = new Date().toISOString();
-    mockGroups[idx] = {
-      ...group,
-      order_id: null,
-      status: group.status === "ORDERING" ? "SEATED" : group.status,
-      updated_at: now,
-      version: group.version + 1,
-    };
-    saveTables();
-    await recordEvent({
-      outlet_id: group.outlet_id,
-      entity_type: "OCCUPANCY_GROUP",
-      entity_id: group.id,
-      event_type: "OCCUPANCY_ORDER_DETACHED",
-      from_state: "ORDERING",
-      to_state: "SEATED",
-      actor_id: ctx.actor_id,
-      metadata: { order_id: params.order_id },
-    });
-  } finally {
-    release();
-  }
+  const c = ctxOf(params.ctx);
+  const current = await getOccupancyGroup(params.group_id);
+  if (!current) return;
+  await api(`/api/tables/${encodeURIComponent(current.table_id)}/occupancy`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      action: "detach-order",
+      group_id: params.group_id,
+      order_id: params.order_id,
+      outlet_id: c.outlet_id,
+    }),
+  });
 }
 
 export async function cancelOccupancy(params: {
@@ -947,44 +411,20 @@ export async function cancelOccupancy(params: {
   reason: string;
   ctx?: Partial<CommandContext>;
 }): Promise<void> {
-  const probe = mockGroups.find((g) => g.id === params.group_id);
-  if (!probe) throw new Error("Group not found");
-  const release = await entityMutex.acquire(`table-${probe.table_id}`);
-  try {
-    await delay(300);
-    const idx = mockGroups.findIndex((g) => g.id === params.group_id);
-    const group = mockGroups[idx];
-    if (group.status === "RELEASED" || group.status === "CANCELLED") return;
-    const ctx = ctxOf({ ...params.ctx, actor_id: params.by ?? params.ctx?.actor_id });
-    assertOutlet(group.outlet_id, ctx, "Occupancy group");
-    if (group.order_id) {
-      throw new Error("Group has an order. Cancel it through the orders module first.");
-    }
-    if (!params.reason?.trim()) throw new Error("A reason is required to cancel occupancy");
-    const now = new Date().toISOString();
-    mockGroups[idx] = {
-      ...group,
-      status: "CANCELLED",
-      released_at: now,
-      released_by: ctx.actor_id,
-      release_reason: params.reason,
-      updated_at: now,
-      version: group.version + 1,
-    };
-    saveTables();
-    await recordEvent({
-      outlet_id: group.outlet_id,
-      entity_type: "OCCUPANCY_GROUP",
-      entity_id: group.id,
-      event_type: "OCCUPANCY_CANCELLED",
-      from_state: group.status,
-      to_state: "CANCELLED",
-      actor_id: ctx.actor_id,
-      reason_text: params.reason,
-    });
-  } finally {
-    release();
-  }
+  const c = ctxOf(params.ctx);
+  const current = await getOccupancyGroup(params.group_id);
+  if (!current) throw new Error("Group not found");
+  await api(`/api/tables/${encodeURIComponent(current.table_id)}/occupancy`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      action: "cancel",
+      group_id: params.group_id,
+      by: params.by ?? c.actor_id,
+      reason: params.reason,
+      outlet_id: c.outlet_id,
+    }),
+  });
 }
 
 export async function transferOccupancy(params: {
@@ -994,107 +434,26 @@ export async function transferOccupancy(params: {
   reason: string;
   ctx?: Partial<CommandContext>;
 }): Promise<OccupancyGroup[]> {
-  if (!params.group_ids.length) throw new Error("At least one group is required");
-  if (!params.reason?.trim()) throw new Error("A reason is required for transfer");
-  const groups = params.group_ids.map((id) => {
-    const g = mockGroups.find((x) => x.id === id);
-    if (!g) throw new Error(`Group not found: ${id}`);
-    return g;
-  });
-  // Lock ordering by id to avoid deadlock; validate everything before mutating.
-  const tableIds = [...new Set([...groups.map((g) => g.table_id), params.to_table_id])].sort();
-  const releases = await Promise.all(tableIds.map((id) => entityMutex.acquire(`table-${id}`)));
-  const releaseAll = () => releases.forEach((r) => r());
-  try {
-    await delay(400);
-    const ctx = ctxOf({ ...params.ctx, actor_id: params.moved_by ?? params.ctx?.actor_id });
-    const dest = mockTables.find((t) => t.id === params.to_table_id && !t.deleted_at);
-    if (!dest) throw new Error("Destination table not found");
-    assertOutlet(dest.outlet_id, ctx, "Destination table");
-    if (dest.status === "out_of_service" || dest.status === "cleaning") {
-      throw new Error(`Destination table is ${dest.status.replace("_", " ")}`);
-    }
-    const liveBlock = mockBlocks.find((b) => b.table_id === dest.id && !b.released_at);
-    if (liveBlock) throw new Error(`Destination table is blocked (${liveBlock.reason})`);
-    for (const g of groups) {
-      assertOutlet(g.outlet_id, ctx, "Occupancy group");
-      if (g.status !== "SEATED" && g.status !== "ORDERING") {
-        throw new Error(`Group ${g.id} is not active`);
-      }
-      if (g.table_id === dest.id) throw new Error("Group is already on the destination table");
-    }
-    const movingSeats = groups.reduce((s, g) => s + g.seats, 0);
-    const destSeated = mockGroups
-      .filter(
-        (g) =>
-          g.table_id === dest.id &&
-          !groups.some((m) => m.id === g.id) &&
-          (g.status === "SEATED" || g.status === "ORDERING"),
-      )
-      .reduce((s, g) => s + g.seats, 0);
-    if (destSeated + movingSeats > dest.capacity) {
-      throw new Error(`Destination table has only ${dest.capacity - destSeated} seats available.`);
-    }
-    const destActiveCount = mockGroups.filter(
-      (g) =>
-        g.table_id === dest.id &&
-        !groups.some((m) => m.id === g.id) &&
-        (g.status === "SEATED" || g.status === "ORDERING"),
-    ).length;
-    if (!dest.allows_sharing && destActiveCount + groups.length > 1) {
-      throw new Error("Destination table does not allow sharing");
-    }
-    // Forbid merging groups that carry different orders (split belongs to orders module).
-    const orderIds = [...new Set(groups.map((g) => g.order_id).filter(Boolean))];
-    if (orderIds.length > 1) {
-      throw new Error("Cannot merge groups with different orders. Split or settle them first.");
-    }
-    const now = new Date().toISOString();
-    const moved = groups.map((g) => {
-      const idx = mockGroups.findIndex((x) => x.id === g.id);
-      mockGroups[idx] = {
-        ...g,
-        table_id: dest.id,
-        floor_id: dest.floor_id,
-        updated_at: now,
-        version: g.version + 1,
-      };
-      return { ...mockGroups[idx] };
-    });
-    saveTables();
-    for (const g of groups) {
-      await recordEvent({
-        outlet_id: dest.outlet_id,
-        entity_type: "OCCUPANCY_GROUP",
-        entity_id: g.id,
-        event_type: "OCCUPANCY_TRANSFERRED",
-        actor_id: ctx.actor_id,
-        reason_text: params.reason,
-        metadata: { from_table_id: g.table_id, to_table_id: dest.id },
-      });
-    }
-    // Recompute source table statuses (a vacated table goes to cleaning)
-    for (const srcId of [...new Set(groups.map((g) => g.table_id))]) {
-      const stillActive = mockGroups.some(
-        (g) => g.table_id === srcId && (g.status === "SEATED" || g.status === "ORDERING"),
-      );
-      const sIdx = mockTables.findIndex((t) => t.id === srcId);
-      if (!stillActive && sIdx !== -1 && mockTables[sIdx].status === "occupied") {
-        await transitionTable(sIdx, "cleaning", { actor_id: ctx.actor_id });
-      }
-    }
-    const dIdx = mockTables.findIndex((t) => t.id === dest.id);
-    if (
-      dIdx !== -1 &&
-      (mockTables[dIdx].status === "available" || mockTables[dIdx].status === "reserved")
-    ) {
-      await transitionTable(dIdx, "occupied", { actor_id: ctx.actor_id });
-    }
-    saveTables();
-    return moved;
-  } finally {
-    releaseAll();
-  }
+  const c = ctxOf(params.ctx);
+  // Resolve the source table for the route path.
+  const first = params.group_ids[0] ? await getOccupancyGroup(params.group_ids[0]) : null;
+  if (!first) throw new Error("Group not found");
+  const { moved } = await api<{ moved: OccupancyGroup[] }>(
+    `/api/tables/${encodeURIComponent(first.table_id)}/occupancy`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "transfer",
+        group_ids: params.group_ids,
+        to_table_id: params.to_table_id,
+        moved_by: params.moved_by ?? c.actor_id,
+        reason: params.reason,
+        outlet_id: c.outlet_id,
+      }),
+    },
+  );
+  return moved ?? [];
 }
 
 export async function markCleaned(params: {
@@ -1102,61 +461,48 @@ export async function markCleaned(params: {
   by?: string;
   ctx?: Partial<CommandContext>;
 }): Promise<TableWithDerived> {
-  const release = await entityMutex.acquire(`table-${params.table_id}`);
-  try {
-    await delay(300);
-    const idx = mockTables.findIndex((t) => t.id === params.table_id && !t.deleted_at);
-    if (idx === -1) throw new Error("Table not found");
-    const ctx = ctxOf({ ...params.ctx, actor_id: params.by ?? params.ctx?.actor_id });
-    assertOutlet(mockTables[idx].outlet_id, ctx, "Table");
-    await transitionTable(idx, "available", {
-      actor_id: ctx.actor_id,
-      event_type: "TABLE_CLEANING_COMPLETED",
-    });
-    saveTables();
-    return enrichTable(mockTables[idx]);
-  } finally {
-    release();
-  }
+  const c = ctxOf(params.ctx);
+  const { table } = await api<{ table: TableWithDerived }>(
+    `/api/tables/${encodeURIComponent(params.table_id)}/status`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        to: "available",
+        by: params.by ?? c.actor_id,
+        outlet_id: c.outlet_id,
+      }),
+    },
+  );
+  if (!table) throw new Error("Table not found");
+  return table;
 }
 
-/**
- * Direct, reason-audited status write through the transition map.
- * Illegal jumps (e.g. occupied → available) are rejected with guidance —
- * use release → cleaning → mark-cleaned for the normal path.
- */
 export async function setTableStatus(params: {
   table_id: string;
-  to: TableStatus;
+  to: TableWithDerived["status"];
   reason: string;
   by?: string;
   ctx?: Partial<CommandContext>;
 }): Promise<TableWithDerived> {
-  const release = await entityMutex.acquire(`table-${params.table_id}`);
-  try {
-    await delay(300);
-    const idx = mockTables.findIndex((t) => t.id === params.table_id && !t.deleted_at);
-    if (idx === -1) throw new Error("Table not found");
-    const ctx = ctxOf({ ...params.ctx, actor_id: params.by ?? params.ctx?.actor_id });
-    assertOutlet(mockTables[idx].outlet_id, ctx, "Table");
-    if (!params.reason?.trim()) throw new Error("A reason is required to change table status");
-    const from = mockTables[idx].status;
-    if (from === params.to) return enrichTable(mockTables[idx]);
-    if (from === "occupied" && params.to === "available") {
-      throw new Error(
-        "Release guests first — occupied tables clear via release → cleaning → mark cleaned",
-      );
-    }
-    await transitionTable(idx, params.to, {
-      actor_id: ctx.actor_id,
-      reason_text: params.reason.trim(),
-      event_type: "TABLE_STATUS_SET",
-    });
-    saveTables();
-    return enrichTable(mockTables[idx]);
-  } finally {
-    release();
-  }
+  const c = ctxOf(params.ctx);
+  if (params.to === "available")
+    return markCleaned({ table_id: params.table_id, by: params.by, ctx: params.ctx });
+  const { table } = await api<{ table: TableWithDerived }>(
+    `/api/tables/${encodeURIComponent(params.table_id)}/status`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        to: params.to,
+        reason: params.reason,
+        by: params.by ?? c.actor_id,
+        outlet_id: c.outlet_id,
+      }),
+    },
+  );
+  if (!table) throw new Error("Table not found");
+  return table;
 }
 
 export async function blockTable(params: {
@@ -1165,43 +511,23 @@ export async function blockTable(params: {
   by?: string;
   until_at?: string;
   ctx?: Partial<CommandContext>;
-}): Promise<TableBlock> {
-  const release = await entityMutex.acquire(`table-${params.table_id}`);
-  try {
-    await delay(300);
-    const table = mockTables.find((t) => t.id === params.table_id && !t.deleted_at);
-    if (!table) throw new Error("Table not found");
-    const ctx = ctxOf({ ...params.ctx, actor_id: params.by ?? params.ctx?.actor_id });
-    assertOutlet(table.outlet_id, ctx, "Table");
-    if (!params.reason?.trim()) throw new Error("A reason is required to block a table");
-    if (mockBlocks.some((b) => b.table_id === table.id && !b.released_at)) {
-      throw new Error("Table is already blocked");
-    }
-    const now = new Date().toISOString();
-    const block: TableBlock = {
-      id: `blk_${Date.now().toString(36)}`,
-      table_id: table.id,
-      outlet_id: table.outlet_id,
-      reason: params.reason,
-      blocked_at: now,
-      blocked_by: ctx.actor_id,
-      until_at: params.until_at,
-      created_at: now,
-    };
-    mockBlocks.push(block);
-    saveTables();
-    await recordEvent({
-      outlet_id: table.outlet_id,
-      entity_type: "TABLE",
-      entity_id: table.id,
-      event_type: "TABLE_BLOCKED",
-      actor_id: ctx.actor_id,
-      reason_text: params.reason,
-    });
-    return { ...block };
-  } finally {
-    release();
-  }
+}): Promise<import("./types").TableBlock> {
+  const c = ctxOf(params.ctx);
+  const { block } = await api<{ block: import("./types").TableBlock }>(
+    `/api/tables/${encodeURIComponent(params.table_id)}/block`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        reason: params.reason,
+        by: params.by ?? c.actor_id,
+        until_at: params.until_at,
+        outlet_id: c.outlet_id,
+      }),
+    },
+  );
+  if (!block) throw new Error("Block failed");
+  return block;
 }
 
 export async function unblockTable(params: {
@@ -1209,28 +535,12 @@ export async function unblockTable(params: {
   by?: string;
   ctx?: Partial<CommandContext>;
 }): Promise<void> {
-  const release = await entityMutex.acquire(`table-${params.table_id}`);
-  try {
-    await delay(300);
-    const table = mockTables.find((t) => t.id === params.table_id && !t.deleted_at);
-    if (!table) throw new Error("Table not found");
-    const ctx = ctxOf({ ...params.ctx, actor_id: params.by ?? params.ctx?.actor_id });
-    assertOutlet(table.outlet_id, ctx, "Table");
-    const block = mockBlocks.find((b) => b.table_id === table.id && !b.released_at);
-    if (!block) return;
-    block.released_at = new Date().toISOString();
-    block.released_by = ctx.actor_id;
-    saveTables();
-    await recordEvent({
-      outlet_id: table.outlet_id,
-      entity_type: "TABLE",
-      entity_id: table.id,
-      event_type: "TABLE_UNBLOCKED",
-      actor_id: ctx.actor_id,
-    });
-  } finally {
-    release();
-  }
+  const c = ctxOf(params.ctx);
+  await api(`/api/tables/${encodeURIComponent(params.table_id)}/block`, {
+    method: "DELETE",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ by: params.by ?? c.actor_id, outlet_id: c.outlet_id }),
+  });
 }
 
 export async function createHold(params: {
@@ -1242,66 +552,25 @@ export async function createHold(params: {
   hold_until: string;
   by?: string;
   ctx?: Partial<CommandContext>;
-}): Promise<ReservationHold> {
-  const release = await entityMutex.acquire(`table-${params.table_id}`);
-  try {
-    await delay(300);
-    const table = mockTables.find((t) => t.id === params.table_id && !t.deleted_at);
-    if (!table) throw new Error("Table not found");
-    const ctx = ctxOf({ ...params.ctx, actor_id: params.by ?? params.ctx?.actor_id });
-    assertOutlet(table.outlet_id, ctx, "Table");
-    if (!params.holder_name?.trim()) throw new Error("Holder name is required");
-    if (!Number.isInteger(params.party_size) || params.party_size < 1) {
-      throw new Error("Party size must be a positive integer");
-    }
-    if (params.party_size > table.capacity) {
-      throw new Error("Party size exceeds table capacity");
-    }
-    if (params.hold_from >= params.hold_until) {
-      throw new Error("Hold window is invalid");
-    }
-    if (table.status === "out_of_service") throw new Error("Table is out of service");
-    if (mockBlocks.some((b) => b.table_id === table.id && !b.released_at)) {
-      throw new Error("Table is blocked");
-    }
-    const overlap = mockHolds.some(
-      (h) =>
-        h.table_id === table.id &&
-        h.status === "HELD" &&
-        params.hold_from < h.hold_until &&
-        h.hold_from < params.hold_until,
-    );
-    if (overlap) throw new Error("An overlapping hold already exists on this table");
-    const now = new Date().toISOString();
-    const hold: ReservationHold = {
-      id: `rsv_${Date.now().toString(36)}`,
-      table_id: table.id,
-      outlet_id: table.outlet_id,
-      holder_name: params.holder_name,
-      holder_phone: params.holder_phone,
-      party_size: params.party_size,
-      hold_from: params.hold_from,
-      hold_until: params.hold_until,
-      status: "HELD",
-      created_by: ctx.actor_id,
-      created_at: now,
-      version: 1,
-    };
-    mockHolds.push(hold);
-    saveTables();
-    await recordEvent({
-      outlet_id: table.outlet_id,
-      entity_type: "RESERVATION",
-      entity_id: hold.id,
-      event_type: "OCCUPANCY_SEATED",
-      actor_id: ctx.actor_id,
-      reason_code: "HOLD_CREATED",
-      metadata: { table_id: table.id, party_size: params.party_size },
-    });
-    return { ...hold };
-  } finally {
-    release();
-  }
+}): Promise<import("./types").ReservationHold> {
+  const c = ctxOf(params.ctx);
+  const { hold } = await api<{ hold: import("./types").ReservationHold }>(
+    `/api/tables/${encodeURIComponent(params.table_id)}/holds`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        holder_name: params.holder_name,
+        holder_phone: params.holder_phone,
+        party_size: params.party_size,
+        hold_from: params.hold_from,
+        hold_until: params.hold_until,
+        outlet_id: c.outlet_id,
+      }),
+    },
+  );
+  if (!hold) throw new Error("Hold creation failed");
+  return hold;
 }
 
 export async function cancelHold(params: {
@@ -1310,56 +579,19 @@ export async function cancelHold(params: {
   reason?: string;
   ctx?: Partial<CommandContext>;
 }): Promise<void> {
-  const hold = mockHolds.find((h) => h.id === params.hold_id);
-  if (!hold) throw new Error("Hold not found");
-  const release = await entityMutex.acquire(`table-${hold.table_id}`);
-  try {
-    await delay(200);
-    const idx = mockHolds.findIndex((h) => h.id === params.hold_id);
-    const h = mockHolds[idx];
-    if (h.status !== "HELD") return;
-    const ctx = ctxOf({ ...params.ctx, actor_id: params.by ?? params.ctx?.actor_id });
-    assertOutlet(h.outlet_id, ctx, "Reservation hold");
-    mockHolds[idx] = {
-      ...h,
-      status: "CANCELLED",
-      cancelled_by: ctx.actor_id,
-      cancelled_at: new Date().toISOString(),
-      version: h.version + 1,
-    };
-    saveTables();
-    await recordEvent({
-      outlet_id: h.outlet_id,
-      entity_type: "RESERVATION",
-      entity_id: h.id,
-      event_type: "OCCUPANCY_CANCELLED",
-      actor_id: ctx.actor_id,
-      reason_code: "HOLD_CANCELLED",
-      reason_text: params.reason,
-    });
-  } finally {
-    release();
-  }
+  const c = ctxOf(params.ctx);
+  await api(`/api/holds/${encodeURIComponent(params.hold_id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action: "cancel", by: params.by ?? c.actor_id, reason: params.reason }),
+  });
 }
 
 export async function expireHold(params: { hold_id: string }): Promise<void> {
-  const hold = mockHolds.find((h) => h.id === params.hold_id);
-  if (!hold || hold.status !== "HELD") return;
-  const release = await entityMutex.acquire(`table-${hold.table_id}`);
-  try {
-    await delay(200);
-    const idx = mockHolds.findIndex((h) => h.id === params.hold_id);
-    if (mockHolds[idx].status !== "HELD") return;
-    mockHolds[idx] = { ...mockHolds[idx], status: "EXPIRED", version: mockHolds[idx].version + 1 };
-    saveTables();
-    await recordEvent({
-      outlet_id: hold.outlet_id,
-      entity_type: "RESERVATION",
-      entity_id: hold.id,
-      event_type: "OCCUPANCY_CANCELLED",
-      reason_code: "HOLD_EXPIRED",
-    });
-  } finally {
-    release();
-  }
+  await api(`/api/holds/${encodeURIComponent(params.hold_id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action: "expire" }),
+  });
+  return;
 }

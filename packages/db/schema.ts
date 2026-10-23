@@ -97,12 +97,39 @@ export const floors = pgTable(
     ...audit,
     name: text("name").notNull(),
     code: text("code").notNull(),
+    description: text("description"),
     level: integer("level").default(0).notNull(),
     capacity: integer("capacity").default(0).notNull(),
     sortOrder: integer("sort_order").default(0).notNull(),
     isActive: boolean("is_active").default(true).notNull(),
+    isOutdoor: boolean("is_outdoor").default(false).notNull(),
+    widthMm: integer("width_mm").default(0).notNull(),
+    heightMm: integer("height_mm").default(0).notNull(),
+    gridSizeMm: integer("grid_size_mm").default(100).notNull(),
+    backgroundColor: text("background_color"),
+    backgroundImageUrl: text("background_image_url"),
   },
   (t) => [index("floors_org_outlet_idx").on(t.organizationId, t.outletId)],
+);
+
+export const floorObjects = pgTable(
+  "floor_objects",
+  {
+    id: text("id").primaryKey(),
+    ...audit,
+    floorId: text("floor_id").notNull(),
+    kind: text("kind").notNull(),
+    shapeVariant: text("shape_variant"),
+    label: text("label"),
+    xMm: integer("x_mm").default(0).notNull(),
+    yMm: integer("y_mm").default(0).notNull(),
+    wMm: integer("w_mm").default(0).notNull(),
+    hMm: integer("h_mm").default(0).notNull(),
+    rotationDeg: integer("rotation_deg").default(0).notNull(),
+    zIndex: integer("z_index").default(0).notNull(),
+    color: text("color"),
+  },
+  (t) => [index("floor_objects_floor_idx").on(t.floorId)],
 );
 
 export const tables = pgTable(
@@ -147,10 +174,46 @@ export const occupancyGroups = pgTable(
     status: text("status").notNull(),
     seatedAt: timestamp("seated_at", { withTimezone: true }).defaultNow().notNull(),
     releasedAt: timestamp("released_at", { withTimezone: true }),
+    releasedBy: text("released_by"),
     releaseReason: text("release_reason"),
     forceReleased: boolean("force_released").default(false).notNull(),
   },
   (t) => [index("occupancy_table_idx").on(t.tableId)],
+);
+
+export const tableBlocks = pgTable(
+  "table_blocks",
+  {
+    id: text("id").primaryKey(),
+    ...audit,
+    tableId: text("table_id").notNull(),
+    reason: text("reason").notNull(),
+    blockedAt: timestamp("blocked_at", { withTimezone: true }).defaultNow().notNull(),
+    blockedBy: text("blocked_by"),
+    untilAt: timestamp("until_at", { withTimezone: true }),
+    releasedAt: timestamp("released_at", { withTimezone: true }),
+    releasedBy: text("released_by"),
+  },
+  (t) => [index("table_blocks_table_idx").on(t.tableId)],
+);
+
+export const reservationHolds = pgTable(
+  "reservation_holds",
+  {
+    id: text("id").primaryKey(),
+    ...audit,
+    tableId: text("table_id").notNull(),
+    holderName: text("holder_name").notNull(),
+    holderPhone: text("holder_phone"),
+    partySize: integer("party_size").notNull(),
+    holdFrom: timestamp("hold_from", { withTimezone: true }),
+    holdUntil: timestamp("hold_until", { withTimezone: true }),
+    status: text("status").notNull(),
+    cancelledBy: text("cancelled_by"),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    version: integer("version").default(1).notNull(),
+  },
+  (t) => [index("reservation_holds_table_idx").on(t.tableId)],
 );
 
 export const orders = pgTable(
@@ -394,6 +457,7 @@ export const events = pgTable(
     fromState: text("from_state"),
     toState: text("to_state"),
     actorId: text("actor_id"),
+    reasonCode: text("reason_code"),
     reasonText: text("reason_text"),
     sourceType: text("source_type"),
     sourceDeviceId: text("source_device_id"),

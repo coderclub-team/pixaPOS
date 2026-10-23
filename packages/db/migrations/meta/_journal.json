@@ -183,6 +183,27 @@
       "when": 1792683185155,
       "tag": "0025_menu-extra-fields",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792732723963,
+      "tag": "0026_tables-blocks-holds",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792732896635,
+      "tag": "0027_floors-geometry-objects",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792734392410,
+      "tag": "0028_occupancy-releasedby-events-reasoncode",
+      "breakpoints": true
     }
   ]
 }

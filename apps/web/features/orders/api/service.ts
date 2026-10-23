@@ -1057,7 +1057,7 @@ export async function ensureGroupOrder(
     const existing = findLive();
     if (existing) return enrichOrder(existing);
 
-    const group = getOccupancyGroup(groupId);
+    const group = await getOccupancyGroup(groupId);
     if (!group) throw new Error("Party not found");
     if (group.status !== "SEATED" && group.status !== "ORDERING") {
       throw new Error("Party is no longer seated");

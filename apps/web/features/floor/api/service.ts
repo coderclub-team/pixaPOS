@@ -1,6 +1,10 @@
-import { delay } from "@/constants/mock-api";
-import { recordEvent } from "@/features/events/api/service";
-import { entityMutex } from "@/lib/mutex";
+/**
+ * Floors domain — server-backed (Postgres via /api/floors*).
+ *
+ * Same exported API as the old localStorage version so all callers work
+ * unchanged. No local persistence, no mock data — the server is the single
+ * source of truth.
+ */
 import type {
   Floor,
   FloorFilters,
@@ -8,134 +12,227 @@ import type {
   FloorLayout,
   ReorderFloorInput,
   FloorObject,
-  FloorObjectKind,
 } from "./types";
-import { getTablesWithDerivedByFloor } from "@/features/table/api/service";
-import { requireServiceOutletId } from "@/features/outlet/api/outlets";
+import { getServiceOutletId } from "@/features/outlet/api/outlets";
 
-// In-memory stores
-let mockFloors: Floor[] = [];
+async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, { credentials: "include", ...init });
+  const data = (await res.json().catch(() => null)) as { error?: string } | T | null;
+  if (!res.ok) {
+    const msg =
+      data && typeof data === "object" && "error" in data && typeof data.error === "string"
+        ? data.error
+        : `Request failed (${res.status})`;
+    throw new Error(msg);
+  }
+  return data as T;
+}
 
-// Persist mock floors to localStorage so created floors survive dev-server
-// restarts (same PO_STORAGE_KEY pattern as inventory service).
-const FLOOR_STORAGE_KEY = "pixaFloors";
+function toQuery(params: Record<string, string | number | boolean | undefined>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== "") q.set(k, String(v));
+  }
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
 
-function toDoc(o: {
-  id: string;
-  outlet_id?: string;
-  version?: number;
-  updated_at?: string;
-  deleted_at?: string | null;
-}) {
+const iso = (v: unknown): string =>
+  v instanceof Date ? v.toISOString() : typeof v === "string" ? v : new Date().toISOString();
+const isoOrNull = (v: unknown): string | null => {
+  if (v == null) return null;
+  return v instanceof Date ? v.toISOString() : String(v);
+};
+
+function toClientFloor(r: Record<string, unknown>): Floor {
   return {
-    id: o.id,
-    outlet_id: o.outlet_id ?? null,
-    data: o,
-    version: o.version ?? 1,
-    updated_at: o.updated_at ?? new Date().toISOString(),
-    deleted_at: o.deleted_at ?? null,
+    id: String(r.id),
+    outlet_id: String(r.outletId),
+    name: String(r.name ?? ""),
+    code: String(r.code ?? ""),
+    description: (r.description as string | null) ?? undefined,
+    level: Number(r.level ?? 0),
+    capacity: Number(r.capacity ?? 20),
+    sort_order: Number(r.sortOrder ?? 0),
+    is_active: (r.isActive as boolean | undefined) ?? true,
+    is_outdoor: (r.isOutdoor as boolean | undefined) ?? undefined,
+    width_mm: Number(r.widthMm ?? 12000),
+    height_mm: Number(r.heightMm ?? 8000),
+    grid_size_mm: Number(r.gridSizeMm ?? 100),
+    background_color: (r.backgroundColor as string | null) ?? undefined,
+    background_image_url: (r.backgroundImageUrl as string | null) ?? undefined,
+    deleted_at: isoOrNull(r.deletedAt),
+    created_at: iso(r.createdAt),
+    updated_at: iso(r.updatedAt),
+    version: Number(r.version ?? 1),
   };
 }
 
-/** Durable SQLite mirror (fire-and-forget; repo never throws). */
-function mirrorFloors() {
-  if (typeof window === "undefined") return;
-  import("@/lib/db/repo").then(({ writeScope }) => {
-    void writeScope("floors", mockFloors.map(toDoc));
-    void writeScope("floor_objects", mockObjects.map(toDoc));
-  });
+function toClientObject(r: Record<string, unknown>): FloorObject {
+  return {
+    id: String(r.id),
+    floor_id: String(r.floorId),
+    outlet_id: String(r.outletId),
+    kind: r.kind as FloorObject["kind"],
+    shapeVariant: (r.shapeVariant as FloorObject["shapeVariant"]) ?? undefined,
+    label: (r.label as string | null) ?? undefined,
+    x_mm: Number(r.xMm ?? 0),
+    y_mm: Number(r.yMm ?? 0),
+    w_mm: Number(r.wMm ?? 0),
+    h_mm: Number(r.hMm ?? 0),
+    rotation_deg: Number(r.rotationDeg ?? 0),
+    z_index: Number(r.zIndex ?? 0),
+    color: (r.color as string | null) ?? undefined,
+    deleted_at: isoOrNull(r.deletedAt),
+    created_at: iso(r.createdAt),
+    updated_at: iso(r.updatedAt),
+    version: Number(r.version ?? 1),
+  };
 }
-
-/** Adopt the durable mirror on app startup — only when localStorage is
- * missing/empty. Never overwrites existing localStorage. */
-export async function hydrateFloorsFromMirror(): Promise<void> {
-  if (typeof window === "undefined") return;
-  try {
-    const raw = localStorage.getItem(FLOOR_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    const floors = Array.isArray(parsed) ? parsed : parsed?.floors;
-    if (Array.isArray(floors) && floors.length > 0) return;
-    const { readScope } = await import("@/lib/db/repo");
-    const [fd, od] = await Promise.all([readScope("floors"), readScope("floor_objects")]);
-    if (fd.length + od.length === 0) return;
-    localStorage.setItem(
-      FLOOR_STORAGE_KEY,
-      JSON.stringify({ floors: fd.map((d) => d.data), objects: od.map((d) => d.data) }),
-    );
-    loadFloors();
-  } catch {}
-}
-
-function saveFloors() {
-  if (typeof window !== "undefined") {
-    try {
-      localStorage.setItem(
-        FLOOR_STORAGE_KEY,
-        JSON.stringify({ floors: mockFloors, objects: mockObjects }),
-      );
-      mirrorFloors();
-    } catch {}
-  }
-}
-function loadFloors(): void {
-  if (typeof window !== "undefined") {
-    try {
-      const raw = localStorage.getItem(FLOOR_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        // Back-compat: v1 stored a bare floors array
-        const floors = Array.isArray(parsed) ? parsed : parsed?.floors;
-        if (Array.isArray(floors) && floors.length > 0) {
-          mockFloors = floors;
-        }
-        if (!Array.isArray(parsed) && Array.isArray(parsed?.objects)) {
-          mockObjects = parsed.objects;
-        }
-      }
-    } catch {}
-  }
-}
-
-let mockObjects: FloorObject[] = [];
-// hydrate from storage on browser init
-loadFloors();
 
 export async function getFloors(filters?: FloorFilters): Promise<Floor[]> {
-  await delay(300);
-  let r = [...mockFloors].filter((f) => !f.deleted_at);
-  if (filters?.outlet_id) r = r.filter((f) => f.outlet_id === filters.outlet_id);
-  if (filters?.search) {
-    const q = filters.search.toLowerCase();
-    r = r.filter((f) => f.name.toLowerCase().includes(q) || f.code.toLowerCase().includes(q));
-  }
-  if (filters?.is_active !== undefined) r = r.filter((f) => f.is_active === filters.is_active);
-  return r.sort((a, b) => a.sort_order - b.sort_order);
+  const { rows } = await api<{ rows: Record<string, unknown>[] }>(
+    `/api/floors${toQuery({
+      outlet_id: filters?.outlet_id,
+      search: filters?.search,
+      is_active: filters?.is_active,
+    })}`,
+  );
+  return (rows ?? []).map(toClientFloor).sort((a, b) => a.sort_order - b.sort_order);
 }
 
 export async function getFloorById(id: string): Promise<Floor | null> {
-  await delay(200);
-  return mockFloors.find((f) => f.id === id && !f.deleted_at) ?? null;
+  try {
+    const { row } = await api<{ row: Record<string, unknown> | null }>(
+      `/api/floors/${encodeURIComponent(id)}`,
+    );
+    return row ? toClientFloor(row) : null;
+  } catch (e) {
+    if (e instanceof Error && /not found/i.test(e.message)) return null;
+    throw e;
+  }
 }
 
 export async function getFloorLayout(floorId: string): Promise<FloorLayout> {
-  await delay(400);
-  const floor = mockFloors.find((f) => f.id === floorId && !f.deleted_at);
-  if (!floor) throw new Error("Floor not found");
-
-  // C4: compose through the table module's typed API — groups resolve
-  // through their table's current floor (H2), never the seating snapshot.
-  const { tables, groups } = await getTablesWithDerivedByFloor(floorId);
-  const objects = mockObjects.filter((o) => o.floor_id === floorId && !o.deleted_at);
-  return { floor, tables, groups, objects };
+  const data = await api<{
+    floor: Record<string, unknown>;
+    tables: Record<string, unknown>[];
+    groups: Record<string, unknown>[];
+    blocks: Record<string, unknown>[];
+    holds: Record<string, unknown>[];
+    objects: Record<string, unknown>[];
+  }>(`/api/floors/${encodeURIComponent(floorId)}/layout`);
+  const { deriveTableInfo } = await import("@/features/table/api/utils");
+  const groupsByTable = new Map<string, Record<string, unknown>[]>();
+  for (const g of data.groups ?? []) {
+    const k = String((g as Record<string, unknown>).tableId);
+    if (!groupsByTable.has(k)) groupsByTable.set(k, []);
+    groupsByTable.get(k)!.push(g as Record<string, unknown>);
+  }
+  const toClientGroup = (g: Record<string, unknown>) => ({
+    id: String(g.id),
+    table_id: String(g.tableId),
+    outlet_id: String(g.outletId),
+    floor_id: String(g.floorId ?? ""),
+    seats: Number(g.seats),
+    label: (g.label as string | null) ?? undefined,
+    color_index: Number(g.colorIndex ?? 0),
+    order_id: (g.orderId as string | null) ?? null,
+    status: g.status as "SEATED" | "ORDERING" | "RELEASED" | "CANCELLED",
+    seated_at: iso(g.seatedAt),
+    released_at: (g.releasedAt as string | null) ? iso(g.releasedAt) : undefined,
+    release_reason: (g.releaseReason as string | null) ?? undefined,
+    force_released: (g.forceReleased as boolean | undefined) ?? undefined,
+    created_at: iso(g.createdAt),
+    updated_at: iso(g.updatedAt),
+    version: Number(g.version ?? 1),
+  });
+  const toClientBlock = (b: Record<string, unknown>) => ({
+    id: String(b.id),
+    table_id: String(b.tableId),
+    outlet_id: String(b.outletId),
+    reason: String(b.reason ?? ""),
+    blocked_at: iso(b.blockedAt),
+    blocked_by: (b.blockedBy as string | null) ?? undefined,
+    until_at: b.untilAt ? iso(b.untilAt) : undefined,
+    released_at: b.releasedAt ? iso(b.releasedAt) : undefined,
+    released_by: (b.releasedBy as string | null) ?? undefined,
+    created_at: iso(b.createdAt),
+  });
+  const toClientHold = (h: Record<string, unknown>) => ({
+    id: String(h.id),
+    table_id: String(h.tableId),
+    outlet_id: String(h.outletId),
+    holder_name: String(h.holderName ?? ""),
+    holder_phone: (h.holderPhone as string | null) ?? undefined,
+    party_size: Number(h.partySize),
+    hold_from: iso(h.holdFrom),
+    hold_until: iso(h.holdUntil),
+    status: h.status,
+    cancelled_by: (h.cancelledBy as string | null) ?? undefined,
+    cancelled_at: h.cancelledAt ? iso(h.cancelledAt) : undefined,
+    created_at: iso(h.createdAt),
+    version: Number(h.version ?? 1),
+  });
+  const tables = (data.tables ?? []).map((t) => {
+    const tid = String((t as Record<string, unknown>).id);
+    const active = (groupsByTable.get(tid) ?? []).map(toClientGroup);
+    const blockRow = (data.blocks ?? []).find(
+      (b) => String((b as Record<string, unknown>).tableId) === tid,
+    ) as Record<string, unknown> | undefined;
+    const holdRow = (data.holds ?? []).find(
+      (h) => String((h as Record<string, unknown>).tableId) === tid,
+    ) as Record<string, unknown> | undefined;
+    const base = {
+      id: tid,
+      outlet_id: String((t as Record<string, unknown>).outletId),
+      floor_id: String((t as Record<string, unknown>).floorId),
+      number: String((t as Record<string, unknown>).number),
+      code: String((t as Record<string, unknown>).code),
+      capacity: Number((t as Record<string, unknown>).capacity),
+      shape: (t as Record<string, unknown>).shape,
+      type: (t as Record<string, unknown>).type,
+      allows_sharing: (t as Record<string, unknown>).allowsSharing,
+      status: (t as Record<string, unknown>).status,
+      is_active: (t as Record<string, unknown>).isActive,
+      sort_order: Number((t as Record<string, unknown>).sortOrder ?? 0),
+      x_mm: Number((t as Record<string, unknown>).xMm ?? 0),
+      y_mm: Number((t as Record<string, unknown>).yMm ?? 0),
+      w_mm: Number((t as Record<string, unknown>).wMm ?? 0),
+      h_mm: Number((t as Record<string, unknown>).hMm ?? 0),
+      rotation_deg: Number((t as Record<string, unknown>).rotationDeg ?? 0),
+      z_index: Number((t as Record<string, unknown>).zIndex ?? 0),
+      deleted_at: null,
+      created_at: iso((t as Record<string, unknown>).createdAt),
+      updated_at: iso((t as Record<string, unknown>).updatedAt),
+      version: Number((t as Record<string, unknown>).version ?? 1),
+    };
+    const info = deriveTableInfo(
+      base as never,
+      active as never,
+      blockRow ? (toClientBlock(blockRow) as never) : undefined,
+      holdRow ? (toClientHold(holdRow) as never) : undefined,
+    );
+    return {
+      ...base,
+      occupancy_fill: info.occupancyFill,
+      seated_seats: info.seatedSeats,
+      active_groups: active,
+      active_block: blockRow ? toClientBlock(blockRow) : undefined,
+      active_hold: holdRow ? toClientHold(holdRow) : undefined,
+    };
+  });
+  return {
+    floor: toClientFloor(data.floor),
+    tables,
+    groups: (data.groups ?? []).map(toClientGroup),
+    objects: (data.objects ?? []).map(toClientObject),
+  } as unknown as FloorLayout;
 }
-
-// Floor objects (walls / separators / decor / labels) — H4.
-// Deliberately NOT tables: no capacity, occupancy, status machine, or code
-// uniqueness. Owned by the floor module with their own CRUD + events.
 
 export async function createFloorObject(payload: {
   floor_id: string;
-  kind: FloorObjectKind;
+  kind: FloorObject["kind"];
   shapeVariant?: FloorObject["shapeVariant"];
   label?: string;
   x_mm?: number;
@@ -145,44 +242,16 @@ export async function createFloorObject(payload: {
   rotation_deg?: number;
   color?: string;
 }): Promise<FloorObject> {
-  const release = await entityMutex.acquire(`floor-${payload.floor_id}`);
-  try {
-    await delay(300);
-    const floor = mockFloors.find((f) => f.id === payload.floor_id && !f.deleted_at);
-    if (!floor) throw new Error("Floor not found");
-    const now = new Date().toISOString();
-    const obj: FloorObject = {
-      id: `fo_${Date.now().toString(36)}`,
-      floor_id: payload.floor_id,
-      outlet_id: floor.outlet_id,
-      kind: payload.kind,
-      shapeVariant: payload.shapeVariant,
-      label: payload.label,
-      x_mm: payload.x_mm ?? Math.round(floor.width_mm / 2 - 1000),
-      y_mm: payload.y_mm ?? Math.round(floor.height_mm / 2),
-      w_mm: payload.w_mm ?? 2000,
-      h_mm: payload.h_mm ?? 150,
-      rotation_deg: payload.rotation_deg ?? 0,
-      z_index: 0,
-      color: payload.color,
-      created_at: now,
-      updated_at: now,
-      version: 1,
-    };
-    mockObjects.push(obj);
-    saveFloors();
-    await recordEvent({
-      outlet_id: obj.outlet_id,
-      entity_type: "FLOOR",
-      entity_id: floor.id,
-      event_type: "FLOOR_UPDATED",
-      reason_code: "OBJECT_CREATED",
-      metadata: { object_id: obj.id, kind: obj.kind },
-    });
-    return { ...obj };
-  } finally {
-    release();
-  }
+  const { row } = await api<{ row: Record<string, unknown> }>(
+    `/api/floors/${encodeURIComponent(payload.floor_id)}/objects`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!row) throw new Error("Floor object created but could not be reloaded");
+  return toClientObject(row);
 }
 
 export async function moveFloorObject(
@@ -196,215 +265,48 @@ export async function setFloorObjectPose(
   id: string,
   params: { x_mm?: number; y_mm?: number; w_mm?: number; h_mm?: number; rotation_deg?: number },
 ): Promise<void> {
-  const idx = mockObjects.findIndex((o) => o.id === id && !o.deleted_at);
-  if (idx === -1) return;
-  const cur = mockObjects[idx];
-  const next = {
-    ...cur,
-    ...(params.x_mm !== undefined ? { x_mm: params.x_mm } : {}),
-    ...(params.y_mm !== undefined ? { y_mm: params.y_mm } : {}),
-    ...(params.w_mm !== undefined ? { w_mm: params.w_mm } : {}),
-    ...(params.h_mm !== undefined ? { h_mm: params.h_mm } : {}),
-    ...(params.rotation_deg !== undefined ? { rotation_deg: params.rotation_deg } : {}),
-    updated_at: new Date().toISOString(),
-    version: cur.version + 1,
-  };
-  const changed =
-    next.x_mm !== cur.x_mm ||
-    next.y_mm !== cur.y_mm ||
-    next.w_mm !== cur.w_mm ||
-    next.h_mm !== cur.h_mm ||
-    next.rotation_deg !== cur.rotation_deg;
-  if (!changed) return;
-  mockObjects[idx] = next;
-  saveFloors();
-  await recordEvent({
-    outlet_id: cur.outlet_id,
-    entity_type: "FLOOR",
-    entity_id: cur.floor_id,
-    event_type: "FLOOR_UPDATED",
-    reason_code: "OBJECT_POSE",
-    metadata: { object_id: id, ...params },
+  await api(`/api/floor-objects/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(params),
   });
 }
 
 export async function deleteFloorObject(id: string): Promise<void> {
-  const obj = mockObjects.find((o) => o.id === id && !o.deleted_at);
-  if (!obj) return;
-  const release = await entityMutex.acquire(`floor-${obj.floor_id}`);
-  try {
-    await delay(200);
-    const idx = mockObjects.findIndex((o) => o.id === id);
-    if (idx === -1) return;
-    mockObjects[idx] = {
-      ...mockObjects[idx],
-      deleted_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    saveFloors();
-    await recordEvent({
-      outlet_id: obj.outlet_id,
-      entity_type: "FLOOR",
-      entity_id: obj.floor_id,
-      event_type: "FLOOR_UPDATED",
-      reason_code: "OBJECT_DELETED",
-      metadata: { object_id: id, kind: obj.kind },
-    });
-  } finally {
-    release();
-  }
+  await api(`/api/floor-objects/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export async function createFloor(payload: FloorPayload): Promise<Floor> {
-  const release = await entityMutex.acquire("floor-write");
-  try {
-    await delay(500);
-    const now = new Date().toISOString();
-    const floor: Floor = {
-      id: `fl_${Date.now().toString(36)}`,
-      outlet_id: payload.outlet_id ?? requireServiceOutletId(),
-      name: payload.name,
-      code: payload.code.toUpperCase(),
-      description: payload.description,
-      level: payload.level ?? 0,
-      capacity: payload.capacity ?? 20,
-      sort_order: payload.sort_order ?? mockFloors.length + 1,
-      is_active: payload.is_active ?? true,
-      is_outdoor: payload.is_outdoor ?? false,
-      width_mm: payload.width_mm ?? 12000,
-      height_mm: payload.height_mm ?? 8000,
-      grid_size_mm: payload.grid_size_mm ?? 100,
-      background_color: payload.background_color,
-      background_image_url: payload.background_image_url,
-      version: 1,
-      created_at: now,
-      updated_at: now,
-    };
-    mockFloors.push(floor);
-    saveFloors();
-    await recordEvent({
-      outlet_id: floor.outlet_id,
-      entity_type: "FLOOR",
-      entity_id: floor.id,
-      event_type: "FLOOR_CREATED",
-      to_state: "ACTIVE",
-      metadata: { name: floor.name, code: floor.code },
-    });
-    return { ...floor };
-  } finally {
-    release();
-  }
+  const outletId = payload.outlet_id ?? getServiceOutletId() ?? undefined;
+  if (!outletId) throw new Error("No outlet selected — create one first");
+  const { row } = await api<{ row: Record<string, unknown> }>(`/api/floors`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...payload, outlet_id: outletId }),
+  });
+  if (!row) throw new Error("Floor created but could not be reloaded");
+  return toClientFloor(row);
 }
 
 export async function updateFloor(id: string, payload: FloorPayload): Promise<Floor> {
-  const release = await entityMutex.acquire(`floor-${id}`);
-  try {
-    await delay(500);
-    const idx = mockFloors.findIndex((f) => f.id === id);
-    if (idx === -1) throw new Error("Floor not found");
-    if (payload.outlet_id !== undefined && payload.outlet_id !== mockFloors[idx].outlet_id) {
-      throw new Error("Floor cannot move across outlets");
-    }
-
-    // Guard: if shrinking, ensure no tables or objects orphaned (Design Edge Case E9, M9)
-    if (payload.width_mm || payload.height_mm) {
-      const { tables } = await getTablesWithDerivedByFloor(id);
-      const newW = payload.width_mm ?? mockFloors[idx].width_mm;
-      const newH = payload.height_mm ?? mockFloors[idx].height_mm;
-      const orphanTables = tables.filter((t) => t.x_mm + t.w_mm > newW || t.y_mm + t.h_mm > newH);
-      const orphanObjects = mockObjects.filter(
-        (o) =>
-          o.floor_id === id && !o.deleted_at && (o.x_mm + o.w_mm > newW || o.y_mm + o.h_mm > newH),
-      );
-      const orphanNames = [
-        ...orphanTables.map((t) => t.number),
-        ...orphanObjects.map((o) => o.label ?? o.kind),
-      ];
-      if (orphanNames.length > 0) {
-        throw new Error(
-          `Floor shrink would orphan ${orphanNames.length} item(s) (${orphanNames.join(", ")}). Move them first.`,
-        );
-      }
-    }
-
-    const updated = {
-      ...mockFloors[idx],
-      ...payload,
-      updated_at: new Date().toISOString(),
-      version: mockFloors[idx].version + 1,
-    };
-    mockFloors[idx] = updated;
-    saveFloors();
-    await recordEvent({
-      outlet_id: updated.outlet_id,
-      entity_type: "FLOOR",
-      entity_id: updated.id,
-      event_type: "FLOOR_UPDATED",
-      metadata: { payload },
-    });
-    return { ...updated };
-  } finally {
-    release();
-  }
+  await api(`/api/floors/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const row = await getFloorById(id);
+  if (!row) throw new Error("Floor not found");
+  return row;
 }
 
 export async function reorderFloors(input: ReorderFloorInput[]): Promise<void> {
-  const release = await entityMutex.acquire("floor-write");
-  try {
-    await delay(400);
-    input.forEach((item) => {
-      const idx = mockFloors.findIndex((f) => f.id === item.floor_id);
-      if (idx !== -1) {
-        mockFloors[idx].sort_order = item.sort_order;
-        mockFloors[idx].updated_at = new Date().toISOString();
-      }
-    });
-    saveFloors();
-    const touchedOutlet =
-      input
-        .map((item) => mockFloors.find((f) => f.id === item.floor_id)?.outlet_id)
-        .find((o): o is string => !!o) ?? requireServiceOutletId();
-    await recordEvent({
-      outlet_id: touchedOutlet,
-      entity_type: "FLOOR",
-      entity_id: "global",
-      event_type: "FLOOR_REORDERED",
-    });
-  } finally {
-    release();
-  }
+  await api(`/api/floors/reorder`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ items: input }),
+  });
 }
 
 export async function deleteFloor(id: string): Promise<void> {
-  const release = await entityMutex.acquire(`floor-${id}`);
-  try {
-    await delay(400);
-    const idx = mockFloors.findIndex((f) => f.id === id);
-    if (idx === -1) throw new Error("Floor not found");
-
-    // Guard: active occupancy or tables (Debate M1)
-    const { tables, groups } = await getTablesWithDerivedByFloor(id);
-    if (groups.length > 0) {
-      throw new Error(
-        `Cannot delete floor with ${groups.length} active occupancy group(s). Release them first.`,
-      );
-    }
-    if (tables.length > 0) {
-      throw new Error(
-        `Cannot delete floor with ${tables.length} tables. Move or delete them first.`,
-      );
-    }
-
-    mockFloors[idx].deleted_at = new Date().toISOString();
-    mockFloors[idx].is_active = false;
-    saveFloors();
-    await recordEvent({
-      outlet_id: mockFloors[idx].outlet_id,
-      entity_type: "FLOOR",
-      entity_id: id,
-      event_type: "FLOOR_DELETED",
-    });
-  } finally {
-    release();
-  }
+  await api(`/api/floors/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
