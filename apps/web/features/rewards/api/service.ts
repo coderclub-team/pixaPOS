@@ -1,4 +1,3 @@
-import { delay } from "@/constants/mock-api";
 import { REWARD_RULES, type RewardEntry, type RewardReason, type RewardRules } from "./types";
 
 const REWARD_KEY = "pixaRewards";
@@ -35,7 +34,6 @@ function saveRules() {
 
 /** Rules history, newest first. */
 export async function getRewardRules(): Promise<RewardRules[]> {
-  await delay(150);
   load();
   return [...mockRules].sort((a, b) => b.from_at.localeCompare(a.from_at));
 }
@@ -69,7 +67,6 @@ export async function createRewardRules(payload: {
   from_at?: string;
   to_at?: string;
 }): Promise<RewardRules> {
-  await delay(400);
   load();
   if (!(payload.earn_paise_per_point > 0) || !Number.isFinite(payload.earn_paise_per_point))
     throw new Error("Earn rate must be positive (paise per point)");
@@ -101,7 +98,6 @@ export async function createRewardRules(payload: {
 }
 
 export async function rewardBalance(customerId: string): Promise<number> {
-  await delay(100);
   load();
   return mockEntries
     .filter((e) => e.customer_id === customerId)
@@ -109,7 +105,6 @@ export async function rewardBalance(customerId: string): Promise<number> {
 }
 
 export async function rewardLedger(customerId: string): Promise<RewardEntry[]> {
-  await delay(150);
   load();
   return mockEntries
     .filter((e) => e.customer_id === customerId)
@@ -150,7 +145,6 @@ export async function earnForOrder(
   orderId: string,
   grandPaise: number,
 ): Promise<number> {
-  await delay(100);
   load();
   if (
     mockEntries.some(
@@ -172,7 +166,6 @@ export async function redeemForOrder(
   orderId: string,
   points: number,
 ): Promise<{ points: number; value_paise: number }> {
-  await delay(150);
   load();
   if (!Number.isInteger(points) || points <= 0)
     throw new Error("Points must be a positive integer");
@@ -195,7 +188,6 @@ export async function voidRedemptionForOrder(orderId: string): Promise<void> {
 }
 
 export async function rewardsOutstanding(): Promise<{ members: number; points: number }> {
-  await delay(150);
   load();
   const byCustomer = new Map<string, number>();
   for (const e of mockEntries)

@@ -1,4 +1,3 @@
-import { delay } from "@/constants/mock-api";
 import type { OrderChannel, OrderItemSnapshot } from "@/features/orders/api/types";
 import type { PromoCode, PromoEvaluation, PromoPayload, PromoRedemption } from "./types";
 
@@ -36,19 +35,16 @@ function cleanCode(code: string): string {
 }
 
 export async function getPromos(): Promise<PromoCode[]> {
-  await delay(200);
   load();
   return [...mockPromos].sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
 export async function getPromoById(id: string): Promise<PromoCode | null> {
-  await delay(150);
   load();
   return mockPromos.find((p) => p.id === id) ?? null;
 }
 
 export async function getPromoByCode(code: string): Promise<PromoCode | null> {
-  await delay(150);
   load();
   return mockPromos.find((p) => p.code === cleanCode(code)) ?? null;
 }
@@ -83,7 +79,6 @@ export async function createPromo(
   payload: PromoPayload,
   outletId: string = OUTLET,
 ): Promise<PromoCode> {
-  await delay(400);
   load();
   const code = validatePayload(payload, undefined, outletId);
   const now = new Date().toISOString();
@@ -115,7 +110,6 @@ export async function createPromo(
 }
 
 export async function updatePromo(id: string, payload: Partial<PromoPayload>): Promise<PromoCode> {
-  await delay(400);
   load();
   const idx = mockPromos.findIndex((p) => p.id === id);
   if (idx === -1) throw new Error("Promo not found");
@@ -153,7 +147,6 @@ export async function updatePromo(id: string, payload: Partial<PromoPayload>): P
 export async function promoUsage(
   promoId: string,
 ): Promise<{ total: number; amount_paise: number }> {
-  await delay(100);
   load();
   const rows = mockRedeems.filter((r) => r.promo_id === promoId);
   return {

@@ -1,4 +1,3 @@
-import { delay } from "@/constants/mock-api";
 import { entityMutex } from "@/lib/mutex";
 import {
   buildInvoiceTotals,
@@ -69,7 +68,6 @@ export async function getServerTrial(
  * trial clock survives browser wipes; localStorage is the offline fallback.
  */
 export async function getSubscription(organizationId: string): Promise<SubscriptionView | null> {
-  await delay(300);
   loadBilling();
   adoptLegacyRow(organizationId);
   const server = await getServerTrial(organizationId);
@@ -127,7 +125,6 @@ export async function ensureSubscription(
 ): Promise<SubscriptionView> {
   const release = await entityMutex.acquire("billing-write");
   try {
-    await delay(400);
     loadBilling();
     adoptLegacyRow(organizationId);
     if (mockSubscription && mockSubscription.organization_id === organizationId)
@@ -157,7 +154,6 @@ export async function cancelSubscription(
 ): Promise<SubscriptionView> {
   const release = await entityMutex.acquire("billing-write");
   try {
-    await delay(400);
     loadBilling();
     adoptLegacyRow(organizationId);
     if (!mockSubscription || mockSubscription.organization_id !== organizationId) {
@@ -178,7 +174,6 @@ export async function cancelSubscription(
 }
 
 export async function getInvoices(organizationId: string): Promise<SubscriptionInvoice[]> {
-  await delay(300);
   loadBilling();
   adoptLegacyRow(organizationId);
   return [...mockInvoices]
@@ -201,7 +196,6 @@ export async function recordInvoice(
 ): Promise<SubscriptionInvoice> {
   const release = await entityMutex.acquire("billing-write");
   try {
-    await delay(300);
     loadBilling();
     const totals = buildInvoiceTotals(params.subtotal_paise);
     const count = mockInvoices.filter((i) => i.organization_id === organizationId).length + 1;

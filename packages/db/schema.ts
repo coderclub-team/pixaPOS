@@ -374,8 +374,17 @@ export const customers = pgTable(
     ...audit,
     name: text("name").notNull(),
     phone: text("phone").notNull(),
+    alternatePhone: text("alternate_phone"),
+    email: text("email"),
+    tags: jsonb("tags").$type<string[]>().default([]).notNull(),
+    notes: text("notes"),
+    isActive: boolean("is_active").default(true).notNull(),
+    addresses: jsonb("addresses").$type<Record<string, unknown>[]>().default([]).notNull(),
   },
-  (t) => [index("customers_org_outlet_idx").on(t.organizationId, t.outletId)],
+  (t) => [
+    index("customers_org_outlet_idx").on(t.organizationId, t.outletId),
+    index("customers_outlet_phone_idx").on(t.outletId, t.phone),
+  ],
 );
 
 /** Purchase orders (outlet-owned). Money in paise. */
@@ -703,6 +712,17 @@ export const rawMaterials = pgTable(
     supplierId: text("supplier_id"),
     taxPercent: integer("tax_percent").default(0).notNull(),
     hsnCode: text("hsn_code"),
+    category: text("category").default("general").notNull(),
+    stockQty: numeric("stock_qty").default("0").notNull(),
+    lowStockThreshold: numeric("low_stock_threshold").default("0").notNull(),
+    costPricePaise: bigint("cost_price_paise", { mode: "number" }).default(0).notNull(),
+    avgCostPaise: bigint("avg_cost_paise", { mode: "number" }).default(0).notNull(),
+    barcode: text("barcode"),
+    manufacturer: text("manufacturer"),
+    purchaseUnit: text("purchase_unit"),
+    purchaseToBaseRate: numeric("purchase_to_base_rate"),
+    taxType: text("tax_type").default("GST"),
+    suppliers: jsonb("suppliers").$type<Record<string, unknown>[]>().default([]).notNull(),
   },
   (t) => [
     index("raw_materials_org_idx").on(t.organizationId),
@@ -717,6 +737,16 @@ export const recipes = pgTable(
     ...master,
     yields: text("yields"),
     menuItemId: text("menu_item_id"),
+    yieldUnit: text("yield_unit").default("serves"),
+    steps: jsonb("steps").$type<Record<string, unknown>[]>().default([]).notNull(),
+    ingredients: jsonb("ingredients").$type<Record<string, unknown>[]>().default([]).notNull(),
+    sellingPricePaise: bigint("selling_price_paise", { mode: "number" }),
+    prepTimeMin: integer("prep_time_min"),
+    cookTimeMin: integer("cook_time_min"),
+    platingNotes: text("plating_notes"),
+    garnish: text("garnish"),
+    servingVessel: text("serving_vessel"),
+    photoUrl: text("photo_url"),
   },
   (t) => [index("recipes_org_idx").on(t.organizationId)],
 );
@@ -745,8 +775,90 @@ export const suppliers = pgTable(
     ...master,
     phone: text("phone"),
     gstin: text("gstin"),
+    contactPerson: text("contact_person"),
+    email: text("email"),
+    address: text("address"),
   },
   (t) => [index("suppliers_org_idx").on(t.organizationId)],
+);
+
+export const wasteLogs = pgTable(
+  "waste_logs",
+  {
+    id: text("id").primaryKey(),
+    outletId: text("outlet_id").notNull(),
+    organizationId: text("organization_id").notNull(),
+    deviceId: text("device_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    version: integer("version").default(1).notNull(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    rawMaterialId: text("raw_material_id"),
+    materialName: text("material_name"),
+    recipeId: text("recipe_id"),
+    recipeName: text("recipe_name"),
+    variantId: text("variant_id"),
+    variantName: text("variant_name"),
+    orderId: text("order_id"),
+    orderNumber: text("order_number"),
+    qty: numeric("qty").default("0").notNull(),
+    unit: text("unit").default("pcs").notNull(),
+    reason: text("reason").notNull(),
+    notes: text("notes"),
+    photoUrl: text("photo_url"),
+    costLossPaise: bigint("cost_loss_paise", { mode: "number" }).default(0).notNull(),
+    createdBy: text("created_by"),
+  },
+  (t) => [
+    index("waste_logs_org_outlet_idx").on(t.organizationId, t.outletId),
+    index("waste_logs_material_idx").on(t.rawMaterialId),
+  ],
+);
+
+export const supplierAdjustments = pgTable(
+  "supplier_adjustments",
+  {
+    id: text("id").primaryKey(),
+    outletId: text("outlet_id").notNull(),
+    organizationId: text("organization_id").notNull(),
+    supplierId: text("supplier_id")
+      .notNull()
+      .references(() => suppliers.id, { onDelete: "restrict" }),
+    type: text("type").notNull(),
+    amountPaise: bigint("amount_paise", { mode: "number" }).notNull(),
+    reason: text("reason").notNull(),
+    notes: text("notes"),
+    referenceId: text("reference_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("supplier_adj_org_outlet_idx").on(t.organizationId, t.outletId),
+    index("supplier_adj_supplier_idx").on(t.supplierId),
+  ],
+);
+
+export const supplierPayments = pgTable(
+  "supplier_payments",
+  {
+    id: text("id").primaryKey(),
+    outletId: text("outlet_id").notNull(),
+    organizationId: text("organization_id").notNull(),
+    supplierId: text("supplier_id")
+      .notNull()
+      .references(() => suppliers.id, { onDelete: "restrict" }),
+    amountPaise: bigint("amount_paise", { mode: "number" }).notNull(),
+    paymentMode: text("payment_mode").notNull(),
+    paymentDate: text("payment_date").notNull(),
+    reference: text("reference"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("supplier_pay_org_outlet_idx").on(t.organizationId, t.outletId),
+    index("supplier_pay_supplier_idx").on(t.supplierId),
+  ],
 );
 
 /** Per-outlet overrides over a shared logical item (price/availability). */
