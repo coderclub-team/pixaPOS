@@ -1,4 +1,3 @@
-import { delay } from "@/constants/mock-api";
 import type { BusinessHours, DayHours, Outlet, OutletPayload } from "./types";
 
 type ServerProfile = Record<string, unknown>;
@@ -201,7 +200,6 @@ export function minutesToClose(
  * or reachable — callers show setup instead of mock data.
  */
 export async function getOutlet(): Promise<Outlet | null> {
-  await delay(500);
   try {
     const { outletsQueryOptions, resolveActiveOutlet } = await import("./outlets");
     const { getQueryClient } = await import("@/lib/query-client");
@@ -226,7 +224,6 @@ export async function getOutlet(): Promise<Outlet | null> {
 }
 
 export async function updateOutlet(outletId: string, payload: OutletPayload): Promise<Outlet> {
-  await delay(800);
   if (!outletId) throw new Error("No outlet selected — create one first");
   const res = await fetch(`/api/outlets/${encodeURIComponent(outletId)}`, {
     method: "PUT",
@@ -247,7 +244,6 @@ export async function updateOutlet(outletId: string, payload: OutletPayload): Pr
 }
 
 export async function getOutletById(id: string): Promise<Outlet | null> {
-  await delay(300);
   const profile = await fetchServerProfile(id);
   return profile ? toOutlet(profile) : null;
 }
@@ -263,7 +259,6 @@ export async function checkKioskPin(
   pin: string,
   opts?: { allowSet?: boolean },
 ): Promise<boolean> {
-  await delay(200);
   if (!/^[0-9]{4,8}$/.test(pin)) return false;
   const { hashKioskPin } = await import("@pixa/server/device-token");
   // Verify (or first-set) against the server hash so every kiosk of the
@@ -292,7 +287,6 @@ const VPA_RE = /^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/;
 
 /** Add a UPI VPA. First account becomes the default automatically. */
 export async function addUpiAccount(outletId: string, label: string, vpa: string): Promise<Outlet> {
-  await delay(300);
   const cleanLabel = label.trim();
   const cleanVpa = vpa.trim();
   if (cleanLabel.length < 2) throw new Error("Label must be at least 2 characters");
@@ -315,7 +309,6 @@ export async function addUpiAccount(outletId: string, label: string, vpa: string
 
 /** Set exactly one default VPA (manual default — no implicit fallback). */
 export async function setDefaultUpiAccount(outletId: string, id: string): Promise<Outlet> {
-  await delay(300);
   const current = await getOutletById(outletId);
   if (!current) throw new Error("Outlet not found");
   const ids = current.upi_ids ?? [];
@@ -331,7 +324,6 @@ export async function removeUpiAccount(
   outletId: string,
   id: string,
 ): Promise<{ outlet: Outlet; promoted: boolean }> {
-  await delay(300);
   const current = await getOutletById(outletId);
   if (!current) throw new Error("Outlet not found");
   const ids = current.upi_ids ?? [];

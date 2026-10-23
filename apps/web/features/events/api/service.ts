@@ -1,4 +1,3 @@
-import { delay } from "@/constants/mock-api";
 import { ulid } from "@pixa/contracts";
 import type { BusinessEvent, BusinessEventType, EntityType, EventFilters } from "./types";
 import { deviceId } from "@/lib/db/device";
@@ -308,7 +307,6 @@ async function persistToServer(event: BusinessEvent & { sequence?: number }): Pr
 }
 
 export async function getEvents(filters?: EventFilters): Promise<BusinessEvent[]> {
-  await delay(200);
   if (await useSqlite()) {
     const clauses: string[] = [];
     const params: unknown[] = [];
@@ -345,7 +343,32 @@ export async function getEvents(filters?: EventFilters): Promise<BusinessEvent[]
     );
     return rows.map(rowToEvent);
   }
-  loadEvents(); // localStorage is the shared source — reload so tabs/displays agree
+
+  // Fallback to server if available
+  if (typeof window !== "undefined" && typeof fetch !== "undefined" && filters?.outlet_id) {
+    try {
+      const res = await fetch(
+        `/api/events?outletId=${encodeURIComponent(filters.outlet_id)}&limit=100`,
+        {
+          credentials: "include",
+        },
+      );
+      if (res.ok) {
+        const data = (await res.json()) as { events?: BusinessEvent[] };
+        if (Array.isArray(data.events)) {
+          let list = data.events;
+          if (filters.entity_type) list = list.filter((e) => e.entity_type === filters.entity_type);
+          if (filters.entity_id) list = list.filter((e) => e.entity_id === filters.entity_id);
+          if (filters.event_type) list = list.filter((e) => e.event_type === filters.event_type);
+          if (filters.date_from) list = list.filter((e) => e.created_at >= filters.date_from!);
+          if (filters.date_to) list = list.filter((e) => e.created_at <= filters.date_to!);
+          return list;
+        }
+      }
+    } catch {}
+  }
+
+  loadEvents(); // localStorage is the shared fallback — reload so tabs/displays agree
   let result = [...mockEvents].sort((a, b) => b.created_at.localeCompare(a.created_at));
 
   if (filters?.outlet_id) {

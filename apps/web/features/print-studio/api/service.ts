@@ -3,7 +3,6 @@
  * an idempotent print outbox. Only service commands mutate state, transition
  * jobs, and append print business events — UI calls commands, never stores.
  */
-import { delay } from "@/constants/mock-api";
 import { ulid } from "@pixa/contracts";
 import { recordEvent } from "@/features/events/api/service";
 import { getOrderById } from "@/features/orders/api/service";
@@ -100,7 +99,6 @@ function transportFor(printer: Printer): PrintTransport {
 /* ---------- registry ---------- */
 
 export async function getPrinters(outlet_id = OUTLET_ID): Promise<Printer[]> {
-  await delay(100);
   const printers = load<Printer[]>(PRINTER_KEY, []).filter((p) => p.outlet_id === outlet_id);
   // No auto-seeded emulator: printers only exist after explicit setup.
   // (The old localhost emulator seed was removed with the demo-data purge.)
@@ -111,7 +109,6 @@ export async function registerPrinter(
   payload: PrinterPayload,
   outlet_id = OUTLET_ID,
 ): Promise<Printer> {
-  await delay(200);
   const printers = load<Printer[]>(PRINTER_KEY, []);
   const printer: Printer = {
     id: `prn_${ulid().toLowerCase()}`,
@@ -131,7 +128,6 @@ export async function registerPrinter(
 }
 
 export async function updatePrinter(id: string, payload: PrinterPayload): Promise<Printer | null> {
-  await delay(200);
   const printers = load<Printer[]>(PRINTER_KEY, []);
   const idx = printers.findIndex((p) => p.id === id);
   if (idx < 0) return null;
@@ -171,7 +167,6 @@ export async function resolvePrinter(
 export async function saveRoute(
   route: Omit<PrintRoute, "id"> & { id?: string },
 ): Promise<PrintRoute> {
-  await delay(150);
   const routes = load<PrintRoute[]>(ROUTE_KEY, []);
   if (route.id) {
     const next = routes.map((r) => (r.id === route.id ? { ...r, ...route } : r));
@@ -189,7 +184,6 @@ export async function getTemplate(
   purpose: PrintPurpose,
   outlet_id = OUTLET_ID,
 ): Promise<PrintTemplate> {
-  await delay(100);
   const found = load<PrintTemplate[]>(TEMPLATE_KEY, []).find(
     (t) => t.outlet_id === outlet_id && t.purpose === purpose,
   );
@@ -201,7 +195,6 @@ export async function saveTemplate(
   payload: Partial<PrintTemplate>,
   outlet_id = OUTLET_ID,
 ): Promise<PrintTemplate> {
-  await delay(200);
   const templates = load<PrintTemplate[]>(TEMPLATE_KEY, []);
   const idx = templates.findIndex((t) => t.outlet_id === outlet_id && t.purpose === purpose);
   const merged = {
@@ -321,7 +314,6 @@ function readJobs(): PrintJob[] {
 }
 
 export async function getPrintJobs(outlet_id = OUTLET_ID): Promise<PrintJob[]> {
-  await delay(100);
   return readJobs()
     .filter((j) => j.outlet_id === outlet_id)
     .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
@@ -591,7 +583,6 @@ export async function latestJobForRef(
   purpose: PrintPurpose,
   ref_id: string,
 ): Promise<PrintJob | null> {
-  await delay(50);
   const hits = readJobs().filter((j) => j.purpose === purpose && j.ref_id === ref_id);
   if (hits.length === 0) return null;
   hits.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
