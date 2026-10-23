@@ -199,6 +199,8 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@pixa/db": "workspace:*",
+    "@pixa/server": "workspace:*",
     "@radix-ui/react-avatar": "^1.2.6",
     "@radix-ui/react-collapsible": "^1.1.20",
     "@radix-ui/react-dialog": "^1.1.23",
@@ -227,9 +229,7 @@
     "sonner": "^1.7.4",
     "tailwind-merge": "^3.5.0",
     "uuid": "^11.1.0",
-    "zod": "^3.24.0",
-    "@pixa/db": "workspace:*",
-    "@pixa/server": "workspace:*"
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { and, eq, getTableColumns } from "drizzle-orm";
-import { db, outlets } from "@pixa/db";
+import { and, eq, getTableColumns, inArray } from "drizzle-orm";
+import { db, menuCategories, menuVariants, outlets } from "@pixa/db";
 import { ulid } from "@pixa/contracts";
 import { baHas, baOrgId, baSession } from "@pixa/server";
 import { MASTER_REGISTRY, MASTER_TYPES, type MasterType } from "@/lib/masters/registry";
@@ -97,11 +97,42 @@ export async function GET(req: Request, ctx: { params: Promise<{ type: string }>
         .where(eq(entry.table.organizationId, a.organizationId))
         .limit(2000)) as Record<string, unknown>[];
     } else {
-      rows = await db()
+      rows = (await db()
         .select()
         .from(entry.table)
         .where(eq(entry.table.organizationId, a.organizationId))
-        .limit(2000);
+        .limit(2000)) as Record<string, unknown>[];
+    }
+    if (type === "items" && rows.length > 0) {
+      // Embed variants + category name so menu surfaces render in one round trip.
+      const itemIds = rows.map((r) => String(r.id));
+      const [variants, cats] = await Promise.all([
+        db()
+          .select()
+          .from(menuVariants)
+          .where(
+            and(
+              eq(menuVariants.organizationId, a.organizationId),
+              inArray(menuVariants.menuItemId, itemIds),
+            ),
+          ),
+        db()
+          .select({ id: menuCategories.id, name: menuCategories.name })
+          .from(menuCategories)
+          .where(eq(menuCategories.organizationId, a.organizationId)),
+      ]);
+      const variantsByItem = new Map<string, unknown[]>();
+      for (const v of variants) {
+        const key = String((v as Record<string, unknown>).menuItemId);
+        if (!variantsByItem.has(key)) variantsByItem.set(key, []);
+        variantsByItem.get(key)!.push(v);
+      }
+      const nameByCat = new Map(cats.map((c) => [c.id, c.name]));
+      rows = rows.map((r) => ({
+        ...r,
+        variants: variantsByItem.get(String(r.id)) ?? [],
+        category_name: nameByCat.get(String((r as Record<string, unknown>).categoryId)) ?? null,
+      }));
     }
     return NextResponse.json({ rows }, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {

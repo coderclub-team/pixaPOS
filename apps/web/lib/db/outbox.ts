@@ -32,6 +32,24 @@ export async function appendOutbox(params: {
   payload: Record<string, unknown>;
   actor_id: string;
 }): Promise<CommandEnvelope> {
+  /* OFFLINE-FIRST-DISABLED: no outbox writes — envelopes are built in memory
+   * only and never queued, since nothing drains them. Restore the SQLite
+   * insert below to re-enable. Original body in git history.
+   */
+  const device = deviceId();
+  return {
+    command_id: ulid(),
+    device_id: device,
+    outlet_id: params.outlet_id,
+    entity_type: params.entity_type,
+    entity_id: params.entity_id,
+    operation: params.operation,
+    payload: params.payload,
+    actor_id: params.actor_id,
+    device_seq: 0,
+    created_at: new Date().toISOString(),
+  };
+  /*
   const device = deviceId();
   const envelope: CommandEnvelope = {
     command_id: ulid(),
@@ -64,6 +82,7 @@ export async function appendOutbox(params: {
     ],
   );
   return envelope;
+  */
 }
 
 export async function pendingOutboxCount(): Promise<number> {

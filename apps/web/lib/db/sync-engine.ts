@@ -8,8 +8,10 @@
  * loop already moves envelopes through pending → synced with idempotent
  * server acks, so transport, retry and visibility are verifiable now.
  */
+/* OFFLINE-FIRST-DISABLED: sync transport commented out (see below).
 import { markOutboxFailed, markOutboxSynced, pendingOutboxBatch } from "./outbox";
 import { apiUrl, checkHub, getHubUrl } from "../hub";
+*/
 
 export type SyncCycleResult =
   | { ran: false; reason: "offline" | "empty" | "locked" }
@@ -20,6 +22,7 @@ let timer: number | null = null;
 let onOnline: (() => void) | null = null;
 let onFocus: (() => void) | null = null;
 
+/* OFFLINE-FIRST-DISABLED: hub/cloud origin resolution for the sync loop.
 async function resolveOrigin(): Promise<string | null> {
   if (typeof window === "undefined") return null;
   if (!window.navigator.onLine) return null;
@@ -32,8 +35,16 @@ async function resolveOrigin(): Promise<string | null> {
   }
   return window.location.origin;
 }
+*/
 
+/* OFFLINE-FIRST-DISABLED: the whole sync transport below is commented out.
+ * The engine never runs, so every cycle reports empty and nothing is pushed.
+ * To re-enable: restore runSyncCycle + startSyncEngine bodies (git history
+ * has the originals).
+ */
 export async function runSyncCycle(): Promise<SyncCycleResult> {
+  return { ran: false, reason: "empty" };
+  /*
   if (running) return { ran: false, reason: "locked" };
   running = true;
   try {
@@ -81,9 +92,13 @@ export async function runSyncCycle(): Promise<SyncCycleResult> {
   } finally {
     running = false;
   }
+  */
 }
 
 export function startSyncEngine(intervalMs = 30000): () => void {
+  void intervalMs;
+  return () => {};
+  /*
   if (typeof window === "undefined") return () => {};
   if (timer) return () => stopSyncEngine();
   const kick = () => {
@@ -100,6 +115,7 @@ export function startSyncEngine(intervalMs = 30000): () => void {
   timer = window.setInterval(kick, intervalMs);
   void runSyncCycle();
   return () => stopSyncEngine();
+  */
 }
 
 export function stopSyncEngine(): void {

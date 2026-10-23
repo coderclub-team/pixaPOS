@@ -20,89 +20,13 @@ type NotificationState = {
   unreadCount: () => number;
 };
 
-const mockNotifications: Notification[] = [
-  {
-    id: "1",
-    title: "New team member joined",
-    body: "Sarah Connor has joined the Engineering workspace.",
-    status: "unread",
-    createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-    actions: [
-      {
-        id: "view",
-        label: "View workspace",
-        type: "redirect",
-        style: "primary",
-      },
-    ],
-  },
-  {
-    id: "2",
-    title: "New menu item added",
-    body: 'A new item "Margherita Pizza" has been added to the menu.',
-    status: "unread",
-    createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-    actions: [
-      {
-        id: "view-product",
-        label: "View menu",
-        type: "redirect",
-        style: "primary",
-      },
-    ],
-  },
-  {
-    id: "3",
-    title: "Billing cycle updated",
-    body: "Your Pro plan has been renewed. Next invoice on April 24, 2026.",
-    status: "unread",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    actions: [
-      {
-        id: "billing",
-        label: "View billing",
-        type: "redirect",
-        style: "primary",
-      },
-    ],
-  },
-  {
-    id: "4",
-    title: "KOT fired for Table T4",
-    body: "2× Margherita Pizza sent to the kitchen as KOT #12.",
-    status: "read",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-    actions: [
-      {
-        id: "view-orders",
-        label: "View orders",
-        type: "redirect",
-        style: "primary",
-      },
-    ],
-  },
-  {
-    id: "5",
-    title: "Low stock alert",
-    body: "Mozzarella is below par level. Raise a purchase order before the dinner rush.",
-    status: "read",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
-    actions: [
-      {
-        id: "view-stock",
-        label: "View stock",
-        type: "redirect",
-        style: "primary",
-      },
-    ],
-  },
-];
-
 export const useNotificationStore = create<NotificationState>()(
   // To enable persistence across refreshes, uncomment the persist wrapper below:
   // persist(
   (set, get) => ({
-    notifications: mockNotifications,
+    // Starts empty — sample notifications were removed; real ones arrive via
+    // addNotification (push / system events).
+    notifications: [] as Notification[],
 
     markAsRead: (id) =>
       set((state) => ({

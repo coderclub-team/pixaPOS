@@ -11,6 +11,14 @@ export const dynamic = "force-dynamic";
  * later (VAPID sender); registration alone enables future background alerts.
  */
 export async function POST(req: Request) {
+  /* OFFLINE-FIRST-DISABLED: push subscription intake forced off (no sender
+   * wired; registration alone served no purpose). Restore the body below to
+   * re-enable. The GET below stays: it reports the VAPID key (null when
+   * unconfigured) so clients keep disabling push gracefully.
+   */
+  void req;
+  return NextResponse.json({ error: "push disabled" }, { status: 501 });
+  /*
   const url = new URL(req.url);
   let body: {
     subscription?: { endpoint?: string; keys?: Record<string, string> };
@@ -46,6 +54,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "database not configured" }, { status: 503 });
     return NextResponse.json({ error: "failed to store subscription" }, { status: 500 });
   }
+  */
 }
 
 export async function GET() {

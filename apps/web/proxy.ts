@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "@pixa/server";
-import { readDeviceCookie, verifyDeviceToken } from "@pixa/server";
+// OFFLINE-FIRST-DISABLED: device-cookie grace commented out below (restore this import when re-enabling).
+// import { readDeviceCookie, verifyDeviceToken } from "@pixa/server";
 import { resolveSurfaceRoute } from "@/lib/hosts";
 
 // Session attach + app gates. Public paths: auth pages, API auth,
@@ -112,6 +113,10 @@ export async function middleware(request: NextRequest) {
     }
     return pass();
   } catch {
+    /* OFFLINE-FIRST-DISABLED: session-store unreachable no longer honors a
+     * paired device session — everything falls through to sign-in. Restore
+     * the device-cookie grace below to let paired POS/KDS stay open during
+     * IdP/DB blips (original in git history).
     // Session store unreachable: honor a paired device session (POS
     // surfaces only — /admin* never reaches here; it passed through above).
     const raw = readDeviceCookie(request.headers.get("cookie"));
@@ -140,6 +145,7 @@ export async function middleware(request: NextRequest) {
         return res;
       }
     }
+    */
     const url = request.nextUrl.clone();
     url.pathname = "/auth/sign-in";
     return NextResponse.redirect(url);

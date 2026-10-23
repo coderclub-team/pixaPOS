@@ -12,6 +12,12 @@ const ENABLED = process.env.PIXA_SYNC_ENABLED === "true";
  * retry/dedupe behavior is verifiable end to end.
  */
 export async function POST(req: Request) {
+  /* OFFLINE-FIRST-DISABLED: sync push endpoint forced off. Restore the
+   * ENABLED gate + handler below to re-enable idempotent command intake.
+   */
+  void req;
+  return NextResponse.json({ error: "sync disabled" }, { status: 503 });
+  /*
   if (!ENABLED) {
     return NextResponse.json({ error: "sync disabled" }, { status: 503 });
   }
@@ -54,4 +60,5 @@ export async function POST(req: Request) {
     results.push({ command_id: cmd.command_id, ok: true, server_version: 1 });
   }
   return NextResponse.json({ results });
+  */
 }
