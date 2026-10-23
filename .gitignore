@@ -46,3 +46,4 @@ apps/web/certificates/
 apps/template/.git
 website-template
 .env*
+.neon
