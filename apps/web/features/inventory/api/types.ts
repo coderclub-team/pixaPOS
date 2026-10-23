@@ -6,6 +6,16 @@ export type MaterialSupplierPrice = {
   last_purchase_at?: string;
 };
 
+export type BatchSummary = {
+  material_id: string;
+  total_batches?: number;
+  batches?: number;
+  total_stock?: number;
+  expiring_soon_qty?: number;
+  expired_qty?: number;
+  nearest_expiry?: string | null;
+};
+
 export type RawMaterial = {
   id: string;
   outlet_id?: string;
@@ -68,16 +78,20 @@ export type PurchaseOrderItem = {
 
 export type PurchaseOrder = {
   id: string;
+  outlet_id?: string;
   po_number: string; // e.g., PO-2025-001, international standard
   supplier_id: string;
   supplier_name?: string;
   items: PurchaseOrderItem[];
   subtotal: number;
   tax_amount: number;
+  tax?: number;
   total_amount: number;
+  total?: number;
   status: PurchaseOrderStatus;
   po_date: string; // order date ISO YYYY-MM-DD
   expected_at?: string; // Delivery date
+  expected_delivery_date?: string;
   reference?: string;
   payment_date?: string; // ISO YYYY-MM-DD, default today — informational only, NOT authoritative; source of truth is Purchase.payment_status + Payments (Purchase Bill)
   received_at?: string;
@@ -100,6 +114,7 @@ export type RecipeIngredient = {
   material_name?: string;
   qty: number; // base qty = simple-dish qty + fallback for variants without override (blank = all)
   unit: string;
+  cost?: number;
   wastage_percent?: number;
   step_no?: number; // which method step consumes it (consumed-in-operation lite)
   variant_qtys?: RecipeVariantQty[]; // per-variant overrides, only when linked dish has variants
@@ -170,6 +185,7 @@ export type WasteReason =
 
 export type WasteLog = {
   id: string;
+  outlet_id?: string;
   material_id?: string;
   material_name?: string;
   recipe_id?: string;
@@ -217,14 +233,17 @@ export type StockTransactionType =
 
 export type StockLedgerEntry = {
   id: string;
+  outlet_id?: string;
   material_id: string;
   material_name?: string;
   type: StockTransactionType;
   qty_delta: number;
+  resulting_stock?: number;
+  unit?: string;
   reason?: string;
   reference_id?: string;
-  previous_qty: number;
-  new_qty: number;
+  previous_qty?: number;
+  new_qty?: number;
   unit_cost?: number;
   total_cost?: number;
   avg_cost_before?: number;
@@ -244,6 +263,7 @@ export type StockLedgerFilters = {
   type?: StockTransactionType;
   date_from?: string;
   date_to?: string;
+  outlet_id?: string;
 };
 
 export type MaterialPriceHistory = {
@@ -271,6 +291,7 @@ export type PurchaseItem = {
   line_total?: number;
   purchase_qty?: number; // as-bought qty (audit)
   purchase_unit?: string; // as-bought unit
+  unit?: string;
   purchase_unit_cost?: number; // price per purchase unit
   /** Goods traceability (batch auto-created on receipt when absent). */
   batch_no?: string;
@@ -324,6 +345,8 @@ export type StockBatch = {
   updated_at: string;
 };
 
+export type InventoryBatch = StockBatch;
+
 export type BatchFilters = {
   search?: string;
   material_id?: string;
@@ -342,17 +365,21 @@ export type LandedCostLine = {
 };
 export type Purchase = {
   id: string;
+  outlet_id?: string;
   purchase_number: string; // PUR-YYYY-NNN
   po_id?: string | null;
   po_number?: string;
+  purchase_order_id?: string;
   supplier_id: string;
   supplier_name?: string;
   items: PurchaseItem[];
   subtotal: number;
   tax_amount: number;
+  tax?: number;
   landed_cost: number; // sum of landed_costs — additional cost (freight/handling/tip etc)
   landed_costs?: LandedCostLine[]; // breakdown, extendable — multiple lines, other charges
   total_amount: number; // subtotal + tax + landed
+  total?: number;
   paid_amount: number;
   payment_status: PurchasePaymentStatus;
   payment_mode?: "cash" | "upi" | "bank" | "credit";
@@ -384,18 +411,24 @@ export type PurchaseOrderPayload = Partial<
     | "supplier_name"
   >
 > &
-  Pick<PurchaseOrder, "supplier_id" | "items">;
+  Pick<PurchaseOrder, "supplier_id" | "items"> & {
+    po_number?: string;
+    expected_delivery_date?: string;
+    outlet_id?: string;
+  };
 export type RecipePayload = Partial<
   Omit<Recipe, "id" | "created_at" | "updated_at" | "cost_per_serve">
 > &
   Pick<Recipe, "name" | "ingredients"> & {
     steps?: Partial<RecipeStep>[];
   };
-export type RecipeFilters = { search?: string; is_active?: boolean };
+export type RecipeFilters = { search?: string; is_active?: boolean; outlet_id?: string };
 export type WastePayload = Partial<
   Omit<WasteLog, "id" | "created_at" | "cost_loss" | "material_name">
 > &
-  Pick<WasteLog, "qty" | "reason">;
+  Pick<WasteLog, "qty" | "reason"> & {
+    outlet_id?: string;
+  };
 export type PurchasePayload = Partial<
   Omit<
     Purchase,
@@ -413,6 +446,10 @@ export type PurchasePayload = Partial<
   >
 > &
   Pick<Purchase, "supplier_id" | "items" | "bill_date"> & {
+    purchase_number?: string;
+    purchase_order_id?: string;
+    po_id?: string;
+    outlet_id?: string;
     landed_cost?: number;
     landed_costs?: LandedCostLine[];
   };
@@ -443,6 +480,7 @@ export type PurchaseReturn = {
   supplier_id: string;
   supplier_name?: string;
   items: PurchaseReturnItem[];
+  subtotal?: number;
   subtotal_refund: number;
   tax_refund: number;
   total_refund: number;
@@ -472,7 +510,9 @@ export type PurchaseReturnPayload = Partial<
     | "approved_at"
   >
 > &
-  Pick<PurchaseReturn, "purchase_id" | "items" | "reason">;
+  Pick<PurchaseReturn, "purchase_id" | "items"> & {
+    reason?: ReturnReason;
+  };
 export type PurchaseReturnFilters = {
   search?: string;
   supplier_id?: string;
@@ -486,15 +526,30 @@ export type RawMaterialFilters = {
   category?: string;
   supplier_id?: string;
   low_stock?: boolean;
+  low_stock_only?: boolean;
+  outlet_id?: string;
 };
-export type SupplierFilters = { search?: string; is_active?: boolean };
-export type PurchaseOrderFilters = { search?: string; status?: PurchaseOrderStatus };
+export type SupplierFilters = { search?: string; is_active?: boolean; outlet_id?: string };
+export type PurchaseOrderFilters = {
+  search?: string;
+  status?: PurchaseOrderStatus;
+  supplier_id?: string;
+  outlet_id?: string;
+};
 export type PurchaseFilters = {
   search?: string;
   supplier_id?: string;
   payment_status?: PurchasePaymentStatus;
+  outlet_id?: string;
 };
-export type WasteFilters = { search?: string; reason?: WasteReason; order_id?: string };
+export type WasteFilters = {
+  search?: string;
+  reason?: WasteReason;
+  order_id?: string;
+  material_id?: string;
+  recipe_id?: string;
+  outlet_id?: string;
+};
 export type PurchaseReturnFiltersLegacy = PurchaseReturnFilters;
 
 export type AdjustmentType = "credit" | "debit";
@@ -509,6 +564,7 @@ export type AdjustmentCategory =
 export type AdjustmentStatus = "draft" | "posted" | "cancelled" | "applied";
 export type SupplierAdjustment = {
   id: string;
+  outlet_id?: string;
   adjustment_number: string; // CN-SUP-YYYY-NNN or DN-SUP-YYYY-NNN
   type: AdjustmentType;
   supplier_id: string;
@@ -517,6 +573,8 @@ export type SupplierAdjustment = {
   purchase_number?: string;
   category: AdjustmentCategory;
   reference?: string;
+  reference_id?: string;
+  reason?: string;
   notes?: string;
   amount: number; // total including tax — entered or sum of items
   tax_amount?: number;
@@ -542,13 +600,18 @@ export type SupplierAdjustmentPayload = Partial<
     | "posted_at"
   >
 > &
-  Pick<SupplierAdjustment, "supplier_id" | "type" | "category" | "amount" | "bill_date">;
+  Pick<SupplierAdjustment, "supplier_id" | "type" | "category" | "amount" | "bill_date"> & {
+    outlet_id?: string;
+    reason?: string;
+    reference_id?: string;
+  };
 export type SupplierAdjustmentFilters = {
   search?: string;
   supplier_id?: string;
   type?: AdjustmentType;
   status?: AdjustmentStatus;
   category?: AdjustmentCategory;
+  outlet_id?: string;
 };
 
 export type SupplierLedgerType = "purchase" | "payment" | "credit" | "debit" | "return";
@@ -575,6 +638,7 @@ export type PaymentMode = "cash" | "upi" | "bank" | "credit";
 export type PaymentStatus = "posted" | "cancelled";
 export type SupplierPayment = {
   id: string;
+  outlet_id?: string;
   payment_number: string; // PAY-YYYY-NNN
   supplier_id: string;
   supplier_name?: string;
@@ -583,12 +647,14 @@ export type SupplierPayment = {
   amount: number;
   payment_mode: PaymentMode;
   bill_date: string;
+  payment_date?: string;
   reference?: string;
   notes?: string;
   status: PaymentStatus;
   created_at: string;
   updated_at: string;
 };
+
 export type SupplierPaymentPayload = Partial<
   Omit<
     SupplierPayment,
@@ -601,11 +667,28 @@ export type SupplierPaymentPayload = Partial<
     | "status"
   >
 > &
-  Pick<SupplierPayment, "supplier_id" | "amount" | "bill_date">;
+  Pick<SupplierPayment, "supplier_id" | "amount" | "bill_date"> & {
+    outlet_id?: string;
+    payment_date?: string;
+  };
 export type PaymentFilters = {
   search?: string;
   supplier_id?: string;
   purchase_id?: string;
   status?: PaymentStatus;
   payment_mode?: PaymentMode;
+  outlet_id?: string;
+};
+
+export type SupplierOutstanding = {
+  supplier_id: string;
+  supplier_name: string;
+  total_purchases: number;
+  total_paid: number;
+  total_credits: number;
+  total_debits: number;
+  outstanding_balance: number;
+  payable: number;
+  overdue: number;
+  credit_available: number;
 };

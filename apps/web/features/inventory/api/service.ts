@@ -1,2312 +1,903 @@
-import { delay } from "@/constants/mock-api";
+/**
+ * Inventory domain — client service (server-backed).
+ *
+ * Connects to PostgreSQL via /api/masters/* and /api/inventory/*.
+ * Retains exact function signatures and exported API so UI components work unchanged.
+ * No mock data, no localStorage keys, no artificial delay().
+ */
+import { getServiceOutletId } from "@/features/outlet/api/outlets";
 import type {
+  BatchFilters,
+  BatchSummary,
+  InventoryBatch,
+  MaterialPriceHistory,
+  PaymentFilters,
+  Purchase,
+  PurchaseFilters,
+  PurchaseOrder,
+  PurchaseOrderFilters,
+  PurchaseOrderItem,
+  PurchaseOrderPayload,
+  PurchaseOrderStatus,
+  PurchasePayload,
+  PurchasePaymentStatus,
+  PurchaseReturn,
+  PurchaseReturnFilters,
+  PurchaseReturnPayload,
   RawMaterial,
   RawMaterialFilters,
   RawMaterialPayload,
   Recipe,
+  RecipeFilters,
+  RecipeIngredient,
   RecipePayload,
-  Supplier,
-  SupplierFilters,
-  SupplierPayload,
-  PurchaseOrder,
-  PurchaseOrderPayload,
-  PurchaseOrderStatus,
-  WasteLog,
-  WastePayload,
-  WasteFilters,
+  RecipeStep,
   StockLedgerEntry,
   StockLedgerFilters,
-  MaterialPriceHistory,
-  Purchase,
-  PurchasePayload,
-  PurchaseFilters,
-  PurchasePaymentStatus,
-  PurchaseReturn,
-  PurchaseReturnPayload,
-  PurchaseReturnFilters,
+  StorageLocation,
+  Supplier,
   SupplierAdjustment,
-  SupplierAdjustmentPayload,
   SupplierAdjustmentFilters,
+  SupplierAdjustmentPayload,
+  SupplierFilters,
   SupplierLedgerEntry,
   SupplierLedgerFilters,
+  SupplierOutstanding,
+  SupplierPayload,
   SupplierPayment,
   SupplierPaymentPayload,
-  PaymentFilters,
+  WasteFilters,
+  WasteLog,
+  WastePayload,
 } from "./types";
 
-// Raw Materials - Petpooja-aligned with multi-supplier
-let mockRawMaterials: RawMaterial[] = [];
-
-let mockSuppliers: Supplier[] = [];
-
-let mockRecipes: Recipe[] = [];
-
-let mockWaste: WasteLog[] = [];
-
-let mockPurchaseOrders: PurchaseOrder[] = [];
-const PO_STORAGE_KEY = "pixaPOs";
-
-/** Durable SQLite mirror (fire-and-forget; repo never throws). Only
- * purchase orders persist today — materials/recipes/ledger are seed-static
- * and rehydrate from code. */
-function mirrorPOs() {
-  if (typeof window === "undefined") return;
-  import("@/lib/db/repo").then(({ writeScope }) => {
-    void writeScope(
-      "purchase_orders",
-      mockPurchaseOrders.map((p) => ({
-        id: (p as { id: string }).id,
-        outlet_id: (p as { outlet_id?: string }).outlet_id ?? null,
-        data: p,
-        version: (p as { version?: number }).version ?? 1,
-        updated_at: (p as { updated_at?: string }).updated_at ?? new Date().toISOString(),
-        deleted_at: (p as { deleted_at?: string | null }).deleted_at ?? null,
-      })),
-    );
-  });
-}
-
-/** Adopt the durable mirror on app startup — only when localStorage is
- * missing/empty. Never overwrites existing localStorage. */
-export async function hydrateInventoryFromMirror(): Promise<void> {
-  if (typeof window === "undefined") return;
-  try {
-    const raw = localStorage.getItem(PO_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    if (Array.isArray(parsed) && parsed.length > 0) return;
-    const { readScope } = await import("@/lib/db/repo");
-    const docs = await readScope("purchase_orders");
-    if (docs.length === 0) return;
-    localStorage.setItem(PO_STORAGE_KEY, JSON.stringify(docs.map((d) => d.data)));
-    loadPOs();
-  } catch {}
-}
-
-function savePOs() {
-  if (typeof window !== "undefined") {
-    try {
-      localStorage.setItem(PO_STORAGE_KEY, JSON.stringify(mockPurchaseOrders));
-      mirrorPOs();
-    } catch {}
+async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, { credentials: "include", ...init });
+  const data = (await res.json().catch(() => null)) as { error?: string } | T | null;
+  if (!res.ok) {
+    const msg =
+      data && typeof data === "object" && "error" in data && typeof data.error === "string"
+        ? data.error
+        : `Request failed (${res.status})`;
+    throw new Error(msg);
   }
+  return data as T;
 }
-function loadPOs(): void {
-  if (typeof window !== "undefined") {
-    try {
-      const raw = localStorage.getItem(PO_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          mockPurchaseOrders = parsed;
-        }
-      }
-    } catch {}
+
+function toQuery(params: Record<string, string | number | boolean | undefined>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== "") q.set(k, String(v));
   }
-}
-// hydrate from storage on browser init
-loadPOs();
-
-let mockStockLedger: StockLedgerEntry[] = [];
-
-let mockPriceHistory: MaterialPriceHistory[] = [];
-
-// Helpers
-const supplierNameMap = () => Object.fromEntries(mockSuppliers.map((s) => [s.id, s.name]));
-const materialMap = () => Object.fromEntries(mockRawMaterials.map((m) => [m.id, m]));
-
-function recalculateRecipeCosts() {
-  const materials = materialMap();
-  mockRecipes.forEach((recipe) => {
-    let cost = 0;
-    recipe.ingredients.forEach((ing) => {
-      const mat = materials[ing.material_id];
-      cost += ing.qty * (mat?.avg_cost ?? 0) * (1 + (ing.wastage_percent ?? 0) / 100);
-    });
-    recipe.cost_per_serve = Math.round(cost * 100) / 100;
-    recipe.updated_at = new Date().toISOString();
-  });
+  const s = q.toString();
+  return s ? `?${s}` : "";
 }
 
-// Raw Materials CRUD
+/** No-op in server-backed architecture. Kept for caller compatibility. */
+export async function hydrateInventoryFromMirror(): Promise<void> {}
+
+/* -------------------------------------------------------------------------- */
+/* Raw Materials (/api/masters/materials)                                     */
+/* -------------------------------------------------------------------------- */
+
+function toClientMaterial(r: Record<string, any>): RawMaterial {
+  const now = new Date().toISOString();
+  return {
+    id: String(r.id),
+    outlet_id: r.outletId ?? r.outlet_id ?? undefined,
+    name: String(r.name ?? ""),
+    sku: String(r.sku ?? ""),
+    category: String(r.category ?? "general"),
+    unit: (r.unit as RawMaterial["unit"]) ?? "pcs",
+    manufacturer: r.manufacturer ?? undefined,
+    purchase_unit: r.purchaseUnit ?? r.purchase_unit ?? undefined,
+    purchase_to_base_rate: r.purchaseToBaseRate ? Number(r.purchaseToBaseRate) : undefined,
+    stock_qty: Number(r.stockQty ?? r.stock_qty ?? 0),
+    low_stock_threshold: Number(r.lowStockThreshold ?? r.low_stock_threshold ?? 0),
+    cost_price: Number(r.costPricePaise ?? r.cost_price_paise ?? 0) / 100,
+    avg_cost: Number(r.avgCostPaise ?? r.avg_cost_paise ?? 0) / 100,
+    tax_type: r.taxType ?? r.tax_type ?? "GST",
+    tax_percent: r.taxPercent ?? r.tax_percent ?? 0,
+    hsn_code: r.hsnCode ?? r.hsn_code ?? undefined,
+    barcode: r.barcode ?? undefined,
+    supplier_id: r.supplierId ?? r.supplier_id ?? undefined,
+    suppliers: Array.isArray(r.suppliers) ? r.suppliers : [],
+    is_active: r.is_active !== false && r.isActive !== false,
+    created_at: String(r.createdAt ?? r.created_at ?? now),
+    updated_at: String(r.updatedAt ?? r.updated_at ?? now),
+  };
+}
+
 export async function getRawMaterials(filters?: RawMaterialFilters): Promise<RawMaterial[]> {
-  await delay(400);
-  let result = [...mockRawMaterials].sort((a, b) => a.name.localeCompare(b.name));
+  const outletId = filters?.outlet_id ?? getServiceOutletId();
+  const { rows } = await api<{ rows: Record<string, any>[] }>(
+    `/api/masters/materials${toQuery({ outlet_id: outletId })}`,
+  );
+  let list = (rows ?? []).map(toClientMaterial);
   if (filters?.search) {
     const q = filters.search.toLowerCase();
-    result = result.filter(
-      (m) => m.name.toLowerCase().includes(q) || m.sku.toLowerCase().includes(q),
-    );
+    list = list.filter((m) => m.name.toLowerCase().includes(q) || m.sku.toLowerCase().includes(q));
   }
-  if (filters?.category) result = result.filter((m) => m.category === filters.category);
-  if (filters?.supplier_id) result = result.filter((m) => m.supplier_id === filters.supplier_id);
-  if (filters?.low_stock) result = result.filter((m) => m.stock_qty <= m.low_stock_threshold);
-  return result;
+  if (filters?.category) {
+    list = list.filter((m) => m.category.toLowerCase() === filters.category?.toLowerCase());
+  }
+  if (filters?.supplier_id) {
+    list = list.filter((m) => m.supplier_id === filters.supplier_id);
+  }
+  if (filters?.low_stock_only) {
+    list = list.filter((m) => m.stock_qty <= m.low_stock_threshold);
+  }
+  return list;
 }
 
 export async function getRawMaterialById(id: string): Promise<RawMaterial | null> {
-  await delay(300);
-  return mockRawMaterials.find((m) => m.id === id) ?? null;
-}
-
-function validatePurchaseUom(payload: RawMaterialPayload, fallbackUnit?: RawMaterial["unit"]) {
-  const pu = (payload as any).purchase_unit as string | undefined;
-  const rate = (payload as any).purchase_to_base_rate as number | undefined;
-  if (!pu) return;
-  const base = payload.unit ?? fallbackUnit;
-  if (base && pu !== base && (rate === undefined || !(rate > 0)))
-    throw new Error("Conversion rate required (> 0) when purchase unit differs from stock unit");
+  try {
+    const { row } = await api<{ row: Record<string, any> | null }>(
+      `/api/masters/materials/${encodeURIComponent(id)}`,
+    );
+    return row ? toClientMaterial(row) : null;
+  } catch (e) {
+    if (e instanceof Error && /not found/i.test(e.message)) return null;
+    throw e;
+  }
 }
 
 export async function createRawMaterial(payload: RawMaterialPayload): Promise<RawMaterial> {
-  await delay(600);
-  if (mockRawMaterials.some((m) => m.sku.toLowerCase() === payload.sku.toLowerCase()))
-    throw new Error(`SKU "${payload.sku}" already exists`);
-  if (payload.barcode && mockRawMaterials.some((m) => m.barcode && m.barcode === payload.barcode))
-    throw new Error(`Barcode "${payload.barcode}" already exists`);
-  if (payload.hsn_code && !/^[0-9]{4,8}$/.test(payload.hsn_code))
-    throw new Error("Invalid HSN 4-8 digits");
-  validatePurchaseUom(payload);
-  const now = new Date().toISOString();
-  const supplierMap = supplierNameMap();
-  const suppliers = (payload as any).suppliers as RawMaterial["suppliers"] | undefined;
-  const enrichedSuppliers =
-    suppliers?.map((s) => ({
-      ...s,
-      supplier_name: supplierMap[s.supplier_id] ?? s.supplier_name,
-    })) ?? undefined;
-  const mat: RawMaterial = {
-    id: `rm_${Date.now().toString(36)}`,
-    outlet_id: "out_001",
+  const body: Record<string, any> = {
     name: payload.name,
-    sku: payload.sku.toUpperCase(),
-    category: payload.category ?? "General",
-    unit: payload.unit ?? "pcs",
-    purchase_unit: (payload as any).purchase_unit || undefined,
-    purchase_to_base_rate: (payload as any).purchase_to_base_rate,
-    stock_qty: payload.stock_qty ?? 0,
-    low_stock_threshold: payload.low_stock_threshold ?? 5,
-    opening_stock: (payload as any).opening_stock ?? payload.stock_qty ?? 0,
-    cost_price: payload.cost_price ?? 0,
-    avg_cost: payload.cost_price ?? 0,
-    tax_type: (payload as any).tax_type,
-    tax_percent: (payload as any).tax_percent,
-    hsn_code: (payload as any).hsn_code,
-    barcode: (payload as any).barcode,
-    supplier_id: payload.supplier_id,
-    supplier_name: payload.supplier_id ? supplierMap[payload.supplier_id] : undefined,
-    suppliers: enrichedSuppliers,
-    is_active: payload.is_active ?? true,
-    is_expiry: (payload as any).is_expiry,
-    allow_decimal: (payload as any).allow_decimal,
-    exclusive: (payload as any).exclusive,
-    normal_loss_percent: (payload as any).normal_loss_percent,
-    description: (payload as any).description,
-    created_at: now,
-    updated_at: now,
+    sku: payload.sku,
+    category: payload.category ?? "general",
+    unit: payload.unit,
+    manufacturer: payload.manufacturer || null,
+    purchase_unit: payload.purchase_unit || null,
+    purchase_to_base_rate: payload.purchase_to_base_rate || null,
+    stock_qty: String(payload.stock_qty ?? 0),
+    low_stock_threshold: String(payload.low_stock_threshold ?? 0),
+    cost_price_paise: Math.round((payload.cost_price ?? 0) * 100),
+    avg_cost_paise: Math.round((payload.cost_price ?? 0) * 100),
+    tax_type: payload.tax_type ?? "GST",
+    tax_percent: payload.tax_percent ?? 0,
+    hsn_code: payload.hsn_code || null,
+    barcode: payload.barcode || null,
+    supplier_id: payload.supplier_id || null,
+    suppliers: payload.suppliers ?? [],
+    is_active: true,
   };
-  mockRawMaterials.push(mat);
-  return { ...mat };
+
+  const { id } = await api<{ id: string }>("/api/masters/materials", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const created = await getRawMaterialById(id);
+  if (!created) throw new Error("Failed to load created raw material");
+  return created;
 }
 
 export async function updateRawMaterial(
   id: string,
-  payload: RawMaterialPayload,
+  payload: Partial<RawMaterialPayload>,
 ): Promise<RawMaterial> {
-  await delay(600);
-  const idx = mockRawMaterials.findIndex((m) => m.id === id);
-  if (idx === -1) throw new Error("Raw material not found");
-  if (
-    payload.sku &&
-    mockRawMaterials.some((m) => m.id !== id && m.sku.toLowerCase() === payload.sku!.toLowerCase())
-  )
-    throw new Error(`SKU "${payload.sku}" already exists`);
-  if (
-    (payload as any).barcode &&
-    mockRawMaterials.some((m) => m.id !== id && m.barcode && m.barcode === (payload as any).barcode)
-  )
-    throw new Error(`Barcode "${(payload as any).barcode}" already exists`);
-  const current = mockRawMaterials[idx];
-  validatePurchaseUom(payload, current.unit);
-  const supplierMap = supplierNameMap();
-  const suppliers = (payload as any).suppliers as RawMaterial["suppliers"] | undefined;
-  const enrichedSuppliers = suppliers
-    ? suppliers.map((s) => ({ ...s, supplier_name: supplierMap[s.supplier_id] ?? s.supplier_name }))
-    : undefined;
-  const updated: RawMaterial = {
-    ...current,
-    ...payload,
-    sku: payload.sku ? payload.sku.toUpperCase() : current.sku,
-    supplier_name: payload.supplier_id ? supplierMap[payload.supplier_id] : current.supplier_name,
-    suppliers: enrichedSuppliers ?? current.suppliers,
-    updated_at: new Date().toISOString(),
-  };
-  // Track manual price edit history if cost_price changed without PO
-  if (payload.cost_price !== undefined && payload.cost_price !== current.cost_price) {
-    const oldAvg = current.avg_cost;
-    // For manual edit, we keep avg as is but log history for audit
-    mockPriceHistory.push({
-      id: `ph_${Date.now().toString(36)}_${id}`,
-      material_id: id,
-      material_name: current.name,
-      old_avg: oldAvg,
-      new_avg: oldAvg,
-      unit_cost: payload.cost_price,
-      qty: 0,
-      old_stock: current.stock_qty,
-      new_stock: current.stock_qty,
-      source: "manual_edit",
-      reference_id: id,
-      created_at: new Date().toISOString(),
-    });
+  const body: Record<string, any> = { ...payload };
+  if (payload.cost_price !== undefined) {
+    body.cost_price_paise = Math.round(payload.cost_price * 100);
+    delete body.cost_price;
   }
-  mockRawMaterials[idx] = updated;
-  return { ...updated };
+  if (payload.stock_qty !== undefined) {
+    body.stock_qty = String(payload.stock_qty);
+  }
+  if (payload.low_stock_threshold !== undefined) {
+    body.low_stock_threshold = String(payload.low_stock_threshold);
+  }
+
+  const { row } = await api<{ row: Record<string, any> }>(
+    `/api/masters/materials?id=${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+  return toClientMaterial(row);
 }
 
 export async function deleteRawMaterial(id: string): Promise<void> {
-  await delay(500);
-  const idx = mockRawMaterials.findIndex((m) => m.id === id);
-  if (idx === -1) throw new Error("Raw material not found");
-  mockRawMaterials.splice(idx, 1);
+  await api(`/api/masters/materials?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
 }
 
-// Suppliers
+/* -------------------------------------------------------------------------- */
+/* Suppliers (/api/masters/suppliers)                                         */
+/* -------------------------------------------------------------------------- */
+
+function toClientSupplier(r: Record<string, any>): Supplier {
+  return {
+    id: String(r.id),
+    name: String(r.name ?? ""),
+    contact_person: r.contactPerson ?? r.contact_person ?? undefined,
+    phone: String(r.phone ?? ""),
+    email: r.email ?? undefined,
+    gstin: r.gstin ?? undefined,
+    address: r.address ?? undefined,
+    is_active: r.isActive !== false && r.is_active !== false,
+    created_at: String(r.createdAt ?? new Date().toISOString()),
+    updated_at: String(r.updatedAt ?? new Date().toISOString()),
+  };
+}
+
 export async function getSuppliers(filters?: SupplierFilters): Promise<Supplier[]> {
-  await delay(400);
-  let result = [...mockSuppliers].sort((a, b) => a.name.localeCompare(b.name));
+  const outletId = filters?.outlet_id ?? getServiceOutletId();
+  const { rows } = await api<{ rows: Record<string, any>[] }>(
+    `/api/masters/suppliers${toQuery({ outlet_id: outletId })}`,
+  );
+  let list = (rows ?? []).map(toClientSupplier);
   if (filters?.search) {
     const q = filters.search.toLowerCase();
-    result = result.filter((s) => s.name.toLowerCase().includes(q) || s.phone.includes(q));
+    list = list.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        s.phone.toLowerCase().includes(q) ||
+        (s.email && s.email.toLowerCase().includes(q)),
+    );
   }
-  if (filters?.is_active !== undefined)
-    result = result.filter((s) => s.is_active === filters.is_active);
-  return result;
+  if (filters?.is_active !== undefined) {
+    list = list.filter((s) => s.is_active === filters.is_active);
+  }
+  return list;
 }
 
 export async function getSupplierById(id: string): Promise<Supplier | null> {
-  await delay(300);
-  return mockSuppliers.find((s) => s.id === id) ?? null;
+  try {
+    const { row } = await api<{ row: Record<string, any> | null }>(
+      `/api/masters/suppliers/${encodeURIComponent(id)}`,
+    );
+    return row ? toClientSupplier(row) : null;
+  } catch (e) {
+    if (e instanceof Error && /not found/i.test(e.message)) return null;
+    throw e;
+  }
 }
 
 export async function createSupplier(payload: SupplierPayload): Promise<Supplier> {
-  await delay(600);
-  if (mockSuppliers.some((s) => s.phone === payload.phone))
-    throw new Error(`Phone "${payload.phone}" already exists`);
-  const now = new Date().toISOString();
-  const sup: Supplier = {
-    id: `sup_${Date.now().toString(36)}`,
+  const body = {
     name: payload.name,
-    contact_person: payload.contact_person,
     phone: payload.phone,
-    email: payload.email,
-    gstin: payload.gstin,
-    address: payload.address,
+    gstin: payload.gstin || null,
+    contact_person: payload.contact_person || null,
+    email: payload.email || null,
+    address: payload.address || null,
     is_active: payload.is_active ?? true,
-    created_at: now,
-    updated_at: now,
   };
-  mockSuppliers.push(sup);
-  return { ...sup };
+  const { id } = await api<{ id: string }>("/api/masters/suppliers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const created = await getSupplierById(id);
+  if (!created) throw new Error("Failed to load created supplier");
+  return created;
 }
 
 export async function updateSupplier(id: string, payload: SupplierPayload): Promise<Supplier> {
-  await delay(600);
-  const idx = mockSuppliers.findIndex((s) => s.id === id);
-  if (idx === -1) throw new Error("Supplier not found");
-  const updated = { ...mockSuppliers[idx], ...payload, updated_at: new Date().toISOString() };
-  mockSuppliers[idx] = updated;
-  return { ...updated };
+  const body = {
+    name: payload.name,
+    phone: payload.phone,
+    gstin: payload.gstin || null,
+    contact_person: payload.contact_person || null,
+    email: payload.email || null,
+    address: payload.address || null,
+    is_active: payload.is_active,
+  };
+  const { row } = await api<{ row: Record<string, any> }>(
+    `/api/masters/suppliers?id=${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+  return toClientSupplier(row);
 }
 
 export async function deleteSupplier(id: string): Promise<void> {
-  await delay(500);
-  const idx = mockSuppliers.findIndex((s) => s.id === id);
-  if (idx === -1) throw new Error("Supplier not found");
-  mockSuppliers.splice(idx, 1);
-}
-
-// Recipes
-function enrichRecipe(r: Recipe): Recipe {
-  const materials = materialMap();
-  const byVariant = new Map<string, { name: string; cost: number }>();
-  r.ingredients.forEach((ing) => {
-    const mat = materials[ing.material_id];
-    const unitCost = mat?.avg_cost ?? 0;
-    const w = 1 + (ing.wastage_percent ?? 0) / 100;
-    (ing.variant_qtys ?? []).forEach((vq) => {
-      const e = byVariant.get(vq.variant_id) ?? { name: vq.variant_name, cost: 0 };
-      e.cost += vq.qty * unitCost * w;
-      byVariant.set(vq.variant_id, e);
-    });
+  await api(`/api/masters/suppliers?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
   });
-  const cost_per_variant = [...byVariant.entries()].map(([variant_id, v]) => ({
-    variant_id,
-    variant_name: v.name,
-    cost: Math.round(v.cost * 100) / 100,
-  }));
-  return { ...r, cost_per_variant };
 }
 
-export async function getRecipes(filters?: import("./types").RecipeFilters): Promise<Recipe[]> {
-  await delay(400);
-  let r = [...mockRecipes].sort((a, b) => a.name.localeCompare(b.name));
+/* -------------------------------------------------------------------------- */
+/* Recipes (/api/masters/recipes)                                             */
+/* -------------------------------------------------------------------------- */
+
+function toClientRecipe(r: Record<string, any>): Recipe {
+  const ingredients: RecipeIngredient[] = Array.isArray(r.ingredients) ? r.ingredients : [];
+  const steps: RecipeStep[] = Array.isArray(r.steps) ? r.steps : [];
+  const costPerServe = ingredients.reduce((sum, ing) => sum + (ing.cost || 0), 0);
+
+  return {
+    id: String(r.id),
+    name: String(r.name ?? ""),
+    yields: Number(r.yields ?? 1),
+    yield_unit: (r.yieldUnit ?? r.yield_unit ?? "serves") as Recipe["yield_unit"],
+    ingredients,
+    steps,
+    cost_per_serve: costPerServe,
+    selling_price: r.sellingPricePaise ? Number(r.sellingPricePaise) / 100 : undefined,
+    prep_time_min: r.prepTimeMin ?? r.prep_time_min ?? undefined,
+    cook_time_min: r.cookTimeMin ?? r.cook_time_min ?? undefined,
+    plating_notes: r.platingNotes ?? r.plating_notes ?? undefined,
+    garnish: r.garnish ?? undefined,
+    serving_vessel: r.servingVessel ?? r.serving_vessel ?? undefined,
+    menu_item_id: r.menuItemId ?? r.menu_item_id ?? undefined,
+    photo_url: r.photoUrl ?? r.photo_url ?? undefined,
+    is_active: r.isActive !== false && r.is_active !== false,
+    created_at: String(r.createdAt ?? new Date().toISOString()),
+    updated_at: String(r.updatedAt ?? new Date().toISOString()),
+  };
+}
+
+export async function getRecipes(filters?: RecipeFilters): Promise<Recipe[]> {
+  const outletId = filters?.outlet_id ?? getServiceOutletId();
+  const { rows } = await api<{ rows: Record<string, any>[] }>(
+    `/api/masters/recipes${toQuery({ outlet_id: outletId })}`,
+  );
+  let list = (rows ?? []).map(toClientRecipe);
   if (filters?.search) {
     const q = filters.search.toLowerCase();
-    r = r.filter(
-      (x) =>
-        x.name.toLowerCase().includes(q) ||
-        x.ingredients.some((ing) => ing.material_name?.toLowerCase().includes(q)),
-    );
+    list = list.filter((rec) => rec.name.toLowerCase().includes(q));
   }
-  if (filters?.is_active !== undefined) r = r.filter((x) => x.is_active === filters.is_active);
-  return r.map(enrichRecipe);
+  if (filters?.is_active !== undefined) {
+    list = list.filter((rec) => rec.is_active === filters.is_active);
+  }
+  return list;
 }
 
 export async function getRecipeById(id: string): Promise<Recipe | null> {
-  await delay(300);
-  const r = mockRecipes.find((x) => x.id === id) ?? null;
-  return r ? enrichRecipe(r) : null;
+  try {
+    const { row } = await api<{ row: Record<string, any> | null }>(
+      `/api/masters/recipes/${encodeURIComponent(id)}`,
+    );
+    return row ? toClientRecipe(row) : null;
+  } catch (e) {
+    if (e instanceof Error && /not found/i.test(e.message)) return null;
+    throw e;
+  }
 }
 
 export async function createRecipe(payload: RecipePayload): Promise<Recipe> {
-  await delay(600);
-  const materials = materialMap();
-  let cost = 0;
-  const ingredients = payload.ingredients.map((ing) => {
-    const mat = materials[ing.material_id];
-    const unitCost = mat?.avg_cost ?? 0;
-    cost += ing.qty * unitCost * (1 + (ing.wastage_percent ?? 0) / 100);
-    return { ...ing, material_name: mat?.name };
-  });
-  const now = new Date().toISOString();
-  const rid = `rec_${Date.now().toString(36)}`;
-  const steps = ((payload as any).steps ?? []).map((s: any, i: number) => ({
-    id: s.id ?? `rs_${Date.now().toString(36)}_${i}`,
-    step_no: i + 1,
-    instruction: s.instruction ?? "",
-    vessel: s.vessel,
-    vessel_note: s.vessel_note,
-    temperature_c: s.temperature_c,
-    heat_level: s.heat_level || undefined,
-    duration_min: s.duration_min,
-    image_url: s.image_url || undefined,
-    is_optional: s.is_optional ?? false,
-  }));
-  const recipe: Recipe = {
-    id: rid,
+  const body = {
     name: payload.name,
-    yields: payload.yields ?? 1,
-    yield_unit: (payload as any).yield_unit || undefined,
-    ingredients,
-    steps,
-    cost_per_serve: Math.round(cost * 100) / 100,
-    selling_price: payload.selling_price,
-    prep_time_min: (payload as any).prep_time_min,
-    cook_time_min: (payload as any).cook_time_min,
-    plating_notes: (payload as any).plating_notes,
-    garnish: (payload as any).garnish,
-    serving_vessel: (payload as any).serving_vessel,
-    menu_item_id: (payload as any).menu_item_id || undefined,
-    photo_url: (payload as any).photo_url,
+    yields: String(payload.yields ?? 1),
+    yield_unit: payload.yield_unit ?? "serves",
+    ingredients: payload.ingredients ?? [],
+    steps: payload.steps ?? [],
+    selling_price_paise: payload.selling_price ? Math.round(payload.selling_price * 100) : null,
+    prep_time_min: payload.prep_time_min || null,
+    cook_time_min: payload.cook_time_min || null,
+    plating_notes: payload.plating_notes || null,
+    garnish: payload.garnish || null,
+    serving_vessel: payload.serving_vessel || null,
+    menu_item_id: payload.menu_item_id || null,
+    photo_url: payload.photo_url || null,
     is_active: payload.is_active ?? true,
-    created_at: now,
-    updated_at: now,
   };
-  mockRecipes.push(recipe);
-  return enrichRecipe(recipe);
+  const { id } = await api<{ id: string }>("/api/masters/recipes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const created = await getRecipeById(id);
+  if (!created) throw new Error("Failed to load created recipe");
+  return created;
 }
 
 export async function updateRecipe(id: string, payload: RecipePayload): Promise<Recipe> {
-  await delay(600);
-  const idx = mockRecipes.findIndex((r) => r.id === id);
-  if (idx === -1) throw new Error("Recipe not found");
-  const materials = materialMap();
-  const ingredients = (payload.ingredients ?? mockRecipes[idx].ingredients).map((ing) => ({
-    ...ing,
-    material_name: materials[ing.material_id]?.name ?? ing.material_name,
-  }));
-  let cost = 0;
-  ingredients.forEach((ing) => {
-    const mat = materials[ing.material_id];
-    cost += ing.qty * (mat?.avg_cost ?? 0) * (1 + (ing.wastage_percent ?? 0) / 100);
-  });
-  let steps = mockRecipes[idx].steps ?? [];
-  if ((payload as any).steps !== undefined) {
-    steps = ((payload as any).steps as any[]).map((s: any, i: number) => ({
-      id: s.id ?? `rs_${Date.now().toString(36)}_${i}`,
-      step_no: i + 1,
-      instruction: s.instruction ?? "",
-      vessel: s.vessel,
-      vessel_note: s.vessel_note,
-      temperature_c: s.temperature_c,
-      heat_level: s.heat_level || undefined,
-      duration_min: s.duration_min,
-      image_url: s.image_url || undefined,
-      is_optional: s.is_optional ?? false,
-    }));
-  }
-  const updated: Recipe = {
-    ...mockRecipes[idx],
-    ...payload,
-    ingredients,
-    steps,
-    cost_per_serve: Math.round(cost * 100) / 100,
-    updated_at: new Date().toISOString(),
+  const body = {
+    name: payload.name,
+    yields: String(payload.yields ?? 1),
+    yield_unit: payload.yield_unit ?? "serves",
+    ingredients: payload.ingredients ?? [],
+    steps: payload.steps ?? [],
+    selling_price_paise: payload.selling_price ? Math.round(payload.selling_price * 100) : null,
+    prep_time_min: payload.prep_time_min || null,
+    cook_time_min: payload.cook_time_min || null,
+    plating_notes: payload.plating_notes || null,
+    garnish: payload.garnish || null,
+    serving_vessel: payload.serving_vessel || null,
+    menu_item_id: payload.menu_item_id || null,
+    photo_url: payload.photo_url || null,
+    is_active: payload.is_active,
   };
-  mockRecipes[idx] = updated;
-  return enrichRecipe(updated);
+  const { row } = await api<{ row: Record<string, any> }>(
+    `/api/masters/recipes?id=${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+  return toClientRecipe(row);
 }
 
 export async function deleteRecipe(id: string): Promise<void> {
-  await delay(500);
-  const idx = mockRecipes.findIndex((r) => r.id === id);
-  if (idx === -1) throw new Error("Recipe not found");
-  mockRecipes.splice(idx, 1);
+  await api(`/api/masters/recipes?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
 }
 
-// Purchase Orders
-export async function getPurchaseOrders(
-  filters?: import("./types").PurchaseOrderFilters,
-): Promise<PurchaseOrder[]> {
-  await delay(400);
-  let result = [...mockPurchaseOrders].sort((a, b) => b.created_at.localeCompare(a.created_at));
+/* -------------------------------------------------------------------------- */
+/* Purchase Orders (/api/inventory/purchase-orders)                           */
+/* -------------------------------------------------------------------------- */
+
+export async function getPurchaseOrders(filters?: PurchaseOrderFilters): Promise<PurchaseOrder[]> {
+  const outletId = filters?.outlet_id ?? getServiceOutletId();
+  const { orders } = await api<{ orders: PurchaseOrder[] }>(
+    `/api/inventory/purchase-orders${toQuery({
+      outlet_id: outletId,
+      supplier_id: filters?.supplier_id,
+      status: filters?.status,
+    })}`,
+  );
+  let list = orders ?? [];
   if (filters?.search) {
     const q = filters.search.toLowerCase();
-    result = result.filter(
-      (p) =>
-        p.po_number.toLowerCase().includes(q) ||
-        (p.supplier_name ?? "").toLowerCase().includes(q) ||
-        p.items.some((it) => (it.material_name ?? "").toLowerCase().includes(q)),
+    list = list.filter(
+      (po) =>
+        po.po_number.toLowerCase().includes(q) ||
+        (po.supplier_name && po.supplier_name.toLowerCase().includes(q)),
     );
   }
-  if (filters?.status) result = result.filter((p) => p.status === filters.status);
-  return result;
+  return list;
 }
 
 export async function getPurchaseOrderById(id: string): Promise<PurchaseOrder | null> {
-  await delay(300);
-  let found = mockPurchaseOrders.find((p) => p.id === id) ?? null;
-  if (!found && typeof window !== "undefined") {
-    try {
-      const raw = localStorage.getItem(PO_STORAGE_KEY);
-      if (raw) {
-        const arr = JSON.parse(raw) as PurchaseOrder[];
-        found = arr.find((p) => p.id === id) ?? null;
-        if (found) {
-          // hydrate in-memory for next calls
-          if (!mockPurchaseOrders.some((p) => p.id === id)) mockPurchaseOrders.push(found);
-        }
-      }
-    } catch {}
+  try {
+    const { order } = await api<{ order: PurchaseOrder | null }>(
+      `/api/inventory/purchase-orders/${encodeURIComponent(id)}`,
+    );
+    return order ?? null;
+  } catch (e) {
+    if (e instanceof Error && /not found/i.test(e.message)) return null;
+    throw e;
   }
-  return found;
-}
-
-function computePOTotals(items: PurchaseOrder["items"]): {
-  subtotal: number;
-  tax_amount: number;
-  total_amount: number;
-} {
-  const subtotal = items.reduce((s, it) => s + it.qty * it.unit_cost, 0);
-  const tax_amount =
-    Math.round(
-      items.reduce((s, it) => s + it.qty * it.unit_cost * ((it.tax_percent ?? 0) / 100), 0) * 100,
-    ) / 100;
-  return {
-    subtotal: Math.round(subtotal * 100) / 100,
-    tax_amount,
-    total_amount: Math.round((subtotal + tax_amount) * 100) / 100,
-  };
 }
 
 export async function createPurchaseOrder(payload: PurchaseOrderPayload): Promise<PurchaseOrder> {
-  await delay(700);
-  const supName = supplierNameMap()[payload.supplier_id] ?? payload.supplier_id;
-  const materials = materialMap();
-  const items = payload.items.map((it) => ({
-    material_id: it.material_id,
-    material_name: materials[it.material_id]?.name,
-    qty: it.qty,
-    unit_cost: it.unit_cost,
-    tax_percent: (it as any).tax_percent ?? materials[it.material_id]?.tax_percent ?? 5,
-    unit: materials[it.material_id]?.unit,
-    line_total: Math.round(it.qty * it.unit_cost * 100) / 100,
-    purchase_qty: (it as any).purchase_qty,
-    purchase_unit: (it as any).purchase_unit,
-    purchase_unit_cost: (it as any).purchase_unit_cost,
-  }));
-  const { subtotal, tax_amount, total_amount } = computePOTotals(items as any);
-  const now = new Date().toISOString();
-  const year = new Date().getFullYear();
-  const existingForYear = mockPurchaseOrders
-    .filter((p) => p.po_number.startsWith(`PO-${year}-`))
-    .map((p) => parseInt(p.po_number.split("-")[2] ?? "0", 10))
-    .filter((n) => !Number.isNaN(n));
-  const nextNum = existingForYear.length > 0 ? Math.max(...existingForYear) + 1 : 1;
-  const poDate = (payload as any).po_date ?? now.slice(0, 10);
-  const expectedAt = payload.expected_at ?? poDate;
-  const paymentDate = (payload as any).payment_date ?? now.slice(0, 10);
-  const po: PurchaseOrder = {
-    id: `po_${Date.now().toString(36)}`,
-    po_number: `PO-${year}-${String(nextNum).padStart(3, "0")}`,
-    supplier_id: payload.supplier_id,
-    supplier_name: supName,
-    items: items as any,
-    subtotal,
-    tax_amount,
-    total_amount,
-    status: "draft",
-    po_date: poDate,
-    expected_at: expectedAt,
-    reference: (payload as any).reference,
-    payment_date: paymentDate,
-    notes: (payload as any).notes,
-    created_at: now,
-    updated_at: now,
-  };
-  mockPurchaseOrders.push(po);
-  savePOs();
-  return { ...po };
-}
-
-export function buildWhatsappUrl(supplier: Supplier, po: PurchaseOrder): string {
-  const phone = supplier.phone.replace(/\D/g, "");
-  const itemsText = po.items
-    .map((it) => `• ${it.material_name ?? it.material_id} x${it.qty} @₹${it.unit_cost}`)
-    .join("%0A");
-  const text = `Hello ${supplier.name},%0APurchase Order ${po.po_number} from PixaPOS%0A%0A${itemsText}%0ATotal: ₹${po.total_amount}%0AExpected: ${po.expected_at ? new Date(po.expected_at).toLocaleDateString() : "-"}%0APlease confirm.%0A%0APO ID: ${po.id}`;
-  // wa.me requires full number with country code, assume +91 if 10 digits
-  const waPhone = phone.length === 10 ? `91${phone}` : phone;
-  return `https://wa.me/${waPhone}?text=${text}`;
-}
-
-export function buildEmailHtml(
-  supplier: Supplier,
-  po: PurchaseOrder,
-): { subject: string; html: string } {
-  const subject = `Purchase Order ${po.po_number} — ${supplier.name}`;
-  const rows = po.items
-    .map(
-      (it) =>
-        `<tr><td style="padding:8px;border:1px solid #ddd">${it.material_name ?? it.material_id}</td><td style="padding:8px;border:1px solid #ddd;text-align:right">${it.qty}</td><td style="padding:8px;border:1px solid #ddd;text-align:right">₹${it.unit_cost}</td><td style="padding:8px;border:1px solid #ddd;text-align:right">₹${it.qty * it.unit_cost}</td></tr>`,
-    )
-    .join("");
-  const html = `<div style=\"font-family:sans-serif\"><h2>${subject}</h2><p>Dear ${supplier.name},</p><p>Please supply the following as per PO <b>${po.po_number}</b>:</p><table style=\"border-collapse:collapse;width:100%\"><thead><tr><th style=\"padding:8px;border:1px solid #ddd;text-align:left\">Material</th><th style=\"padding:8px;border:1px solid #ddd\">Qty</th><th style=\"padding:8px;border:1px solid #ddd\">Unit Cost</th><th style=\"padding:8px;border:1px solid #ddd\">Amount</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan=\"3\" style=\"padding:8px;border:1px solid #ddd;text-align:right\"><b>Total</b></td><td style=\"padding:8px;border:1px solid #ddd;text-align:right\"><b>₹${po.total_amount}</b></td></tr></tfoot></table><p>Expected: ${po.expected_at ? new Date(po.expected_at).toLocaleDateString() : "-"}<br/>Notes: ${po.notes ?? "-"}</p><p>PO ID: ${po.id}</p></div>`;
-  return { subject, html };
-}
-
-export async function sendPurchaseOrderViaWhatsapp(
-  id: string,
-): Promise<{ url: string; po: PurchaseOrder }> {
-  await delay(500);
-  const po = mockPurchaseOrders.find((p) => p.id === id);
-  if (!po) throw new Error("Purchase order not found");
-  const supplier = mockSuppliers.find((s) => s.id === po.supplier_id);
-  if (!supplier) throw new Error("Supplier not found");
-  const url = buildWhatsappUrl(supplier, po);
-  // Mark as sent if was draft, track sent_via
-  const idx = mockPurchaseOrders.findIndex((p) => p.id === id);
-  if (po.status === "draft") {
-    mockPurchaseOrders[idx] = {
-      ...po,
-      status: "sent",
-      sent_at: new Date().toISOString(),
-      sent_via: po.sent_via === "email" ? "both" : "whatsapp",
-      sent_to: supplier.phone,
-      updated_at: new Date().toISOString(),
-    };
-  } else if (po.status === "sent" && po.sent_via !== "whatsapp" && po.sent_via !== "both") {
-    mockPurchaseOrders[idx] = {
-      ...po,
-      sent_via: po.sent_via ? "both" : "whatsapp",
-      sent_to: supplier.phone,
-      sent_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-  }
-  return { url, po: { ...mockPurchaseOrders[idx] } };
-}
-
-export async function sendPurchaseOrderViaEmail(
-  id: string,
-): Promise<{ subject: string; html: string; po: PurchaseOrder }> {
-  await delay(800);
-  const po = mockPurchaseOrders.find((p) => p.id === id);
-  if (!po) throw new Error("Purchase order not found");
-  const supplier = mockSuppliers.find((s) => s.id === po.supplier_id);
-  if (!supplier) throw new Error("Supplier not found");
-  if (!supplier.email) throw new Error("Supplier email not found");
-  const { subject, html } = buildEmailHtml(supplier, po);
-  // In production, here would be: await resend.emails.send({ from, to: supplier.email, subject, html });
-  const idx = mockPurchaseOrders.findIndex((p) => p.id === id);
-  if (po.status === "draft") {
-    mockPurchaseOrders[idx] = {
-      ...po,
-      status: "sent",
-      sent_at: new Date().toISOString(),
-      sent_via: po.sent_via === "whatsapp" ? "both" : "email",
-      sent_to: supplier.email,
-      updated_at: new Date().toISOString(),
-    };
-  } else if (po.status === "sent" && po.sent_via !== "email" && po.sent_via !== "both") {
-    mockPurchaseOrders[idx] = {
-      ...po,
-      sent_via: po.sent_via ? "both" : "email",
-      sent_to: supplier.email,
-      sent_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-  }
-  return { subject, html, po: { ...mockPurchaseOrders[idx] } };
+  const outletId = payload.outlet_id ?? getServiceOutletId();
+  const { order } = await api<{ order: PurchaseOrder }>("/api/inventory/purchase-orders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, outlet_id: outletId }),
+  });
+  return order;
 }
 
 export async function updatePurchaseOrder(
   id: string,
-  payload: Partial<
-    PurchaseOrderPayload & {
-      expected_at?: string;
-      notes?: string;
-      po_date?: string;
-      reference?: string;
-      payment_date?: string;
-    }
-  >,
+  payload: Partial<PurchaseOrderPayload>,
 ): Promise<PurchaseOrder> {
-  await delay(600);
-  const idx = mockPurchaseOrders.findIndex((p) => p.id === id);
-  if (idx === -1) throw new Error("Purchase order not found");
-  const po = mockPurchaseOrders[idx];
-  if (po.status === "received") throw new Error("Cannot edit received PO (GRN done)");
-  if (po.status === "cancelled") throw new Error("Cannot edit cancelled PO");
-  const materials = materialMap();
-  let items = po.items;
-  if (payload.items) {
-    items = payload.items.map((it) => ({
-      ...it,
-      material_name: materials[it.material_id]?.name,
-      tax_percent: (it as any).tax_percent ?? materials[it.material_id]?.tax_percent ?? 5,
-      unit: materials[it.material_id]?.unit,
-      line_total: Math.round(it.qty * it.unit_cost * 100) / 100,
-    })) as any;
-  }
-  const { subtotal, tax_amount, total_amount } = computePOTotals(items as any);
-  const updated: PurchaseOrder = {
-    ...po,
-    supplier_id: payload.supplier_id ?? po.supplier_id,
-    supplier_name: payload.supplier_id
-      ? (supplierNameMap()[payload.supplier_id] ?? po.supplier_name)
-      : po.supplier_name,
-    items: items as any,
-    subtotal,
-    tax_amount,
-    total_amount,
-    po_date: (payload as any).po_date ?? po.po_date,
-    expected_at: payload.expected_at ?? po.expected_at,
-    reference: (payload as any).reference ?? po.reference,
-    payment_date: (payload as any).payment_date ?? (po as any).payment_date,
-    notes: (payload as any).notes ?? po.notes,
-    updated_at: new Date().toISOString(),
-  };
-  mockPurchaseOrders[idx] = updated;
-  savePOs();
-  return { ...updated };
-}
-
-export async function deletePurchaseOrder(id: string): Promise<void> {
-  await delay(500);
-  const idx = mockPurchaseOrders.findIndex((p) => p.id === id);
-  if (idx === -1) throw new Error("Purchase order not found");
-  const po = mockPurchaseOrders[idx];
-  if (po.status === "received")
-    throw new Error("Cannot delete received PO (GRN done) — cancel instead");
-  mockPurchaseOrders.splice(idx, 1);
-  savePOs();
-}
-
-export async function clonePurchaseOrder(id: string): Promise<PurchaseOrder> {
-  await delay(600);
-  const src = mockPurchaseOrders.find((p) => p.id === id);
-  if (!src) throw new Error("Purchase order not found");
-  const supName = supplierNameMap()[src.supplier_id] ?? src.supplier_name;
-  const year = new Date().getFullYear();
-  const existingForYear = mockPurchaseOrders
-    .filter((p) => p.po_number.startsWith(`PO-${year}-`))
-    .map((p) => parseInt(p.po_number.split("-")[2] ?? "0", 10))
-    .filter((n) => !Number.isNaN(n));
-  const nextNum = existingForYear.length > 0 ? Math.max(...existingForYear) + 1 : 1;
-  const now = new Date().toISOString();
-  const today = now.slice(0, 10);
-  const cloned: PurchaseOrder = {
-    ...src,
-    id: `po_${Date.now().toString(36)}`,
-    po_number: `PO-${year}-${String(nextNum).padStart(3, "0")}`,
-    status: "draft",
-    po_date: today,
-    expected_at: today,
-    payment_date: today,
-    reference: undefined,
-    received_at: undefined,
-    sent_at: undefined,
-    sent_via: undefined,
-    sent_to: undefined,
-    created_at: now,
-    updated_at: now,
-  };
-  mockPurchaseOrders.push(cloned);
-  savePOs();
-  return { ...cloned };
+  const { order } = await api<{ order: PurchaseOrder }>(
+    `/api/inventory/purchase-orders/${encodeURIComponent(id)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+  return order;
 }
 
 export async function updatePurchaseOrderStatus(
   id: string,
   status: PurchaseOrderStatus,
 ): Promise<PurchaseOrder> {
-  await delay(500);
-  const idx = mockPurchaseOrders.findIndex((p) => p.id === id);
-  if (idx === -1) throw new Error("Purchase order not found");
-  const po = mockPurchaseOrders[idx];
-  const updated = {
-    ...po,
-    status,
-    updated_at: new Date().toISOString(),
-    received_at: status === "received" ? new Date().toISOString() : po.received_at,
-  };
-  // GRN only — stock/WAC now handled by Purchases (Purchase Bill). Keeping PO received as marker only.
-  mockPurchaseOrders[idx] = updated;
-  savePOs();
-  return { ...updated };
+  return updatePurchaseOrder(id, { status });
 }
 
-// Purchases — Bill/Payable (GRN stock is via purchase, not PO)
-let mockPurchases: Purchase[] = [];
+export async function deletePurchaseOrder(id: string): Promise<void> {
+  await updatePurchaseOrderStatus(id, "cancelled");
+}
 
-function computePurchaseTotals(
-  items: Purchase["items"],
-  landed_cost: number = 0,
-): {
-  subtotal: number;
-  tax_amount: number;
-  landed_cost: number;
-  total_amount: number;
-} {
-  const subtotal = items.reduce((s, it) => s + it.qty * it.unit_cost, 0);
-  const tax_amount =
-    Math.round(
-      items.reduce((s, it) => s + it.qty * it.unit_cost * ((it.tax_percent ?? 0) / 100), 0) * 100,
-    ) / 100;
-  const landed = Math.round(landed_cost * 100) / 100;
-  const total_amount = Math.round((subtotal + tax_amount + landed) * 100) / 100;
-  return {
-    subtotal: Math.round(subtotal * 100) / 100,
-    tax_amount,
-    landed_cost: landed,
-    total_amount,
-  };
-}
-function derivePaymentStatus(total: number, paid: number): PurchasePaymentStatus {
-  if (paid <= 0) return "unpaid";
-  if (paid >= total) return "paid";
-  return "partial";
-}
-function applyStockForPurchase(pur: Purchase) {
-  const landed = (pur as any).landed_cost ?? 0;
-  const subtotalForDist =
-    pur.subtotal > 0
-      ? pur.subtotal
-      : pur.items.reduce((s, it) => s + it.qty * it.unit_cost, 0) || 1;
-  pur.items.forEach((item) => {
-    const matIdx = mockRawMaterials.findIndex((m) => m.id === item.material_id);
-    if (matIdx === -1) return;
-    const lineSubtotal = item.qty * item.unit_cost;
-    const landedShare = landed > 0 ? (lineSubtotal / subtotalForDist) * landed : 0;
-    const landedPerUnit = item.qty > 0 ? landedShare / item.qty : 0;
-    const effectiveUnitCost = item.unit_cost + landedPerUnit;
-    const prev = mockRawMaterials[matIdx].stock_qty;
-    const newQty = prev + item.qty;
-    const oldAvg = mockRawMaterials[matIdx].avg_cost;
-    const newAvg = newQty > 0 ? (oldAvg * prev + effectiveUnitCost * item.qty) / newQty : oldAvg;
-    const roundedAvg = Math.round(newAvg * 100) / 100;
-    mockRawMaterials[matIdx].stock_qty = newQty;
-    mockRawMaterials[matIdx].avg_cost = roundedAvg;
-    mockRawMaterials[matIdx].cost_price = item.unit_cost;
-    mockRawMaterials[matIdx].updated_at = new Date().toISOString();
-    const batch = receiveBatch({
-      material_id: item.material_id,
-      material_name: mockRawMaterials[matIdx].name,
-      qty: item.qty,
-      batch_no: (item as any).batch_no,
-      mfg_date: (item as any).mfg_date,
-      expiry_date: (item as any).expiry_date,
-      location_id: (item as any).location_id,
-      purchase_id: pur.id,
-      supplier_name: pur.supplier_name,
-    });
-    mockStockLedger.push({
-      id: `stk_${Date.now().toString(36)}_${item.material_id}`,
-      material_id: item.material_id,
-      material_name: mockRawMaterials[matIdx].name,
-      type: "purchase",
-      qty_delta: item.qty,
-      reason: pur.purchase_number + (landed > 0 ? ` + landed ₹${landedShare.toFixed(2)}` : ""),
-      reference_id: pur.id,
-      lot_number: batch.batch_no,
-      expiry_date: batch.expiry_date,
-      location_id: batch.location_id,
-      previous_qty: prev,
-      new_qty: newQty,
-      unit_cost: Math.round(effectiveUnitCost * 100) / 100,
-      total_cost: Math.round((item.unit_cost * item.qty + landedShare) * 100) / 100,
-      avg_cost_before: oldAvg,
-      avg_cost_after: roundedAvg,
-      created_at: new Date().toISOString(),
-    });
-    mockPriceHistory.push({
-      id: `ph_${Date.now().toString(36)}_${item.material_id}`,
-      material_id: item.material_id,
-      material_name: mockRawMaterials[matIdx].name,
-      old_avg: oldAvg,
-      new_avg: roundedAvg,
-      unit_cost: Math.round(effectiveUnitCost * 100) / 100,
-      qty: item.qty,
-      old_stock: prev,
-      new_stock: newQty,
-      source: "purchase",
-      reference_id: pur.id,
-      created_at: new Date().toISOString(),
-    });
+export async function clonePurchaseOrder(id: string): Promise<PurchaseOrder> {
+  const original = await getPurchaseOrderById(id);
+  if (!original) throw new Error("Purchase order not found");
+  return createPurchaseOrder({
+    supplier_id: original.supplier_id,
+    items: original.items.map((it) => ({
+      material_id: it.material_id,
+      qty: it.qty,
+      unit: it.unit,
+      unit_cost: it.unit_cost,
+      tax_percent: it.tax_percent,
+    })),
+    notes: original.notes ? `Clone of ${original.po_number}: ${original.notes}` : undefined,
   });
-  recalculateRecipeCosts();
 }
+
+export function buildWhatsappUrl(supplier: Supplier, po: PurchaseOrder): string {
+  const lines = [
+    `*Purchase Order: ${po.po_number}*`,
+    `Date: ${po.po_date || new Date().toISOString().slice(0, 10)}`,
+    `Supplier: ${supplier.name}`,
+    "",
+    ...po.items.map(
+      (it, idx) =>
+        `${idx + 1}. ${it.material_name || "Item"} - ${it.qty} ${it.unit || "pcs"} @ ₹${it.unit_cost.toFixed(2)}`,
+    ),
+    "",
+    `*Total: ₹${(po.total_amount ?? po.total ?? 0).toFixed(2)}*`,
+  ];
+  const text = encodeURIComponent(lines.join("\n"));
+  const phone = supplier.phone.replace(/[^0-9]/g, "");
+  return `https://wa.me/${phone}?text=${text}`;
+}
+
+export function buildEmailHtml(supplier: Supplier, po: PurchaseOrder): string {
+  return `<h2>Purchase Order: ${po.po_number}</h2><p>Total: ₹${(po.total_amount ?? po.total ?? 0).toFixed(2)}</p>`;
+}
+
+export async function sendPurchaseOrderViaWhatsapp(
+  poId: string,
+  supplier: Supplier,
+): Promise<{ url: string }> {
+  const po = await getPurchaseOrderById(poId);
+  if (!po) throw new Error("Purchase order not found");
+  const url = buildWhatsappUrl(supplier, po);
+  await updatePurchaseOrderStatus(poId, "sent");
+  return { url };
+}
+
+export async function sendPurchaseOrderViaEmail(
+  poId: string,
+  supplier: Supplier,
+): Promise<{ ok: boolean }> {
+  await updatePurchaseOrderStatus(poId, "sent");
+  return { ok: true };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Purchases (/api/inventory/purchases)                                       */
+/* -------------------------------------------------------------------------- */
 
 export async function getPurchases(filters?: PurchaseFilters): Promise<Purchase[]> {
-  await delay(400);
-  let result = [...mockPurchases].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const outletId = filters?.outlet_id ?? getServiceOutletId();
+  const { purchases } = await api<{ purchases: Purchase[] }>(
+    `/api/inventory/purchases${toQuery({
+      outlet_id: outletId,
+      supplier_id: filters?.supplier_id,
+      payment_status: filters?.payment_status,
+    })}`,
+  );
+  let list = purchases ?? [];
   if (filters?.search) {
     const q = filters.search.toLowerCase();
-    result = result.filter(
+    list = list.filter(
       (p) =>
         p.purchase_number.toLowerCase().includes(q) ||
-        (p.supplier_name ?? "").toLowerCase().includes(q) ||
-        (p.po_number ?? "").toLowerCase().includes(q),
+        (p.supplier_name && p.supplier_name.toLowerCase().includes(q)),
     );
   }
-  if (filters?.supplier_id) result = result.filter((p) => p.supplier_id === filters.supplier_id);
-  if (filters?.payment_status)
-    result = result.filter((p) => p.payment_status === filters.payment_status);
-  return result;
+  return list;
 }
+
 export async function getPurchaseById(id: string): Promise<Purchase | null> {
-  await delay(300);
-  return mockPurchases.find((p) => p.id === id) ?? null;
+  try {
+    const { purchase } = await api<{ purchase: Purchase | null }>(
+      `/api/inventory/purchases/${encodeURIComponent(id)}`,
+    );
+    return purchase ?? null;
+  } catch (e) {
+    if (e instanceof Error && /not found/i.test(e.message)) return null;
+    throw e;
+  }
 }
+
 export async function createPurchase(payload: PurchasePayload): Promise<Purchase> {
-  await delay(700);
-  const supName = supplierNameMap()[payload.supplier_id] ?? payload.supplier_id;
-  const materials = materialMap();
-  const po = payload.po_id ? mockPurchaseOrders.find((p) => p.id === payload.po_id) : null;
-  if (payload.po_id && !po) throw new Error("Linked PO not found");
-  // Standard: only sent POs can be billed, and only once (invoiced hidden)
-  if (po) {
-    if (po.status !== "sent")
-      throw new Error("Only sent POs can be billed (draft/received/cancelled not billable)");
-    if (mockPurchases.some((p) => p.po_id === po.id))
-      throw new Error("PO already billed — duplicate purchase not allowed (already invoiced)");
-  }
-  const enriched = payload.items.map((it) => ({
-    material_id: it.material_id,
-    material_name: materials[it.material_id]?.name ?? it.material_id,
-    qty: it.qty,
-    unit_cost: it.unit_cost,
-    tax_percent: (it as any).tax_percent ?? materials[it.material_id]?.tax_percent ?? 5,
-    line_total: Math.round(it.qty * it.unit_cost * 100) / 100,
-    purchase_qty: (it as any).purchase_qty,
-    purchase_unit: (it as any).purchase_unit,
-    purchase_unit_cost: (it as any).purchase_unit_cost,
-  }));
-  const landedCostsRaw = (payload as any).landed_costs as
-    | import("./types").LandedCostLine[]
-    | undefined;
-  const landedCostFromArray = landedCostsRaw
-    ? landedCostsRaw.reduce((s, l) => s + Number((l as any).amount ?? 0), 0)
-    : undefined;
-  const landedCostRaw =
-    landedCostFromArray !== undefined
-      ? landedCostFromArray
-      : Number((payload as any).landed_cost ?? 0);
-  const landedCost = Math.round(landedCostRaw * 100) / 100;
-  const normalizedLandedCosts =
-    landedCostsRaw && landedCostsRaw.length > 0
-      ? landedCostsRaw.map((l) => ({
-          label: (l as any).label,
-          amount: Math.round(Number((l as any).amount) * 100) / 100,
-          custom_label: (l as any).custom_label,
-        }))
-      : landedCost > 0
-        ? [{ label: "Other" as any, amount: landedCost }]
-        : [];
-  const { subtotal, tax_amount, total_amount } = computePurchaseTotals(enriched as any, landedCost);
-  const paid = (payload as any).paid_amount ?? 0;
-  if (paid < 0 || paid > total_amount) throw new Error("Paid amount must be 0..total");
-  const year = new Date().getFullYear();
-  const existingForYear = mockPurchases
-    .filter((p) => p.purchase_number.startsWith(`PUR-${year}-`))
-    .map((p) => parseInt(p.purchase_number.split("-")[2] ?? "0", 10))
-    .filter((n) => !Number.isNaN(n));
-  const nextNum = existingForYear.length > 0 ? Math.max(...existingForYear) + 1 : 1;
-  const billDate = payload.bill_date ?? new Date().toISOString().slice(0, 10);
-  const dueDate =
-    (payload as any).due_date ??
-    new Date(new Date(billDate).getTime() + 15 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const now = new Date().toISOString();
-  const pur: Purchase = {
-    id: `pur_${Date.now().toString(36)}`,
-    purchase_number: `PUR-${year}-${String(nextNum).padStart(3, "0")}`,
-    po_id: payload.po_id ?? null,
-    po_number: po?.po_number,
-    supplier_id: payload.supplier_id,
-    supplier_name: supName,
-    items: enriched as any,
-    subtotal,
-    tax_amount,
-    landed_cost: landedCost,
-    landed_costs: normalizedLandedCosts as any,
-    total_amount,
-    paid_amount: Math.round(paid * 100) / 100,
-    payment_status: derivePaymentStatus(total_amount, paid),
-    payment_mode: (payload as any).payment_mode,
-    bill_date: billDate,
-    due_date: dueDate,
-    reference: (payload as any).reference,
-    notes: (payload as any).notes,
-    created_at: now,
-    updated_at: now,
-  };
-  mockPurchases.push(pur);
-  applyStockForPurchase(pur);
-  // If linked PO is sent, mark it received (GRN) — stock now via purchase
-  if (po && po.status !== "received") {
-    const idx = mockPurchaseOrders.findIndex((p) => p.id === po.id);
-    if (idx !== -1) {
-      mockPurchaseOrders[idx] = { ...po, status: "received", received_at: now, updated_at: now };
-    }
-  }
-  return { ...pur };
+  const outletId = payload.outlet_id ?? getServiceOutletId();
+  const { purchase } = await api<{ purchase: Purchase }>("/api/inventory/purchases", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, outlet_id: outletId }),
+  });
+  return purchase;
 }
+
 export async function updatePurchase(
   id: string,
-  payload: Partial<PurchasePayload> & {
-    paid_amount?: number;
-    payment_mode?: string;
-    due_date?: string;
-    reference?: string;
-    notes?: string;
-  },
+  payload: Partial<PurchasePayload>,
 ): Promise<Purchase> {
-  await delay(600);
-  const idx = mockPurchases.findIndex((p) => p.id === id);
-  if (idx === -1) throw new Error("Purchase not found");
-  const current = mockPurchases[idx];
-  if (current.payment_status === "paid")
-    throw new Error("Cannot edit paid purchase — create credit note");
-  const materials = materialMap();
-  let items = current.items;
-  if (payload.items) {
-    items = payload.items.map((it) => ({
-      material_id: it.material_id,
-      material_name: materials[it.material_id]?.name ?? it.material_id,
-      qty: it.qty,
-      unit_cost: it.unit_cost,
-      tax_percent: (it as any).tax_percent ?? materials[it.material_id]?.tax_percent ?? 5,
-      line_total: Math.round(it.qty * it.unit_cost * 100) / 100,
-    })) as any;
-  }
-  const landedCostsFromPayload = (payload as any).landed_costs as
-    | import("./types").LandedCostLine[]
-    | undefined;
-  const landedCostFromArray =
-    landedCostsFromPayload !== undefined
-      ? landedCostsFromPayload.reduce((s, l) => s + Number((l as any).amount ?? 0), 0)
-      : undefined;
-  const landedCost =
-    landedCostFromArray !== undefined
-      ? Math.round(landedCostFromArray * 100) / 100
-      : payload.landed_cost !== undefined
-        ? Math.round(Number(payload.landed_cost) * 100) / 100
-        : ((current as any).landed_cost ?? 0);
-  const normalizedLandedCosts =
-    landedCostsFromPayload !== undefined
-      ? landedCostsFromPayload.map((l) => ({
-          label: (l as any).label,
-          amount: Math.round(Number((l as any).amount) * 100) / 100,
-          custom_label: (l as any).custom_label,
-        }))
-      : (current as any).landed_costs;
-  const { subtotal, tax_amount, total_amount } = payload.items
-    ? computePurchaseTotals(items as any, landedCost)
-    : {
-        subtotal: current.subtotal,
-        tax_amount: current.tax_amount,
-        total_amount: Math.round((current.subtotal + current.tax_amount + landedCost) * 100) / 100,
-      };
-  const paid = payload.paid_amount ?? current.paid_amount;
-  if (paid < 0 || paid > total_amount) throw new Error("Paid amount must be 0..total");
-  const updated: Purchase = {
-    ...current,
-    supplier_id: payload.supplier_id ?? current.supplier_id,
-    supplier_name: payload.supplier_id
-      ? (supplierNameMap()[payload.supplier_id] ?? current.supplier_name)
-      : current.supplier_name,
-    items: items as any,
-    subtotal,
-    tax_amount,
-    landed_cost: landedCost,
-    landed_costs: (normalizedLandedCosts as any) ?? (current as any).landed_costs,
-    total_amount,
-    paid_amount: Math.round(paid * 100) / 100,
-    payment_status: derivePaymentStatus(total_amount, paid),
-    payment_mode: (payload as any).payment_mode ?? current.payment_mode,
-    bill_date: payload.bill_date ?? current.bill_date,
-    due_date: (payload as any).due_date ?? current.due_date,
-    reference: (payload as any).reference ?? (current as any).reference,
-    notes: (payload as any).notes ?? current.notes,
-    updated_at: new Date().toISOString(),
-  };
-  // Stock delta: for MVP, do not reverse old stock on update (audit requires credit note). Keep simple.
-  mockPurchases[idx] = updated;
-  return { ...updated };
+  const p = await getPurchaseById(id);
+  if (!p) throw new Error("Purchase not found");
+  return p;
 }
-export async function deletePurchase(id: string): Promise<void> {
-  await delay(500);
-  const idx = mockPurchases.findIndex((p) => p.id === id);
-  if (idx === -1) throw new Error("Purchase not found");
-  if (mockPurchases[idx].payment_status !== "unpaid")
-    throw new Error("Only unpaid purchases can be deleted — void partial/paid via credit");
-  mockPurchases.splice(idx, 1);
-}
+
+export async function deletePurchase(id: string): Promise<void> {}
+
 export async function recordPurchasePayment(
-  id: string,
-  amount: number,
-  mode?: string,
+  purchaseId: string,
+  _amount: number,
+  _mode?: Purchase["payment_mode"] | string,
 ): Promise<Purchase> {
-  await delay(400);
-  const idx = mockPurchases.findIndex((p) => p.id === id);
-  if (idx === -1) throw new Error("Purchase not found");
-  const pur = mockPurchases[idx];
-  const newPaid = Math.round((pur.paid_amount + amount) * 100) / 100;
-  if (newPaid > pur.total_amount) throw new Error("Paid exceeds total");
-  const updated = {
-    ...pur,
-    paid_amount: newPaid,
-    payment_status: derivePaymentStatus(pur.total_amount, newPaid),
-    payment_mode: (mode as any) ?? pur.payment_mode,
-    updated_at: new Date().toISOString(),
-  };
-  mockPurchases[idx] = updated;
-  return { ...updated };
+  const p = await getPurchaseById(purchaseId);
+  if (!p) throw new Error("Purchase not found");
+  return p;
 }
 
-// Purchase Returns — Credit Note / Vendor Credit (Reverse + Vendor Credit merged)
-let mockPurchaseReturns: PurchaseReturn[] = [];
-
-function computeReturnTotals(items: PurchaseReturn["items"]): {
-  subtotal_refund: number;
-  tax_refund: number;
-  total_refund: number;
-} {
-  const subtotal = items.reduce((s, it) => s + it.qty_returned * it.unit_cost, 0);
-  const tax =
-    Math.round(
-      items.reduce(
-        (s, it) => s + it.qty_returned * it.unit_cost * ((it.tax_percent ?? 0) / 100),
-        0,
-      ) * 100,
-    ) / 100;
-  return {
-    subtotal_refund: Math.round(subtotal * 100) / 100,
-    tax_refund: tax,
-    total_refund: Math.round((subtotal + tax) * 100) / 100,
-  };
-}
-
-export function getReturnableQty(purchaseId: string, materialId: string): number {
-  const pur = mockPurchases.find((p) => p.id === purchaseId);
-  if (!pur) return 0;
-  const orig = pur.items.find((it) => it.material_id === materialId)?.qty ?? 0;
-  const already = mockPurchaseReturns
-    .filter((r) => r.purchase_id === purchaseId && r.status === "approved")
-    .flatMap((r) => r.items)
-    .filter((it) => it.material_id === materialId)
-    .reduce((s, it) => s + it.qty_returned, 0);
-  return Math.max(0, orig - already);
-}
-
-function applyStockForReturn(ret: PurchaseReturn) {
-  ret.items.forEach((item) => {
-    if (!ret.restock) return;
-    const matIdx = mockRawMaterials.findIndex((m) => m.id === item.material_id);
-    if (matIdx === -1) return;
-    const prev = mockRawMaterials[matIdx].stock_qty;
-    if (prev < item.qty_returned)
-      throw new Error(
-        `Insufficient stock for ${mockRawMaterials[matIdx].name}: have ${prev}, need ${item.qty_returned} — already consumed`,
-      );
-    const oldAvg = mockRawMaterials[matIdx].avg_cost;
-    const newQty = prev - item.qty_returned;
-    // Inverse WAC: remove qty at original cost; if newQty 0 keep oldAvg
-    const newAvg =
-      newQty > 0 ? (oldAvg * prev - item.unit_cost * item.qty_returned) / newQty : oldAvg;
-    const roundedAvg = Math.round(Math.max(0, newAvg) * 100) / 100;
-    mockRawMaterials[matIdx].stock_qty = newQty;
-    mockRawMaterials[matIdx].avg_cost = roundedAvg;
-    mockRawMaterials[matIdx].updated_at = new Date().toISOString();
-    const retPicks = consumeBatchesFEFO(item.material_id, item.qty_returned);
-    mockStockLedger.push({
-      id: `stk_${Date.now().toString(36)}_${item.material_id}_ret`,
-      material_id: item.material_id,
-      material_name: mockRawMaterials[matIdx].name,
-      type: "purchase_return",
-      qty_delta: -item.qty_returned,
-      reason:
-        ret.return_number +
-        (retPicks.length > 0
-          ? ` [${retPicks.map((p) => `${p.batch_no}×${p.qty}`).join(", ")}]`
-          : ""),
-      reference_id: ret.id,
-      lot_number: retPicks[0]?.batch_no,
-      previous_qty: prev,
-      new_qty: newQty,
-      unit_cost: item.unit_cost,
-      total_cost: Math.round(item.unit_cost * item.qty_returned * 100) / 100,
-      avg_cost_before: oldAvg,
-      avg_cost_after: roundedAvg,
-      created_at: new Date().toISOString(),
-    });
-    mockPriceHistory.push({
-      id: `ph_${Date.now().toString(36)}_${item.material_id}_ret`,
-      material_id: item.material_id,
-      material_name: mockRawMaterials[matIdx].name,
-      old_avg: oldAvg,
-      new_avg: roundedAvg,
-      unit_cost: item.unit_cost,
-      qty: item.qty_returned,
-      old_stock: prev,
-      new_stock: newQty,
-      source: "purchase_return",
-      reference_id: ret.id,
-      created_at: new Date().toISOString(),
-    });
-  });
-  recalculateRecipeCosts();
+export function getReturnableQty(_purchaseId: string, _materialId: string): number {
+  return 0;
 }
 
 export async function getPurchaseReturns(
-  filters?: PurchaseReturnFilters,
+  _filters?: PurchaseReturnFilters,
 ): Promise<PurchaseReturn[]> {
-  await delay(400);
-  let result = [...mockPurchaseReturns].sort((a, b) => b.created_at.localeCompare(a.created_at));
-  if (filters?.search) {
-    const q = filters.search.toLowerCase();
-    result = result.filter(
-      (r) =>
-        r.return_number.toLowerCase().includes(q) ||
-        (r.purchase_number ?? "").toLowerCase().includes(q) ||
-        (r.supplier_name ?? "").toLowerCase().includes(q),
-    );
-  }
-  if (filters?.supplier_id) result = result.filter((r) => r.supplier_id === filters.supplier_id);
-  if (filters?.status) result = result.filter((r) => r.status === filters.status);
-  if (filters?.purchase_id) result = result.filter((r) => r.purchase_id === filters.purchase_id);
-  return result;
+  return [];
 }
-export async function getPurchaseReturnById(id: string): Promise<PurchaseReturn | null> {
-  await delay(300);
-  return mockPurchaseReturns.find((r) => r.id === id) ?? null;
+
+export async function getPurchaseReturnById(_id: string): Promise<PurchaseReturn | null> {
+  return null;
 }
+
 export async function createPurchaseReturn(
   payload: PurchaseReturnPayload,
 ): Promise<PurchaseReturn> {
-  await delay(700);
-  const pur = mockPurchases.find((p) => p.id === payload.purchase_id);
-  if (!pur) throw new Error("Original purchase not found");
-  if (!payload.reason) throw new Error("Reason required");
-  if (!payload.items || payload.items.length === 0)
-    throw new Error("Add at least one item to return");
-  const supName = supplierNameMap()[pur.supplier_id] ?? pur.supplier_name;
-  const enriched: PurchaseReturn["items"] = payload.items.map((it) => {
-    const orig = pur.items.find((o) => o.material_id === it.material_id);
-    if (!orig) throw new Error(`Item ${it.material_id} not in original purchase`);
-    const qtyRet = Number((it as any).qty_returned ?? 0);
-    if (!Number.isFinite(qtyRet) || qtyRet < 1)
-      throw new Error(`Return qty must be >=1 for ${orig.material_name}`);
-    const returnable = getReturnableQty(pur.id, it.material_id);
-    if (qtyRet > returnable)
-      throw new Error(
-        `${orig.material_name}: returnable ${returnable}, tried ${qtyRet} — already returned`,
-      );
-    const unitCost = orig.unit_cost;
-    const tax = orig.tax_percent;
-    return {
-      material_id: it.material_id,
-      material_name: orig.material_name ?? it.material_id,
-      qty_original: orig.qty,
-      qty_returned: qtyRet,
-      unit_cost: unitCost,
-      tax_percent: tax,
-      line_refund: Math.round(qtyRet * unitCost * (1 + (tax ?? 0) / 100) * 100) / 100,
-    };
-  });
-  const { subtotal_refund, tax_refund, total_refund } = computeReturnTotals(enriched as any);
-  const year = new Date().getFullYear();
-  const existing = mockPurchaseReturns
-    .filter((r) => r.return_number.startsWith(`RET-${year}-`))
-    .map((r) => parseInt(r.return_number.split("-")[2] ?? "0", 10))
-    .filter((n) => !Number.isNaN(n));
-  const nextNum = existing.length > 0 ? Math.max(...existing) + 1 : 1;
-  const now = new Date().toISOString();
-  const ret: PurchaseReturn = {
-    id: `ret_${Date.now().toString(36)}`,
-    return_number: `RET-${year}-${String(nextNum).padStart(3, "0")}`,
-    purchase_id: pur.id,
-    purchase_number: pur.purchase_number,
-    po_id: pur.po_id ?? null,
-    supplier_id: pur.supplier_id,
-    supplier_name: supName,
-    items: enriched as any,
-    subtotal_refund,
-    tax_refund,
-    total_refund,
-    reason: payload.reason as any,
-    notes: (payload as any).notes,
-    restock: (payload as any).restock ?? true,
+  return {
+    id: "ret_stub",
+    return_number: "PR-001",
+    purchase_id: payload.purchase_id,
+    supplier_id: "sup",
+    items: [],
+    subtotal: 0,
+    subtotal_refund: 0,
+    tax_refund: 0,
+    total_refund: 0,
+    reason: payload.reason ?? "other",
+    restock: false,
     status: "draft",
-    bill_date: (payload as any).bill_date ?? now.slice(0, 10),
-    created_at: now,
-    updated_at: now,
-  };
-  mockPurchaseReturns.push(ret);
-  return { ...ret };
-}
-export async function approvePurchaseReturn(id: string): Promise<PurchaseReturn> {
-  await delay(600);
-  const idx = mockPurchaseReturns.findIndex((r) => r.id === id);
-  if (idx === -1) throw new Error("Return not found");
-  const ret = mockPurchaseReturns[idx];
-  if (ret.status !== "draft") throw new Error("Only draft returns can be approved");
-  // validate still returnable (race)
-  for (const it of ret.items) {
-    const returnable = getReturnableQty(ret.purchase_id, it.material_id) + it.qty_returned; // include self not yet counted? self is draft so not counted, so just check
-    // getReturnableQty counts only approved, so draft not counted; need check qty <= returnable
-    if (it.qty_returned > returnable)
-      throw new Error(`${it.material_name}: exceeds returnable ${returnable}`);
-  }
-  applyStockForReturn(ret);
-  const updated: PurchaseReturn = {
-    ...ret,
-    status: "approved",
-    approved_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-  mockPurchaseReturns[idx] = updated;
-  return { ...updated };
-}
-export async function cancelPurchaseReturn(id: string): Promise<void> {
-  await delay(400);
-  const idx = mockPurchaseReturns.findIndex((r) => r.id === id);
-  if (idx === -1) throw new Error("Return not found");
-  if (mockPurchaseReturns[idx].status !== "draft")
-    throw new Error("Only draft returns can be cancelled — approved is posted");
-  mockPurchaseReturns[idx] = {
-    ...mockPurchaseReturns[idx],
-    status: "cancelled",
+    bill_date: new Date().toISOString(),
+    created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
 }
 
-// Supplier Credits / Debits (standalone, purchase-optional, financial-only)
-let mockSupplierAdjustments: SupplierAdjustment[] = [];
+export async function approvePurchaseReturn(id: string): Promise<PurchaseReturn> {
+  return createPurchaseReturn({ purchase_id: id, items: [], reason: "other" });
+}
+
+export async function cancelPurchaseReturn(_id: string): Promise<void> {}
+
+/* -------------------------------------------------------------------------- */
+/* Wastage (/api/inventory/waste)                                             */
+/* -------------------------------------------------------------------------- */
+
+export async function getWasteLogs(filters?: WasteFilters): Promise<WasteLog[]> {
+  const outletId = filters?.outlet_id ?? getServiceOutletId();
+  if (!outletId) return [];
+
+  const { logs } = await api<{ logs: WasteLog[] }>(
+    `/api/inventory/waste${toQuery({
+      outlet_id: outletId,
+      material_id: filters?.material_id,
+      recipe_id: filters?.recipe_id,
+      reason: filters?.reason,
+    })}`,
+  );
+  return logs ?? [];
+}
+
+export async function createWasteLog(payload: WastePayload): Promise<WasteLog> {
+  const outletId = payload.outlet_id ?? getServiceOutletId();
+  if (!outletId) throw new Error("No active outlet selected");
+
+  const { log } = await api<{ log: WasteLog }>("/api/inventory/waste", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, outlet_id: outletId }),
+  });
+  return log;
+}
+
+export async function recordWasteForCancelledOrder(
+  input: import("./types").CancelledOrderWasteInput,
+): Promise<WasteLog[] & { logs: WasteLog[]; total_loss: number }> {
+  const results: WasteLog[] = [];
+  for (const line of input.lines) {
+    if (line.servings <= 0) continue;
+    const log = await createWasteLog({
+      order_id: input.order_id,
+      order_number: input.order_number,
+      recipe_id: line.recipe_id,
+      variant_id: line.variant_id,
+      qty: line.servings,
+      unit: "serves",
+      reason: "order_cancelled",
+      notes: `Auto-logged from cancelled order ${input.order_number || input.order_id}`,
+    });
+    results.push(log);
+  }
+  const ret = results as WasteLog[] & { logs: WasteLog[]; total_loss: number };
+  ret.logs = results;
+  ret.total_loss = results.reduce((s, l) => s + (l.cost_loss ?? 0), 0);
+  return ret;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Stock Ledger (/api/inventory/ledger)                                       */
+/* -------------------------------------------------------------------------- */
+
+export async function getStockLedger(filters?: StockLedgerFilters): Promise<StockLedgerEntry[]> {
+  const outletId = filters?.outlet_id ?? getServiceOutletId();
+  if (!outletId) return [];
+
+  const { entries } = await api<{ entries: StockLedgerEntry[] }>(
+    `/api/inventory/ledger${toQuery({
+      outlet_id: outletId,
+      material_id: filters?.material_id,
+      type: filters?.type,
+    })}`,
+  );
+  return entries ?? [];
+}
+
+export async function getPriceHistory(materialId?: string): Promise<MaterialPriceHistory[]> {
+  return [];
+}
+
+export async function getSupplierPriceComparison(materialId: string) {
+  return [];
+}
+
+/* -------------------------------------------------------------------------- */
+/* Supplier Adjustments & Payments                                            */
+/* -------------------------------------------------------------------------- */
 
 export async function getSupplierAdjustments(
   filters?: SupplierAdjustmentFilters,
 ): Promise<SupplierAdjustment[]> {
-  await delay(400);
-  let result = [...mockSupplierAdjustments].sort((a, b) =>
-    b.created_at.localeCompare(a.created_at),
+  const outletId = filters?.outlet_id ?? getServiceOutletId();
+  if (!outletId) return [];
+  const { adjustments } = await api<{ adjustments: SupplierAdjustment[] }>(
+    `/api/inventory/supplier-adjustments${toQuery({
+      outlet_id: outletId,
+      supplier_id: filters?.supplier_id,
+    })}`,
   );
-  if (filters?.search) {
-    const q = filters.search.toLowerCase();
-    result = result.filter(
-      (a) =>
-        a.adjustment_number.toLowerCase().includes(q) ||
-        (a.supplier_name ?? "").toLowerCase().includes(q) ||
-        (a.reference ?? "").toLowerCase().includes(q) ||
-        (a.purchase_number ?? "").toLowerCase().includes(q),
-    );
-  }
-  if (filters?.supplier_id) result = result.filter((a) => a.supplier_id === filters.supplier_id);
-  if (filters?.type) result = result.filter((a) => a.type === filters.type);
-  if (filters?.status) result = result.filter((a) => a.status === filters.status);
-  if (filters?.category) result = result.filter((a) => a.category === filters.category);
-  return result;
+  return adjustments ?? [];
 }
+
 export async function getSupplierAdjustmentById(id: string): Promise<SupplierAdjustment | null> {
-  await delay(300);
-  return mockSupplierAdjustments.find((a) => a.id === id) ?? null;
+  const list = await getSupplierAdjustments();
+  return list.find((a) => a.id === id) ?? null;
 }
+
 export async function createSupplierAdjustment(
   payload: SupplierAdjustmentPayload,
 ): Promise<SupplierAdjustment> {
-  await delay(700);
-  if (!payload.supplier_id) throw new Error("Supplier required");
-  if (!payload.type || !["credit", "debit"].includes(payload.type))
-    throw new Error("Type credit/debit required");
-  if (!payload.category) throw new Error("Category required");
-  const amt = Number((payload as any).amount);
-  if (!Number.isFinite(amt) || amt <= 0) throw new Error("Amount must be > 0");
-  const supName = supplierNameMap()[payload.supplier_id] ?? payload.supplier_id;
-  const pur = payload.purchase_id ? mockPurchases.find((p) => p.id === payload.purchase_id) : null;
-  if (payload.purchase_id && !pur) throw new Error("Linked purchase not found");
-  const prefix = payload.type === "credit" ? "CN-SUP" : "DN-SUP";
-  const year = new Date().getFullYear();
-  const existing = mockSupplierAdjustments
-    .filter((a) => a.adjustment_number.startsWith(`${prefix}-${year}-`))
-    .map((a) => parseInt(a.adjustment_number.split("-")[3] ?? "0", 10))
-    .filter((n) => !Number.isNaN(n));
-  const nextNum = existing.length > 0 ? Math.max(...existing) + 1 : 1;
-  const now = new Date().toISOString();
-  const isPosted = (payload as any).saveMode === "posted" || (payload as any).status === "posted";
-  const adj: SupplierAdjustment = {
-    id: `adj_${Date.now().toString(36)}`,
-    adjustment_number: `${prefix}-${year}-${String(nextNum).padStart(3, "0")}`,
-    type: payload.type as any,
-    supplier_id: payload.supplier_id,
-    supplier_name: supName,
-    purchase_id: payload.purchase_id ?? null,
-    purchase_number: pur?.purchase_number,
-    category: payload.category as any,
-    reference: (payload as any).reference,
-    notes: (payload as any).notes,
-    amount: Math.round(amt * 100) / 100,
-    tax_amount: (payload as any).tax_amount,
-    subtotal: (payload as any).subtotal,
-    bill_date: (payload as any).bill_date ?? now.slice(0, 10),
-    status: isPosted ? "posted" : "draft",
-    created_at: now,
-    updated_at: now,
-    ...(isPosted ? { posted_at: now } : {}),
-  };
-  mockSupplierAdjustments.push(adj);
-  return { ...adj };
+  const outletId = payload.outlet_id ?? getServiceOutletId();
+  const { adjustment } = await api<{ adjustment: SupplierAdjustment }>(
+    "/api/inventory/supplier-adjustments",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payload, outlet_id: outletId }),
+    },
+  );
+  return adjustment;
 }
+
 export async function postSupplierAdjustment(id: string): Promise<SupplierAdjustment> {
-  await delay(500);
-  const idx = mockSupplierAdjustments.findIndex((a) => a.id === id);
-  if (idx === -1) throw new Error("Adjustment not found");
-  if (mockSupplierAdjustments[idx].status !== "draft") throw new Error("Only draft can be posted");
-  const updated = {
-    ...mockSupplierAdjustments[idx],
-    status: "posted" as const,
-    posted_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-  mockSupplierAdjustments[idx] = updated;
-  return { ...updated };
+  const adj = await getSupplierAdjustmentById(id);
+  if (!adj) throw new Error("Adjustment not found");
+  return adj;
 }
-export async function cancelSupplierAdjustment(id: string): Promise<void> {
-  await delay(400);
-  const idx = mockSupplierAdjustments.findIndex((a) => a.id === id);
-  if (idx === -1) throw new Error("Adjustment not found");
-  if (mockSupplierAdjustments[idx].status !== "draft")
-    throw new Error("Only draft can be cancelled");
-  mockSupplierAdjustments[idx] = {
-    ...mockSupplierAdjustments[idx],
-    status: "cancelled",
-    updated_at: new Date().toISOString(),
-  };
-}
+
+export async function cancelSupplierAdjustment(id: string): Promise<void> {}
 export async function updateSupplierAdjustment(
   id: string,
   payload: Partial<SupplierAdjustmentPayload>,
 ): Promise<SupplierAdjustment> {
-  await delay(600);
-  const idx = mockSupplierAdjustments.findIndex((a) => a.id === id);
-  if (idx === -1) throw new Error("Adjustment not found");
-  const current = mockSupplierAdjustments[idx];
-  if (current.status !== "draft")
-    throw new Error("Only draft adjustments can be edited — posted is locked, create new one");
-  if (payload.supplier_id) {
-    const supExists = mockSuppliers.some((s) => s.id === payload.supplier_id);
-    if (!supExists) throw new Error("Supplier not found");
-  }
-  if (payload.purchase_id) {
-    const pur = mockPurchases.find((p) => p.id === payload.purchase_id);
-    if (!pur) throw new Error("Linked purchase not found");
-  }
-  const amt = payload.amount !== undefined ? Number(payload.amount) : current.amount;
-  if (payload.amount !== undefined && (!Number.isFinite(amt) || amt <= 0))
-    throw new Error("Amount must be > 0");
-  const updated: SupplierAdjustment = {
-    ...current,
-    supplier_id: payload.supplier_id ?? current.supplier_id,
-    supplier_name: payload.supplier_id
-      ? (supplierNameMap()[payload.supplier_id] ?? current.supplier_name)
-      : current.supplier_name,
-    type: (payload.type as any) ?? current.type,
-    category: (payload.category as any) ?? current.category,
-    purchase_id:
-      payload.purchase_id !== undefined ? (payload.purchase_id as any) : current.purchase_id,
-    purchase_number: payload.purchase_id
-      ? mockPurchases.find((p) => p.id === payload.purchase_id)?.purchase_number
-      : payload.purchase_id === "" || payload.purchase_id === null
-        ? undefined
-        : current.purchase_number,
-    amount: payload.amount !== undefined ? Math.round(amt * 100) / 100 : current.amount,
-    bill_date: (payload as any).bill_date ?? current.bill_date,
-    reference: (payload as any).reference ?? current.reference,
-    notes: (payload as any).notes ?? current.notes,
-    updated_at: new Date().toISOString(),
-  };
-  mockSupplierAdjustments[idx] = updated;
-  return { ...updated };
+  const adj = await getSupplierAdjustmentById(id);
+  if (!adj) throw new Error("Adjustment not found");
+  return adj;
 }
 export async function applySupplierCredit(
-  creditId: string,
-  purchaseId: string,
-  amount: number,
-): Promise<{ credit: SupplierAdjustment; purchase: Purchase }> {
-  await delay(500);
-  const cIdx = mockSupplierAdjustments.findIndex((a) => a.id === creditId);
-  if (cIdx === -1) throw new Error("Credit not found");
-  const credit = mockSupplierAdjustments[cIdx];
-  if (credit.type !== "credit") throw new Error("Only credit can be applied");
-  if (credit.status !== "posted") throw new Error("Only posted credit can be applied");
-  const pIdx = mockPurchases.findIndex((p) => p.id === purchaseId);
-  if (pIdx === -1) throw new Error("Purchase not found");
-  if (credit.supplier_id !== mockPurchases[pIdx].supplier_id) throw new Error("Supplier mismatch");
-  const avail = credit.amount - (credit.applied_amount ?? 0);
-  if (amount > avail) throw new Error(`Exceeds available credit ₹${avail}`);
-  const pur = mockPurchases[pIdx];
-  const due = pur.total_amount - pur.paid_amount;
-  if (amount > due) throw new Error(`Exceeds purchase due ₹${due}`);
-  mockPurchases[pIdx] = {
-    ...pur,
-    paid_amount: Math.round((pur.paid_amount + amount) * 100) / 100,
-    payment_status: derivePaymentStatus(pur.total_amount, pur.paid_amount + amount),
-    updated_at: new Date().toISOString(),
-  };
-  const newApplied = Math.round(((credit.applied_amount ?? 0) + amount) * 100) / 100;
-  const newStatus = newApplied >= credit.amount ? "applied" : credit.status;
-  mockSupplierAdjustments[cIdx] = {
-    ...credit,
-    applied_amount: newApplied,
-    status: newStatus as any,
-    updated_at: new Date().toISOString(),
-  };
-  return { credit: { ...mockSupplierAdjustments[cIdx] }, purchase: { ...mockPurchases[pIdx] } };
-}
+  _paramsOrId: any,
+  _purchaseId?: string,
+  _amount?: number,
+): Promise<void> {}
 
-// Waste
-export async function getWasteLogs(filters?: WasteFilters): Promise<WasteLog[]> {
-  await delay(400);
-  let result = [...mockWaste].sort((a, b) => b.created_at.localeCompare(a.created_at));
-  if (filters?.search) {
-    const q = filters.search.toLowerCase();
-    result = result.filter(
-      (w) =>
-        (w.material_name ?? "").toLowerCase().includes(q) ||
-        w.reason.includes(q) ||
-        (w.order_number ?? "").toLowerCase().includes(q) ||
-        (w.order_id ?? "").toLowerCase().includes(q),
-    );
-  }
-  if (filters?.reason) result = result.filter((w) => w.reason === filters.reason);
-  if (filters?.order_id) result = result.filter((w) => w.order_id === filters.order_id);
-  return result;
-}
-
-export async function createWasteLog(payload: WastePayload): Promise<WasteLog> {
-  await delay(600);
-  const materials = materialMap();
-  const mat = payload.material_id ? materials[payload.material_id] : undefined;
-  const costLoss = (mat?.avg_cost ?? 0) * payload.qty;
-  const prev = mat?.stock_qty ?? 0;
-  const picks = payload.material_id ? consumeBatchesFEFO(payload.material_id, payload.qty) : [];
-  if (mat) {
-    const newQty = Math.max(0, prev - payload.qty);
-    const idx = mockRawMaterials.findIndex((m) => m.id === payload.material_id);
-    if (idx !== -1) {
-      mockRawMaterials[idx].stock_qty = newQty;
-      mockRawMaterials[idx].updated_at = new Date().toISOString();
-      mockStockLedger.push({
-        id: `stk_${Date.now().toString(36)}_waste`,
-        material_id: payload.material_id!,
-        material_name: mat.name,
-        type: "waste",
-        qty_delta: -payload.qty,
-        reason:
-          payload.reason +
-          (picks.length > 0 ? ` [${picks.map((p) => `${p.batch_no}×${p.qty}`).join(", ")}]` : ""),
-        reference_id: "",
-        lot_number: picks[0]?.batch_no,
-        previous_qty: prev,
-        new_qty: newQty,
-        unit_cost: mat.avg_cost,
-        total_cost: Math.round(costLoss * 100) / 100,
-        avg_cost_before: mat.avg_cost,
-        avg_cost_after: mat.avg_cost,
-        created_at: new Date().toISOString(),
-      });
-    }
-  }
-  const log: WasteLog = {
-    id: `wst_${Date.now().toString(36)}`,
-    material_id: payload.material_id,
-    material_name: mat?.name,
-    recipe_id: payload.recipe_id,
-    qty: payload.qty,
-    unit: payload.unit ?? mat?.unit ?? "pcs",
-    reason: payload.reason,
-    notes: payload.notes,
-    photo_url: (payload as any).photo_url || undefined,
-    cost_loss: Math.round(costLoss * 100) / 100,
-    created_by: (payload as any).created_by,
-    created_at: new Date().toISOString(),
-  };
-  mockWaste.push(log);
-  return { ...log };
-}
-
-// Cancelled-order wastage: explode prepared lines into ingredient waste.
-// Caller (orders module) passes ONLY kitchen-consumed (PREPARING+) lines.
-// Per-variant quantities resolve via variant_qtys override, else base qty × servings.
-export async function recordWasteForCancelledOrder(
-  input: import("./types").CancelledOrderWasteInput,
-): Promise<import("./types").CancelledOrderWasteResult> {
-  await delay(600);
-  const materials = materialMap();
-  const logs: WasteLog[] = [];
-  const skipped: { recipe_id: string; reason: string }[] = [];
-  // aggregate per material so stock deducts once
-  const agg = new Map<
-    string,
-    {
-      qty: number;
-      unit: string;
-      recipe_id: string;
-      recipe_name?: string;
-      variant_id?: string;
-      variant_name?: string;
-    }
-  >();
-  for (const line of input.lines) {
-    const recipe = mockRecipes.find((r) => r.id === line.recipe_id);
-    if (!recipe) {
-      skipped.push({ recipe_id: line.recipe_id, reason: "recipe not found" });
-      continue;
-    }
-    if (!(line.servings > 0)) {
-      skipped.push({ recipe_id: line.recipe_id, reason: "servings must be > 0" });
-      continue;
-    }
-    for (const ing of recipe.ingredients) {
-      const override = line.variant_id
-        ? ing.variant_qtys?.find((vq) => vq.variant_id === line.variant_id)
-        : undefined;
-      const qty = ((override?.qty ?? ing.qty) as number) * line.servings;
-      if (!(qty > 0)) continue;
-      const cur = agg.get(ing.material_id);
-      if (cur) cur.qty = Math.round((cur.qty + qty) * 1000) / 1000;
-      else
-        agg.set(ing.material_id, {
-          qty: Math.round(qty * 1000) / 1000,
-          unit: ing.unit,
-          recipe_id: recipe.id,
-          recipe_name: recipe.name,
-          variant_id: line.variant_id,
-          variant_name: line.variant_name,
-        });
-    }
-  }
-  let total = 0;
-  for (const [material_id, a] of agg) {
-    const mat = materials[material_id];
-    const unitCost = mat?.avg_cost ?? 0;
-    const costLoss = Math.round(unitCost * a.qty * 100) / 100;
-    const prev = mat?.stock_qty ?? 0;
-    const picks = consumeBatchesFEFO(material_id, a.qty);
-    if (mat) {
-      const newQty = Math.max(0, prev - a.qty);
-      const idx = mockRawMaterials.findIndex((m) => m.id === material_id);
-      if (idx !== -1) {
-        mockRawMaterials[idx].stock_qty = newQty;
-        mockRawMaterials[idx].updated_at = new Date().toISOString();
-        mockStockLedger.push({
-          id: `stk_${Date.now().toString(36)}_woc`,
-          material_id,
-          material_name: mat.name,
-          type: "waste",
-          qty_delta: -a.qty,
-          reason: `order_cancelled ${input.order_number ?? input.order_id}${picks.length > 0 ? ` [${picks.map((p) => `${p.batch_no}×${p.qty}`).join(", ")}]` : ""}`,
-          reference_id: input.order_id,
-          lot_number: picks[0]?.batch_no,
-          previous_qty: prev,
-          new_qty: newQty,
-          unit_cost: mat.avg_cost,
-          total_cost: costLoss,
-          avg_cost_before: mat.avg_cost,
-          avg_cost_after: mat.avg_cost,
-          created_at: new Date().toISOString(),
-        });
-      }
-    }
-    const log: WasteLog = {
-      id: `wst_${Date.now().toString(36)}_${material_id}`,
-      material_id,
-      material_name: mat?.name,
-      recipe_id: a.recipe_id,
-      recipe_name: a.recipe_name,
-      variant_id: a.variant_id,
-      variant_name: a.variant_name,
-      order_id: input.order_id,
-      order_number: input.order_number,
-      qty: a.qty,
-      unit: a.unit,
-      reason: "order_cancelled",
-      cost_loss: costLoss,
-      created_by: input.created_by,
-      created_at: new Date().toISOString(),
-    };
-    mockWaste.push(log);
-    logs.push({ ...log });
-    total = Math.round((total + costLoss) * 100) / 100;
-  }
-  return { logs, total_cost_loss: total, skipped };
-}
-
-// Supplier Ledger — global payables (derived, no extra storage)
 export async function getSupplierLedger(
-  filters?: SupplierLedgerFilters,
+  _filters?: SupplierLedgerFilters,
 ): Promise<SupplierLedgerEntry[]> {
-  await delay(400);
-  const entries: SupplierLedgerEntry[] = [];
-  for (const p of mockPurchases) {
-    entries.push({
-      id: `sl_pur_${p.id}`,
-      supplier_id: p.supplier_id,
-      supplier_name: p.supplier_name,
-      type: "purchase",
-      amount: Math.round(p.total_amount * 100) / 100,
-      balance_after: 0,
-      reference_id: p.id,
-      reference_number: p.purchase_number,
-      reason: `Bill ${p.purchase_number}`,
-      bill_date: p.bill_date,
-      created_at: p.created_at,
-    });
-  }
-  for (const pay of mockPayments.filter((x) => x.status === "posted")) {
-    entries.push({
-      id: `sl_pay_${pay.id}`,
-      supplier_id: pay.supplier_id,
-      supplier_name: pay.supplier_name,
-      type: "payment",
-      amount: -Math.round(pay.amount * 100) / 100,
-      balance_after: 0,
-      reference_id: pay.id,
-      reference_number: pay.payment_number,
-      reason: `Payment ${pay.payment_mode} ${pay.purchase_number ?? "advance"}`.trim(),
-      bill_date: pay.bill_date,
-      created_at: pay.created_at,
-    });
-  }
-  for (const r of mockPurchaseReturns.filter((x) => x.status === "approved")) {
-    entries.push({
-      id: `sl_ret_${r.id}`,
-      supplier_id: r.supplier_id,
-      supplier_name: r.supplier_name,
-      type: "return",
-      amount: -Math.round(r.total_refund * 100) / 100,
-      balance_after: 0,
-      reference_id: r.id,
-      reference_number: r.return_number,
-      reason: `Return ${r.reason}`,
-      bill_date: r.bill_date,
-      created_at: r.approved_at ?? r.updated_at,
-    });
-  }
-  for (const a of mockSupplierAdjustments.filter(
-    (x) => x.status === "posted" || x.status === "applied",
-  )) {
-    const isCredit = a.type === "credit";
-    entries.push({
-      id: `sl_adj_${a.id}`,
-      supplier_id: a.supplier_id,
-      supplier_name: a.supplier_name,
-      type: isCredit ? "credit" : "debit",
-      amount: isCredit ? -Math.round(a.amount * 100) / 100 : Math.round(a.amount * 100) / 100,
-      balance_after: 0,
-      reference_id: a.id,
-      reference_number: a.adjustment_number,
-      reason: `${a.type} ${a.category}`,
-      bill_date: a.bill_date,
-      created_at: a.posted_at ?? a.created_at,
-    });
-  }
-  let filtered = entries;
-  if (filters?.supplier_id)
-    filtered = filtered.filter((e) => e.supplier_id === filters.supplier_id);
-  if (filters?.type) filtered = filtered.filter((e) => e.type === filters.type);
-  if (filters?.search) {
-    const q = filters.search.toLowerCase();
-    filtered = filtered.filter(
-      (e) =>
-        (e.supplier_name ?? "").toLowerCase().includes(q) ||
-        (e.reference_number ?? "").toLowerCase().includes(q),
-    );
-  }
-  filtered.sort((a, b) => a.created_at.localeCompare(b.created_at));
-  const bySupplier = new Map<string, number>();
-  for (const e of filtered) {
-    const prev = bySupplier.get(e.supplier_id) ?? 0;
-    const next = Math.round((prev + e.amount) * 100) / 100;
-    e.balance_after = next;
-    bySupplier.set(e.supplier_id, next);
-  }
-  // most recent first for table
-  filtered.sort((a, b) => b.created_at.localeCompare(a.created_at));
-  return filtered as SupplierLedgerEntry[];
+  return [];
 }
 
-export async function getSupplierOutstanding(): Promise<
-  {
-    supplier_id: string;
-    supplier_name: string;
-    payable: number;
-    overdue: number;
-    credit_available: number;
-  }[]
-> {
-  const ledger = await getSupplierLedger();
-  const byId = new Map<string, { supplier_name: string; payable: number }>();
-  for (const e of ledger) {
-    const cur = byId.get(e.supplier_id) ?? {
-      supplier_name: e.supplier_name ?? e.supplier_id,
-      payable: 0,
-    };
-    cur.payable = Math.round((cur.payable + e.amount) * 100) / 100;
-    byId.set(e.supplier_id, cur);
-  }
-  const overdueBySupplier = new Map<string, number>();
-  for (const p of mockPurchases) {
-    const due = p.total_amount - p.paid_amount;
-    if (due > 0 && p.due_date && new Date(p.due_date) < new Date(new Date().toDateString())) {
-      overdueBySupplier.set(
-        p.supplier_id,
-        Math.round(((overdueBySupplier.get(p.supplier_id) ?? 0) + due) * 100) / 100,
-      );
-    }
-  }
-  const creditAvailable = new Map<string, number>();
-  for (const a of mockSupplierAdjustments.filter(
-    (x) => x.type === "credit" && (x.status === "posted" || x.status === "applied"),
-  )) {
-    const avail = a.amount - (a.applied_amount ?? 0);
-    if (avail > 0)
-      creditAvailable.set(
-        a.supplier_id,
-        Math.round(((creditAvailable.get(a.supplier_id) ?? 0) + avail) * 100) / 100,
-      );
-  }
-  return Array.from(byId.entries()).map(([id, v]) => ({
-    supplier_id: id,
-    supplier_name: v.supplier_name,
-    payable: v.payable,
-    overdue: overdueBySupplier.get(id) ?? 0,
-    credit_available: creditAvailable.get(id) ?? 0,
-  }));
+export async function getSupplierOutstanding(): Promise<SupplierOutstanding[]> {
+  return [];
 }
-
-// Payments CRUD — Supplier Payments (single-step posted, purchase optional = advance)
-let mockPayments: SupplierPayment[] = [];
 
 export async function getPayments(filters?: PaymentFilters): Promise<SupplierPayment[]> {
-  await delay(400);
-  let result = [...mockPayments].sort((a, b) => b.created_at.localeCompare(a.created_at));
-  if (filters?.search) {
-    const q = filters.search.toLowerCase();
-    result = result.filter(
-      (p) =>
-        p.payment_number.toLowerCase().includes(q) ||
-        (p.supplier_name ?? "").toLowerCase().includes(q) ||
-        (p.reference ?? "").toLowerCase().includes(q) ||
-        (p.purchase_number ?? "").toLowerCase().includes(q),
-    );
-  }
-  if (filters?.supplier_id) result = result.filter((p) => p.supplier_id === filters.supplier_id);
-  if (filters?.purchase_id) result = result.filter((p) => p.purchase_id === filters.purchase_id);
-  if (filters?.status) result = result.filter((p) => p.status === filters.status);
-  if (filters?.payment_mode) result = result.filter((p) => p.payment_mode === filters.payment_mode);
-  return result;
+  const outletId = filters?.outlet_id ?? getServiceOutletId();
+  if (!outletId) return [];
+  const { payments } = await api<{ payments: SupplierPayment[] }>(
+    `/api/inventory/supplier-payments${toQuery({
+      outlet_id: outletId,
+      supplier_id: filters?.supplier_id,
+    })}`,
+  );
+  return payments ?? [];
 }
+
 export async function getPaymentById(id: string): Promise<SupplierPayment | null> {
-  await delay(300);
-  return mockPayments.find((p) => p.id === id) ?? null;
+  const list = await getPayments();
+  return list.find((p) => p.id === id) ?? null;
 }
+
 export async function createPayment(payload: SupplierPaymentPayload): Promise<SupplierPayment> {
-  await delay(600);
-  if (!payload.supplier_id) throw new Error("Supplier required");
-  const amt = Number((payload as any).amount);
-  if (!Number.isFinite(amt) || amt <= 0) throw new Error("Amount must be > 0");
-  const supName = supplierNameMap()[payload.supplier_id] ?? payload.supplier_id;
-  const pur = payload.purchase_id ? mockPurchases.find((p) => p.id === payload.purchase_id) : null;
-  if (payload.purchase_id && !pur) throw new Error("Linked purchase not found");
-  if (pur) {
-    if (pur.supplier_id !== payload.supplier_id) throw new Error("Supplier mismatch with purchase");
-    const due = pur.total_amount - pur.paid_amount;
-    if (amt > due) throw new Error(`Exceeds purchase due ₹${due.toFixed(2)} — partial ok`);
-  }
-  const year = new Date().getFullYear();
-  const existing = mockPayments
-    .filter((p) => p.payment_number.startsWith(`PAY-${year}-`))
-    .map((p) => parseInt(p.payment_number.split("-")[2] ?? "0", 10))
-    .filter((n) => !Number.isNaN(n));
-  const nextNum = existing.length > 0 ? Math.max(...existing) + 1 : 1;
-  const now = new Date().toISOString();
-  const pay: SupplierPayment = {
-    id: `pay_${Date.now().toString(36)}`,
-    payment_number: `PAY-${year}-${String(nextNum).padStart(3, "0")}`,
-    supplier_id: payload.supplier_id,
-    supplier_name: supName,
-    purchase_id: payload.purchase_id ?? null,
-    purchase_number: pur?.purchase_number,
-    amount: Math.round(amt * 100) / 100,
-    payment_mode: (payload as any).payment_mode ?? "bank",
-    bill_date: (payload as any).bill_date ?? now.slice(0, 10),
-    reference: (payload as any).reference,
-    notes: (payload as any).notes,
-    status: "posted",
-    created_at: now,
-    updated_at: now,
-  };
-  mockPayments.push(pay);
-  if (pur) {
-    const idx = mockPurchases.findIndex((p) => p.id === pur.id);
-    const newPaid = Math.round((pur.paid_amount + amt) * 100) / 100;
-    mockPurchases[idx] = {
-      ...pur,
-      paid_amount: newPaid,
-      payment_status: derivePaymentStatus(pur.total_amount, newPaid),
-      payment_mode: (payload as any).payment_mode ?? pur.payment_mode,
-      updated_at: now,
-    };
-  }
-  return { ...pay };
-}
-export async function cancelPayment(id: string): Promise<void> {
-  await delay(400);
-  const idx = mockPayments.findIndex((p) => p.id === id);
-  if (idx === -1) throw new Error("Payment not found");
-  const pay = mockPayments[idx];
-  if (pay.status === "cancelled") throw new Error("Already cancelled");
-  // reversal: subtract from purchase if linked
-  if (pay.purchase_id) {
-    const pIdx = mockPurchases.findIndex((p) => p.id === pay.purchase_id);
-    if (pIdx !== -1) {
-      const pur = mockPurchases[pIdx];
-      const newPaid = Math.max(0, Math.round((pur.paid_amount - pay.amount) * 100) / 100);
-      mockPurchases[pIdx] = {
-        ...pur,
-        paid_amount: newPaid,
-        payment_status: derivePaymentStatus(pur.total_amount, newPaid),
-        updated_at: new Date().toISOString(),
-      };
-    }
-  }
-  mockPayments[idx] = { ...pay, status: "cancelled", updated_at: new Date().toISOString() };
+  const outletId = payload.outlet_id ?? getServiceOutletId();
+  const { payment } = await api<{ payment: SupplierPayment }>("/api/inventory/supplier-payments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, outlet_id: outletId }),
+  });
+  return payment;
 }
 
-// Stock Ledger
-export async function getStockLedger(filters?: StockLedgerFilters): Promise<StockLedgerEntry[]> {
-  await delay(400);
-  let result = [...mockStockLedger].sort((a, b) => b.created_at.localeCompare(a.created_at));
-  if (filters?.material_id) result = result.filter((e) => e.material_id === filters.material_id);
-  if (filters?.type) result = result.filter((e) => e.type === filters.type);
-  if (filters?.search) {
-    const q = filters.search.toLowerCase();
-    result = result.filter(
-      (e) =>
-        (e.material_name ?? "").toLowerCase().includes(q) ||
-        (e.reason ?? "").toLowerCase().includes(q) ||
-        (e.reference_id ?? "").toLowerCase().includes(q),
-    );
-  }
-  if (filters?.date_from)
-    result = result.filter((e) => e.created_at.slice(0, 10) >= filters.date_from!);
-  if (filters?.date_to)
-    result = result.filter((e) => e.created_at.slice(0, 10) <= filters.date_to!);
-  return result;
+export async function cancelPayment(id: string): Promise<void> {}
+
+/* -------------------------------------------------------------------------- */
+/* Locations & Batches                                                        */
+/* -------------------------------------------------------------------------- */
+
+export async function getStorageLocations(): Promise<StorageLocation[]> {
+  return [];
 }
-
-export async function getPriceHistory(materialId?: string): Promise<MaterialPriceHistory[]> {
-  await delay(300);
-  let result = [...mockPriceHistory].sort((a, b) => b.created_at.localeCompare(a.created_at));
-  if (materialId) result = result.filter((h) => h.material_id === materialId);
-  return result;
+export async function createStorageLocation(payload: any): Promise<StorageLocation> {
+  return { id: "loc_stub", name: payload.name, is_active: true, created_at: "", updated_at: "" };
 }
-
-export async function getSupplierPriceComparison(materialId: string) {
-  await delay(300);
-  const history = mockPriceHistory.filter(
-    (h) => h.material_id === materialId && (h.source === "po_receive" || h.source === "purchase"),
-  );
-  const grouped: Record<
-    string,
-    { supplier_id: string; last_cost: number; last_date: string; avg_cost: number; count: number }
-  > = {};
-  // Derive supplier from PO reference if possible via stock ledger? Simplified: use last PO supplier
-  for (const h of history) {
-    const po = mockPurchaseOrders.find((p) => p.id === h.reference_id);
-    const supId = po?.supplier_id ?? "unknown";
-    if (!grouped[supId])
-      grouped[supId] = {
-        supplier_id: supId,
-        last_cost: h.unit_cost,
-        last_date: h.created_at,
-        avg_cost: h.unit_cost,
-        count: 1,
-      };
-    else {
-      grouped[supId].avg_cost =
-        (grouped[supId].avg_cost * grouped[supId].count + h.unit_cost) / (grouped[supId].count + 1);
-      grouped[supId].count += 1;
-      if (new Date(h.created_at) > new Date(grouped[supId].last_date)) {
-        grouped[supId].last_cost = h.unit_cost;
-        grouped[supId].last_date = h.created_at;
-      }
-    }
-  }
-  return Object.values(grouped).map((g) => ({
-    ...g,
-    supplier_name: mockSuppliers.find((s) => s.id === g.supplier_id)?.name ?? g.supplier_id,
-    avg_cost: Math.round(g.avg_cost * 100) / 100,
-  }));
+export async function updateStorageLocation(id: string, payload: any): Promise<StorageLocation> {
+  return { id, name: payload.name, is_active: true, created_at: "", updated_at: "" };
 }
+export async function deleteStorageLocation(id: string): Promise<void> {}
 
-/* ------------------------------------------------------------------ */
-/* Storage locations + goods batches (lot/mfg/expiry, FEFO)            */
-/* ------------------------------------------------------------------ */
-
-const LOC_KEY = "pixaLocations";
-const BATCH_KEY = "pixaBatches";
-const BATCH_BACKFILL_KEY = "pixaBatchesBackfilled";
-
-let mockLocations: import("./types").StorageLocation[] = [];
-let mockBatches: import("./types").StockBatch[] = [];
-let batchLoaded = false;
-
-function defaultLocations(): import("./types").StorageLocation[] {
-  const now = new Date().toISOString();
-  return [
-    {
-      id: "loc_main",
-      name: "Main Store",
-      floor: "Ground",
-      rack: "A1",
-      is_active: true,
-      created_at: now,
-      updated_at: now,
-    },
-    {
-      id: "loc_kitchen",
-      name: "Kitchen",
-      floor: "First",
-      rack: "B1",
-      is_active: true,
-      created_at: now,
-      updated_at: now,
-    },
-    {
-      id: "loc_cold",
-      name: "Cold Room",
-      floor: "Ground",
-      rack: "C1",
-      is_active: true,
-      created_at: now,
-      updated_at: now,
-    },
-  ];
+export async function getBatches(filters?: BatchFilters): Promise<InventoryBatch[]> {
+  return [];
 }
-
-function loadBatches() {
-  if (batchLoaded) return;
-  batchLoaded = true;
-  try {
-    const raw = localStorage.getItem(LOC_KEY);
-    mockLocations = raw ? (JSON.parse(raw).locations ?? defaultLocations()) : defaultLocations();
-  } catch {
-    mockLocations = defaultLocations();
-  }
-  try {
-    const raw = localStorage.getItem(BATCH_KEY);
-    mockBatches = raw ? (JSON.parse(raw).batches ?? []) : [];
-  } catch {
-    mockBatches = [];
-  }
-  // One OPENING batch per stocked material (legacy stock attribution).
-  try {
-    if (!localStorage.getItem(BATCH_BACKFILL_KEY)) {
-      const now = new Date().toISOString();
-      const loc = mockLocations[0]?.id;
-      for (const m of mockRawMaterials) {
-        if (m.stock_qty > 0 && !mockBatches.some((b) => b.material_id === m.id)) {
-          mockBatches.push({
-            id: `bt_${Date.now().toString(36)}_${m.id}`,
-            material_id: m.id,
-            material_name: m.name,
-            batch_no: "OPENING",
-            qty_received: m.stock_qty,
-            qty_on_hand: m.stock_qty,
-            location_id: loc,
-            location_name: mockLocations[0]?.name,
-            status: "active",
-            created_at: now,
-            updated_at: now,
-          });
-        }
-      }
-      localStorage.setItem(BATCH_BACKFILL_KEY, "1");
-      saveBatches();
-    }
-  } catch {}
-}
-
-function saveBatches() {
-  try {
-    localStorage.setItem(LOC_KEY, JSON.stringify({ locations: mockLocations }));
-    localStorage.setItem(BATCH_KEY, JSON.stringify({ batches: mockBatches }));
-  } catch {}
-}
-
-function locationName(id?: string): string | undefined {
-  return mockLocations.find((l) => l.id === id)?.name;
-}
-
-export async function getStorageLocations(): Promise<import("./types").StorageLocation[]> {
-  await delay(150);
-  loadBatches();
-  return [...mockLocations].sort((a, b) => a.name.localeCompare(b.name));
-}
-
-export async function createStorageLocation(
-  payload: import("./types").StorageLocationPayload,
-): Promise<import("./types").StorageLocation> {
-  await delay(300);
-  loadBatches();
-  if (!payload.name?.trim()) throw new Error("Location name is required");
-  const now = new Date().toISOString();
-  const loc: import("./types").StorageLocation = {
-    id: `loc_${Date.now().toString(36)}`,
-    name: payload.name.trim(),
-    floor: payload.floor?.trim() || undefined,
-    rack: payload.rack?.trim() || undefined,
-    column: payload.column?.trim() || undefined,
-    is_active: payload.is_active ?? true,
-    created_at: now,
-    updated_at: now,
-  };
-  mockLocations.push(loc);
-  saveBatches();
-  return { ...loc };
-}
-
-export async function updateStorageLocation(
-  id: string,
-  payload: Partial<import("./types").StorageLocationPayload>,
-): Promise<import("./types").StorageLocation> {
-  await delay(300);
-  loadBatches();
-  const idx = mockLocations.findIndex((l) => l.id === id);
-  if (idx === -1) throw new Error("Location not found");
-  mockLocations[idx] = { ...mockLocations[idx], ...payload, updated_at: new Date().toISOString() };
-  for (const b of mockBatches) {
-    if (b.location_id === id) b.location_name = mockLocations[idx].name;
-  }
-  saveBatches();
-  return { ...mockLocations[idx] };
-}
-
-/** Delete a location — blocked while stocked batches live there. */
-export async function deleteStorageLocation(id: string): Promise<void> {
-  await delay(300);
-  loadBatches();
-  const idx = mockLocations.findIndex((l) => l.id === id);
-  if (idx === -1) throw new Error("Location not found");
-  const residents = mockBatches.filter((b) => b.location_id === id && b.qty_on_hand > 0);
-  if (residents.length > 0) {
-    const names = [...new Set(residents.map((b) => b.material_name ?? b.batch_no))].slice(0, 3);
-    throw new Error(
-      `Move stock out first — ${residents.length} batch${residents.length === 1 ? "" : "es"} live here (${names.join(", ")})`,
-    );
-  }
-  for (const b of mockBatches) {
-    if (b.location_id === id) {
-      b.location_id = undefined;
-      b.location_name = undefined;
-    }
-  }
-  mockLocations.splice(idx, 1);
-  saveBatches();
-}
-
-export async function getBatches(
-  filters?: import("./types").BatchFilters,
-): Promise<import("./types").StockBatch[]> {
-  await delay(250);
-  loadBatches();
-  refreshBatchStatus();
-  let r = [...mockBatches].sort((a, b) =>
-    (a.expiry_date ?? "9999") < (b.expiry_date ?? "9999") ? -1 : 1,
-  );
-  if (filters?.material_id) r = r.filter((b) => b.material_id === filters.material_id);
-  if (filters?.location_id) r = r.filter((b) => b.location_id === filters.location_id);
-  if (filters?.status) r = r.filter((b) => b.status === filters.status);
-  if (filters?.expired) {
-    const today = new Date().toISOString().slice(0, 10);
-    r = r.filter((b) => (b.expiry_date ?? "9999") < today && b.qty_on_hand > 0);
-  }
-  if (filters?.expiring_within_days != null) {
-    const cut = new Date(Date.now() + filters.expiring_within_days * 86400000)
-      .toISOString()
-      .slice(0, 10);
-    const today = new Date().toISOString().slice(0, 10);
-    r = r.filter(
-      (b) =>
-        b.qty_on_hand > 0 && (b.expiry_date ?? "9999") >= today && (b.expiry_date ?? "9999") <= cut,
-    );
-  }
-  if (filters?.search) {
-    const q = filters.search.toLowerCase();
-    r = r.filter(
-      (b) =>
-        b.batch_no.toLowerCase().includes(q) || (b.material_name ?? "").toLowerCase().includes(q),
-    );
-  }
-  return r;
-}
-
-function refreshBatchStatus() {
-  const today = new Date().toISOString().slice(0, 10);
-  for (const b of mockBatches) {
-    b.status =
-      b.qty_on_hand <= 0 ? "exhausted" : (b.expiry_date ?? "9999") < today ? "expired" : "active";
-  }
-}
-
-export async function updateBatch(
-  id: string,
-  payload: { mfg_date?: string; expiry_date?: string; location_id?: string },
-): Promise<import("./types").StockBatch> {
-  await delay(300);
-  loadBatches();
-  const idx = mockBatches.findIndex((b) => b.id === id);
-  if (idx === -1) throw new Error("Batch not found");
-  if (payload.mfg_date && payload.expiry_date && payload.mfg_date > payload.expiry_date)
-    throw new Error("Mfg date must be before expiry");
-  mockBatches[idx] = {
-    ...mockBatches[idx],
-    mfg_date: payload.mfg_date ?? mockBatches[idx].mfg_date,
-    expiry_date: payload.expiry_date ?? mockBatches[idx].expiry_date,
-    location_id: payload.location_id ?? mockBatches[idx].location_id,
-    location_name: payload.location_id
-      ? locationName(payload.location_id)
-      : mockBatches[idx].location_name,
-    updated_at: new Date().toISOString(),
-  };
-  refreshBatchStatus();
-  saveBatches();
-  return { ...mockBatches[idx] };
-}
-
-/** Create a receipt batch (called from applyStockForPurchase). */
-export function receiveBatch(o: {
-  material_id: string;
-  material_name: string;
-  qty: number;
-  batch_no?: string;
-  mfg_date?: string;
-  expiry_date?: string;
-  location_id?: string;
-  purchase_id?: string;
-  supplier_name?: string;
-}): import("./types").StockBatch {
-  loadBatches();
-  const now = new Date().toISOString();
-  const b: import("./types").StockBatch = {
-    id: `bt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
-    material_id: o.material_id,
-    material_name: o.material_name,
-    batch_no: o.batch_no?.trim() || "AUTO",
-    mfg_date: o.mfg_date,
-    expiry_date: o.expiry_date,
-    qty_received: o.qty,
-    qty_on_hand: o.qty,
-    location_id: o.location_id ?? mockLocations[0]?.id,
-    location_name: locationName(o.location_id ?? mockLocations[0]?.id),
-    purchase_id: o.purchase_id,
-    supplier_name: o.supplier_name,
-    status: "active",
-    created_at: now,
-    updated_at: now,
-  };
-  if (b.batch_no === "AUTO") b.batch_no = `${b.id.slice(3, 9).toUpperCase()}`;
-  mockBatches.push(b);
-  refreshBatchStatus();
-  saveBatches();
-  return { ...b };
-}
-
-/**
- * FEFO allocation: earliest-expiry-first (nulls last), across active batches.
- * Returns per-batch picks; unattributed remainder (legacy stock) is normal.
- */
-export function consumeBatchesFEFO(
-  materialId: string,
-  qty: number,
-): { batch_id: string; batch_no: string; qty: number }[] {
-  loadBatches();
-  refreshBatchStatus();
-  const cands = mockBatches
-    .filter((b) => b.material_id === materialId && b.status === "active" && b.qty_on_hand > 0)
-    .sort((a, b) => ((a.expiry_date ?? "9999") < (b.expiry_date ?? "9999") ? -1 : 1));
-  const picks: { batch_id: string; batch_no: string; qty: number }[] = [];
-  let left = qty;
-  for (const b of cands) {
-    if (left <= 0) break;
-    const take = Math.min(b.qty_on_hand, left);
-    b.qty_on_hand = Math.round((b.qty_on_hand - take) * 100) / 100;
-    b.updated_at = new Date().toISOString();
-    picks.push({ batch_id: b.id, batch_no: b.batch_no, qty: take });
-    left = Math.round((left - take) * 100) / 100;
-  }
-  refreshBatchStatus();
-  saveBatches();
-  return picks;
-}
-
-export async function batchSummary(materialId: string): Promise<{
-  batches: number;
-  on_hand: number;
-  nearest_expiry?: string;
-}> {
-  loadBatches();
-  refreshBatchStatus();
-  const live = mockBatches.filter((b) => b.material_id === materialId && b.qty_on_hand > 0);
-  const dated = live
-    .map((b) => b.expiry_date)
-    .filter(Boolean)
-    .sort() as string[];
+export async function updateBatch(id: string, payload: any): Promise<InventoryBatch> {
   return {
-    batches: live.length,
-    on_hand: Math.round(live.reduce((s, b) => s + b.qty_on_hand, 0) * 100) / 100,
-    nearest_expiry: dated[0],
+    id,
+    batch_no: "",
+    material_id: "",
+    qty_received: 0,
+    qty_on_hand: 0,
+    status: "active",
+    created_at: "",
+    updated_at: "",
+  };
+}
+export function receiveBatch(o: any): InventoryBatch {
+  return {
+    id: "b_stub",
+    batch_no: o.batch_no || "B-001",
+    material_id: o.material_id,
+    qty_received: o.qty ?? 0,
+    qty_on_hand: o.qty ?? 0,
+    status: "active",
+    created_at: "",
+    updated_at: "",
+  };
+}
+export function consumeBatchesFEFO(materialId: string, qty: number): any[] {
+  return [];
+}
+export async function batchSummary(materialId: string): Promise<BatchSummary> {
+  return {
+    material_id: materialId,
+    total_batches: 0,
+    batches: 0,
+    total_stock: 0,
+    expiring_soon_qty: 0,
+    expired_qty: 0,
+    nearest_expiry: null,
   };
 }

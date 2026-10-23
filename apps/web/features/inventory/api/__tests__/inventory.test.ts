@@ -67,7 +67,7 @@ describe("wastage", () => {
     const milk = await inventory.createRawMaterial({
       name: "Milk",
       sku: "MILK-001",
-      unit: "ltr",
+      unit: "l",
       stock_qty: 10,
       cost_price: 60,
     });
