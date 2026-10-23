@@ -13,15 +13,22 @@ export const createUserMutation = mutationOptions({
 });
 
 export const updateUserMutation = mutationOptions({
-  mutationFn: ({ orgId, id, values }: { orgId: string; id: number; values: UserMutationPayload }) =>
-    updateUser(orgId, id, values),
+  mutationFn: ({
+    orgId,
+    id,
+    values,
+  }: {
+    orgId: string;
+    id: string | number;
+    values: UserMutationPayload;
+  }) => updateUser(orgId, id, values),
   onSuccess: () => {
     getQueryClient().invalidateQueries({ queryKey: userKeys.all });
   },
 });
 
 export const deleteUserMutation = mutationOptions({
-  mutationFn: ({ orgId, id }: { orgId: string; id: number }) => deleteUser(orgId, id),
+  mutationFn: ({ orgId, id }: { orgId: string; id: string | number }) => deleteUser(orgId, id),
   onSuccess: () => {
     getQueryClient().invalidateQueries({ queryKey: userKeys.all });
   },
