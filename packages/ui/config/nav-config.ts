@@ -443,7 +443,7 @@ export const navGroups: NavGroup[] = [
     items: [
       {
         title: "API Docs",
-        url: "/dashboard/api-docs",
+        url: "/docs",
         icon: "code",
         isActive: false,
         items: [],
