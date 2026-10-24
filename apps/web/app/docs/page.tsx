@@ -26,9 +26,11 @@ export default function DocsPage() {
           </li>
         </ol>
       </div>
-      <p style={{ marginTop: 16 }}>
+      <p style={{ marginTop: 16, display: "flex", gap: 12 }}>
         <Link
           href="/api/docs"
+          target="_blank"
+          rel="noopener"
           style={{
             display: "inline-block",
             background: "#111827",
@@ -39,12 +41,32 @@ export default function DocsPage() {
             fontSize: 14,
           }}
         >
-          Open Scalar — /api/docs
+          Open Scalar — /api/docs ↗
         </Link>
+        <a
+          href="#scalar"
+          style={{
+            display: "inline-block",
+            border: "1px solid #e5e7eb",
+            padding: "8px 16px",
+            borderRadius: 6,
+            textDecoration: "none",
+            fontSize: 14,
+            color: "#111827",
+          }}
+        >
+          Try it below ↓
+        </a>
       </p>
       <p style={{ marginTop: 12, fontSize: 12, color: "#999" }}>
-        This page lives outside the dashboard layout so phone/first-run guards cannot bounce it. Sidebar &quot;API Docs&quot; now points here.
+        Scalar is Postman-in-the-browser: pick any endpoint, hit <b>Try it</b>, edit Body/Params, then <b>Send</b>. Your Better Auth cookie is sent
+        automatically (same-origin) — no manual header. If you get <code>no active organization</code>, run{" "}
+        <code>POST /api/auth/organization/set-active</code> first (see steps above). Standalone Scalar lives at{" "}
+        <code>/api/docs</code> — this page just embeds it so the sidebar never bounces.
       </p>
+      <div id="scalar" style={{ marginTop: 24, border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden", height: "80vh" }}>
+        <iframe title="Scalar API Reference" src="/api/docs" style={{ width: "100%", height: "100%", border: 0 }} />
+      </div>
     </div>
   );
 }

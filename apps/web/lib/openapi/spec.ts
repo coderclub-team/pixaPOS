@@ -13,7 +13,10 @@ export const openApiSpec = {
     description:
       "Restaurant operations platform — POS, KOT/KDS, tables, payments, inventory. All endpoints are **session-cookie authenticated** (Better Auth). After sign-in, `POST /api/auth/organization/set-active` with your `organizationId` — every business API returns `400 no active organization` until then. On a fresh Neon branch run `POST /api/onboarding` first.",
   },
-  servers: [{ url: "http://localhost:3000", description: "Local dev" }],
+  servers: [
+    { url: "/", description: "Current origin (same-origin — cookie sent automatically)" },
+    { url: "http://localhost:3000", description: "Local dev" },
+  ],
   tags: [
     { name: "Auth", description: "Better Auth session + organization activation" },
     { name: "Me", description: "Caller profile + active org context" },
