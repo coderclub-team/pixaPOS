@@ -17,7 +17,7 @@ export default async function KdsOutletPage({ params }: { params: Promise<{ outl
   return (
     <OutletRouteSync outletId={terminal.id}>
       <Suspense fallback={<BoardSkeleton />}>
-        <KdsWallboard />
+        <KdsWallboard fallbackOutlet={terminal} />
       </Suspense>
     </OutletRouteSync>
   );

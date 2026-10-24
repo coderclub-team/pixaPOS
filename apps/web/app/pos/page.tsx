@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export default async function PosPage() {
   await requireBaUser();
   const { single } = await listTerminalOutlets("pos");
-  if (single) redirect(`/pos/${single.code}`);
+  if (single) redirect(`/o/${single.organizationId}/outlet/${single.id}/pos`);
   return (
     <div className="flex min-h-dvh items-center justify-center p-6">
       <EnsureOutletDialog basePath="/pos" mode="list" />

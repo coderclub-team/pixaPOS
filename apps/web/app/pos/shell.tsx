@@ -6,6 +6,7 @@ import { Icons } from "@pixa/ui/icons";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@pixa/ui/base-ui/sidebar";
 import { ThemeModeToggle } from "@pixa/ui/themes/theme-mode-toggle";
 import SyncStatus from "@/components/sync-status";
+import { TerminalBrand } from "@/components/terminal-brand";
 import { useInstallPrompt } from "@/hooks/use-install-prompt";
 import { useServiceWorker } from "@/hooks/use-service-worker";
 import { getQueryClient } from "@/lib/query-client";
@@ -42,14 +43,18 @@ import {
  * takeaway, delivery) switch the workspace; category filtering lives in the
  * menu toolbar dialog. Mount on a counter tablet, sign in once.
  */
-export default function PosShell() {
+export default function PosShell({
+  fallbackOutlet,
+}: {
+  fallbackOutlet?: { id: string; name: string; code: string; organizationId: string } | null;
+}) {
   return (
     <SidebarProvider defaultOpen={false}>
       <OrderTypeProvider>
         <CategorySelectionProvider>
           <AppSidebar />
           <SidebarInset>
-            <PosShellMain />
+            <PosShellMain fallbackOutlet={fallbackOutlet} />
           </SidebarInset>
         </CategorySelectionProvider>
       </OrderTypeProvider>
@@ -151,7 +156,11 @@ function OrderTypePicker() {
   );
 }
 
-function PosShellMain() {
+function PosShellMain({
+  fallbackOutlet,
+}: {
+  fallbackOutlet?: { id: string; name: string; code: string; organizationId: string } | null;
+}) {
   const refresh = () => {
     const qc = getQueryClient();
     qc.invalidateQueries({ queryKey: tableKeys.all });
@@ -167,12 +176,7 @@ function PosShellMain() {
       <header className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur-sm">
         <span className="flex items-center gap-2">
           <SidebarTrigger className="-ml-1" />
-          <span className="leading-tight">
-            <span className="block text-sm font-bold">Counter terminal</span>
-            <span className="block text-[11px] text-muted-foreground">
-              Fire tickets, bill and collect
-            </span>
-          </span>
+          <TerminalBrand fallbackOutlet={fallbackOutlet} surfaceLabel="Counter" />
         </span>
         <span className="flex items-center gap-1.5">
           <OrderTypePicker />

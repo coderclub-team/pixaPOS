@@ -225,6 +225,13 @@
       "when": 1792756497503,
       "tag": "0031_inventory-terminal-domain",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792812686855,
+      "tag": "0032_fuzzy_sentinels",
+      "breakpoints": true
     }
   ]
 }

@@ -147,6 +147,59 @@ export async function listTerminalOutlets(
 }
 
 /**
+ * Resolve an outlet by explicit org + outlet ids (canonical multi-tenant URL).
+ * Used by /o/[orgId]/outlet/[outletId]/* routes — no code, no ambiguity.
+ */
+export async function requireTerminalOutletById(
+  orgId: string,
+  outletId: string,
+  surface: SurfaceKey,
+): Promise<TerminalOutlet> {
+  let session = null;
+  try {
+    session = await auth.api.getSession({ headers: await headers() });
+  } catch {
+    redirect("/auth/sign-in");
+  }
+  const user = session?.user;
+  if (!user) redirect("/auth/sign-in");
+
+  let memberships: OrgRow[];
+  try {
+    memberships = await callerOrgs(user.id);
+  } catch {
+    redirect("/dashboard");
+  }
+  if (memberships.length === 0) redirect("/onboarding");
+  const membership = memberships.find((m) => m.organizationId === orgId);
+  if (!membership) redirect("/dashboard");
+
+  const found = await db()
+    .select({
+      id: outlets.id,
+      code: outlets.code,
+      name: outlets.name,
+      organizationId: outlets.organizationId,
+      isActive: outlets.isActive,
+    })
+    .from(outlets)
+    .where(and(eq(outlets.id, outletId), eq(outlets.organizationId, orgId)))
+    .limit(1)
+    .catch(() => []);
+  const outlet = found[0];
+  if (!outlet || !outlet.isActive) notFound();
+  if (!allowedSurfaces(membership.role).includes(surface)) redirect("/dashboard");
+  const allowed = await userOutletIds(orgId, user.id, membership.role).catch(() => null);
+  if (allowed && !allowed.includes(outlet.id)) redirect("/dashboard");
+  return {
+    id: outlet.id,
+    code: outlet.code,
+    name: outlet.name,
+    organizationId: orgId,
+  };
+}
+
+/**
  * Resolve a public terminal URL (/kiosk/CODE, /qr/CODE). No session —
  * codes are globally unique so the lookup needs no org context.
  * Unknown/inactive code → 404.

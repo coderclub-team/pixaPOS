@@ -135,12 +135,19 @@ export default function TerminalAppsSwitcher() {
     ...outletsQueryOptions,
     enabled: signedIn,
   });
-  const activeCode = (() => {
+  const { organization } = useIdentity();
+  const activeOutlet = (() => {
     const id = resolveActiveOutlet(outlets ?? []);
-    return outlets?.find((o) => o.id === id)?.code ?? null;
+    return outlets?.find((o) => o.id === id) ?? null;
   })();
-  const hrefFor = (s: Surface) =>
-    s.slug && activeCode ? `${s.href}/${encodeURIComponent(activeCode)}` : s.href;
+  const activeCode = activeOutlet?.code ?? null;
+  const hrefFor = (s: Surface) => {
+    if (s.slug && activeOutlet && organization?.id) {
+      return `/o/${organization.id}/outlet/${activeOutlet.id}${s.href}`;
+    }
+    if (s.slug && activeCode) return `${s.href}/${encodeURIComponent(activeCode)}`;
+    return s.href;
+  };
 
   const go = (href: string) => {
     setOpen(false);
