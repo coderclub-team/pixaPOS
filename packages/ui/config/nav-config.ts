@@ -438,4 +438,16 @@ export const navGroups: NavGroup[] = [
       },
     ],
   },
+  {
+    label: "Developer",
+    items: [
+      {
+        title: "API Docs",
+        url: "/docs",
+        icon: "code",
+        isActive: false,
+        items: [],
+      },
+    ],
+  },
 ];

@@ -15,7 +15,7 @@ export const metadata = {
 export default async function KdsPage() {
   await requireBaUser();
   const { single } = await listTerminalOutlets("kds");
-  if (single) redirect(`/kds/${single.code}`);
+  if (single) redirect(`/o/${single.organizationId}/outlet/${single.id}/kds`);
   return (
     <div className="flex min-h-dvh items-center justify-center p-6">
       <EnsureOutletDialog basePath="/kds" mode="list" />

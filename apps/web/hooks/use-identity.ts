@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { authClient, baOrgs } from "@/lib/auth-client";
 import { ROLE_PERMISSIONS } from "@pixa/server/permissions";
 
@@ -156,8 +157,19 @@ export function useIdentity() {
       if (!active && orgs[0]) {
         try {
           await baOrgs.setActive(orgs[0].id);
-        } catch {
-          /* session endpoint will retry on next mount */
+          // F4: refresh session so activeOrganizationId is visible immediately
+          // (prevents sidebar/API disagreement on first load).
+          try {
+            await (authClient.getSession as unknown as () => Promise<unknown>)();
+          } catch {
+            // best-effort; server F3 fallback covers stale client anyway
+          }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error("[identity] setActive failed for", orgs[0].id, msg, e);
+          // Surface once per mount; server-side F3 fallback (baOrgId single-org)
+          // still unblocks APIs, so this is advisory, not blocking.
+          if (!cancelled) toast.error(`Could not activate workspace: ${msg}`);
         }
         if (cancelled) return;
         active = orgs[0];

@@ -7,7 +7,7 @@ import { headers } from "next/headers";
 import { eq, and } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { auth } from "./auth";
-import { db, baMember } from "@pixa/db";
+import { db, baMember, baSession as sessionTable } from "@pixa/db";
 import { ROLE_PERMISSIONS } from "./permissions";
 
 /**
@@ -40,10 +40,41 @@ export async function baUser() {
 /** Active org id from the session (set via organization.setActive). */
 export async function baOrgId(): Promise<string | null> {
   const session = await baSession();
-  return (
+  const active =
     (session?.session as { activeOrganizationId?: string } | undefined)?.activeOrganizationId ??
-    null
-  );
+    null;
+  if (active) return active;
+  // Single-org self-heal: user has exactly one membership and no active org
+  // (fresh session, missed setActive, or session row reset) — adopt it and
+  // persist so subsequent requests don't re-query. Multi-org users must
+  // still choose via the switcher; zero-org users stay null (caller shows
+  // "complete onboarding").
+  if (!session?.user) return null;
+  try {
+    const rows = await db()
+      .select({ orgId: baMember.organizationId })
+      .from(baMember)
+      .where(eq(baMember.userId, session.user.id))
+      .limit(2);
+    if (rows.length === 1) {
+      const orgId = rows[0].orgId;
+      const token = (session.session as { token?: string } | undefined)?.token;
+      if (token) {
+        try {
+          await db()
+            .update(sessionTable)
+            .set({ activeOrganizationId: orgId, updatedAt: new Date() })
+            .where(eq(sessionTable.token, token));
+        } catch {
+          // persist is best-effort; return value still unblocks the request
+        }
+      }
+      return orgId;
+    }
+  } catch {
+    // member lookup failed (cold Neon, etc.) — treat as no org
+  }
+  return null;
 }
 
 export async function baMemberRole(orgId: string, userId: string): Promise<string | null> {

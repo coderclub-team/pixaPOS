@@ -101,44 +101,78 @@ function getAuth(): AuthInstance {
       // Next.js app (see lib/hosts.ts). Local + LAN origins included —
       // local.pixapos.store has a real public suffix so origin checks pass
       // where bare .local names are rejected.
-      trustedOrigins: [
-        "http://localhost:3000",
-        "https://localhost:3000",
-        "http://localhost:443",
-        "https://localhost:443",
-        "http://local.pixapos.store:3000",
-        "https://local.pixapos.store:3000",
-        "https://local.pixapos.store",
-        "https://admin.local.pixapos.store",
-        "https://app.local.pixapos.store",
-        "https://pos.local.pixapos.store",
-        "https://kot.local.pixapos.store",
-        "https://kds.local.pixapos.store",
-        "https://kiosk.local.pixapos.store",
-        "https://order.local.pixapos.store",
-        "https://shop.local.pixapos.store",
-        "https://pixapos.store",
-        "https://www.pixapos.store",
-        "https://develop.pixapos.store",
-        "https://app.develop.pixapos.store",
-        "https://admin.develop.pixapos.store",
-        "https://pos.develop.pixapos.store",
-        "https://captain.develop.pixapos.store",
-        "https://kot.develop.pixapos.store",
-        "https://kds.develop.pixapos.store",
-        "https://kiosk.develop.pixapos.store",
-        "https://order.develop.pixapos.store",
-        "https://qr.develop.pixapos.store",
-        "https://shop.develop.pixapos.store",
-        "https://admin.pixapos.store",
-        "https://app.pixapos.store",
-        "https://pos.pixapos.store",
-        "https://kot.pixapos.store",
-        "https://kds.pixapos.store",
-        "https://kiosk.pixapos.store",
-        "https://order.pixapos.store",
-        "https://shop.pixapos.store",
-      ],
+      // Dynamic form: same-origin + loopback/LAN + *.pixapos.store +
+      // EXTRA_TRUSTED_ORIGINS are accepted so POS tablets (192.168.x.x),
+      // 127.0.0.1, Cloudflare tunnels, and custom restaurant domains never
+      // 403 `POST /organization/set-active` (which 400s every API when it fails).
+      trustedOrigins: async (request?: Request) => {
+        const staticOrigins = [
+          "http://localhost:3000",
+          "https://localhost:3000",
+          "http://localhost:443",
+          "https://localhost:443",
+          "http://127.0.0.1:3000",
+          "https://127.0.0.1:3000",
+          "http://local.pixapos.store:3000",
+          "https://local.pixapos.store:3000",
+          "https://local.pixapos.store",
+          "https://admin.local.pixapos.store",
+          "https://app.local.pixapos.store",
+          "https://pos.local.pixapos.store",
+          "https://kot.local.pixapos.store",
+          "https://kds.local.pixapos.store",
+          "https://kiosk.local.pixapos.store",
+          "https://order.local.pixapos.store",
+          "https://shop.local.pixapos.store",
+          "https://pixapos.store",
+          "https://www.pixapos.store",
+          "https://develop.pixapos.store",
+          "https://app.develop.pixapos.store",
+          "https://admin.develop.pixapos.store",
+          "https://pos.develop.pixapos.store",
+          "https://captain.develop.pixapos.store",
+          "https://kot.develop.pixapos.store",
+          "https://kds.develop.pixapos.store",
+          "https://kiosk.develop.pixapos.store",
+          "https://order.develop.pixapos.store",
+          "https://qr.develop.pixapos.store",
+          "https://shop.develop.pixapos.store",
+          "https://admin.pixapos.store",
+          "https://app.pixapos.store",
+          "https://pos.pixapos.store",
+          "https://kot.pixapos.store",
+          "https://kds.pixapos.store",
+          "https://kiosk.pixapos.store",
+          "https://order.pixapos.store",
+          "https://shop.pixapos.store",
+        ];
+        const extra = (process.env.EXTRA_TRUSTED_ORIGINS ?? "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const dynamic: string[] = [...staticOrigins, ...extra];
+        if (request) {
+          try {
+            const raw = request.headers.get("origin") ?? request.headers.get("referer") ?? "";
+            if (raw) {
+              const origin = new URL(raw).origin;
+              const host = new URL(origin).hostname;
+              const isLoopback = host === "localhost" || host === "127.0.0.1" || host === "::1";
+              const isPrivateLan =
+                /^192\.168\.\d+\.\d+$/.test(host) ||
+                /^10\.\d+\.\d+\.\d+$/.test(host) ||
+                /^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+$/.test(host);
+              const isPixapos = host === "pixapos.store" || host.endsWith(".pixapos.store");
+              if (isLoopback || isPrivateLan || isPixapos) {
+                dynamic.push(origin);
+              }
+            }
+          } catch {
+            // ignore malformed origin/referer
+          }
+        }
+        return dynamic;
+      },
       // Cross-subdomain session: production cookies are scoped to the parent
       // domain so one sign-in works on app/pos/kds/... Default cookie names
       // are kept (changing the prefix would orphan live sessions).

@@ -71,7 +71,7 @@ export const outlets = pgTable(
   },
   (t) => [
     index("outlets_org_idx").on(t.organizationId),
-    uniqueIndex("outlets_code_uidx").on(t.code),
+    uniqueIndex("outlets_org_code_uidx").on(t.organizationId, t.code),
   ],
 );
 

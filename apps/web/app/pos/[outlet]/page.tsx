@@ -17,7 +17,7 @@ export default async function PosOutletPage({ params }: { params: Promise<{ outl
   return (
     <Suspense fallback={<PosShellSkeleton />}>
       <OutletRouteSync outletId={terminal.id}>
-        <PosShell />
+        <PosShell fallbackOutlet={terminal} />
       </OutletRouteSync>
     </Suspense>
   );

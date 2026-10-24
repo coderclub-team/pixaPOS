@@ -5,6 +5,7 @@ import { Button } from "@pixa/ui/base-ui/button";
 import { Icons } from "@pixa/ui/icons";
 import { ThemeModeToggle } from "@pixa/ui/themes/theme-mode-toggle";
 import SyncStatus from "@/components/sync-status";
+import { TerminalBrand } from "@/components/terminal-brand";
 import { RealtimeConnectionStatus } from "@/components/realtime-connection-status";
 import { PixaSoundControl } from "@/components/pixa-sound-control";
 import { usePixaNotifications } from "@/hooks/use-pixa-notifications";
@@ -20,7 +21,11 @@ import KdsBoard from "@/features/kitchen/components/kds-board";
  * service-worker registration. Mount on a wall tablet, sign in once, Add to
  * Home Screen.
  */
-export default function KdsWallboard() {
+export default function KdsWallboard({
+  fallbackOutlet,
+}: {
+  fallbackOutlet?: { id: string; name: string; code: string; organizationId: string } | null;
+} = {}) {
   const { installEvt, installed, promptInstall: install } = useInstallPrompt();
   const swReady = useServiceWorker();
   const { state: rtState, lastSequence } = usePixaNotifications("KDS");
@@ -61,12 +66,10 @@ export default function KdsWallboard() {
           <header className="flex shrink-0 items-center justify-between gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur-sm">
             <span className="flex items-center gap-2">
               <SidebarTrigger className="-ml-1" />
-              <span className="leading-tight">
-                <span className="block text-sm font-bold">Kitchen</span>
-                <span className="block text-[11px] text-muted-foreground">
-                  {swReady ? "Offline-ready" : "Connecting…"}
-                  {wake ? " · Screen awake" : ""}
-                </span>
+              <TerminalBrand fallbackOutlet={fallbackOutlet} surfaceLabel="Kitchen" />
+              <span className="hidden text-[11px] text-muted-foreground sm:block">
+                {swReady ? "· Offline-ready" : "· Connecting…"}
+                {wake ? " · Screen awake" : ""}
               </span>
             </span>
             <span className="flex items-center gap-1.5">

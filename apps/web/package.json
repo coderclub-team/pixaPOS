@@ -25,6 +25,7 @@
     "@pixa/forms": "workspace:*",
     "@pixa/server": "workspace:*",
     "@pixa/ui": "workspace:*",
+    "@scalar/nextjs-api-reference": "^0.12.11",
     "@tabler/icons-react": "^3.40.0",
     "@tailwindcss/postcss": "^4.2.2",
     "@tanstack/react-form": "^1.28.5",

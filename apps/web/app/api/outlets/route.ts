@@ -81,8 +81,9 @@ function slugCode(name: string): string {
 /**
  * POST /api/outlets — add an outlet to the caller's organization.
  * Requires org:outlet:manage. Seeds default kitchen stations (Main Kitchen,
- * Bar) so KOT routing works immediately. Codes are globally unique so
- * they can serve as public URL slugs (/kds/CODE, /qr/CODE).
+ * Bar) so KOT routing works immediately. Codes are unique per organization
+ * (outlets_org_code_uidx) — public QR/kiosk use a separate publicSlug if
+ * globally unique URLs are needed; terminal URLs now carry org+outlet ids.
  */
 export async function POST(req: Request) {
   let body: { name?: string; code?: string } = {};

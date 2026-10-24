@@ -18,8 +18,9 @@ import { Icons } from "@pixa/ui/icons";
 import { Skeleton } from "@pixa/ui/base-ui/skeleton";
 import { outletKeys } from "@/features/outlet/api/queries";
 import { getQueryClient } from "@/lib/query-client";
+import { useIdentity } from "@/hooks/use-identity";
 
-type ScopedOutlet = { id: string; name: string; code: string };
+type ScopedOutlet = { id: string; name: string; code: string; organizationId?: string };
 
 /**
  * Outlet picker for bare terminal routes (/pos, /kds …). Staff mode lists
@@ -55,10 +56,24 @@ export function EnsureOutletDialog({
   });
   const list = scoped?.outlets ?? [];
 
+  const { organization } = useIdentity();
+  const orgId = organization?.id ?? null;
   const go = (outletCode: string) => {
     const slug = outletCode.trim().toUpperCase();
     if (!slug) return;
     router.push(`${basePath}/${encodeURIComponent(slug)}`);
+  };
+  const goById = (outletId: string, outletOrgId?: string) => {
+    const oid = outletOrgId ?? orgId;
+    if (oid && outletId) {
+      // canonical: /o/[orgId]/outlet/[outletId]/pos etc. — derive surface from basePath
+      const surface = basePath.replace(/^\//, "");
+      router.push(`/o/${oid}/outlet/${outletId}/${surface}`);
+      return;
+    }
+    // fallback to legacy code path
+    const found = list.find((o) => o.id === outletId);
+    if (found) go(found.code);
   };
 
   const createMut = useMutation({
@@ -73,12 +88,13 @@ export function EnsureOutletDialog({
       if (!res.ok) throw new Error(data.error ?? "Failed to create outlet");
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: (data: { code?: string; id?: string; organization_id?: string }) => {
       getQueryClient().invalidateQueries({ queryKey: outletKeys.list() });
       toast.success(`Outlet ${data.code} created`);
       setName("");
       setCode("");
-      if (data.code) go(data.code);
+      if (data.id) goById(data.id, (data as { organization_id?: string }).organization_id ?? orgId ?? undefined);
+      else if (data.code) go(data.code);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -108,13 +124,14 @@ export function EnsureOutletDialog({
                   <button
                     key={o.id}
                     type="button"
-                    onClick={() => go(o.code)}
+                    onClick={() => goById(o.id, (o as ScopedOutlet & { organizationId?: string }).organizationId ?? orgId ?? undefined)}
                     className="hover:bg-muted/60 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors"
                   >
                     <span className="bg-muted rounded px-1.5 py-0.5 font-mono text-[11px] font-semibold">
                       {o.code}
                     </span>
                     <span className="min-w-0 flex-1 truncate font-medium">{o.name}</span>
+                    <span className="text-muted-foreground truncate text-[11px]">{o.id.slice(0, 8)}…</span>
                   </button>
                 ))}
               </div>
