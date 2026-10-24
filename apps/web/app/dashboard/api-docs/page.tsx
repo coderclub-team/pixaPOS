@@ -39,8 +39,19 @@ export default function ApiDocsPage() {
           </li>
         </ol>
       </div>
-      <div className="overflow-hidden rounded-lg border" style={{ height: "80vh" }}>
-        <iframe title="Scalar API Reference" src="/api/docs" className="h-full w-full border-0" />
+      <div className="flex flex-col gap-3">
+        <Link
+          href="/api/docs"
+          target="_blank"
+          rel="noopener"
+          className="inline-flex w-fit items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          Open Scalar reference — /api/docs
+        </Link>
+        <p className="text-xs text-muted-foreground">
+          Opens standalone (outside the dashboard layout) so sidebar guards and HMR cannot
+          interfere. If it errors, its stack will be visible directly — paste it here.
+        </p>
       </div>
     </div>
   );
