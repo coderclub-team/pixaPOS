@@ -31,7 +31,15 @@ export async function authz(
     return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
   const organizationId = await baOrgId().catch(() => null);
   if (!organizationId)
-    return { error: NextResponse.json({ error: "no active organization" }, { status: 400 }) };
+    return {
+      error: NextResponse.json(
+        {
+          error: "no active organization",
+          hint: "Complete onboarding at /onboarding or POST /api/auth/organization/set-active with your organizationId, then retry.",
+        },
+        { status: 400 },
+      ),
+    };
   if (permission && !(await baHas(permission).catch(() => false))) {
     return {
       error: NextResponse.json({ error: `forbidden: ${permission} required` }, { status: 403 }),

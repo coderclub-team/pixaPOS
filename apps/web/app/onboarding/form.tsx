@@ -91,7 +91,13 @@ export default function OnboardingForm() {
       }
       try {
         await baOrgs.setActive(data.organizationId);
-      } catch {}
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("[onboarding] setActive failed", msg, e);
+        toast.error(
+          `Workspace created but activation failed: ${msg} — open the org switcher to activate it, or retry.`,
+        );
+      }
       toast.success("Workspace ready — trial started");
       router.replace("/dashboard");
       router.refresh();
